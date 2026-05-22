@@ -1,0 +1,1150 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Segoe UI',Arial,sans-serif;background:#EDF1F5;color:#1E2B38;font-size:12px;height:100vh;display:flex;flex-direction:column;overflow:hidden}
+
+.hdr{background:#1E2B38;display:flex;align-items:stretch;flex-shrink:0}
+.hdr-stripe{background:#5B8FA8;width:6px;flex-shrink:0}
+.hdr-main{flex:1;padding:12px 20px;display:flex;align-items:center;gap:14px}
+.hdr-title h1{font-size:17px;color:#8CBDD8;font-weight:bold;letter-spacing:.4px}
+.hdr-title p{font-size:11px;color:#3D5668;margin-top:2px}
+.hdr-right{margin-left:auto;text-align:right;font-size:11px;color:#3D5668;line-height:1.9}
+.hdr-right strong{color:#7AADC8}
+.role-badge{display:inline-block;padding:3px 12px;border-radius:20px;font-size:10px;font-weight:bold;letter-spacing:.6px;text-transform:uppercase;margin-top:3px;background:#5B8FA8;color:#EDF5FA}
+
+.tab-bar{background:#19242F;display:flex;align-items:stretch;border-bottom:2px solid #253545;flex-shrink:0;overflow-x:auto}
+.tab-btn{padding:10px 15px;font-size:11px;font-weight:bold;text-transform:uppercase;letter-spacing:.5px;cursor:pointer;border:none;background:transparent;color:#3D5668;border-bottom:2px solid transparent;margin-bottom:-2px;transition:all .15s;font-family:'Segoe UI',Arial,sans-serif;white-space:nowrap}
+.tab-btn:hover{color:#7AADC8;background:rgba(255,255,255,.04)}
+.tab-btn.active{color:#8CBDD8;border-bottom-color:#5B8FA8;background:rgba(91,143,168,.08)}
+
+.form-body{flex:1;overflow-y:auto;padding:16px 20px}
+.tab-pane{display:none}.tab-pane.active{display:block}
+
+.sec-card{background:#fff;border-radius:8px;margin-bottom:14px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,.07);border:0.5px solid #C8D8E4}
+.sec-head{background:#1E2B38;padding:10px 16px;border-left:4px solid #5B8FA8}
+.sec-head h2{font-size:13px;font-weight:bold;color:#FFFFFF;text-transform:uppercase;letter-spacing:.8px}
+.sec-head .used{font-size:11px;color:#8CBDD8;margin-top:4px;font-style:italic}
+.sec-body{padding:18px}
+
+.placeholder-box{background:#F5F8FA;border:1.5px dashed #B8CDD9;border-radius:5px;padding:14px 16px;margin-bottom:14px}
+.placeholder-tag{font-size:10px;font-weight:bold;color:#5B8FA8;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px}
+.placeholder-txt{font-size:12px;color:#7A9BB0;font-style:italic;line-height:1.7}
+
+.field{display:flex;flex-direction:column;gap:4px;margin-bottom:13px}
+.field:last-child{margin-bottom:0}
+.field label{font-size:10px;font-weight:bold;color:#2B6080;text-transform:uppercase;letter-spacing:.5px}
+.field input,.field select,.field textarea{padding:7px 10px;border:1.5px solid #B8CDD9;border-radius:4px;font-family:'Segoe UI',Arial,sans-serif;font-size:12px;color:#1E2B38;background:#FAFCFE;width:100%}
+.field input:focus,.field select:focus{border-color:#5B8FA8;outline:none}
+.field input[disabled],.field select[disabled]{background:#F5F8FA;color:#9E9E9E;border-color:#DCE8F0;cursor:not-allowed}
+.field .hint{font-size:10px;color:#7A9BB0;margin-top:2px;line-height:1.5}
+.grid-2{display:grid;grid-template-columns:1fr 1fr;gap:10px 20px}
+.grid-3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px 16px}
+
+.divider{display:flex;align-items:center;gap:10px;margin:16px 0 13px}
+.div-line{flex:1;height:1px;background:#DCE8F0}
+.div-lbl{font-size:10px;font-weight:bold;color:#5B8FA8;text-transform:uppercase;letter-spacing:.6px;white-space:nowrap}
+
+.toggle-row{display:flex;gap:8px;margin-top:4px}
+.tog-opt{padding:6px 16px;border-radius:4px;font-size:11px;font-weight:bold;border:1.5px solid #B8CDD9;background:#FAFCFE;color:#2B6080;cursor:pointer;font-family:'Segoe UI',Arial,sans-serif;transition:all .14s}
+.tog-opt:hover{background:#EDF1F5}
+.tog-opt.active{background:#1E2B38;color:#8CBDD8;border-color:#1E2B38}
+
+.btn{padding:7px 18px;border:none;border-radius:4px;font-size:12px;font-weight:bold;cursor:pointer;font-family:'Segoe UI',Arial,sans-serif;transition:all .14s}
+.btn-primary{background:#1E2B38;color:#8CBDD8}.btn-primary:hover{background:#253545}
+.btn-save{background:#5B8FA8;color:#fff}.btn-save:hover{background:#4A7A92}
+.btn-action{background:#EDF1F5;color:#2B6080;border:1.5px solid #B8CDD9}.btn-action:hover{background:#DCE8F0}
+.btn-add{background:#EDF1F5;color:#2B6080;border:1.5px solid #B8CDD9;padding:6px 13px;font-size:11px}.btn-add:hover{background:#DCE8F0}
+.btn-danger{background:#FFCDD2;color:#C62828;border:1px solid #FFCDD2;padding:4px 8px;font-size:11px}.btn-danger:hover{background:#C62828;color:#fff}
+.btn-open{padding:4px 10px;font-size:10px;font-weight:bold;border:none;border-radius:4px;cursor:pointer;font-family:'Segoe UI',Arial,sans-serif}
+.btn-open-ext{background:#E3F0F8;color:#1E5E80}.btn-open-ext:hover{background:#BBDEFB}
+.btn-open-tab{background:#E0EEE8;color:#1A5C35}.btn-open-tab:hover{background:#C8E6C9}
+.btn-open-form{background:#FFF5E0;color:#7A4D00}.btn-open-form:hover{background:#FFE0B2}
+.btn-open-none{background:#EEEEEE;color:#9E9E9E;cursor:not-allowed}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+.btn-row{display:flex;gap:8px;align-items:center;margin-top:14px;flex-wrap:wrap}
+
+.data-table{width:100%;border-collapse:collapse;font-size:12px}
+.data-table thead{background:#253545}
+.data-table thead th{padding:8px 10px;font-size:10px;font-weight:bold;text-transform:uppercase;color:#8CBDD8;text-align:left;letter-spacing:.5px}
+.data-table tbody tr{border-bottom:1px solid #EDF1F5}
+.data-table tbody tr:hover{background:#F5F8FA}
+.data-table td{padding:7px 8px;vertical-align:middle}
+.data-table td input,.data-table td select{border:1.5px solid #DCE8F0;border-radius:3px;padding:5px 7px;font-size:11px;width:100%;font-family:'Segoe UI',Arial,sans-serif;background:#FAFCFE;color:#1E2B38}
+.data-table td input:focus,.data-table td select:focus{border-color:#5B8FA8;outline:none}
+.row-num{width:30px;text-align:center;font-size:11px;color:#7A9BB0;font-weight:bold}
+
+.doc-type-pill{display:inline-block;padding:3px 9px;border-radius:3px;font-size:10px;font-weight:bold}
+.dtp-ext{background:#E3F0F8;color:#1E5E80}
+.dtp-tab{background:#E0EEE8;color:#1A5C35}
+.dtp-form{background:#FFF5E0;color:#7A4D00}
+.dtp-none{background:#EEEEEE;color:#9E9E9E}
+
+.notif-rules-table{width:100%;border-collapse:collapse;font-size:12px}
+.notif-rules-table thead{background:#253545}
+.notif-rules-table thead th{padding:8px 12px;font-size:10px;font-weight:bold;text-transform:uppercase;color:#8CBDD8;text-align:left;letter-spacing:.5px}
+.notif-rules-table tbody tr{border-bottom:1px solid #EDF1F5}
+.notif-rules-table tbody tr:hover{background:#F5F8FA}
+.notif-rules-table td{padding:8px 12px;vertical-align:middle;font-size:12px}
+.notif-rules-table .event-lbl{font-weight:bold;color:#1E2B38}
+.notif-rules-table .event-desc{font-size:10px;color:#7A9BB0;margin-top:2px}
+
+.tog-sm{padding:4px 11px;border-radius:3px;font-size:10px;font-weight:bold;border:1.5px solid #B8CDD9;background:#FAFCFE;color:#2B6080;cursor:pointer;font-family:'Segoe UI',Arial,sans-serif;transition:all .12s}
+.tog-sm.on{background:#2E7D32;color:#fff;border-color:#2E7D32}
+.tog-sm.off{background:#FAFCFE;color:#9E9E9E;border-color:#DCE8F0}
+
+.list-pill-row{display:flex;align-items:flex-start;gap:10px;margin-bottom:14px;flex-wrap:wrap}
+.list-pill-label{font-size:10px;font-weight:bold;color:#2B6080;text-transform:uppercase;letter-spacing:.5px;white-space:nowrap;padding-top:6px}
+.list-pills{display:flex;flex-wrap:wrap;gap:6px;flex:1}
+.list-pill{padding:5px 13px;border-radius:20px;font-size:11px;font-weight:bold;cursor:pointer;border:1.5px solid #B8CDD9;background:#EDF1F5;color:#2B6080;transition:all .14s;font-family:'Segoe UI',Arial,sans-serif}
+.list-pill:hover{background:#DCE8F0;border-color:#5B8FA8}
+.list-pill.active{background:#1E2B38;color:#8CBDD8;border-color:#1E2B38}
+.list-count{font-size:11px;color:#7A9BB0;margin-left:auto;white-space:nowrap;padding-top:6px}
+.list-item{display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid #F0F4F7}
+.list-item:last-child{border-bottom:none}
+.list-item input{flex:1;border:1.5px solid #DCE8F0;border-radius:3px;padding:5px 8px;font-size:12px;font-family:'Segoe UI',Arial,sans-serif}
+.list-item input:focus{border-color:#5B8FA8;outline:none}
+.list-item .del-btn{background:none;border:none;color:#B8CDD9;cursor:pointer;font-size:14px;padding:2px 6px;border-radius:3px}
+.list-item .del-btn:hover{background:#FFCDD2;color:#C62828}
+
+.dir-table{width:100%;border-collapse:collapse;font-size:12px}
+.dir-table thead{background:#253545}
+.dir-table thead th{padding:8px 12px;font-size:10px;font-weight:bold;text-transform:uppercase;color:#8CBDD8;text-align:left}
+.dir-table tbody tr{border-bottom:1px solid #EDF1F5}
+.dir-table tbody tr:hover{background:#F5F8FA}
+.dir-table td{padding:7px 12px;vertical-align:middle}
+.dir-cat{display:inline-block;padding:2px 8px;border-radius:3px;font-size:10px;font-weight:bold}
+.cat-flow{background:#E3F0F8;color:#1E5E80}
+.cat-tracker{background:#E0EEE8;color:#1A5C35}
+.cat-data{background:#FFF5E0;color:#7A4D00}
+.cat-config{background:#EDE8F5;color:#4A2580}
+.cat-hidden{background:#EEEEEE;color:#5A5A5A}
+.tab-name-pill{font-family:monospace;font-size:11px;background:#F5F8FA;border:1px solid #C8D8E4;border-radius:3px;padding:2px 7px;color:#1E2B38}
+
+.info-box{background:#E3F0F8;border:1px solid #B8CDD9;border-radius:5px;padding:11px 14px;font-size:12px;color:#1E5E80;line-height:1.6;margin-bottom:12px}
+.info-box strong{color:#1E2B38}
+
+.status-bar{padding:8px 20px;font-size:12px;font-weight:bold;text-align:center;display:none;flex-shrink:0}
+.status-bar.success{display:block;background:#C8E6C9;color:#1B5E20;border-top:2px solid #2E7D32}
+.status-bar.error{display:block;background:#FFCDD2;color:#B71C1C;border-top:2px solid #C62828}
+.status-bar.info{display:block;background:#E3F0F8;color:#1E5E80;border-top:2px solid #5B8FA8}
+
+.form-footer{background:#fff;border-top:2px solid #C8D8E4;padding:9px 20px;display:flex;justify-content:flex-end;gap:10px;flex-shrink:0}
+
+.overlay{display:none;position:fixed;inset:0;background:rgba(255,255,255,.75);z-index:9999;align-items:center;justify-content:center;flex-direction:column;gap:10px}
+.overlay.show{display:flex}
+.spinner{width:32px;height:32px;border:4px solid #C8D8E4;border-top-color:#1E2B38;border-radius:50%;animation:spin .7s linear infinite}
+.spin-lbl{font-size:12px;font-weight:bold;color:#1E2B38}
+@keyframes spin{to{transform:rotate(360deg)}}
+.ro-notice{background:#FFF5E0;border:1px solid #F9A825;border-radius:5px;padding:9px 14px;font-size:12px;color:#5D4037;margin-bottom:14px;display:none}
+</style>
+</head>
+<body>
+
+<div class="overlay show" id="overlay">
+  <div class="spinner"></div>
+  <div class="spin-lbl">Loading Settings...</div>
+</div>
+
+<div class="hdr">
+  <div class="hdr-stripe"></div>
+  <div class="hdr-main">
+    <div>
+      <div class="hdr-title"><h1>&#9881; SYSTEM SETTINGS</h1><p id="hdrSub">CSC Maintenance Tracker v3.1 &mdash; Admin Console</p></div>
+    </div>
+    <div class="hdr-right">
+      <div>Signed in as: <strong id="userEmail">&mdash;</strong></div>
+      <div><span class="role-badge" id="roleBadge">&mdash;</span></div>
+    </div>
+  </div>
+</div>
+
+<div class="tab-bar">
+  <button class="tab-btn active" onclick="switchTab('company',this)">&#127968; Company &amp; SQF Docs</button>
+  <button class="tab-btn" onclick="switchTab('sysconfig',this)">&#9881; System Config</button>
+  <button class="tab-btn" onclick="switchTab('notifications',this)">&#128231; Notifications</button>
+  <button class="tab-btn" onclick="switchTab('pm',this)">&#128295; Prev. Maintenance</button>
+  <button class="tab-btn" onclick="switchTab('managers',this)">&#128100; Manager Access</button>
+  <button class="tab-btn" onclick="switchTab('techdirectory',this)">&#128119; Tech Directory</button>
+  <button class="tab-btn" onclick="switchTab('lists',this)">&#128203; Data Lists</button>
+  <button class="tab-btn" onclick="switchTab('deptmap',this)">&#128506; Dept Mapping</button>
+  <button class="tab-btn" onclick="switchTab('directory',this)">&#128193; Tab Directory</button>
+  <button class="tab-btn" onclick="switchTab('workflow',this)">&#128260; Workflow</button>
+</div>
+
+<div class="form-body">
+
+<!-- ══ TAB 1: COMPANY & SQF DOCS ══ -->
+<div class="tab-pane active" id="pane-company">
+  <div class="ro-notice" id="ro-company">&#128065; View-only access. Contact the system admin to make changes.</div>
+
+  <div class="sec-card">
+    <div class="sec-head"><h2>&#127968; Company Information</h2><div class="used">Used in: all form headers, email footers, system dashboard</div></div>
+    <div class="sec-body">
+      <div class="grid-2">
+        <div class="field"><label>Company Name</label><input type="text" id="companyName" placeholder="Container Supply Co."></div>
+        <div class="field"><label>Location</label><input type="text" id="location" placeholder="Garden Grove, CA"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="sec-card">
+    <div class="sec-head"><h2>&#128196; SQF Related Documents</h2><div class="used">Used in: printed form headers and hold tags &mdash; IDs and revisions must match your physical SQF binder. Use the Open button on audit day to access each document instantly.</div></div>
+    <div class="sec-body">
+      <p style="font-size:12px;color:#3D5668;margin-bottom:14px;line-height:1.7">Set each document's <strong>Doc Type</strong> to control what the Open button does. Documents not yet assigned show as <em>Pending</em> and won't cause errors.</p>
+      <table class="data-table" id="docTable" style="table-layout:fixed">
+        <thead>
+          <tr>
+            <th style="width:30px">#</th>
+            <th style="width:110px">Program</th>
+            <th>Document Title</th>
+            <th style="width:110px">Document ID</th>
+            <th style="width:55px">Rev</th>
+            <th style="width:95px">Rev Date</th>
+            <th style="width:110px">Doc Type</th>
+            <th>Link / Tab / Form</th>
+            <th style="width:64px">Open</th>
+            <th style="width:32px"></th>
+          </tr>
+        </thead>
+        <tbody id="docBody"></tbody>
+      </table>
+      <div class="btn-row"><button class="btn btn-add" id="addDocBtn" onclick="addDocRow()">+ Add Document</button></div>
+    </div>
+  </div>
+  <div class="btn-row"><button class="btn btn-save" id="saveCompanyBtn" onclick="saveCompany()">&#128190; Save Company &amp; Documents</button></div>
+</div>
+
+<!-- ══ TAB 2: SYSTEM CONFIG ══ -->
+<div class="tab-pane" id="pane-sysconfig">
+  <div class="ro-notice" id="ro-sysconfig">&#128065; View-only access. Contact the system admin to make changes.</div>
+
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">
+
+    <div class="sec-card">
+      <div class="sec-head"><h2>&#9881; System Equipment Data</h2><div class="used">Used in: Add Ticket form dropdowns, Hold Tag form, equipment code auto-lookup on external sync</div></div>
+      <div class="sec-body">
+        <div class="divider"><div class="div-line"></div><div class="div-lbl">Equipment Inventory</div><div class="div-line"></div></div>
+        <div class="field"><label>Inventory Source URL</label><input type="text" id="equipSourceUrl" placeholder="https://docs.google.com/spreadsheets/d/..."><span class="hint">Google Sheet URL of the external equipment register</span></div>
+        <div class="btn-row" style="margin-top:8px"><button class="btn btn-action" onclick="doAction('settingsSyncEquipment')">&#128279; Sync Equipment Inventory Now</button></div>
+        <div class="divider"><div class="div-line"></div><div class="div-lbl">Equipment Hold Register</div><div class="div-line"></div></div>
+        <div class="field"><label>Hold Register URL</label><input type="text" id="equipHoldUrl" placeholder="https://docs.google.com/spreadsheets/d/..."><span class="hint">External FRM-029-001 spreadsheet URL</span></div>
+        <div class="field"><label>Hold Register Tab Name</label><input type="text" id="equipHoldTab" placeholder="FRM-029-001 Equipment Hold Register"><span class="hint">Exact tab name in the external sheet</span></div>
+      </div>
+    </div>
+
+    <div class="sec-card">
+      <div class="sec-head"><h2>&#128260; External Ticket Sync</h2><div class="used">Used in: automatic ticket import from external Google Form responses — runs every 5 minutes via time trigger</div></div>
+      <div class="sec-body">
+        <div class="field">
+          <label>Sync Status</label>
+          <div class="toggle-row" id="extSyncToggle">
+            <button class="tog-opt active" onclick="setToggle('extSyncToggle',this,'Y')">Y &mdash; Enabled</button>
+            <button class="tog-opt" onclick="setToggle('extSyncToggle',this,'N')">N &mdash; Disabled</button>
+          </div>
+          <span class="hint" style="margin-top:6px;display:block">Toggle off to pause sync without losing configuration</span>
+        </div>
+        <div class="divider"><div class="div-line"></div><div class="div-lbl">Source Configuration</div><div class="div-line"></div></div>
+        <div class="field"><label>Source Spreadsheet URL</label><input type="text" id="extTicketUrl" placeholder="https://docs.google.com/spreadsheets/d/..."><span class="hint">Google Sheet containing external form responses</span></div>
+        <div class="field"><label>Tab Name</label><input type="text" id="extTicketTab" placeholder="Service Tickets"><span class="hint">Exact tab name in the source sheet</span></div>
+        <div class="btn-row" style="margin-top:8px"><button class="btn btn-action" onclick="doAction('manualSyncExternalTickets')">&#128260; Sync External Tickets Now</button></div>
+      </div>
+    </div>
+
+  </div>
+
+  <div class="sec-card">
+    <div class="sec-head"><h2>&#128295; Temp Fix Monitoring</h2><div class="used">Used in: Temp Fix Monitor tab, automated inspection due &amp; past-due email alerts sent to dept managers</div></div>
+    <div class="sec-body">
+      <div class="field" style="max-width:240px"><label>Monitoring Frequency (days)</label><input type="number" id="monitoringFreq" min="1" max="90" placeholder="7"><span class="hint">How often temp-fixed equipment is flagged for re-inspection</span></div>
+    </div>
+  </div>
+
+  <div class="sec-card">
+    <div class="sec-head"><h2>&#128256; Ticket Routing Override Rules</h2><div class="used">Used in: Add Ticket form and external sync &mdash; overrides default dept-based tracker routing when keyword matches</div></div>
+    <div class="sec-body">
+      <p style="font-size:12px;color:#3D5668;margin-bottom:12px;line-height:1.6">Each rule is checked against incoming tickets. If the keyword is found in the selected field, the ticket routes to that tracker regardless of department. Leave keyword blank to disable a rule.</p>
+      <table class="data-table">
+        <thead><tr><th class="row-num">#</th><th>Keyword to Match</th><th>Match On</th><th>Route to Tracker</th></tr></thead>
+        <tbody id="routingRulesBody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="btn-row"><button class="btn btn-save" id="saveSysconfigBtn" onclick="saveSysconfig()">&#128190; Save System Config</button></div>
+</div>
+
+<!-- ══ TAB 3: NOTIFICATIONS ══ -->
+<div class="tab-pane" id="pane-notifications">
+  <div class="ro-notice" id="ro-notifications">&#128065; View-only access. Contact the system admin to make changes.</div>
+
+  <div class="sec-card">
+    <div class="sec-head"><h2>&#128231; Email Sender Settings</h2><div class="used">Used in: every system-generated email — controls the display name recipients see and which addresses receive admin-level alerts</div></div>
+    <div class="sec-body">
+      <div class="grid-2">
+        <div class="field"><label>Sender Display Name</label><input type="text" id="senderName" placeholder="CSC Maintenance Tracker"><span class="hint">Shown as the sender name in every recipient's inbox regardless of which Google account triggers the email</span></div>
+        <div class="field"><label>Admin Email Addresses</label><input type="text" id="adminEmails" placeholder="izuniga@cscmfg.com, enahabedian@cscmfg.com"><span class="hint">Comma-separated. Receive system-level alerts and monthly backup confirmation emails</span></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="sec-card">
+    <div class="sec-head"><h2>&#128203; Notification Event Rules</h2><div class="used">Used in: every notification function &mdash; this table is the single source of truth for who gets emailed and when. Toggle each recipient type on or off per event.</div></div>
+    <div class="sec-body">
+      <div class="info-box" style="margin-bottom:14px">
+        <strong>How routing works:</strong> Dept Manager = the manager who owns that ticket's department (set in Manager Access &rarr; Owned Departments). All Managers = every manager in the Manager Access list. Admins = the Admin Emails above. Additional CC = any extra address you add per event row.
+      </div>
+      <table class="notif-rules-table">
+        <thead>
+          <tr>
+            <th style="width:200px">Event</th>
+            <th style="width:110px;text-align:center">Dept Manager</th>
+            <th style="width:110px;text-align:center">All Managers</th>
+            <th style="width:90px;text-align:center">Admins</th>
+            <th>Additional CC (comma-separated)</th>
+          </tr>
+        </thead>
+        <tbody id="notifRulesBody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="sec-card">
+    <div class="sec-head"><h2>&#128119; Tech-to-Manager Routing</h2><div class="used">Used in: routing reply-to addresses and future per-tech notifications based on who submitted the ticket</div></div>
+    <div class="sec-body">
+      <p style="font-size:12px;color:#3D5668;line-height:1.7;margin-bottom:10px">Individual technician assignments, shared emails, and manager mappings are configured in the <strong>Tech Directory</strong> tab. The system uses the signed-in tech name to look up their department and manager.</p>
+      <div class="info-box">
+        <strong>Note:</strong> Multiple technicians may share a single email address (e.g. techtabs@cscmfg.com). Tech identity is determined by the name selected at sign-in, not the email address. The Tech Directory maps each name to their manager so notifications route correctly.
+      </div>
+    </div>
+  </div>
+
+  <div class="btn-row"><button class="btn btn-save" id="saveNotifBtn" onclick="saveNotifications()">&#128190; Save Notification Settings</button></div>
+</div>
+
+<!-- ══ TAB 4: PREVENTATIVE MAINTENANCE ══ -->
+<div class="tab-pane" id="pane-pm">
+  <div class="sec-card">
+    <div class="sec-head"><h2>&#128295; Preventative Maintenance System</h2><div class="used">Future integration &mdash; reserved for PM system connection. Fields are inactive until configured.</div></div>
+    <div class="sec-body">
+      <div class="placeholder-box">
+        <div class="placeholder-tag">&#9201; Placeholder &mdash; Coming Soon</div>
+        <div class="placeholder-txt">This section is reserved for integration with an external Preventative Maintenance system such as UpKeep, Fiix, or MP2. When configured, technicians will see a direct PM link in the Navigation Panel for quick access to scheduled maintenance records and work orders. Configure the URL and display name below when your PM system is ready.</div>
+      </div>
+      <div class="grid-2">
+        <div class="field"><label>PM System URL</label><input type="text" id="pmSystemUrl" placeholder="https://your-pm-system.com" disabled><span class="hint">Direct link shown to technicians in the Navigation Panel</span></div>
+        <div class="field"><label>PM System Display Name</label><input type="text" id="pmSystemName" placeholder="e.g. UpKeep, Fiix, MP2..." disabled><span class="hint">Name shown to technicians in the Navigation Panel</span></div>
+      </div>
+      <div class="grid-2" style="margin-top:10px">
+        <div class="field"><label>Integration Status</label><input type="text" value="Not Configured" disabled></div>
+        <div class="field"><label>Show PM Link to Techs</label><select disabled><option>N &mdash; Hidden (not yet active)</option><option>Y &mdash; Visible in Nav Panel</option></select></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══ TAB 5: MANAGER ACCESS ══ -->
+<div class="tab-pane" id="pane-managers">
+  <div class="ro-notice" id="ro-managers">&#128065; View-only access. Contact the system admin to make changes.</div>
+
+  <div class="sec-card">
+    <div class="sec-head"><h2>&#128272; Section 1 &mdash; System Access Control</h2><div class="used">Controls who can log in as a manager, use the Manager Review Board, approve tickets, and view System Settings</div></div>
+    <div class="sec-body">
+      <p style="font-size:12px;color:#3D5668;margin-bottom:13px;line-height:1.7">Manager Email is used for identity verification. Anyone listed here with a valid email will have manager-level access to all manager actions in the system.</p>
+      <table class="data-table">
+        <thead><tr><th class="row-num">#</th><th>Manager Name</th><th>Manager Email</th><th style="width:36px"></th></tr></thead>
+        <tbody id="mgrAccessBody"></tbody>
+      </table>
+      <div class="btn-row"><button class="btn btn-add" id="addMgrAccessBtn" onclick="addMgrAccessRow()">+ Add Manager</button></div>
+    </div>
+  </div>
+
+  <div class="sec-card">
+    <div class="sec-head"><h2>&#128231; Section 2 &mdash; Department Ownership &amp; Notification Routing</h2><div class="used">Controls which manager gets emailed for each department &mdash; used by new ticket alerts, transfer notifications, and temp fix reminders</div></div>
+    <div class="sec-body">
+      <p style="font-size:12px;color:#3D5668;margin-bottom:13px;line-height:1.7">Owned Departments tells the system which manager to email when a ticket comes in for that department. Team Emails receive relevant dept alerts alongside the manager.</p>
+      <table class="data-table">
+        <thead><tr><th class="row-num">#</th><th>Manager Name</th><th>Manager Email</th><th>Owned Departments (comma-separated)</th><th>Team Emails (comma-separated)</th><th style="width:36px"></th></tr></thead>
+        <tbody id="mgrRoutingBody"></tbody>
+      </table>
+      <div class="btn-row"><button class="btn btn-add" id="addMgrRoutingBtn" onclick="addMgrRoutingRow()">+ Add Row</button></div>
+    </div>
+  </div>
+
+  <div class="btn-row"><button class="btn btn-save" id="saveMgrBtn" onclick="saveManagers()">&#128190; Save Manager Configuration</button></div>
+</div>
+
+<!-- ══ TAB 6: TECH DIRECTORY ══ -->
+<div class="tab-pane" id="pane-techdirectory">
+  <div class="ro-notice" id="ro-techdirectory">&#128065; View-only access. Contact the system admin to make changes.</div>
+  <div class="sec-card">
+    <div class="sec-head"><h2>&#128119; Technician Directory</h2><div class="used">Used in: notification routing &mdash; maps tech name to their department, manager, and contact email for accurate alert delivery</div></div>
+    <div class="sec-body">
+      <p style="font-size:12px;color:#3D5668;margin-bottom:13px;line-height:1.7">Tech Name must match exactly what appears on tickets in the <em>Added By</em> field. Multiple technicians may share one email address. Manager Name must match a name in Manager Access Section 2 above.</p>
+      <table class="data-table">
+        <thead><tr><th class="row-num">#</th><th>Tech Name</th><th>Email Address</th><th style="width:130px">Department</th><th>Manager Name</th><th style="width:60px">Active</th><th style="width:36px"></th></tr></thead>
+        <tbody id="techBody"></tbody>
+      </table>
+      <div class="btn-row"><button class="btn btn-add" id="addTechBtn" onclick="addTechRow()">+ Add Technician</button></div>
+    </div>
+  </div>
+  <div class="btn-row"><button class="btn btn-save" id="saveTechBtn" onclick="saveTechDirectory()">&#128190; Save Tech Directory</button></div>
+</div>
+
+<!-- ══ TAB 7: DATA LISTS ══ -->
+<div class="tab-pane" id="pane-lists">
+  <div class="ro-notice" id="ro-lists">&#128065; View-only access. Contact the system admin to make changes.</div>
+  <div class="sec-card">
+    <div class="sec-head"><h2>&#128203; Dropdown List Editor</h2><div class="used">Used in: Add Ticket form, Update Ticket form, Manager Review Board &mdash; all dropdown selections pull from these lists</div></div>
+    <div class="sec-body">
+      <div class="list-pill-row">
+        <span class="list-pill-label">Select List</span>
+        <div class="list-pills" id="listPills"></div>
+        <span class="list-count" id="listCount"></span>
+      </div>
+      <div id="listEditor" style="display:none">
+        <div id="listItems" style="max-height:300px;overflow-y:auto;border:1.5px solid #DCE8F0;border-radius:4px;padding:4px 8px;background:#FAFCFE"></div>
+        <div class="btn-row">
+          <button class="btn btn-add" id="addItemBtn" onclick="addListItem()">+ Add Item</button>
+          <button class="btn btn-save" id="saveListBtn" onclick="saveList()">&#128190; Save List</button>
+        </div>
+      </div>
+      <div id="listEmpty" style="color:#7A9BB0;font-size:12px;font-style:italic">Select a list above to edit its items.</div>
+    </div>
+  </div>
+</div>
+
+<!-- ══ TAB 8: DEPT MAPPING ══ -->
+<div class="tab-pane" id="pane-deptmap">
+  <div class="ro-notice" id="ro-deptmap">&#128065; View-only access. Contact the system admin to make changes.</div>
+  <div class="sec-card">
+    <div class="sec-head"><h2>&#128506; Department Name Mapping</h2><div class="used">Used in: external ticket sync and equipment import &mdash; translates source dept names into system dept names for routing and filtering</div></div>
+    <div class="sec-body">
+      <p style="font-size:12px;color:#3D5668;margin-bottom:13px;line-height:1.7">Map source department names (from the equipment register or external tickets) to the system department names used for tracker routing and filtering. Changes here update the Dept Map tab directly.</p>
+      <table class="data-table">
+        <thead><tr><th class="row-num">#</th><th>Source Name <span style="font-weight:normal;color:#7AADC8;font-size:10px">(from equipment register or external form)</span></th><th>System Department <span style="font-weight:normal;color:#7AADC8;font-size:10px">(used for tracker routing)</span></th><th style="width:36px"></th></tr></thead>
+        <tbody id="deptMapBody"></tbody>
+      </table>
+      <div class="btn-row"><button class="btn btn-add" id="addDeptMapBtn" onclick="addDeptMapRow()">+ Add Mapping</button></div>
+    </div>
+  </div>
+  <div class="btn-row"><button class="btn btn-save" id="saveDeptMapBtn" onclick="saveDeptMap()">&#128190; Save Dept Mapping</button></div>
+</div>
+
+<!-- ══ TAB 9: TAB DIRECTORY ══ -->
+<div class="tab-pane" id="pane-directory">
+  <div class="sec-card">
+    <div class="sec-head"><h2>&#128193; Sheet Tab Directory</h2><div class="used">Read-only reference &mdash; if you rename a tab in Google Sheets you must also update the matching value in Code.gs var SH</div></div>
+    <div class="sec-body">
+      <table class="dir-table"><thead><tr><th style="width:140px">Category</th><th>Purpose</th><th>Expected Tab Name</th></tr></thead><tbody id="dirBody"></tbody></table>
+    </div>
+  </div>
+</div>
+
+<!-- ══ TAB 10: WORKFLOW ══ -->
+<div class="tab-pane" id="pane-workflow">
+  <div class="sec-card">
+    <div class="sec-head"><h2>&#128260; Ticket Workflow &mdash; How to Use the System</h2><div class="used">Reference guide for managers and technicians &mdash; shows the full ticket lifecycle from submission to closure</div></div>
+    <div class="sec-body" style="overflow-x:auto">
+      <svg viewBox="0 0 900 420" xmlns="http://www.w3.org/2000/svg" style="width:100%;min-width:700px;font-family:'Segoe UI',Arial,sans-serif">
+        <rect width="900" height="420" fill="#F8FAFB" rx="8"/>
+        <rect x="700" y="12" width="188" height="130" rx="5" fill="#fff" stroke="#C8D8E4" stroke-width="1.2"/>
+        <text x="714" y="30" font-size="10" font-weight="bold" fill="#2B6080">LEGEND</text>
+        <rect x="714" y="38" width="11" height="11" rx="2" fill="#1E2B38"/><text x="731" y="48" font-size="10" fill="#3D5668">Tech action</text>
+        <rect x="714" y="55" width="11" height="11" rx="2" fill="#2E7D32"/><text x="731" y="65" font-size="10" fill="#3D5668">Manager action</text>
+        <rect x="714" y="72" width="11" height="11" rx="2" fill="#E65100"/><text x="731" y="82" font-size="10" fill="#3D5668">Auto / System</text>
+        <rect x="714" y="89" width="11" height="11" rx="2" fill="#6A1B9A"/><text x="731" y="99" font-size="10" fill="#3D5668">External form</text>
+        <rect x="714" y="106" width="11" height="11" rx="2" fill="#B71C1C"/><text x="731" y="116" font-size="10" fill="#3D5668">Critical bypass</text>
+        <rect x="714" y="123" width="11" height="11" rx="2" fill="#5B8FA8"/><text x="731" y="133" font-size="10" fill="#3D5668">Side process</text>
+
+        <text x="55"  y="18" font-size="11" font-weight="bold" fill="#5B8FA8" text-anchor="middle">SUBMIT</text>
+        <text x="178" y="18" font-size="11" font-weight="bold" fill="#5B8FA8" text-anchor="middle">QUEUE</text>
+        <text x="298" y="18" font-size="11" font-weight="bold" fill="#5B8FA8" text-anchor="middle">REVIEW</text>
+        <text x="418" y="18" font-size="11" font-weight="bold" fill="#5B8FA8" text-anchor="middle">OPEN WORK</text>
+        <text x="538" y="18" font-size="11" font-weight="bold" fill="#5B8FA8" text-anchor="middle">COMPLETE</text>
+        <text x="635" y="18" font-size="11" font-weight="bold" fill="#5B8FA8" text-anchor="middle">CLOSED</text>
+
+        <line x1="116" y1="24" x2="116" y2="400" stroke="#DCE8F0" stroke-width="1" stroke-dasharray="4,3"/>
+        <line x1="238" y1="24" x2="238" y2="400" stroke="#DCE8F0" stroke-width="1" stroke-dasharray="4,3"/>
+        <line x1="358" y1="24" x2="358" y2="400" stroke="#DCE8F0" stroke-width="1" stroke-dasharray="4,3"/>
+        <line x1="478" y1="24" x2="478" y2="400" stroke="#DCE8F0" stroke-width="1" stroke-dasharray="4,3"/>
+        <line x1="590" y1="24" x2="590" y2="400" stroke="#DCE8F0" stroke-width="1" stroke-dasharray="4,3"/>
+
+        <!-- MAIN FLOW ROW 1 -->
+        <rect x="8" y="38" width="98" height="44" rx="5" fill="#1E2B38"/>
+        <text x="57" y="57" font-size="11" font-weight="bold" fill="#8CBDD8" text-anchor="middle">Add Ticket</text>
+        <text x="57" y="71" font-size="9" fill="#5B8FA8" text-anchor="middle">Tech submits form</text>
+
+        <line x1="106" y1="60" x2="126" y2="60" stroke="#5B8FA8" stroke-width="2" marker-end="url(#arr)"/>
+
+        <rect x="126" y="38" width="102" height="44" rx="5" fill="#E65100"/>
+        <text x="177" y="57" font-size="11" font-weight="bold" fill="#fff" text-anchor="middle">Waiting Queue</text>
+        <text x="177" y="71" font-size="9" fill="#FFCCBC" text-anchor="middle">Pending approval</text>
+
+        <line x1="228" y1="60" x2="246" y2="60" stroke="#5B8FA8" stroke-width="2" marker-end="url(#arr)"/>
+
+        <rect x="246" y="38" width="102" height="44" rx="5" fill="#2E7D32"/>
+        <text x="297" y="54" font-size="11" font-weight="bold" fill="#fff" text-anchor="middle">Manager</text>
+        <text x="297" y="67" font-size="11" font-weight="bold" fill="#fff" text-anchor="middle">Review Board</text>
+        <text x="297" y="79" font-size="9" fill="#A5D6A7" text-anchor="middle">Set priority, assign tech</text>
+
+        <line x1="348" y1="60" x2="366" y2="60" stroke="#5B8FA8" stroke-width="2" marker-end="url(#arr)"/>
+
+        <rect x="366" y="38" width="102" height="44" rx="5" fill="#1E2B38"/>
+        <text x="417" y="57" font-size="11" font-weight="bold" fill="#8CBDD8" text-anchor="middle">Open Tickets</text>
+        <text x="417" y="71" font-size="9" fill="#5B8FA8" text-anchor="middle">Tech works ticket</text>
+
+        <line x1="468" y1="60" x2="486" y2="60" stroke="#5B8FA8" stroke-width="2" marker-end="url(#arr)"/>
+
+        <rect x="486" y="38" width="96" height="44" rx="5" fill="#1565C0"/>
+        <text x="534" y="57" font-size="11" font-weight="bold" fill="#fff" text-anchor="middle">Mark Complete</text>
+        <text x="534" y="71" font-size="9" fill="#90CAF9" text-anchor="middle">Awaiting verify</text>
+
+        <line x1="582" y1="60" x2="600" y2="60" stroke="#5B8FA8" stroke-width="2" marker-end="url(#arr)"/>
+
+        <rect x="600" y="38" width="90" height="44" rx="5" fill="#2E7D32"/>
+        <text x="645" y="54" font-size="11" font-weight="bold" fill="#fff" text-anchor="middle">Manager</text>
+        <text x="645" y="67" font-size="11" font-weight="bold" fill="#fff" text-anchor="middle">Verifies</text>
+        <text x="645" y="79" font-size="9" fill="#A5D6A7" text-anchor="middle">Signs off → CLOSED</text>
+
+        <!-- CRITICAL BYPASS -->
+        <rect x="8" y="106" width="98" height="38" rx="5" fill="#B71C1C"/>
+        <text x="57" y="122" font-size="10" font-weight="bold" fill="#fff" text-anchor="middle">CRITICAL Ticket</text>
+        <text x="57" y="136" font-size="9" fill="#FFCDD2" text-anchor="middle">Auto-bypasses queue</text>
+        <line x1="106" y1="125" x2="366" y2="70" stroke="#B71C1C" stroke-width="1.5" stroke-dasharray="5,3" marker-end="url(#arrRed)"/>
+        <text x="210" y="110" font-size="9" fill="#B71C1C" font-weight="bold" text-anchor="middle">Skips Waiting &amp; Review → Open</text>
+
+        <!-- EXTERNAL -->
+        <rect x="8" y="164" width="98" height="38" rx="5" fill="#6A1B9A"/>
+        <text x="57" y="180" font-size="10" font-weight="bold" fill="#fff" text-anchor="middle">External Form</text>
+        <text x="57" y="194" font-size="9" fill="#CE93D8" text-anchor="middle">Auto-sync every 5 min</text>
+        <line x1="106" y1="183" x2="126" y2="90" stroke="#6A1B9A" stroke-width="1.5" stroke-dasharray="4,3" marker-end="url(#arrPurple)"/>
+
+        <!-- UPDATE TICKET -->
+        <rect x="366" y="108" width="102" height="38" rx="5" fill="#1E2B38"/>
+        <text x="417" y="124" font-size="10" font-weight="bold" fill="#8CBDD8" text-anchor="middle">Update Ticket</text>
+        <text x="417" y="137" font-size="9" fill="#5B8FA8" text-anchor="middle">Log work &amp; observations</text>
+        <line x1="417" y1="82" x2="417" y2="108" stroke="#5B8FA8" stroke-width="1.5" marker-end="url(#arr)"/>
+
+        <!-- DEPT TRACKER -->
+        <rect x="246" y="108" width="102" height="38" rx="5" fill="#37474F"/>
+        <text x="297" y="124" font-size="10" font-weight="bold" fill="#fff" text-anchor="middle">Dept Tracker</text>
+        <text x="297" y="137" font-size="9" fill="#90A4AE" text-anchor="middle">Sheet view by dept</text>
+        <line x1="368" y1="125" x2="348" y2="125" stroke="#546E7A" stroke-width="1.2" stroke-dasharray="4,3" marker-end="url(#arrGrey)"/>
+
+        <!-- PARTS NEEDED -->
+        <rect x="366" y="172" width="102" height="38" rx="5" fill="#4A148C"/>
+        <text x="417" y="188" font-size="10" font-weight="bold" fill="#fff" text-anchor="middle">Parts Needed</text>
+        <text x="417" y="201" font-size="9" fill="#CE93D8" text-anchor="middle">Logged &amp; tracked</text>
+        <line x1="417" y1="146" x2="417" y2="172" stroke="#546E7A" stroke-width="1.2" stroke-dasharray="4,3" marker-end="url(#arrGrey)"/>
+        <text x="423" y="163" font-size="9" fill="#546E7A">if needed</text>
+
+        <!-- TEMP FIX -->
+        <rect x="486" y="108" width="96" height="38" rx="5" fill="#E65100"/>
+        <text x="534" y="124" font-size="10" font-weight="bold" fill="#fff" text-anchor="middle">Temp Fix Monitor</text>
+        <text x="534" y="137" font-size="9" fill="#FFCCBC" text-anchor="middle">Inspection tracking</text>
+        <line x1="468" y1="127" x2="486" y2="127" stroke="#546E7A" stroke-width="1.2" stroke-dasharray="4,3" marker-end="url(#arrGrey)"/>
+        <text x="467" y="120" font-size="9" fill="#546E7A">if flagged</text>
+
+        <!-- CLOSED + MASTER LOG -->
+        <rect x="600" y="108" width="90" height="38" rx="5" fill="#1E2B38"/>
+        <text x="645" y="124" font-size="10" font-weight="bold" fill="#FFD700" text-anchor="middle">CLOSED</text>
+        <text x="645" y="137" font-size="9" fill="#5B8FA8" text-anchor="middle">Ticket archived</text>
+        <line x1="645" y1="82" x2="645" y2="108" stroke="#2E7D32" stroke-width="1.5" marker-end="url(#arrGreen)"/>
+
+        <rect x="600" y="172" width="90" height="38" rx="5" fill="#37474F"/>
+        <text x="645" y="188" font-size="10" font-weight="bold" fill="#FFD700" text-anchor="middle">Master Log</text>
+        <text x="645" y="201" font-size="9" fill="#90A4AE" text-anchor="middle">All events logged</text>
+        <line x1="645" y1="146" x2="645" y2="172" stroke="#90A4AE" stroke-width="1.2" stroke-dasharray="4,3" marker-end="url(#arrGrey)"/>
+
+        <rect x="486" y="172" width="96" height="38" rx="5" fill="#37474F"/>
+        <text x="534" y="188" font-size="10" font-weight="bold" fill="#8CBDD8" text-anchor="middle">Ticket History</text>
+        <text x="534" y="201" font-size="9" fill="#90A4AE" text-anchor="middle">Full audit trail</text>
+        <line x1="600" y1="190" x2="582" y2="190" stroke="#90A4AE" stroke-width="1.2" stroke-dasharray="4,3" marker-end="url(#arrGrey)"/>
+
+        <!-- MONTH ROLLOVER -->
+        <rect x="600" y="236" width="90" height="38" rx="5" fill="#E65100"/>
+        <text x="645" y="252" font-size="10" font-weight="bold" fill="#fff" text-anchor="middle">Month Rollover</text>
+        <text x="645" y="265" font-size="9" fill="#FFCCBC" text-anchor="middle">Close → Archive</text>
+        <line x1="645" y1="210" x2="645" y2="236" stroke="#90A4AE" stroke-width="1.2" stroke-dasharray="4,3" marker-end="url(#arrGrey)"/>
+
+        <!-- HOW-TO BOXES -->
+        <rect x="8" y="240" width="210" height="72" rx="5" fill="#FFF5E0" stroke="#F9A825" stroke-width="1.2"/>
+        <text x="20" y="258" font-size="10" font-weight="bold" fill="#E65100">SQF COMPLIANCE</text>
+        <text x="20" y="273" font-size="10" fill="#5D4037">&#10003; Temp fixes auto-monitored &amp; alerted</text>
+        <text x="20" y="287" font-size="10" fill="#5D4037">&#10003; Equipment tagged Red / Yellow / Orange</text>
+        <text x="20" y="301" font-size="10" fill="#5D4037">&#10003; Full audit trail — Master Log &amp; History</text>
+
+        <rect x="228" y="240" width="210" height="72" rx="5" fill="#F0EAF8" stroke="#9C27B0" stroke-width="1.2"/>
+        <text x="240" y="258" font-size="10" font-weight="bold" fill="#6A1B9A">HOW TECHS USE THE SYSTEM</text>
+        <text x="240" y="273" font-size="10" fill="#4A148C">1. Submit via Add Ticket or External Form</text>
+        <text x="240" y="287" font-size="10" fill="#4A148C">2. Update ticket as work progresses</text>
+        <text x="240" y="301" font-size="10" fill="#4A148C">3. Mark Complete when work is done</text>
+
+        <rect x="448" y="240" width="210" height="72" rx="5" fill="#E3F0F8" stroke="#5B8FA8" stroke-width="1.2"/>
+        <text x="460" y="258" font-size="10" font-weight="bold" fill="#1E5E80">HOW MANAGERS USE THE SYSTEM</text>
+        <text x="460" y="273" font-size="10" fill="#1A3C50">1. Review &amp; approve from Review Board</text>
+        <text x="460" y="287" font-size="10" fill="#1A3C50">2. Monitor via Dept Trackers &amp; Dashboard</text>
+        <text x="460" y="301" font-size="10" fill="#1A3C50">3. Verify completed work → closes ticket</text>
+
+        <defs>
+          <marker id="arr" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0,0 L0,6 L8,3 z" fill="#5B8FA8"/></marker>
+          <marker id="arrRed" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0,0 L0,6 L8,3 z" fill="#B71C1C"/></marker>
+          <marker id="arrPurple" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0,0 L0,6 L8,3 z" fill="#6A1B9A"/></marker>
+          <marker id="arrGrey" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0,0 L0,6 L8,3 z" fill="#90A4AE"/></marker>
+          <marker id="arrGreen" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0,0 L0,6 L8,3 z" fill="#2E7D32"/></marker>
+        </defs>
+      </svg>
+      <p style="font-size:11px;color:#7A9BB0;margin-top:12px;font-style:italic;line-height:1.6">&#9432; Critical tickets bypass Waiting Queue and Manager Review Board going directly to Open Tickets. All events append to the Master Log and Ticket History for full SQF audit traceability. Month Rollover closes completed tickets to Archive and carries forward open work.</p>
+    </div>
+  </div>
+</div>
+
+</div>
+
+<div class="status-bar" id="statusBar"></div>
+<div class="form-footer">
+  <button class="btn btn-action" onclick="google.script.host.close()">Close</button>
+</div>
+
+<script>
+var G={},IS_ADMIN=false,CURRENT_LIST='',EXT_SYNC_VAL='Y';
+
+var NOTIF_EVENTS=[
+  {key:'NEW_TICKET',    label:'New Ticket Submitted',       desc:'When any new ticket is created via Add Ticket form'},
+  {key:'EXTERNAL_TICKET',label:'External Ticket Imported', desc:'When a ticket is imported from the external sync'},
+  {key:'TRANSFER',      label:'Ticket Transfer',            desc:'When a ticket is transferred between departments'},
+  {key:'TEMP_FIX_DUE',  label:'Temp Fix Due Tomorrow',     desc:'Day-before inspection reminder'},
+  {key:'TEMP_FIX_PAST', label:'Temp Fix Past Due',          desc:'Inspection overdue alert'},
+  {key:'MONTHLY_BACKUP',label:'Monthly Backup Complete',    desc:'Backup confirmation email'},
+];
+
+var SYS_FORMS=['Add Ticket','Update Ticket','Service Report','Equipment Hold Tag','Temp Fix Inspection','Manager Review Board'];
+var SYS_TABS=['Master Log','Ticket History','Waiting Queue','Open Tickets','Closed Tickets','Parts Needed','Equipment Hold Log','Temp Fix Monitor','Reporting'];
+var DEPTS=['ELECTRICAL','MACHINE SHOP','FACILITIES','PLASTICS','METALS','LITHO'];
+
+window.onload=function(){
+  google.script.run
+    .withSuccessHandler(init)
+    .withFailureHandler(function(e){hide('overlay');showSt('Error loading: '+e.message,'error');})
+    .getSystemSettingsData();
+};
+
+function init(d){
+  hide('overlay');G=d;
+  IS_ADMIN=d.userInfo&&d.userInfo.isAdmin;
+  document.getElementById('userEmail').textContent=(d.userInfo&&d.userInfo.email)||'--';
+  document.getElementById('hdrSub').textContent=(d.companyName||'CSC')+' — Maintenance Tracker v3.1 — Admin Console';
+  var badge=document.getElementById('roleBadge');
+  badge.textContent=IS_ADMIN?'Admin':'Manager (View Only)';
+
+  val('companyName',d.companyName||'');
+  val('location',d.location||'');
+  val('equipSourceUrl',d.equipSourceUrl||'');
+  val('equipHoldUrl',d.equipHoldUrl||'');
+  val('equipHoldTab',d.equipHoldTab||'');
+  val('extTicketUrl',d.extTicketUrl||'');
+  val('extTicketTab',d.extTicketTab||'');
+  val('monitoringFreq',d.monitoringFreq||'7');
+  val('senderName',d.senderName||'CSC Maintenance Tracker');
+  val('adminEmails',d.adminEmails||'');
+
+  EXT_SYNC_VAL=d.extSyncEnabled||'Y';
+  setToggleVal('extSyncToggle',EXT_SYNC_VAL==='N'?1:0);
+
+  buildDocTable(d.sqfDocuments||[]);
+  buildRoutingRules(d.routingRules||[]);
+  buildNotifRules(d.notifRules||{});
+  buildMgrAccessTable(d.managers||[]);
+  buildMgrRoutingTable(d.managers||[]);
+  buildTechTable(d.techDirectory||[]);
+  buildListPills(d.listNames||[]);
+  buildDeptMapTable(d.deptMapping||{});
+  buildTabDirectory();
+
+  if(!IS_ADMIN)applyReadOnly();
+}
+
+function applyReadOnly(){
+  ['company','sysconfig','notifications','managers','techdirectory','lists','deptmap'].forEach(function(t){
+    var el=document.getElementById('ro-'+t);if(el)el.style.display='block';
+  });
+  document.querySelectorAll('.form-body input,.form-body select,.form-body textarea').forEach(function(el){el.disabled=true;});
+  document.querySelectorAll('.btn-save,.btn-add,.tog-opt,.tog-sm').forEach(function(el){el.disabled=true;el.style.opacity='.4';el.style.cursor='not-allowed';});
+}
+
+/* ── DOC TABLE ── */
+function buildDocTable(docs){
+  var tbody=document.getElementById('docBody');tbody.innerHTML='';
+  var defaults=[
+    {program:'Maintenance',title:'Maintenance Request & Repair Log',docId:'FRM-040-001',rev:'0',revDate:'',docType:'',link:''},
+    {program:'Maintenance',title:'Service & Repair Report',docId:'FRM-040-002',rev:'0',revDate:'',docType:'form',link:'Service Report'},
+    {program:'Equipment Hold',title:'Equipment Hold Register',docId:'FRM-029-001',rev:'0',revDate:'',docType:'tab',link:'Equipment Hold Log'},
+    {program:'Equipment Hold',title:'Equipment Hold Tag',docId:'FRM-029-002',rev:'0',revDate:'',docType:'form',link:'Equipment Hold Tag'},
+  ];
+  var rows=docs.length?docs:defaults;
+  rows.forEach(function(r,i){addDocRow_(r,i+1);});
+}
+
+function addDocRow_(r,num){
+  var tbody=document.getElementById('docBody');
+  var n=num||tbody.rows.length+1;
+  var tr=document.createElement('tr');
+  var typeOpts=['','url','tab','form'].map(function(v){
+    var lbl=v===''?'— Not set —':v==='url'?'External URL':v==='tab'?'System Tab':'System Form';
+    return'<option value="'+v+'"'+(r&&r.docType===v?' selected':'')+'>'+lbl+'</option>';
+  }).join('');
+  tr.innerHTML=
+    '<td class="row-num">'+n+'</td>'+
+    '<td><input type="text" value="'+esc(r&&r.program||'')+'" placeholder="Program" class="doc-prog"></td>'+
+    '<td><input type="text" value="'+esc(r&&r.title||'')+'" placeholder="Document Title" class="doc-title"></td>'+
+    '<td><input type="text" value="'+esc(r&&r.docId||'')+'" placeholder="FRM-000-000" class="doc-id" style="font-family:monospace"></td>'+
+    '<td><input type="text" value="'+esc(r&&r.rev||'0')+'" class="doc-rev" style="width:44px"></td>'+
+    '<td><input type="date" value="'+(r&&r.revDate||'')+'" class="doc-date"></td>'+
+    '<td><select class="doc-type" onchange="updateDocRow(this)">'+typeOpts+'</select></td>'+
+    '<td id="doc-link-cell-'+n+'">'+buildLinkCell(r&&r.docType||'',r&&r.link||'',n)+'</td>'+
+    '<td id="doc-open-cell-'+n+'">'+buildOpenBtn(r&&r.docType||'',r&&r.link||'',n)+'</td>'+
+    '<td><button class="btn btn-danger" onclick="this.closest(\'tr\').remove()">&#10005;</button></td>';
+  tbody.appendChild(tr);
+  if(!IS_ADMIN)tr.querySelectorAll('input,select,button').forEach(function(el){el.disabled=true;});
+}
+
+function addDocRow(){addDocRow_({},0);}
+
+function buildLinkCell(type,link,n){
+  if(type==='url')return'<input type="text" value="'+esc(link)+'" placeholder="https://..." class="doc-link" style="min-width:160px" onchange="refreshDocOpen(this,'+n+')">';
+  if(type==='tab'){
+    var opts=SYS_TABS.map(function(t){return'<option value="'+t+'"'+(link===t?' selected':'')+'>'+t+'</option>';}).join('');
+    return'<select class="doc-link" onchange="refreshDocOpen(this,'+n+')"><option value="">— Select Tab —</option>'+opts+'</select>';
+  }
+  if(type==='form'){
+    var opts=SYS_FORMS.map(function(f){return'<option value="'+f+'"'+(link===f?' selected':'')+'>'+f+'</option>';}).join('');
+    return'<select class="doc-link" onchange="refreshDocOpen(this,'+n+')"><option value="">— Select Form —</option>'+opts+'</select>';
+  }
+  return'<span style="font-size:11px;color:#9E9E9E;font-style:italic">Select a Doc Type first</span>';
+}
+
+function buildOpenBtn(type,link,n){
+  if(!type||!link)return'<button class="btn-open btn-open-none" disabled>&#8987; Pending</button>';
+  if(type==='url')return'<button class="btn-open btn-open-ext" onclick="openDoc(\'url\',\''+esc(link)+'\')">&#8599; Open</button>';
+  if(type==='tab')return'<button class="btn-open btn-open-tab" onclick="openDoc(\'tab\',\''+esc(link)+'\')">&#8594; Go</button>';
+  if(type==='form')return'<button class="btn-open btn-open-form" onclick="openDoc(\'form\',\''+esc(link)+'\')">&#9654; Launch</button>';
+  return'<button class="btn-open btn-open-none" disabled>&#8987; Pending</button>';
+}
+
+function updateDocRow(sel){
+  var tr=sel.closest('tr');
+  var n=tr.querySelector('.row-num')?tr.querySelector('.row-num').textContent:'0';
+  var type=sel.value;
+  var linkTd=document.getElementById('doc-link-cell-'+n);
+  var openTd=document.getElementById('doc-open-cell-'+n);
+  if(linkTd)linkTd.innerHTML=buildLinkCell(type,'',n);
+  if(openTd)openTd.innerHTML=buildOpenBtn('','',n);
+  if(!IS_ADMIN&&linkTd)linkTd.querySelectorAll('input,select').forEach(function(el){el.disabled=true;});
+}
+
+function refreshDocOpen(el,n){
+  var tr=el.closest('tr');
+  var type=tr.querySelector('.doc-type').value;
+  var link=el.value;
+  var openTd=document.getElementById('doc-open-cell-'+n);
+  if(openTd)openTd.innerHTML=buildOpenBtn(type,link,n);
+}
+
+function openDoc(type,link){
+  if(type==='url'){google.script.run.openExternalUrl(link);}
+  else if(type==='tab'){google.script.run.goToSheet(link);google.script.host.close();}
+  else if(type==='form'){google.script.run[docFormFnMap(link)]();}
+}
+
+function docFormFnMap(formName){
+  var map={'Add Ticket':'showAddTicket','Update Ticket':'showUpdateTicket','Service Report':'showServiceReport','Equipment Hold Tag':'showEquipHoldTag','Temp Fix Inspection':'showTempFixInspection','Manager Review Board':'openManagerReviewBoard'};
+  return map[formName]||'showAddTicket';
+}
+
+/* ── ROUTING RULES ── */
+function buildRoutingRules(rules){
+  var tbody=document.getElementById('routingRulesBody');tbody.innerHTML='';
+  var defaults=[{keyword:'ELECTRICAL',matchOn:'PROBLEM_TYPE',routeTo:'ELECTRICAL'},{keyword:'FACILITY',matchOn:'EQUIP_DESC',routeTo:'FACILITIES'},{},{},{}];
+  var rows=rules.length?rules:defaults;
+  for(var i=0;i<5;i++){
+    var r=rows[i]||{};
+    var tOpts=DEPTS.map(function(t){return'<option value="'+t+'"'+(r.routeTo===t?' selected':'')+'>'+t+'</option>';}).join('');
+    var tr=document.createElement('tr');
+    tr.innerHTML='<td class="row-num">'+(i+1)+'</td>'+
+      '<td><input type="text" value="'+(r.keyword||'')+'" class="rr-kw" placeholder="e.g. ELECTRICAL" style="text-transform:uppercase"></td>'+
+      '<td><select class="rr-mo"><option value="PROBLEM_TYPE"'+(r.matchOn==='PROBLEM_TYPE'?' selected':'')+'>Problem Type</option><option value="EQUIP_DESC"'+(r.matchOn==='EQUIP_DESC'?' selected':'')+'>Equipment Desc</option></select></td>'+
+      '<td><select class="rr-rt">'+tOpts+'</select></td>';
+    tbody.appendChild(tr);
+    if(!IS_ADMIN)tr.querySelectorAll('input,select').forEach(function(el){el.disabled=true;});
+  }
+}
+
+/* ── NOTIF RULES ── */
+function buildNotifRules(saved){
+  var tbody=document.getElementById('notifRulesBody');tbody.innerHTML='';
+  NOTIF_EVENTS.forEach(function(ev){
+    var s=saved[ev.key]||{deptMgr:true,allMgrs:false,admins:false,cc:''};
+    var tr=document.createElement('tr');
+    tr.innerHTML=
+      '<td><div class="event-lbl">'+ev.label+'</div><div class="event-desc">'+ev.desc+'</div></td>'+
+      '<td style="text-align:center">'+togSmHtml(ev.key+'_dm',s.deptMgr)+'</td>'+
+      '<td style="text-align:center">'+togSmHtml(ev.key+'_am',s.allMgrs)+'</td>'+
+      '<td style="text-align:center">'+togSmHtml(ev.key+'_ad',s.admins)+'</td>'+
+      '<td><input type="text" value="'+esc(s.cc||'')+'" placeholder="extra@co.com" class="nr-cc" id="nr-cc-'+ev.key+'" style="font-size:11px"></td>';
+    tbody.appendChild(tr);
+    if(!IS_ADMIN)tr.querySelectorAll('button,input').forEach(function(el){el.disabled=true;el.style.opacity='.4';});
+  });
+}
+
+function togSmHtml(id,on){
+  return'<button class="tog-sm '+(on?'on':'off')+'" id="ts-'+id+'" onclick="flipTog(\''+id+'\')">'+(on?'Y':'N')+'</button>';
+}
+
+function flipTog(id){
+  var btn=document.getElementById('ts-'+id);if(!btn||!IS_ADMIN)return;
+  var isOn=btn.classList.contains('on');
+  btn.classList.toggle('on',!isOn);btn.classList.toggle('off',isOn);
+  btn.textContent=isOn?'N':'Y';
+}
+
+/* ── MANAGER ACCESS TABLES ── */
+function buildMgrAccessTable(rows){
+  var tbody=document.getElementById('mgrAccessBody');tbody.innerHTML='';
+  if(!rows.length)rows=[{}];
+  rows.forEach(function(r,i){
+    var tr=document.createElement('tr');
+    tr.innerHTML='<td class="row-num">'+(i+1)+'</td>'+
+      '<td><input type="text" value="'+esc(r.managerName||'')+'" placeholder="Manager Name" class="ma-name"></td>'+
+      '<td><input type="text" value="'+esc(r.managerEmail||'')+'" placeholder="manager@cscmfg.com" class="ma-email"></td>'+
+      '<td><button class="btn btn-danger" onclick="this.closest(\'tr\').remove()">&#10005;</button></td>';
+    tbody.appendChild(tr);
+    if(!IS_ADMIN)tr.querySelectorAll('input,button').forEach(function(el){el.disabled=true;});
+  });
+}
+
+function addMgrAccessRow(){
+  var tbody=document.getElementById('mgrAccessBody');
+  var tr=document.createElement('tr');
+  tr.innerHTML='<td class="row-num">'+(tbody.rows.length+1)+'</td>'+
+    '<td><input type="text" placeholder="Manager Name" class="ma-name"></td>'+
+    '<td><input type="text" placeholder="manager@cscmfg.com" class="ma-email"></td>'+
+    '<td><button class="btn btn-danger" onclick="this.closest(\'tr\').remove()">&#10005;</button></td>';
+  tbody.appendChild(tr);
+}
+
+function buildMgrRoutingTable(rows){
+  var tbody=document.getElementById('mgrRoutingBody');tbody.innerHTML='';
+  if(!rows.length)rows=[{}];
+  rows.forEach(function(r,i){
+    var tr=document.createElement('tr');
+    tr.innerHTML='<td class="row-num">'+(i+1)+'</td>'+
+      '<td><input type="text" value="'+esc(r.managerName||'')+'" placeholder="Manager Name" class="mr-name"></td>'+
+      '<td><input type="text" value="'+esc(r.managerEmail||'')+'" placeholder="manager@cscmfg.com" class="mr-email"></td>'+
+      '<td><input type="text" value="'+esc(r.ownedDepts||'')+'" placeholder="PLASTICS, METALS..." class="mr-depts"></td>'+
+      '<td><input type="text" value="'+esc(r.teamEmails||'')+'" placeholder="team1@co.com, team2@co.com" class="mr-team"></td>'+
+      '<td><button class="btn btn-danger" onclick="this.closest(\'tr\').remove()">&#10005;</button></td>';
+    tbody.appendChild(tr);
+    if(!IS_ADMIN)tr.querySelectorAll('input,button').forEach(function(el){el.disabled=true;});
+  });
+}
+
+function addMgrRoutingRow(){
+  var tbody=document.getElementById('mgrRoutingBody');
+  var tr=document.createElement('tr');
+  tr.innerHTML='<td class="row-num">'+(tbody.rows.length+1)+'</td>'+
+    '<td><input type="text" placeholder="Manager Name" class="mr-name"></td>'+
+    '<td><input type="text" placeholder="manager@cscmfg.com" class="mr-email"></td>'+
+    '<td><input type="text" placeholder="PLASTICS, METALS..." class="mr-depts"></td>'+
+    '<td><input type="text" placeholder="team1@co.com, team2@co.com" class="mr-team"></td>'+
+    '<td><button class="btn btn-danger" onclick="this.closest(\'tr\').remove()">&#10005;</button></td>';
+  tbody.appendChild(tr);
+}
+
+/* ── TECH TABLE ── */
+function buildTechTable(rows){
+  var tbody=document.getElementById('techBody');tbody.innerHTML='';
+  if(!rows.length)rows=[{}];
+  rows.forEach(function(r,i){addTechRow_(r,i+1);});
+}
+
+function addTechRow_(r,num){
+  var tbody=document.getElementById('techBody');
+  var n=num||tbody.rows.length+1;
+  var dOpts='<option value=""></option>'+DEPTS.map(function(d){return'<option value="'+d+'"'+(r&&r.dept===d?' selected':'')+'>'+d+'</option>';}).join('');
+  var tr=document.createElement('tr');
+  tr.innerHTML='<td class="row-num">'+n+'</td>'+
+    '<td><input type="text" value="'+esc(r&&r.techName||'')+'" placeholder="Full Name" class="tech-name"></td>'+
+    '<td><input type="text" value="'+esc(r&&r.techEmail||'')+'" placeholder="techtabs@cscmfg.com" class="tech-email"></td>'+
+    '<td><select class="tech-dept">'+dOpts+'</select></td>'+
+    '<td><input type="text" value="'+esc(r&&r.managerName||'')+'" placeholder="Manager Name" class="tech-mgr"></td>'+
+    '<td><select class="tech-active"><option value="Y"'+(r&&r.active==='N'?'':' selected')+'>Y</option><option value="N"'+(r&&r.active==='N'?' selected':'')+'>N</option></select></td>'+
+    '<td><button class="btn btn-danger" onclick="this.closest(\'tr\').remove()">&#10005;</button></td>';
+  tbody.appendChild(tr);
+  if(!IS_ADMIN)tr.querySelectorAll('input,select,button').forEach(function(el){el.disabled=true;});
+}
+
+function addTechRow(){addTechRow_({},0);}
+
+/* ── DATA LISTS ── */
+function buildListPills(listNames){
+  var c=document.getElementById('listPills');c.innerHTML='';
+  if(!listNames||!listNames.length){c.innerHTML='<span style="font-size:12px;color:#7A9BB0;font-style:italic">No lists found.</span>';return;}
+  listNames.forEach(function(item){
+    var btn=document.createElement('button');btn.className='list-pill';btn.textContent=item.name;
+    btn.onclick=function(){document.querySelectorAll('.list-pill').forEach(function(p){p.classList.remove('active');});btn.classList.add('active');loadList(item.name);};
+    c.appendChild(btn);
+  });
+}
+
+function loadList(listName){
+  CURRENT_LIST=listName;show('overlay');
+  google.script.run
+    .withSuccessHandler(function(items){
+      hide('overlay');renderListItems(items||[]);
+      document.getElementById('listEditor').style.display='block';
+      document.getElementById('listEmpty').style.display='none';
+      document.getElementById('listCount').textContent=listName+' — '+(items||[]).length+' items';
+    })
+    .withFailureHandler(function(e){hide('overlay');showSt('Error: '+e.message,'error');})
+    .getDataListForEdit(listName);
+}
+
+function renderListItems(items){
+  var wrap=document.getElementById('listItems');wrap.innerHTML='';
+  items.forEach(function(v){addListRow_(v,wrap);});
+}
+
+function addListRow_(v,wrap){
+  if(!wrap)wrap=document.getElementById('listItems');
+  var div=document.createElement('div');div.className='list-item';
+  div.innerHTML='<input type="text" value="'+esc(v||'')+'" placeholder="Enter item..."><button class="del-btn" onclick="this.parentElement.remove()">&#10005;</button>';
+  if(!IS_ADMIN){div.querySelector('input').disabled=true;div.querySelector('button').disabled=true;}
+  wrap.appendChild(div);
+}
+
+function addListItem(){addListRow_('',null);}
+
+/* ── DEPT MAP ── */
+function buildDeptMapTable(mapping){
+  var tbody=document.getElementById('deptMapBody');tbody.innerHTML='';
+  var keys=Object.keys(mapping).sort();
+  if(!keys.length){addDeptMapRow_('','');return;}
+  keys.forEach(function(src,i){addDeptMapRow_(src,mapping[src],i+1);});
+}
+
+function addDeptMapRow_(src,dest,num){
+  var tbody=document.getElementById('deptMapBody');
+  var tr=document.createElement('tr');
+  var n=num||tbody.rows.length+1;
+  tr.innerHTML='<td class="row-num">'+n+'</td>'+
+    '<td><input type="text" value="'+esc(src||'')+'" placeholder="e.g. PLASTIC DEC" class="dm-src" style="text-transform:uppercase"></td>'+
+    '<td><input type="text" value="'+esc(dest||'')+'" placeholder="e.g. PLASTICS" class="dm-dest" style="text-transform:uppercase"></td>'+
+    '<td><button class="btn btn-danger" onclick="this.closest(\'tr\').remove()">&#10005;</button></td>';
+  tbody.appendChild(tr);
+  if(!IS_ADMIN)tr.querySelectorAll('input,button').forEach(function(el){el.disabled=true;});
+}
+
+function addDeptMapRow(){addDeptMapRow_('','');}
+
+/* ── TAB DIRECTORY ── */
+var TAB_DIR=[
+  {cat:'flow',label:'System Dashboard',purpose:'Main KPI overview, scorecards, open/waiting/critical counts'},
+  {cat:'flow',label:'Dept Drill-Down',purpose:'Analytics, trend tables and charts by department'},
+  {cat:'flow',label:'Waiting Queue',purpose:'New tickets pending manager review and approval'},
+  {cat:'flow',label:'Open Tickets',purpose:'Approved tickets currently being worked'},
+  {cat:'flow',label:'Closed Tickets',purpose:'Verified and completed tickets'},
+  {cat:'tracker',label:'Tracker — Electrical',purpose:'Electrical dept monthly tracker sheet'},
+  {cat:'tracker',label:'Tracker — Machine Shop',purpose:'Machine Shop dept monthly tracker sheet'},
+  {cat:'tracker',label:'Tracker — Facilities',purpose:'Facilities dept monthly tracker sheet'},
+  {cat:'tracker',label:'Tracker — Plastics',purpose:'Plastics dept monthly tracker sheet'},
+  {cat:'tracker',label:'Tracker — Metals',purpose:'Metals dept monthly tracker sheet'},
+  {cat:'tracker',label:'Tracker — Litho',purpose:'Litho dept monthly tracker sheet'},
+  {cat:'data',label:'Temp Fix Monitor',purpose:'SQF: active temp-fixed equipment with inspection scheduling'},
+  {cat:'data',label:'Ticket History',purpose:'Full append-only audit trail of all ticket events'},
+  {cat:'data',label:'Parts Needed',purpose:'Parts requested and ordered for open tickets'},
+  {cat:'data',label:'Equipment Hold Log',purpose:'Red and yellow equipment hold tags log'},
+  {cat:'data',label:'Report Database',purpose:'Service report records and image links'},
+  {cat:'data',label:'Master Log',purpose:'Append-only complete ticket event log — source of truth'},
+  {cat:'config',label:'Equipment Inventory',purpose:'Local synced copy of equipment register'},
+  {cat:'config',label:'Data Lists',purpose:'All dropdown validation lists used in forms'},
+  {cat:'config',label:'Configuration',purpose:'System settings key-value store'},
+  {cat:'config',label:'Manager Access',purpose:'Manager names, emails, team emails, owned departments'},
+  {cat:'config',label:'Dept Map',purpose:'Department name mapping for external sync routing'},
+  {cat:'config',label:'Archive',purpose:'Old closed ticket archive — annual rollover'},
+  {cat:'hidden',label:'Equip Inventory Cache',purpose:'IMPORTRANGE cache for equipment data (hidden)'},
+  {cat:'hidden',label:'Transfer Log',purpose:'Audit log for all department ticket transfers (hidden)'},
+];
+var CAT_MAP={flow:'TICKET FLOW',tracker:'DEPT TRACKERS',data:'DATA & SQF',config:'SYSTEM CONFIG',hidden:'HIDDEN / SYSTEM'};
+var CAT_CLS={flow:'cat-flow',tracker:'cat-tracker',data:'cat-data',config:'cat-config',hidden:'cat-hidden'};
+
+function buildTabDirectory(){
+  var tbody=document.getElementById('dirBody');tbody.innerHTML='';var lastCat='';
+  TAB_DIR.forEach(function(row){
+    if(row.cat!==lastCat){
+      var hdr=document.createElement('tr');hdr.style.background='#EDF1F5';
+      hdr.innerHTML='<td colspan="3" style="padding:7px 12px;font-size:10px;font-weight:bold;color:#2B6080;text-transform:uppercase;letter-spacing:.8px">'+CAT_MAP[row.cat]+'</td>';
+      tbody.appendChild(hdr);lastCat=row.cat;
+    }
+    var tr=document.createElement('tr');
+    tr.innerHTML='<td><span class="dir-cat '+CAT_CLS[row.cat]+'">'+CAT_MAP[row.cat]+'</span></td>'+
+      '<td style="font-size:12px;color:#263238">'+row.purpose+'</td>'+
+      '<td><span class="tab-name-pill">'+row.label+'</span></td>';
+    tbody.appendChild(tr);
+  });
+}
+
+/* ── SAVE FUNCTIONS ── */
+function saveCompany(){
+  if(!IS_ADMIN){showSt('Admin access required.','error');return;}
+  var docs=[];
+  document.querySelectorAll('#docBody tr').forEach(function(tr){
+    var prog=tr.querySelector('.doc-prog'),title=tr.querySelector('.doc-title'),id=tr.querySelector('.doc-id'),rev=tr.querySelector('.doc-rev'),date=tr.querySelector('.doc-date'),type=tr.querySelector('.doc-type'),link=tr.querySelector('.doc-link');
+    if(!prog)return;
+    docs.push({program:prog.value.trim(),title:title?title.value.trim():'',docId:id?id.value.trim():'',rev:rev?rev.value.trim():'',revDate:date?date.value:'',docType:type?type.value:'',link:link?link.value.trim():''});
+  });
+  show('overlay');
+  google.script.run
+    .withSuccessHandler(function(r){hide('overlay');r&&r.success?showSt('Company & Documents saved.','success'):showSt('Error: '+(r&&r.error),'error');})
+    .withFailureHandler(function(e){hide('overlay');showSt('Error: '+e.message,'error');})
+    .saveSystemSettings({companyName:gv('companyName'),location:gv('location'),sqfDocuments:JSON.stringify(docs)});
+}
+
+function saveSysconfig(){
+  if(!IS_ADMIN){showSt('Admin access required.','error');return;}
+  var rules=[];
+  document.querySelectorAll('#routingRulesBody tr').forEach(function(tr){
+    var kw=tr.querySelector('.rr-kw'),mo=tr.querySelector('.rr-mo'),rt=tr.querySelector('.rr-rt');
+    if(!kw||!mo||!rt)return;
+    rules.push({keyword:kw.value.trim().toUpperCase(),matchOn:mo.value,routeTo:rt.value});
+  });
+  show('overlay');
+  google.script.run
+    .withSuccessHandler(function(r){hide('overlay');r&&r.success?showSt('System config saved.','success'):showSt('Error: '+(r&&r.error),'error');})
+    .withFailureHandler(function(e){hide('overlay');showSt('Error: '+e.message,'error');})
+    .saveSystemSettings({equipSourceUrl:gv('equipSourceUrl'),equipHoldUrl:gv('equipHoldUrl'),equipHoldTab:gv('equipHoldTab'),extTicketUrl:gv('extTicketUrl'),extTicketTab:gv('extTicketTab'),extSyncEnabled:EXT_SYNC_VAL,monitoringFreq:gv('monitoringFreq'),routingRules:rules});
+}
+
+function saveNotifications(){
+  if(!IS_ADMIN){showSt('Admin access required.','error');return;}
+  var rules={};
+  NOTIF_EVENTS.forEach(function(ev){
+    var dm=document.getElementById('ts-'+ev.key+'_dm');
+    var am=document.getElementById('ts-'+ev.key+'_am');
+    var ad=document.getElementById('ts-'+ev.key+'_ad');
+    var cc=document.getElementById('nr-cc-'+ev.key);
+    rules[ev.key]={deptMgr:dm&&dm.classList.contains('on'),allMgrs:am&&am.classList.contains('on'),admins:ad&&ad.classList.contains('on'),cc:cc?cc.value.trim():''};
+  });
+  show('overlay');
+  google.script.run
+    .withSuccessHandler(function(r){hide('overlay');r&&r.success?showSt('Notification settings saved.','success'):showSt('Error: '+(r&&r.error),'error');})
+    .withFailureHandler(function(e){hide('overlay');showSt('Error: '+e.message,'error');})
+    .saveSystemSettings({senderName:gv('senderName'),adminEmails:gv('adminEmails'),notifRules:JSON.stringify(rules)});
+}
+
+function saveManagers(){
+  if(!IS_ADMIN){showSt('Admin access required.','error');return;}
+  var rows=[];
+  var accessRows=document.querySelectorAll('#mgrAccessBody tr');
+  var routingRows=document.querySelectorAll('#mgrRoutingBody tr');
+  var routingMap={};
+  routingRows.forEach(function(tr){
+    var name=tr.querySelector('.mr-name');var email=tr.querySelector('.mr-email');var depts=tr.querySelector('.mr-depts');var team=tr.querySelector('.mr-team');
+    if(!name)return;
+    routingMap[name.value.trim()]={email:email?email.value.trim():'',depts:depts?depts.value.trim():'',team:team?team.value.trim():''};
+  });
+  accessRows.forEach(function(tr){
+    var name=tr.querySelector('.ma-name');var email=tr.querySelector('.ma-email');
+    if(!name)return;
+    var n=name.value.trim(),e=email?email.value.trim():'';
+    var rd=routingMap[n]||{};
+    rows.push({managerName:n,managerEmail:e||rd.email||'',ownedDepts:rd.depts||'',teamEmails:rd.team||''});
+  });
+  show('overlay');
+  google.script.run
+    .withSuccessHandler(function(r){hide('overlay');r&&r.success?showSt('Manager configuration saved.','success'):showSt('Error: '+(r&&r.error),'error');})
+    .withFailureHandler(function(e){hide('overlay');showSt('Error: '+e.message,'error');})
+    .saveManagerAccess(rows);
+}
+
+function saveTechDirectory(){
+  if(!IS_ADMIN){showSt('Admin access required.','error');return;}
+  var rows=[];
+  document.querySelectorAll('#techBody tr').forEach(function(tr){
+    var n=tr.querySelector('.tech-name'),e=tr.querySelector('.tech-email'),d=tr.querySelector('.tech-dept'),m=tr.querySelector('.tech-mgr'),a=tr.querySelector('.tech-active');
+    if(!n)return;
+    rows.push({techName:n.value.trim(),techEmail:e?e.value.trim():'',dept:d?d.value:'',managerName:m?m.value.trim():'',active:a?a.value:'Y'});
+  });
+  show('overlay');
+  google.script.run
+    .withSuccessHandler(function(r){hide('overlay');r&&r.success?showSt('Tech Directory saved.','success'):showSt('Error: '+(r&&r.error),'error');})
+    .withFailureHandler(function(e){hide('overlay');showSt('Error: '+e.message,'error');})
+    .saveTechDirectory(rows);
+}
+
+function saveList(){
+  if(!IS_ADMIN){showSt('Admin access required.','error');return;}
+  if(!CURRENT_LIST){showSt('Select a list first.','error');return;}
+  var items=[];
+  document.querySelectorAll('#listItems .list-item input').forEach(function(inp){var v=inp.value.trim();if(v)items.push(v);});
+  show('overlay');
+  google.script.run
+    .withSuccessHandler(function(r){hide('overlay');document.getElementById('listCount').textContent=CURRENT_LIST+' — '+items.length+' items';r&&r.success?showSt('List "'+CURRENT_LIST+'" saved.','success'):showSt('Error: '+(r&&r.error),'error');})
+    .withFailureHandler(function(e){hide('overlay');showSt('Error: '+e.message,'error');})
+    .saveDataList(CURRENT_LIST,items);
+}
+
+function saveDeptMap(){
+  if(!IS_ADMIN){showSt('Admin access required.','error');return;}
+  var rows=[];
+  document.querySelectorAll('#deptMapBody tr').forEach(function(tr){
+    var s=tr.querySelector('.dm-src'),d=tr.querySelector('.dm-dest');
+    if(!s||!d)return;
+    var src=s.value.trim().toUpperCase(),dest=d.value.trim().toUpperCase();
+    if(src&&dest)rows.push({source:src,dest:dest});
+  });
+  show('overlay');
+  google.script.run
+    .withSuccessHandler(function(r){hide('overlay');r&&r.success?showSt('Dept mapping saved.','success'):showSt('Error: '+(r&&r.error),'error');})
+    .withFailureHandler(function(e){hide('overlay');showSt('Error: '+e.message,'error');})
+    .saveDeptMapping(rows);
+}
+
+function doAction(fnName){
+  show('overlay');
+  google.script.run
+    .withSuccessHandler(function(r){hide('overlay');showSt(r&&r.success?'Done.':'Error: '+(r&&r.error||'Failed.'),'info');})
+    .withFailureHandler(function(e){hide('overlay');showSt('Error: '+e.message,'error');})
+    [fnName]();
+}
+
+function setToggle(groupId,btn,val){
+  EXT_SYNC_VAL=val;
+  var group=document.getElementById(groupId);
+  group.querySelectorAll('.tog-opt').forEach(function(b){b.classList.remove('active');});
+  btn.classList.add('active');
+}
+
+function setToggleVal(groupId,idx){
+  var group=document.getElementById(groupId);if(!group)return;
+  group.querySelectorAll('.tog-opt').forEach(function(b,i){b.classList.toggle('active',i===idx);});
+}
+
+function switchTab(name,btn){
+  document.querySelectorAll('.tab-pane').forEach(function(p){p.classList.remove('active');});
+  document.querySelectorAll('.tab-btn').forEach(function(b){b.classList.remove('active');});
+  document.getElementById('pane-'+name).classList.add('active');
+  btn.classList.add('active');
+}
+
+function val(id,v){var el=document.getElementById(id);if(el)el.value=v||'';}
+function gv(id){var el=document.getElementById(id);return el?el.value.trim():'';}
+function showSt(m,t){var el=document.getElementById('statusBar');el.textContent=m;el.className='status-bar '+t;if(t!=='error')setTimeout(function(){el.className='status-bar';},4000);}
+function show(id){var e=document.getElementById(id);if(e)e.classList.add('show');}
+function hide(id){var e=document.getElementById(id);if(e){e.classList.remove('show');e.style.display='none';e.style.display='';}}
+function esc(v){return(v||'').toString().replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/"/g,'&quot;');}
+</script>
+</body>
+</html>

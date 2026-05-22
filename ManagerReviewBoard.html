@@ -1,0 +1,1012 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;overflow:hidden}
+body{font-family:Arial,sans-serif;background:#F0F4F8;color:#1A237E;font-size:12px;display:flex;flex-direction:column}
+.hdr{background:#1A237E;padding:0;display:flex;align-items:stretch;flex-shrink:0}
+.hdr-accent{background:#1565C0;width:6px;flex-shrink:0}
+.hdr-body{flex:1;padding:10px 20px;display:flex;align-items:center;gap:14px}
+.hdr-title{font-size:16px;font-weight:bold;color:#90CAF9;letter-spacing:.4px}
+.hdr-sub{font-size:10px;color:#5C6BC0;margin-top:3px}
+.hdr-stats{display:flex;gap:8px;margin-left:auto}
+.hdr-stat{text-align:center;padding:4px 12px;border-radius:4px;background:rgba(255,255,255,.1)}
+.hdr-stat-num{font-size:18px;font-weight:bold;color:#FFD700;line-height:1}
+.hdr-stat-lbl{font-size:9px;color:#90CAF9;text-transform:uppercase;letter-spacing:.5px}
+.hdr-stat.red .hdr-stat-num{color:#EF5350}
+.hdr-stat.orange .hdr-stat-num{color:#FFA726}
+.tab-bar-label{background:#1E2B7A;padding:5px 16px;font-size:11px;color:#90CAF9;letter-spacing:.3px;flex-shrink:0;border-bottom:1px solid rgba(144,202,249,.1)}
+.tab-bar{background:#263238;display:flex;border-bottom:3px solid #1565C0;flex-shrink:0}
+.tab-btn{padding:10px 16px;font-size:11px;font-weight:bold;text-transform:uppercase;letter-spacing:.5px;cursor:pointer;border:none;border-right:1px solid rgba(255,255,255,.08);background:transparent;color:#5C6BC0;border-bottom:3px solid transparent;margin-bottom:-3px;font-family:Arial;display:flex;align-items:center;gap:6px;transition:color .15s,background .15s,border-color .15s}
+.tab-btn:hover{color:#90CAF9;background:rgba(255,255,255,.04)}
+.tab-btn.active{color:#90CAF9;border-bottom-color:#90CAF9;background:rgba(144,202,249,.06)}
+.tab-btn:last-of-type{border-right:none}
+.tab-count{background:rgba(255,255,255,.12);color:#90CAF9;font-size:9px;font-weight:bold;padding:1px 6px;border-radius:10px}
+.tab-count.red{background:rgba(239,83,80,.2);color:#EF5350}
+.tab-count.orange{background:rgba(255,167,38,.2);color:#FFA726}
+.tab-count.steel{background:rgba(144,164,174,.15);color:#90A4AE}
+.dept-strip{background:#1A237E;padding:0 0 0 16px;display:flex;align-items:stretch;flex-shrink:0;border-bottom:2px solid #1565C0;border-top:1px solid rgba(144,202,249,.1)}
+.dept-strip-info{padding:0 14px 0 0;display:flex;flex-direction:column;justify-content:center;border-right:1px solid rgba(144,202,249,.15);flex-shrink:0}
+.dept-strip-label{font-size:10px;font-weight:bold;color:#90CAF9;text-transform:uppercase;letter-spacing:.8px;white-space:nowrap}
+.dept-strip-hint{font-size:10px;color:#90CAF9;white-space:nowrap;margin-top:2px}
+.dept-tabs-wrap{display:flex;flex-wrap:nowrap;overflow-x:auto;flex:1}
+.dept-chip{padding:9px 15px;border-radius:0;font-size:10px;font-weight:bold;cursor:pointer;border:none;border-bottom:3px solid transparent;border-right:1px solid rgba(144,202,249,.08);transition:color .13s,background .13s,border-color .13s;background:transparent;color:#5C6BC0;font-family:Arial;white-space:nowrap;margin-bottom:-2px}
+.dept-chip:hover{color:#90CAF9;background:rgba(255,255,255,.04)}
+.dept-chip.active{color:#FFD700;border-bottom-color:#FFD700;background:rgba(255,215,0,.06)}
+.dept-chip:last-child{border-right:none}
+.main-layout{flex:1;display:flex;overflow:hidden;min-height:0}
+
+/* LEFT PANEL — section card tickets */
+.left-panel{width:262px;flex-shrink:0;border-right:1px solid #C5CAE9;background:#F0F4F8;display:flex;flex-direction:column;overflow:hidden}
+.left-header{padding:10px 12px;background:#E8EAF6;border-bottom:1px solid #C5CAE9;flex-shrink:0}
+.left-header-title{font-size:10px;font-weight:bold;color:#1A237E;text-transform:uppercase;letter-spacing:.6px}
+.left-header-count{font-size:11px;color:#5C6BC0;margin-top:2px}
+.search-wrap{padding:7px 10px;border-bottom:1px solid #C5CAE9;background:#E8EAF6;flex-shrink:0}
+.search-wrap input{width:100%;padding:6px 10px;border:1.5px solid #C5CAE9;border-radius:4px;font-family:Arial;font-size:11px;color:#263238;background:#fff}
+.search-wrap input:focus{border-color:#1A237E;outline:none}
+.ticket-list{flex:1;overflow-y:auto;min-height:0;padding:8px;display:flex;flex-direction:column;gap:6px}
+/* ticket cards as section cards */
+.ticket-item{background:#fff;border-radius:5px;border:1px solid #C5CAE9;border-left:4px solid #E0E0E0;padding:9px 10px;cursor:pointer;transition:background .1s,border-color .1s}
+.ticket-item:hover{background:#F5F7FF;border-color:#90CAF9}
+.ticket-item.selected{background:#E3F2FD;border-color:#90CAF9}
+.ticket-item.prio-critical{border-left-color:#B71C1C}
+.ticket-item.prio-high{border-left-color:#E64A19}
+.ticket-item.prio-medium{border-left-color:#F9A825}
+.ticket-item.prio-low{border-left-color:#1565C0}
+.ticket-item.prio-none{border-left-color:#263238}
+.ticket-item.closed-item{border-left-color:#546E7A}
+.ti-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:5px}
+.ti-num-pill{font-family:monospace;font-size:10px;font-weight:bold;padding:2px 7px;border-radius:3px;color:#fff;letter-spacing:.3px}
+.ti-num-pill.prio-critical{background:#B71C1C}
+.ti-num-pill.prio-high{background:#E64A19}
+.ti-num-pill.prio-medium{background:#F9A825;color:#4a2a00}
+.ti-num-pill.prio-low{background:#1565C0}
+.ti-num-pill.prio-none{background:#263238}
+.ti-num-pill.prio-closed{background:#546E7A}
+.ti-dept{font-size:9px;font-weight:600;padding:2px 6px;border-radius:3px;background:#F0F0F0;color:#757575}
+.ti-desc{font-size:11px;font-weight:600;color:#263238;line-height:1.4;margin-bottom:3px}
+.ti-equip{font-size:10px;color:#90A4AE;margin-bottom:5px}
+.ti-bottom{display:flex;align-items:center;justify-content:space-between}
+.ti-prio-bdg{font-size:9px;font-weight:bold;padding:2px 6px;border-radius:3px}
+.ti-prio-bdg.prio-critical{background:#FFCDD2;color:#B71C1C}
+.ti-prio-bdg.prio-high{background:#FFE0B2;color:#E64A19}
+.ti-prio-bdg.prio-medium{background:#FFF9C4;color:#F57F17}
+.ti-prio-bdg.prio-low{background:#BBDEFB;color:#1565C0}
+.ti-prio-bdg.prio-none{background:#ECEFF1;color:#546E7A}
+.ti-prio-bdg.prio-closed{background:#ECEFF1;color:#546E7A}
+.ti-date{font-size:10px;color:#90A4AE}
+.empty-list{padding:24px 12px;text-align:center;color:#90A4AE;font-size:11px;font-style:italic}
+
+/* MIDDLE INFO PANEL */
+.info-panel{flex:1;min-height:0;overflow-y:auto;display:flex;flex-direction:column;background:#F0F4F8;border-right:2px solid #1565C0}
+.info-panel.closed-mode{background:#ECEFF1;border-right-color:#546E7A}
+.no-selection{flex:1;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:12px;color:#90A4AE;min-height:300px}
+.no-sel-icon{font-size:40px;opacity:.4}
+.no-sel-text{font-size:13px;font-style:italic}
+
+/* CLOSED BANNER */
+.closed-banner{background:#546E7A;padding:8px 16px;display:flex;align-items:center;gap:10px;flex-shrink:0;border-bottom:2px solid #455A64}
+.closed-banner-title{font-size:11px;font-weight:bold;color:#fff}
+.closed-banner-sub{font-size:10px;color:#B0BEC5;margin-left:auto}
+
+/* TICKET DETAIL HEADER — 2 rows, no Int/Ext */
+.detail-hdr{background:#1A237E;padding:10px 16px;display:flex;align-items:center;gap:12px;flex-shrink:0}
+.detail-ticket-num{font-size:14px;font-weight:bold;color:#FFD700;font-family:monospace}
+.detail-badges{display:flex;gap:6px;flex-wrap:wrap}
+.detail-meta{margin-left:auto;text-align:right;font-size:10px;color:#90CAF9;line-height:1.7}
+.detail-sub-row{background:#152372;padding:7px 16px;display:flex;align-items:center;gap:20px;border-top:1px solid rgba(144,202,249,.15);flex-shrink:0;flex-wrap:wrap}
+.dsri{display:flex;flex-direction:column;gap:1px}
+.dsri-lbl{font-size:9px;font-weight:bold;color:#5C6BC0;text-transform:uppercase;letter-spacing:.6px}
+.dsri-val{font-size:11px;color:#90CAF9}
+
+/* SECTION CARDS — light divider label style */
+.section-card{background:#fff;border-radius:6px;border:1px solid #C5CAE9;margin:6px 12px}
+.section-card:first-of-type{margin-top:12px}
+.section-divider{padding:7px 14px 6px;display:flex;align-items:center;gap:8px;border-bottom:1px solid #E8EAF6}
+.section-divider-label{font-size:9px;font-weight:bold;color:#1A237E;text-transform:uppercase;letter-spacing:.8px;white-space:nowrap}
+.section-divider-line{flex:1;height:1px;background:#E8EAF6}
+.section-body{padding:10px 14px}
+/* closed section card variant */
+.section-card.closed-card{border-color:#90A4AE}
+.section-card.closed-card .section-divider{border-bottom-color:#CFD8DC}
+.section-card.closed-card .section-divider-label{color:#546E7A}
+.section-card.closed-card .section-divider-line{background:#CFD8DC}
+
+/* FIELDS */
+.grid-2{display:grid;grid-template-columns:1fr 1fr;gap:10px 16px}
+.grid-3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px 16px}
+.grid-13{display:grid;grid-template-columns:160px 1fr;gap:10px 16px}
+.field{display:flex;flex-direction:column;gap:3px}
+.field label{font-size:9px;font-weight:bold;color:#5C6BC0;text-transform:uppercase;letter-spacing:.6px}
+.field select,.field input,.field textarea{padding:7px 10px;border:1.5px solid #C5CAE9;border-radius:5px;font-family:Arial;font-size:12px;color:#1A237E;background:#fff;width:100%}
+.field select:focus,.field input:focus,.field textarea:focus{border-color:#1A237E;outline:none}
+.field textarea{resize:vertical;min-height:60px}
+.field .read-val{padding:6px 9px;border:1.5px solid #ECEFF1;border-radius:5px;font-size:12px;color:#37474F;background:#F8F9FF;line-height:1.5;word-break:break-word;white-space:pre-wrap}
+.closed-field{display:flex;flex-direction:column;gap:3px;margin-bottom:10px}
+.closed-field label{font-size:9px;font-weight:bold;color:#546E7A;text-transform:uppercase;letter-spacing:.6px}
+.closed-field select,.closed-field input,.closed-field textarea{padding:7px 10px;border:1.5px solid #90A4AE;border-radius:5px;font-family:Arial;font-size:12px;color:#263238;background:#fff;width:100%}
+.closed-field select:focus,.closed-field input:focus,.closed-field textarea:focus{border-color:#546E7A;outline:none}
+.closed-field textarea{resize:vertical;min-height:58px}
+
+/* LIFECYCLE — 3-col grid */
+.lc-bar-wrap{display:flex;height:5px;border-radius:2px;overflow:hidden;gap:2px;margin-bottom:5px}
+.lc-bar-seg{border-radius:2px}
+.lc-stage-labels{display:flex;justify-content:space-between;margin-bottom:8px}
+.lc-stage-lbl{font-size:9px;color:#9E9E9E}
+.lc-stage-lbl.lc-done{color:#1565C0;font-weight:bold}
+.lc-stage-lbl.lc-cur{color:#E65100;font-weight:bold}
+.lc-grid3{display:grid;grid-template-columns:1fr 1fr 1fr;grid-template-rows:1fr 1fr;gap:5px;margin-bottom:7px}
+.lc-card{border-radius:4px;padding:7px 8px;border-left:3px solid transparent}
+.lc-card.lc-done{background:#E8F5E9;border-left-color:#1565C0}
+.lc-card.lc-cur{background:#FFF3E0;border-left-color:#E65100}
+.lc-card.lc-pend{background:#F5F5F5;border-left-color:#E0E0E0;opacity:.6}
+.lc-card.lc-closed{background:#E8F0F3;border-left-color:#546E7A}
+.lc-card.lc-span-col3{grid-column:3;grid-row:1/3;}
+.lc-card-title{font-size:9px;font-weight:bold;text-transform:uppercase;letter-spacing:.4px;margin-bottom:2px}
+.lc-card.lc-done .lc-card-title{color:#1565C0}
+.lc-card.lc-cur .lc-card-title{color:#E65100}
+.lc-card.lc-pend .lc-card-title{color:#9E9E9E}
+.lc-card.lc-closed .lc-card-title{color:#546E7A}
+.lc-card-body{font-size:9px;color:#90A4AE;line-height:1.3}
+.lc-legend{display:flex;gap:10px}
+.lc-leg-item{display:flex;align-items:center;gap:4px;font-size:9px;color:#9E9E9E}
+.lc-leg-dot{width:7px;height:7px;border-radius:50%}
+
+/* RIGHT ACTION PANEL — dividers not heavy headers */
+.action-panel{width:252px;flex-shrink:0;background:#F8F9FF;display:flex;flex-direction:column;overflow:hidden;border-left:2px solid #1565C0}
+.action-panel.closed-mode{background:#ECEFF1;border-left-color:#546E7A}
+.action-panel-title-bar{padding:9px 14px 7px;border-bottom:2px solid #E8EAF6;flex-shrink:0}
+.action-panel-title-bar.closed-bar{border-bottom-color:#CFD8DC}
+.action-panel-title{font-size:10px;font-weight:bold;color:#1A237E;text-transform:uppercase;letter-spacing:.7px}
+.action-panel-title.closed-title{color:#546E7A}
+.action-panel-body{flex:1;overflow-y:auto;padding:10px 14px;display:flex;flex-direction:column;gap:0;min-height:0}
+.action-panel-empty{flex:1;display:flex;align-items:center;justify-content:center;color:#90A4AE;font-size:11px;font-style:italic;text-align:center;padding:20px}
+.action-panel-btns{flex-shrink:0;padding:10px 14px;background:#F0F4F8;border-top:1px solid #E0E0E0;display:flex;flex-direction:column;gap:6px}
+.action-panel-btns.closed-btns{background:#E0E4E6;border-top-color:#CFD8DC}
+.ap-divider{font-size:9px;font-weight:bold;color:#9E9E9E;text-transform:uppercase;letter-spacing:.7px;padding:8px 0 4px;border-bottom:1px solid #E8EAF6;margin-bottom:7px}
+.ap-divider:first-child{padding-top:0}
+.ap-divider.closed-div{color:#90A4AE;border-bottom-color:#CFD8DC}
+.ap-field{display:flex;flex-direction:column;gap:3px;margin-bottom:8px}
+.ap-field label{font-size:9px;font-weight:bold;color:#5C6BC0;text-transform:uppercase;letter-spacing:.6px}
+.ap-field select,.ap-field input{padding:6px 8px;border:1.5px solid #C5CAE9;border-radius:4px;font-family:Arial;font-size:11px;color:#1A237E;background:#fff;width:100%}
+.ap-field select:focus,.ap-field input:focus{border-color:#1A237E;outline:none}
+.closed-note{background:#E8F0F3;border:1px solid #90A4AE;border-radius:4px;padding:9px 10px;margin-bottom:10px;font-size:10px;color:#546E7A;line-height:1.6}
+
+/* ASSIGN TO DROPDOWN */
+.assign-wrap{position:relative}
+.assign-dropdown{display:none;position:absolute;top:100%;left:0;right:0;background:#fff;border:1.5px solid #1A237E;border-radius:4px;max-height:160px;overflow-y:auto;z-index:200;box-shadow:0 3px 10px rgba(0,0,0,.15)}
+.assign-item{padding:6px 10px;cursor:pointer;font-size:11px;color:#1A237E;border-bottom:1px solid #E8EAF6}
+.assign-item:hover{background:#E3F2FD}
+.assign-item.assign-empty{color:#9E9E9E;font-style:italic}
+.assign-item:last-child{border-bottom:none}
+
+/* TAG PILLS */
+.tag-pills{display:flex;gap:6px;flex-wrap:wrap}
+.tag-pill{padding:5px 12px;border-radius:20px;border:2px solid #C5CAE9;font-size:10px;font-weight:bold;cursor:pointer;background:#F8F9FF;color:#5C6BC0;transition:all .13s}
+.tag-pill.t-none{background:#1A237E;color:#90CAF9;border-color:#1A237E}
+.tag-pill.t-green{background:#C8E6C9;color:#2E7D32;border-color:#2E7D32}
+.tag-pill.t-orange{background:#FFE0B2;color:#E64A19;border-color:#E64A19}
+.tag-pill.t-red{background:#FFCDD2;color:#C62828;border-color:#C62828}
+.tag-pill.t-reason{background:#1565C0;color:#fff;border-color:#1565C0}
+
+/* PARTS TABLE */
+.parts-table{width:100%;border-collapse:collapse;font-size:11px}
+.parts-table thead tr{background:#1A237E}
+.parts-table thead th{padding:7px 8px;color:#90CAF9;font-weight:bold;font-size:10px;text-align:left}
+.parts-table tbody td{padding:5px 8px;border-bottom:1px solid #E8EAF6}
+.parts-table tbody tr:nth-child(even) td{background:#F8F9FF}
+.parts-status-sel{border:1.5px solid #90CAF9;border-radius:4px;padding:4px 8px;font-size:11px;font-weight:bold;font-family:Arial;background:#fff;color:#1A237E;width:100%;cursor:pointer}
+.add-part-box{background:#E8EAF6;border-radius:4px;padding:10px 12px;border:1px solid #C5CAE9;margin-top:10px}
+.add-part-box-title{font-size:9px;font-weight:bold;color:#5C6BC0;text-transform:uppercase;letter-spacing:.6px;margin-bottom:8px}
+.new-parts-table{width:100%;border-collapse:collapse;font-size:11px;margin-bottom:8px}
+.new-parts-table thead tr{background:#1A237E}
+.new-parts-table thead th{padding:6px 7px;color:#90CAF9;font-weight:bold;font-size:10px;text-align:left;white-space:nowrap}
+.new-parts-table tbody td{padding:3px 4px;border-bottom:1px solid #E8EAF6;vertical-align:middle}
+.new-parts-table tbody tr:nth-child(even) td{background:#F8FBFF}
+.np-inp{width:100%;padding:4px 6px;border:1.5px solid #C5CAE9;border-radius:3px;font-family:Arial;font-size:11px;color:#1A237E;background:#fff}
+.np-inp:focus{border-color:#1A237E;outline:none}
+.np-inp.np-qty{text-align:center;width:48px}
+.np-inp.np-uom{width:80px}
+.np-del{background:none;border:none;color:#B0BEC5;font-size:14px;cursor:pointer;padding:2px 4px;font-family:Arial}
+.np-del:hover{color:#B71C1C}
+
+/* BUTTONS */
+.btn{padding:9px 18px;border:none;border-radius:5px;font-size:11px;font-weight:bold;cursor:pointer;font-family:Arial;transition:all .13s;width:100%;text-align:center}
+.btn-approve{background:linear-gradient(180deg,#1976D2 0%,#0D47A1 100%);color:#fff;border:1px solid #0A3D91;box-shadow:inset 0 1px 0 rgba(255,255,255,.15)}.btn-approve:hover{opacity:.88}
+.btn-close{background:linear-gradient(180deg,#388E3C 0%,#1B5E20 100%);color:#fff;border:1px solid #174E1A;box-shadow:inset 0 1px 0 rgba(255,255,255,.15)}.btn-close:hover{opacity:.88}
+.btn-hold{background:linear-gradient(180deg,#F57C00 0%,#BF360C 100%);color:#fff;border:1px solid #A83200;box-shadow:inset 0 1px 0 rgba(255,255,255,.15)}.btn-hold:hover{opacity:.88}
+.btn-ghost{background:transparent;border:1.5px solid #C5CAE9;color:#5C6BC0}.btn-ghost:hover{border-color:#1A237E;color:#1A237E}
+.btn-void{background:linear-gradient(180deg,#C62828 0%,#7F0000 100%);color:#fff;border:1px solid #6A0000;box-shadow:inset 0 1px 0 rgba(255,255,255,.15)}.btn-void:hover{opacity:.88}
+.btn-steel{background:linear-gradient(180deg,#607D8B 0%,#37474F 100%);color:#fff;border:1px solid #2E3F47;box-shadow:inset 0 1px 0 rgba(255,255,255,.15)}.btn-steel:hover{opacity:.88}
+.btn-row{display:flex;gap:6px}.btn-row .btn{flex:1}
+.btn:disabled{background:#B0BEC5;color:#fff;cursor:not-allowed}
+
+/* BADGES */
+.badge{display:inline-block;padding:2px 7px;border-radius:3px;font-size:9px;font-weight:bold}
+.b-critical{background:#FFCDD2;color:#C62828}
+.b-high{background:#FFE0B2;color:#E64A19}
+.b-medium{background:#FFF9C4;color:#F57F17}
+.b-low{background:#BBDEFB;color:#1565C0}
+.b-status{background:rgba(255,255,255,.15);color:#90CAF9}
+.b-dept{background:#1565C0;color:#fff}
+.b-closed{background:#ECEFF1;color:#546E7A}
+
+/* STATUS BAR */
+.status-bar{flex-shrink:0;padding:8px 20px;font-size:11px;font-weight:bold;text-align:center;display:none}
+.status-bar.success{display:block;background:#C8E6C9;color:#1B5E20;border-top:2px solid #2E7D32}
+.status-bar.error{display:block;background:#FFCDD2;color:#B71C1C;border-top:2px solid #C62828}
+.status-bar.info{display:block;background:#E3F2FD;color:#1565C0;border-top:2px solid #1565C0}
+.photo-link{display:inline-flex;align-items:center;gap:4px;color:#1565C0;font-size:11px;text-decoration:none;padding:2px 6px;border-radius:3px;background:#E3F2FD;margin:2px}
+.photo-link:hover{background:#BBDEFB}
+</style>
+</head>
+<body>
+
+<div class="hdr">
+  <div class="hdr-accent"></div>
+  <div class="hdr-body">
+    <div>
+      <div class="hdr-title">&#128309; MANAGER REVIEW BOARD</div>
+      <div class="hdr-sub" id="hdrSub">Container Supply Co. &#8212; Garden Grove, CA</div>
+    </div>
+    <div class="hdr-stats">
+      <div class="hdr-stat red"><div class="hdr-stat-num" id="statWaiting">0</div><div class="hdr-stat-lbl">Waiting</div></div>
+      <div class="hdr-stat orange"><div class="hdr-stat-num" id="statPending">0</div><div class="hdr-stat-lbl">Pending Verify</div></div>
+      <div class="hdr-stat"><div class="hdr-stat-num" id="statOpen">0</div><div class="hdr-stat-lbl">Open</div></div>
+      <div class="hdr-stat"><div class="hdr-stat-num" id="statParts">0</div><div class="hdr-stat-lbl">Parts</div></div>
+      <div class="hdr-stat"><div class="hdr-stat-num" id="statTags">0</div><div class="hdr-stat-lbl">Tags</div></div>
+    </div>
+  </div>
+</div>
+
+<div class="tab-bar-label">Select a view below to switch between ticket queues &#8212; click any tab to load that queue in the list</div>
+
+<div class="tab-bar">
+  <button class="tab-btn active" onclick="switchTab('waiting',this)">&#9203; Waiting <span class="tab-count red" id="tc-waiting">0</span></button>
+  <button class="tab-btn" onclick="switchTab('pending',this)">&#9989; Pending Verify <span class="tab-count orange" id="tc-pending">0</span></button>
+  <button class="tab-btn" onclick="switchTab('open',this)">&#128194; Open <span class="tab-count" id="tc-open">0</span></button>
+  <button class="tab-btn" onclick="switchTab('parts',this)">&#128297; Parts <span class="tab-count" id="tc-parts">0</span></button>
+  <button class="tab-btn" onclick="switchTab('tags',this)">&#127991; Tags <span class="tab-count" id="tc-tags">0</span></button>
+  <button class="tab-btn" onclick="switchTab('reports',this)">&#128221; Reports <span class="tab-count" id="tc-reports">0</span></button>
+  <button class="tab-btn" onclick="switchTab('closed',this)">&#128274; Closed Edits <span class="tab-count steel" id="tc-closed">0</span></button>
+  <div style="margin-left:auto;display:flex;align-items:center;padding-right:12px">
+    <button class="btn-ghost" style="padding:6px 14px;font-size:10px;font-weight:bold;border:1.5px solid #5C6BC0;border-radius:4px;cursor:pointer;background:transparent;color:#90CAF9;font-family:Arial" onclick="loadData()">&#128259; Refresh</button>
+  </div>
+</div>
+
+<div class="dept-strip">
+  <div class="dept-strip-info">
+    <div class="dept-strip-label">Filter by dept</div>
+    <div class="dept-strip-hint">Click a tab to narrow results</div>
+  </div>
+  <div id="dept-chips-wrap" class="dept-tabs-wrap">
+    <button class="dept-chip active" onclick="filterByDept('ALL',this)">All</button>
+    <button class="dept-chip" onclick="filterByDept('ELECTRICAL',this)">Electrical</button>
+    <button class="dept-chip" onclick="filterByDept('MACHINE SHOP',this)">Machine Shop</button>
+    <button class="dept-chip" onclick="filterByDept('FACILITIES',this)">Facilities</button>
+    <button class="dept-chip" onclick="filterByDept('PLASTICS',this)">Plastics</button>
+    <button class="dept-chip" onclick="filterByDept('METALS',this)">Metals</button>
+    <button class="dept-chip" onclick="filterByDept('LITHO',this)">Litho</button>
+  </div>
+</div>
+
+<div class="main-layout">
+
+  <div class="left-panel">
+    <div class="left-header">
+      <div class="left-header-title" id="leftTitle">Waiting Queue</div>
+      <div class="left-header-count" id="leftCount">Loading&#8230;</div>
+    </div>
+    <div class="search-wrap">
+      <input type="text" id="searchBox" placeholder="Search tickets, equipment&#8230;" oninput="renderCurrentTab()">
+    </div>
+    <div class="ticket-list" id="ticketList">
+      <div class="empty-list">Loading tickets&#8230;</div>
+    </div>
+  </div>
+
+  <div class="info-panel" id="infoPanel">
+    <div class="no-selection">
+      <div class="no-sel-icon">&#8592;</div>
+      <div class="no-sel-text">Select a ticket to view details</div>
+    </div>
+  </div>
+
+  <div class="action-panel" id="actionPanelWrap">
+    <div class="action-panel-title-bar" id="actionPanelTitleBar">
+      <div class="action-panel-title" id="actionPanelTitle">Manager Actions</div>
+    </div>
+    <div id="actionPanelBody" class="action-panel-body">
+      <div class="action-panel-empty">Select a ticket to take action</div>
+    </div>
+    <div id="actionPanelBtns" class="action-panel-btns" style="display:none"></div>
+  </div>
+
+</div>
+
+<div class="status-bar" id="statusBar"></div>
+
+<script>
+var BD={}, DEPT_MAPPING={}, currentTab='waiting', selTicket=null, selTagVal='', filterDept='ALL';
+
+window.onload=function(){
+  loadData();
+  document.addEventListener('click',function(e){
+    var list=document.getElementById('assignToList'),input=document.getElementById('assignToInput');
+    if(list&&input&&!input.contains(e.target)&&!list.contains(e.target))list.style.display='none';
+  });
+};
+
+function loadData(){
+  document.getElementById('ticketList').innerHTML='<div class="empty-list">Loading tickets\u2026</div>';
+  document.getElementById('leftCount').textContent='Loading\u2026';
+  google.script.run
+    .withSuccessHandler(function(jsonStr){
+      try{if(!jsonStr){showSt('Server returned empty response','error');return;}var d=JSON.parse(jsonStr);initBoard(d);}
+      catch(err){showSt('Parse error: '+err.message,'error');}
+    })
+    .withFailureHandler(function(e){showSt('Server error: '+e.message,'error');})
+    .getManagerReviewBoardDataJson();
+}
+
+function initBoard(d){
+  BD=d;DEPT_MAPPING=d.deptMapping||{};
+  document.getElementById('hdrSub').textContent=(d.companyName||'Container Supply Co.')+' \u2014 '+(d.location||'Garden Grove, CA');
+  updateAllCounts();renderCurrentTab();resetPanels();
+}
+
+function updateAllCounts(){
+  document.getElementById('statWaiting').textContent=(BD.waitingTickets||[]).length;
+  document.getElementById('statPending').textContent=(BD.pendingVerify||[]).length;
+  document.getElementById('statOpen').textContent=(BD.openTickets||[]).length;
+  document.getElementById('statParts').textContent=(BD.partsNeeded||[]).length;
+  document.getElementById('statTags').textContent=(BD.equipmentTags||[]).length;
+  document.getElementById('tc-waiting').textContent=filterTickets(BD.waitingTickets||[]).length;
+  document.getElementById('tc-pending').textContent=filterTickets(BD.pendingVerify||[]).length;
+  document.getElementById('tc-open').textContent=filterTickets(BD.openTickets||[]).length;
+  document.getElementById('tc-parts').textContent=filterTickets(BD.partsNeeded||[]).length;
+  document.getElementById('tc-tags').textContent=filterTickets(BD.equipmentTags||[]).length;
+  document.getElementById('tc-reports').textContent=(BD.serviceReports||[]).length;
+  document.getElementById('tc-closed').textContent=(BD.closedTickets||[]).length;
+}
+
+function filterByDept(dept,btn){
+  filterDept=dept;
+  document.querySelectorAll('.dept-chip').forEach(function(c){c.classList.remove('active');});
+  btn.classList.add('active');selTicket=null;resetPanels();updateAllCounts();renderCurrentTab();
+}
+
+function filterTickets(tickets){
+  if(filterDept==='ALL')return tickets;
+  return tickets.filter(function(t){
+    var tg=(t.deptGroup||'').toUpperCase();if(tg===filterDept.toUpperCase())return true;
+    var raw=(t.dept||'').toUpperCase().trim();
+    return((DEPT_MAPPING[raw]||raw).toUpperCase()===filterDept.toUpperCase());
+  });
+}
+
+function switchTab(tab,btn){
+  currentTab=tab;selTicket=null;
+  document.querySelectorAll('.tab-btn').forEach(function(b){b.classList.remove('active');});
+  btn.classList.add('active');
+  setClosedMode(tab==='closed');
+  renderCurrentTab();resetPanels();
+}
+
+function setClosedMode(on){
+  var info=document.getElementById('infoPanel');
+  var apWrap=document.getElementById('actionPanelWrap');
+  var apTitleBar=document.getElementById('actionPanelTitleBar');
+  var apBtns=document.getElementById('actionPanelBtns');
+  var apTitle=document.getElementById('actionPanelTitle');
+  if(on){
+    info.classList.add('closed-mode');apWrap.classList.add('closed-mode');
+    apTitleBar.classList.add('closed-bar');if(apBtns)apBtns.classList.add('closed-btns');
+    apTitle.classList.add('closed-title');apTitle.textContent='Edit Closed Ticket';
+  }else{
+    info.classList.remove('closed-mode');apWrap.classList.remove('closed-mode');
+    apTitleBar.classList.remove('closed-bar');if(apBtns)apBtns.classList.remove('closed-btns');
+    apTitle.classList.remove('closed-title');apTitle.textContent='Manager Actions';
+  }
+}
+
+function renderCurrentTab(){
+  var titles={waiting:'Waiting Queue',pending:'Pending Verification',open:'Open Tickets',parts:'Parts Tracker',tags:'Equipment Tags',reports:'Service Reports',closed:'Closed Ticket Edits'};
+  document.getElementById('leftTitle').textContent=titles[currentTab]||'';
+  var tickets=getTabTickets();
+  var search=(document.getElementById('searchBox').value||'').toLowerCase();
+  if(search){tickets=tickets.filter(function(t){return(t.ticketNo||'').toLowerCase().indexOf(search)>=0||(t.description||'').toLowerCase().indexOf(search)>=0||(t.specificEquip||'').toLowerCase().indexOf(search)>=0||(t.dept||'').toLowerCase().indexOf(search)>=0||(t.equipCode||'').toLowerCase().indexOf(search)>=0;});}
+  var deptLabel=filterDept==='ALL'?'all departments':filterDept;
+  document.getElementById('leftCount').textContent=tickets.length+' ticket'+(tickets.length!==1?'s':'')+' \u2014 '+deptLabel;
+  var list=document.getElementById('ticketList');list.innerHTML='';
+  if(!tickets.length){var empty=document.createElement('div');empty.className='empty-list';empty.textContent='No tickets'+(filterDept!=='ALL'?' for '+filterDept:'')+' in this category.';list.appendChild(empty);return;}
+  tickets.forEach(function(t){
+    var item=document.createElement('div');
+    var p=(t.priority||'').toUpperCase();
+    var prioKey=currentTab==='closed'?'prio-closed':p==='CRITICAL'?'prio-critical':p==='HIGH'?'prio-high':p==='MEDIUM'?'prio-medium':p==='LOW'?'prio-low':'prio-none';
+    item.className='ticket-item '+prioKey+(currentTab==='closed'?' closed-item':'');
+    item.onclick=function(){selectTicket(t,item);};
+    var prioBdgLabel=currentTab==='closed'?'CLOSED':p?p:'WAITING \u2014 No priority set';
+    item.innerHTML=
+      '<div class="ti-top">'+
+        '<span class="ti-num-pill '+prioKey+'">'+esc(t.ticketNo||t.reportId||'\u2014')+'</span>'+
+        '<span class="ti-dept">'+esc(t.dept||'\u2014')+'</span>'+
+      '</div>'+
+      '<div class="ti-desc">'+esc((t.description||t.problemDesc||'').substring(0,65))+'</div>'+
+      '<div class="ti-equip">'+esc(t.specificEquip||t.equipType||'\u2014')+(t.equipCode?' \u00b7 '+esc(t.equipCode):'')+'</div>'+
+      '<div class="ti-bottom">'+
+        '<span class="ti-prio-bdg '+prioKey+'">'+esc(prioBdgLabel)+'</span>'+
+        '<span class="ti-date">'+esc(t.dateOpened||'')+(t.addedBy?' \u00b7 '+esc(t.addedBy):'')+'</span>'+
+      '</div>';
+    list.appendChild(item);
+  });
+}
+
+function getTabTickets(){
+  var raw;
+  if(currentTab==='waiting')      raw=BD.waitingTickets||[];
+  else if(currentTab==='pending') raw=BD.pendingVerify||[];
+  else if(currentTab==='open')    raw=BD.openTickets||[];
+  else if(currentTab==='parts')   raw=BD.partsNeeded||[];
+  else if(currentTab==='tags')    raw=BD.equipmentTags||[];
+  else if(currentTab==='reports') raw=BD.serviceReports||[];
+  else if(currentTab==='closed')  raw=BD.closedTickets||[];
+  else raw=[];
+  return filterTickets(raw);
+}
+
+function selectTicket(t,item){
+  selTicket=t;selTagVal='';
+  document.querySelectorAll('.ticket-item').forEach(function(el){el.classList.remove('selected');});
+  item.classList.add('selected');
+  renderInfoPanel(t);renderActionPanel(t);
+}
+
+function resetPanels(){
+  document.getElementById('infoPanel').innerHTML='<div class="no-selection"><div class="no-sel-icon">\u2190</div><div class="no-sel-text">'+(currentTab==='closed'?'Select a closed ticket to edit':'Select a ticket to view details')+'</div></div>';
+  document.getElementById('actionPanelBody').innerHTML='<div class="action-panel-empty">'+(currentTab==='closed'?'Select a closed ticket to edit its details':'Select a ticket to take action')+'</div>';
+  document.getElementById('actionPanelBtns').style.display='none';
+  document.getElementById('actionPanelBtns').innerHTML='';
+}
+
+function makeCard(label,bodyHtml,isClosed){
+  var card=document.createElement('div');
+  card.className='section-card'+(isClosed?' closed-card':'');
+  card.innerHTML='<div class="section-divider"><span class="section-divider-label">'+label+'</span><div class="section-divider-line"></div></div><div class="section-body">'+bodyHtml+'</div>';
+  return card;
+}
+
+function renderInfoPanel(t){
+  if(currentTab==='closed'){renderClosedInfoPanel(t);return;}
+  var panel=document.getElementById('infoPanel');panel.innerHTML='';
+  var p=(t.priority||'').toLowerCase();
+  var equipCode=t.equipCode?'<span style="font-size:11px;font-family:monospace;color:#FFD700">'+esc(t.equipCode)+'</span>':'<span style="font-size:11px;color:#546E7A;font-style:italic">No code assigned</span>';
+
+  /* Header row 1 */
+  var hdr=document.createElement('div');hdr.style.cssText='background:#1A237E;flex-shrink:0;';
+  hdr.innerHTML=
+    '<div class="detail-hdr">'+
+      '<div class="detail-ticket-num">'+esc(t.ticketNo||t.reportId||'\u2014')+'</div>'+
+      '<div class="detail-badges">'+
+        '<span class="badge b-'+p+'">'+(t.priority||'\u2014')+'</span>'+
+        '<span class="badge b-status">'+esc(t.status||currentTab.toUpperCase())+'</span>'+
+        '<span class="badge b-dept">'+esc(t.dept||'\u2014')+'</span>'+
+      '</div>'+
+      '<div class="detail-meta">Opened: '+esc(t.dateOpened||'\u2014')+' \u00b7 By: '+esc(t.addedBy||'\u2014')+'</div>'+
+    '</div>'+
+    /* Header row 2 — labeled metadata sub-row */
+    '<div class="detail-sub-row">'+
+      '<div class="dsri"><span class="dsri-lbl">Equipment</span><span class="dsri-val">'+esc(t.equipType||'\u2014')+'</span></div>'+
+      '<div class="dsri"><span class="dsri-lbl">Code</span><span class="dsri-val">'+esc(t.equipCode||'\u2014')+'</span></div>'+
+      (t.buildingZone?'<div class="dsri"><span class="dsri-lbl">Zone</span><span class="dsri-val">'+esc(t.buildingZone)+'</span></div>':'')+
+      '<div class="dsri"><span class="dsri-lbl">Opened</span><span class="dsri-val">'+esc(t.dateOpened||'\u2014')+'</span></div>'+
+      '<div class="dsri"><span class="dsri-lbl">By</span><span class="dsri-val">'+esc(t.addedBy||'\u2014')+'</span></div>'+
+      '<div class="dsri"><span class="dsri-lbl">Assigned</span><span class="dsri-val">'+esc(t.assignedTo||'\u2014')+'</span></div>'+
+    '</div>';
+  panel.appendChild(hdr);
+
+  /* Problem Details */
+  if(t.description||t.problemDesc||t.problemType){
+    var pb='';
+    if(t.problemType&&(t.description||t.problemDesc)){
+      pb='<div class="grid-13"><div class="field"><label>Problem Type</label><div class="read-val">'+esc(t.problemType)+'</div></div><div class="field"><label>Description</label><div class="read-val">'+esc(t.description||t.problemDesc||'\u2014')+'</div></div></div>';
+    }else if(t.problemType){
+      pb='<div class="field"><label>Problem Type</label><div class="read-val">'+esc(t.problemType)+'</div></div>';
+    }else{
+      pb='<div class="field"><label>Description</label><div class="read-val">'+esc(t.description||t.problemDesc)+'</div></div>';
+    }
+    if(t.downtimeType||t.line||t.estHours){
+      pb+='<div class="grid-2" style="margin-top:10px">';
+      if(t.downtimeType)pb+='<div class="field"><label>Downtime Type</label><div class="read-val">'+esc(t.downtimeType)+'</div></div>';
+      if(t.line)pb+='<div class="field"><label>Line #</label><div class="read-val">'+esc(t.line)+'</div></div>';
+      if(t.estHours)pb+='<div class="field"><label>Est Hours</label><div class="read-val">'+esc(t.estHours)+'</div></div>';
+      pb+='</div>';
+    }
+    panel.appendChild(makeCard('Problem Details',pb,false));
+  }
+
+  /* Tech Observations */
+  if(t.observations){
+    panel.appendChild(makeCard('Tech Observations','<div class="field"><div class="read-val">'+esc(t.observations)+'</div></div>',false));
+  }
+
+  /* Work Summary */
+  if(t.workSummary||t.correctiveAction){
+    var wh='<div class="grid-13"><div class="field"><label>Fix Type</label><div class="read-val">'+esc(t.fixType||'\u2014')+'</div></div><div class="field"><label>Corrective Action</label><div class="read-val">'+esc(t.workSummary||t.correctiveAction||'\u2014')+'</div></div></div>';
+    panel.appendChild(makeCard('Work Summary',wh,false));
+  }
+
+  /* Tag info */
+  if(currentTab==='tags'){
+    var th='<div class="grid-2">'+
+      '<div class="field"><label>Equipment</label><div class="read-val">'+esc(t.specificEquip||t.equipType||'\u2014')+'</div></div>'+
+      '<div class="field"><label>Current Tag Status</label><div class="read-val">'+esc(t.equipTagStatus||t.tagType||'None')+'</div></div>'+
+      '<div class="field"><label>Tagged By</label><div class="read-val">'+esc(t.taggedBy||'\u2014')+'</div></div>'+
+      '<div class="field"><label>Date Tagged</label><div class="read-val">'+esc(t.dateTagged||'\u2014')+'</div></div>'+
+      '<div class="field"><label>Reason</label><div class="read-val">'+esc(t.reason||'\u2014')+'</div></div>'+
+      '<div class="field"><label>Department</label><div class="read-val">'+esc(t.dept||'\u2014')+'</div></div>'+
+    '</div>';
+    panel.appendChild(makeCard('Equipment Tag Info',th,false));
+  }
+
+  /* Reports */
+  if(currentTab==='reports'){
+    var rh='<div class="grid-2">'+
+      '<div class="field"><label>Root Cause</label><div class="read-val">'+esc(t.rootCause||'\u2014')+'</div></div>'+
+      '<div class="field"><label>Preventive Action</label><div class="read-val">'+esc(t.preventiveAction||'\u2014')+'</div></div>'+
+      '<div class="field"><label>Completed By</label><div class="read-val">'+esc(t.completedBy||'\u2014')+'</div></div>'+
+      '<div class="field"><label>Labor Hours</label><div class="read-val">'+esc(t.laborHours||'\u2014')+'</div></div>'+
+      '<div class="field"><label>Parts Used</label><div class="read-val">'+esc(t.partsUsed||'\u2014')+'</div></div>'+
+      '<div class="field"><label>Work Summary</label><div class="read-val">'+esc(t.workSummary||'\u2014')+'</div></div>'+
+    '</div>';
+    panel.appendChild(makeCard('Service Report Details',rh,false));
+  }
+
+  /* Photos */
+  if(t.photoLinks){
+    var links=t.photoLinks.split(',').map(function(l){return l.trim();}).filter(Boolean);
+    var ph=links.map(function(l,i){return'<a class="photo-link" href="'+esc(l)+'" target="_blank">&#128247; Photo '+(i+1)+'</a>';}).join('')||'<span style="color:#9E9E9E;font-size:11px">No photos attached</span>';
+    panel.appendChild(makeCard('Photos',ph,false));
+  }
+
+  /* PARTS — always second to last */
+  panel.appendChild(renderPartsSection(t,false));
+
+  /* TICKET LIFECYCLE — always last */
+  var tlCard=makeCard('Ticket Lifecycle','<div style="font-size:11px;color:#90A4AE;font-style:italic">Loading\u2026</div>',false);
+  tlCard.id='timelineCard';panel.appendChild(tlCard);
+  renderTimeline(t.ticketNo,t.status);
+
+  var pad=document.createElement('div');pad.style.height='16px';panel.appendChild(pad);
+}
+
+function renderClosedInfoPanel(t){
+  var panel=document.getElementById('infoPanel');panel.innerHTML='';
+
+  var banner=document.createElement('div');banner.className='closed-banner';
+  banner.innerHTML='<span style="font-size:14px">&#128274;</span><span class="closed-banner-title">Editing Closed Ticket \u2014 '+esc(t.ticketNo)+'</span><span class="closed-banner-sub">Status stays closed \u00b7 all edits are logged</span>';
+  panel.appendChild(banner);
+
+  var hdr=document.createElement('div');hdr.style.cssText='background:#263238;flex-shrink:0;';
+  hdr.innerHTML=
+    '<div class="detail-hdr" style="background:#263238">'+
+      '<div class="detail-ticket-num">'+esc(t.ticketNo)+'</div>'+
+      '<div class="detail-badges"><span class="badge b-closed">CLOSED</span><span class="badge" style="background:#455A64;color:#B0BEC5">'+esc(t.dept||'\u2014')+'</span></div>'+
+      '<div class="detail-meta">Opened: '+esc(t.dateOpened||'\u2014')+' \u00b7 By: '+esc(t.addedBy||'\u2014')+'</div>'+
+    '</div>'+
+    '<div class="detail-sub-row" style="background:#1C2B30">'+
+      '<div class="dsri"><span class="dsri-lbl">Equipment</span><span class="dsri-val">'+esc(t.equipType||'\u2014')+'</span></div>'+
+      '<div class="dsri"><span class="dsri-lbl">Code</span><span class="dsri-val">'+esc(t.equipCode||'\u2014')+'</span></div>'+
+      '<div class="dsri"><span class="dsri-lbl">Opened</span><span class="dsri-val">'+esc(t.dateOpened||'\u2014')+'</span></div>'+
+      '<div class="dsri"><span class="dsri-lbl">Closed By</span><span class="dsri-val">'+esc(t.verifiedBy||'\u2014')+'</span></div>'+
+    '</div>';
+  panel.appendChild(hdr);
+
+  /* Read-only original problem */
+  panel.appendChild(makeCard('Original Problem \u2014 read only',
+    '<div class="field"><label>Description</label><div class="read-val">'+esc(t.description||t.problemDesc||'\u2014')+'</div></div>',true));
+
+  /* Edit fields */
+  var ef='<div class="closed-field"><label>Corrective Action</label><textarea id="ce_correctiveAction" placeholder="Describe the corrective action taken\u2026">'+esc(t.correctiveAction||t.workSummary||'')+'</textarea></div>'+
+    '<div class="closed-field"><label>Root Cause</label><textarea id="ce_rootCause" placeholder="What was the root cause?">'+esc(t.rootCause||'')+'</textarea></div>'+
+    '<div class="closed-field"><label>Work Summary</label><textarea id="ce_workSummary" placeholder="Summary of work performed\u2026">'+esc(t.workSummary||'')+'</textarea></div>'+
+    '<div class="grid-2">'+
+      '<div class="closed-field" style="margin-bottom:0"><label>Actual Hours</label><input type="number" id="ce_actualHours" step="0.5" min="0" value="'+esc(t.actualHours||'')+'"></div>'+
+      '<div class="closed-field" style="margin-bottom:0"><label>Fix Type</label><select id="ce_fixType"><option value="">\u2014 Select \u2014</option><option value="Permanent"'+(t.fixType==='Permanent'?' selected':'')+'>Permanent</option><option value="Temporary"'+(t.fixType==='Temporary'?' selected':'')+'>Temporary</option></select></div>'+
+    '</div>'+
+    '<div class="closed-field" style="margin-top:10px;margin-bottom:0"><label>Additional Notes</label><textarea id="ce_notes" placeholder="Any additional notes\u2026">'+esc(t.notes||'')+'</textarea></div>';
+  panel.appendChild(makeCard('Edit \u2014 Add or Update Information',ef,true));
+
+  /* PARTS — always second to last */
+  panel.appendChild(renderPartsSection(t,true));
+
+  /* LIFECYCLE — always last */
+  var tlCard=makeCard('Ticket Lifecycle \u2014 Completed','<div style="font-size:11px;color:#90A4AE;font-style:italic">Loading\u2026</div>',true);
+  tlCard.id='timelineCard';panel.appendChild(tlCard);
+  renderTimeline(t.ticketNo,'CLOSED');
+
+  var pad=document.createElement('div');pad.style.height='16px';panel.appendChild(pad);
+}
+
+var newPartRows=[];
+function renderPartsSection(t,isClosed){
+  newPartRows=[];
+  var pft=(BD.partsNeeded||[]).filter(function(p){return p.ticketNo===t.ticketNo;});
+  var ph='';
+  if(pft.length){
+    var rows=pft.map(function(p){
+      return '<tr>'+
+        '<td style="padding:5px 8px;font-family:monospace;font-size:10px">'+esc(p.partId||'\u2014')+'</td>'+
+        '<td style="padding:5px 8px;font-weight:bold">'+esc(p.partDesc||'\u2014')+'</td>'+
+        '<td style="padding:5px 8px;text-align:center">'+esc(p.qty||'\u2014')+'</td>'+
+        '<td style="padding:5px 8px">'+esc(p.uom||'\u2014')+'</td>'+
+        '<td style="padding:5px 8px"><select class="parts-status-sel" onchange="savePartStatus(\''+esc(p.partId)+'\',\''+esc(p.ticketNo)+'\',this.value)">'+
+          ['Requested','Ordered','On Hold for Approval','Received','Backordered'].map(function(s){return'<option value="'+s+'"'+(s===p.status?' selected':'')+'>'+s+'</option>';}).join('')+
+        '</select></td>'+
+        '<td style="padding:5px 8px;font-size:10px;color:#757575">'+esc(p.notes||'')+'</td>'+
+      '</tr>';
+    }).join('');
+    ph='<table class="parts-table" style="margin-bottom:14px"><thead><tr>'+
+      '<th style="width:14%">Part ID / #</th>'+
+      '<th>Part Description</th>'+
+      '<th style="width:6%;text-align:center">Qty</th>'+
+      '<th style="width:9%">UOM</th>'+
+      '<th style="width:20%">Status</th>'+
+      '<th style="width:14%">Notes</th>'+
+      '</tr></thead><tbody>'+rows+'</tbody></table>';
+  }else{
+    ph='<p style="font-size:11px;color:#90A4AE;font-style:italic;margin-bottom:12px">No parts on record for this ticket.</p>';
+  }
+
+  var uomOpts=['','EA','PCS','SET','FT','IN','M','KG','LB','BOX','PKG','GAL','L','QT','HR'].map(function(u){return'<option value="'+u+'">'+u+'</option>';}).join('');
+
+  ph+='<div class="add-part-box">'+
+    '<div class="add-part-box-title">Add Parts</div>'+
+    '<table class="new-parts-table" id="newPartsTable">'+
+      '<thead><tr>'+
+        '<th style="width:15%">Part ID / #</th>'+
+        '<th>Part Description</th>'+
+        '<th style="width:7%">Qty</th>'+
+        '<th style="width:10%">UOM</th>'+
+        '<th>Notes</th>'+
+        '<th style="width:4%"></th>'+
+      '</tr></thead>'+
+      '<tbody id="newPartsBody"></tbody>'+
+    '</table>'+
+    '<button class="btn btn-approve" style="width:auto;padding:5px 14px;font-size:11px" onclick="addNewPartRow()">+ Add Part</button>'+
+    '<button class="btn btn-approve" style="width:auto;padding:5px 14px;font-size:11px;background:#2E7D32;margin-left:6px" onclick="submitNewParts()">&#10003; Save Parts</button>'+
+  '</div>';
+
+  return makeCard('Parts \u2014 View & Add',ph,isClosed);
+}
+
+function addNewPartRow(){
+  var tbody=document.getElementById('newPartsBody');if(!tbody)return;
+  var idx=newPartRows.length;newPartRows.push({});
+  var uomOpts=['','EA','PCS','SET','FT','IN','M','KG','LB','BOX','PKG','GAL','L','QT','HR'].map(function(u){return'<option value="'+u+'">'+u+'</option>';}).join('');
+  var tr=document.createElement('tr');
+  tr.id='npr-'+idx;
+  tr.innerHTML=
+    '<td><input class="np-inp" type="text" id="npr-id-'+idx+'" placeholder="Part ID\u2026"></td>'+
+    '<td><input class="np-inp" type="text" id="npr-desc-'+idx+'" placeholder="Description\u2026"></td>'+
+    '<td><input class="np-inp np-qty" type="number" id="npr-qty-'+idx+'" min="1" value="1"></td>'+
+    '<td><select class="np-inp np-uom" id="npr-uom-'+idx+'">'+uomOpts+'</select></td>'+
+    '<td><input class="np-inp" type="text" id="npr-notes-'+idx+'" placeholder="Notes\u2026"></td>'+
+    '<td><button class="np-del" onclick="removeNewPartRow('+idx+')">&#10005;</button></td>';
+  tbody.appendChild(tr);
+}
+
+function removeNewPartRow(idx){
+  var tr=document.getElementById('npr-'+idx);if(tr)tr.remove();
+}
+
+function submitNewParts(){
+  if(!selTicket){showSt('No ticket selected.','error');return;}
+  var tbody=document.getElementById('newPartsBody');if(!tbody)return;
+  var rows=tbody.querySelectorAll('tr');
+  if(!rows.length){showSt('No parts to save. Click + Add Part first.','error');return;}
+  var parts=[];
+  rows.forEach(function(tr){
+    var idx=tr.id.replace('npr-','');
+    var desc=(document.getElementById('npr-desc-'+idx)||{value:''}).value.trim();
+    if(!desc)return;
+    parts.push({
+      partId:(document.getElementById('npr-id-'+idx)||{value:''}).value.trim(),
+      partDesc:desc,
+      qty:(document.getElementById('npr-qty-'+idx)||{value:'1'}).value,
+      uom:(document.getElementById('npr-uom-'+idx)||{value:''}).value,
+      notes:(document.getElementById('npr-notes-'+idx)||{value:''}).value.trim()
+    });
+  });
+  if(!parts.length){showSt('Please fill in at least one part description.','error');return;}
+  var updBy=currentTab==='closed'?(document.getElementById('ce_updatedBy')||{value:''}).value:'';
+  showSt('Saving parts\u2026','info');
+  var saved=0;
+  parts.forEach(function(p){
+    p.ticketNo=selTicket.ticketNo;p.addedBy=updBy||'';
+    google.script.run
+      .withSuccessHandler(function(r){saved++;if(saved===parts.length){showSt(parts.length+' part(s) saved.','success');setTimeout(function(){selectTicket(selTicket,document.querySelector('.ticket-item.selected'));},1200);}})
+      .withFailureHandler(function(e){showSt('Error: '+e.message,'error');})
+      .addPartToClosedTicket(p);
+  });
+}
+
+function fmtTs(raw){
+  if(!raw)return'';
+  var d=new Date(raw);if(isNaN(d.getTime()))return String(raw);
+  var days=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+  var months=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  var h=d.getHours(),m=d.getMinutes(),ampm=h>=12?'PM':'AM';
+  h=h%12;if(h===0)h=12;
+  var ms=m<10?'0'+m:String(m);
+  return days[d.getDay()]+' '+months[d.getMonth()]+' '+d.getDate()+' '+d.getFullYear()+' '+h+':'+ms+' '+ampm;
+}
+
+function renderTimeline(ticketNo,currentStatus){
+  var card=document.getElementById('timelineCard');if(!card)return;
+  card.querySelector('.section-body').innerHTML='<div style="font-size:11px;color:#90A4AE;font-style:italic">Loading history\u2026</div>';
+  google.script.run
+    .withSuccessHandler(function(history){
+      var stages=[
+        {key:'CREATED',   label:'Created',          pending:'Not yet created'},
+        {key:'OPEN',      label:'Approved for Work', pending:'Awaiting approval'},
+        {key:'UPDATED',   label:'Tech Work Update',  pending:'Awaiting update'},
+        {key:'COMPLETED', label:'Marked Complete',   pending:'Awaiting completion'},
+        {key:'CLOSED',    label:'Verified & Closed', pending:'Awaiting verification'}
+      ];
+      var hits={};
+      history.forEach(function(h){
+        var et=(h.eventType||'').toUpperCase(),st=(h.statusTo||'').toUpperCase();
+        if(et==='CREATED')                         hits['CREATED']  =h;
+        if(st==='OPEN'||et.indexOf('OPEN')>-1)    hits['OPEN']     =hits['OPEN']||h;
+        if(et==='UPDATED'||et==='REROUTED')        hits['UPDATED']  =h;
+        if(st==='COMPLETE'||et==='COMPLETED')      hits['COMPLETED']=h;
+        if(st==='CLOSED'||et==='CLOSED')           hits['CLOSED']   =h;
+      });
+      var cs=(currentStatus||'').toUpperCase();
+      var curIdx=0;
+      if(cs==='OPEN'||cs==='ON HOLD'||cs==='PENDING PARTS')curIdx=2;
+      if(cs==='COMPLETE')curIdx=3;
+      if(cs==='CLOSED')curIdx=4;
+      var isClosed=(currentTab==='closed'||cs==='CLOSED');
+
+      /* progress bar */
+      var barSegs='';
+      stages.forEach(function(s,i){
+        var done=!!hits[s.key],cur=!done&&i===curIdx;
+        var col=done?(isClosed?'#546E7A':'#1565C0'):cur?'#E65100':'#E0E0E0';
+        barSegs+='<div class="lc-bar-seg" style="background:'+col+';flex:1"></div>';
+      });
+
+      /* stage labels */
+      var stgLabels=stages.map(function(s,i){
+        var done=!!hits[s.key],cur=!done&&i===curIdx;
+        var cls=done?'lc-done':cur?'lc-cur':'';
+        return'<span class="lc-stage-lbl '+cls+'">'+s.label+'</span>';
+      }).join('');
+
+      /* 3-col grid layout:
+         Col 1 (rows 1+2): Created, Current Stage
+         Col 2 (rows 1+2): Approved for Work, Tech Work Update
+         Col 3 (spans rows 1+2): Verified & Closed — the END stage
+         Grid order: Created, Approved, [Verified spans], Current, TechUpdate */
+      function makeCard_(stage,idx,extraClass){
+        var done=!!hits[stage.key],cur=!done&&idx===curIdx;
+        var cls=isClosed?'lc-closed':done?'lc-done':cur?'lc-cur':'lc-pend';
+        var html='<div class="lc-card '+cls+(extraClass?' '+extraClass:'')+'">'+
+          '<div class="lc-card-title">'+esc(stage.label)+'</div>';
+        if(done){html+='<div class="lc-card-body">'+esc(fmtTs(hits[stage.key].timestamp))+'<br>'+(hits[stage.key].performedBy?'\u00b7 '+esc(hits[stage.key].performedBy):'')+'</div>';}
+        else if(cur){html+='<div class="lc-card-body" style="color:#E65100">In progress</div>';}
+        else{html+='<div class="lc-card-body">'+esc(stage.pending)+'</div>';}
+        return html+'</div>';
+      }
+
+     var gridHtml='<div class="lc-grid3">'+
+         makeCard_(stages[0],0)+
+         makeCard_(stages[2],2)+
+         makeCard_(stages[4],4,'lc-span-col3')+
+         makeCard_(stages[1],1)+
+         makeCard_(stages[3],3)+
+   '</div>';
+
+      var legend='<div class="lc-legend">'+
+        '<div class="lc-leg-item"><div class="lc-leg-dot" style="background:'+(isClosed?'#546E7A':'#1565C0')+'"></div>Completed</div>'+
+        (!isClosed?'<div class="lc-leg-item"><div class="lc-leg-dot" style="background:#E65100"></div>Current</div>':'')+
+        '<div class="lc-leg-item"><div class="lc-leg-dot" style="background:#D0D0D0"></div>Pending</div>'+
+      '</div>';
+
+      var c=document.getElementById('timelineCard');
+      if(c)c.querySelector('.section-body').innerHTML=
+        '<div class="lc-bar-wrap">'+barSegs+'</div>'+
+        '<div class="lc-stage-labels">'+stgLabels+'</div>'+
+        gridHtml+legend;
+    })
+    .withFailureHandler(function(){
+      var c=document.getElementById('timelineCard');
+      if(c)c.querySelector('.section-body').innerHTML='<div style="font-size:11px;color:#EF5350">Could not load ticket history.</div>';
+    })
+    .getTicketHistory(ticketNo);
+}
+
+
+
+function savePartStatus(partId,ticketNo,newStatus){
+  google.script.run
+    .withSuccessHandler(function(r){showSt('Part status updated.','success');})
+    .withFailureHandler(function(e){showSt('Error: '+e.message,'error');})
+    .managerUpdatePartStatus({partId:partId,ticketNo:ticketNo,newStatus:newStatus});
+}
+
+function renderActionPanel(t){
+  if(currentTab==='closed'){renderClosedActionPanel(t);return;}
+  var body=document.getElementById('actionPanelBody'),btns=document.getElementById('actionPanelBtns');
+  body.innerHTML='';btns.innerHTML='';btns.style.display='flex';
+
+  if(currentTab==='waiting'||currentTab==='open'){
+    var deptOpts=Object.keys(BD.deptCodes||{}).map(function(d){return'<option value="'+esc(d)+'">'+esc(d)+'</option>';}).join('');
+    var reasons=BD.transferReasons||['Beyond Scope'];
+    var rPills=reasons.map(function(r){return'<div class="tag-pill" onclick="selTransferReason(\''+esc(r)+'\',this)" style="font-size:10px;margin-bottom:2px">'+esc(r)+'</div>';}).join('');
+    body.innerHTML=
+      '<div class="ap-divider">Priority &amp; Assignment</div>'+
+      '<div class="ap-field"><label>Set Priority</label><select id="setPriority"><option value="">\u2014 Keep Current ['+(t.priority||'?')+'] \u2014</option><option value="LOW"'+((!t.priority||t.priority==='LOW')?' selected':'')+'>LOW</option><option value="MEDIUM"'+(t.priority==='MEDIUM'?' selected':'')+'>MEDIUM</option><option value="HIGH"'+(t.priority==='HIGH'?' selected':'')+'>HIGH</option><option value="CRITICAL"'+(t.priority==='CRITICAL'?' selected':'')+'>CRITICAL</option></select></div>'+
+      '<div class="ap-field"><label>Assign To</label><div class="assign-wrap"><input type="text" id="assignToInput" placeholder="Type to search\u2026" autocomplete="off" oninput="filterAssignTo()" onfocus="openAssignTo()" value="'+esc(t.assignedTo||'')+'"><input type="hidden" id="assignTo" value="'+esc(t.assignedTo||'')+'"><div class="assign-dropdown" id="assignToList"></div></div></div>'+
+      '<div class="ap-field"><label>Est Hours</label><input type="number" id="estHoursInput" step="0.5" min="0" value="'+esc(t.estHours||'')+'"></div>'+
+      '<div class="ap-divider">Status &amp; Transfer</div>'+
+      '<div class="ap-field"><label>Status</label><select id="setStatus"><option value="OPEN">OPEN \u2014 Approve for Work</option><option value="ON HOLD">ON HOLD</option><option value="IN REVIEW">IN REVIEW</option></select></div>'+
+      '<div class="ap-field"><label>Transfer Dept</label><select id="transferDept" onchange="onTransferChange()"><option value="">\u2014 No Transfer \u2014</option>'+deptOpts+'</select></div>'+
+      '<div id="transferReasonWrap" style="display:none"><div style="font-size:9px;font-weight:bold;color:#5C6BC0;text-transform:uppercase;letter-spacing:.6px;margin-bottom:5px">Transfer Reason</div><div class="tag-pills" style="flex-wrap:wrap" id="transferReasonPills">'+rPills+'</div><input type="hidden" id="transferReason" value=""></div>'+
+      '<div class="ap-divider">Notes &amp; Tags</div>'+
+      '<div class="ap-field"><label>Manager Notes</label><input type="text" id="mgrNotes" placeholder="Notes for technician\u2026"></div>'+
+      '<div style="margin-bottom:8px"><div style="font-size:9px;font-weight:bold;color:#5C6BC0;text-transform:uppercase;letter-spacing:.6px;margin-bottom:5px">Equipment Tag</div><div class="tag-pills"><div class="tag-pill t-none" onclick="selTag(\'\',this)">None</div><div class="tag-pill" onclick="selTag(\'Red \u2014 Out of Service\',this)">&#128308; Red</div><div class="tag-pill" onclick="selTag(\'Yellow \u2014 Use with Caution\',this)">&#127937; Yellow</div><div class="tag-pill" onclick="selTag(\'Green \u2014 Cleared\',this)">&#128994; Green</div></div></div>'+
+      '<div class="ap-divider">Void Ticket</div>'+
+      '<div class="ap-field"><label style="color:#B71C1C">Void Reason</label><select id="voidReasonSel"><option value="">\u2014 Select if voiding \u2014</option>'+(BD.voidReasons||['Duplicate Ticket','Entry Error','Test Ticket','Other']).map(function(r){return'<option value="'+esc(r)+'">'+esc(r)+'</option>';}).join('')+'</select></div>';
+
+    if(currentTab==='waiting'){
+      btns.innerHTML='<button class="btn btn-approve" onclick="doAction(\'approve\')">&#10003; Approve \u2192 Open</button><div class="btn-row"><button class="btn btn-close" onclick="doAction(\'close\')">&#9989; Close</button><button class="btn btn-hold" onclick="doAction(\'hold\')">&#9208; Hold</button></div><button class="btn btn-void" onclick="doAction(\'void\')">&#128683; Void Ticket</button>';
+    }else{
+      btns.innerHTML='<button class="btn btn-approve" onclick="doAction(\'update\')">&#128190; Save Update</button><button class="btn btn-close" onclick="doAction(\'verify\')">&#9989; Verify &amp; Close</button><button class="btn btn-void" onclick="doAction(\'void\')">&#128683; Void Ticket</button>';
+    }
+
+  }else if(currentTab==='pending'){
+    var mgrOpts=(BD.managers||[]).map(function(m){return'<option value="'+esc(m)+'">'+esc(m)+'</option>';}).join('');
+    var today=new Date().toISOString().split('T')[0];
+    body.innerHTML=
+      '<div class="ap-divider">Verification</div>'+
+      '<div style="background:#E8F5E9;border:2px solid #2E7D32;border-radius:6px;padding:10px;margin-bottom:8px"><div style="font-size:10px;font-weight:bold;color:#1B5E20;margin-bottom:10px">Filling Verified By + Date will CLOSE this ticket.</div>'+
+      '<div class="ap-field" style="margin-bottom:8px"><label>Verified By</label><select id="verifiedBy"><option value="">\u2014 Select \u2014</option>'+mgrOpts+'</select></div>'+
+      '<div class="ap-field" style="margin-bottom:8px"><label>Verification Date</label><input type="date" id="verifiedDate" value="'+today+'"></div>'+
+      '<div class="ap-field" style="margin-bottom:8px"><label>Actual Hours</label><input type="number" id="verActualHours" step="0.5" min="0" value="'+esc(t.actualHours||'')+'"></div>'+
+      '<div class="ap-field"><label>Sign-Off Notes</label><input type="text" id="verNotes" placeholder="Verification comments\u2026"></div></div>'+
+      '<div class="ap-divider">Equipment Tag</div>'+
+      '<div class="tag-pills"><div class="tag-pill t-none" onclick="selTag(\'\',this)">None</div><div class="tag-pill" onclick="selTag(\'Green \u2014 Cleared\',this)">&#128994; Green</div><div class="tag-pill" onclick="selTag(\'Orange \u2014 Temp Fix\',this)">&#129001; Orange</div></div>';
+    btns.innerHTML='<button class="btn btn-close" onclick="doAction(\'verify\')">&#9989; Verify &amp; Close</button><button class="btn btn-approve" onclick="doAction(\'back-to-open\')">&#8629; Send Back to Open</button><button class="btn btn-void" onclick="doAction(\'void\')">&#128683; Void Ticket</button>';
+
+  }else if(currentTab==='parts'){
+    body.innerHTML='<div class="action-panel-empty" style="font-style:normal;text-align:left;color:#5C6BC0;font-size:11px">Update individual part statuses in the table on the left, or add a new part using the Add a Part form.</div>';
+    btns.style.display='none';
+
+  }else if(currentTab==='tags'){
+    body.innerHTML='<div class="ap-divider">Update Tag Status</div><div class="tag-pills"><div class="tag-pill t-none" onclick="selTag(\'\',this)">None</div><div class="tag-pill" onclick="selTag(\'Green \u2014 Cleared\',this)">&#128994; Green</div><div class="tag-pill" onclick="selTag(\'Orange \u2014 Temp Fix\',this)">&#129001; Orange</div><div class="tag-pill" onclick="selTag(\'Red \u2014 Out of Service\',this)">&#128308; Red</div></div>';
+    btns.innerHTML='<button class="btn btn-approve" onclick="doAction(\'update-tag\')">&#128190; Save Tag Update</button>';
+
+  }else if(currentTab==='reports'){
+    body.innerHTML='<div class="ap-divider">Verify Report</div><div class="ap-field" style="margin-bottom:10px"><label>Verified By</label><input type="text" id="rptVerifiedBy" placeholder="Manager name\u2026"></div><div class="ap-field"><label>Sign-Off Notes</label><input type="text" id="rptNotes" placeholder="Verification notes\u2026"></div>';
+    btns.innerHTML='<button class="btn btn-close" onclick="doAction(\'verify-report\')">&#9989; Verify Report</button>';
+  }
+}
+
+function renderClosedActionPanel(t){
+  var body=document.getElementById('actionPanelBody'),btns=document.getElementById('actionPanelBtns');
+  body.innerHTML='';btns.innerHTML='';btns.style.display='flex';
+  body.innerHTML=
+    '<div class="closed-note">This ticket is closed. You can add or update information without reopening it. All changes are logged in ticket history.</div>'+
+    '<div class="ap-divider closed-div">Updated By</div>'+
+    '<div class="ap-field"><label>Your Name</label><select id="ce_updatedBy" style="border-color:#90A4AE;color:#263238"><option value="">\u2014 Select your name \u2014</option>'+(BD.managers||[]).map(function(m){return'<option value="'+esc(m)+'">'+esc(m)+'</option>';}).join('')+'</select></div>'+
+    '<div class="ap-divider closed-div">Notes</div>'+
+    '<div class="ap-field"><label>Additional Notes</label><input type="text" id="ce_extraNotes" placeholder="Optional\u2026" style="border-color:#90A4AE;color:#263238"></div>';
+  btns.innerHTML='<button class="btn btn-steel" onclick="doAction(\'save-closed\')">&#128190; Save Changes</button><button class="btn btn-ghost" onclick="selTicket=null;resetPanels();document.querySelectorAll(\'.ticket-item\').forEach(function(el){el.classList.remove(\'selected\');})">Cancel</button>';
+  btns.classList.add('closed-btns');
+}
+
+function openAssignTo(){var i=document.getElementById('assignToInput');if(!i)return;i.select();renderAssignList('');}
+function filterAssignTo(){var i=document.getElementById('assignToInput');if(!i)return;document.getElementById('assignTo').value='';renderAssignList(i.value);}
+function renderAssignList(search){
+  var list=document.getElementById('assignToList');if(!list)return;
+  var techs=BD.technicians||[];var s=(search||'').toLowerCase();
+  var filtered=s?techs.filter(function(t){return t.toLowerCase().indexOf(s)>-1;}):techs;
+  var html='<div class="assign-item assign-empty" onclick="selectAssignTo(\'\')">-- Unassigned --</div>';
+  filtered.forEach(function(tech){html+='<div class="assign-item" onclick="selectAssignTo(\''+esc(tech)+'\')">'+esc(tech)+'</div>';});
+  if(!filtered.length&&s)html+='<div class="assign-item assign-empty">No match found</div>';
+  list.innerHTML=html;list.style.display='block';
+}
+function selectAssignTo(val){var i=document.getElementById('assignToInput'),h=document.getElementById('assignTo'),l=document.getElementById('assignToList');if(i)i.value=val;if(h)h.value=val;if(l)l.style.display='none';}
+
+function selTransferReason(val,btn){
+  document.getElementById('transferReason').value=val;
+  document.querySelectorAll('#transferReasonPills .tag-pill').forEach(function(p){p.classList.remove('t-reason');});
+  btn.classList.add('t-reason');
+}
+function onTransferChange(){
+  var tDept=document.getElementById('transferDept'),wrap=document.getElementById('transferReasonWrap');
+  if(!tDept||!selTicket)return;
+  wrap.style.display=(tDept.value&&tDept.value!==selTicket.dept)?'block':'none';
+  if(wrap.style.display==='none'){document.getElementById('transferReason').value='';document.querySelectorAll('#transferReasonPills .tag-pill').forEach(function(p){p.classList.remove('t-reason');});}
+}
+function selTag(val,btn){
+  selTagVal=val;document.querySelectorAll('.tag-pill').forEach(function(p){p.className='tag-pill';});
+  if(!val)btn.classList.add('t-none');
+  else if(val.indexOf('Green')>-1)btn.classList.add('t-green');
+  else if(val.indexOf('Orange')>-1)btn.classList.add('t-orange');
+  else if(val.indexOf('Red')>-1)btn.classList.add('t-red');
+  else if(val.indexOf('Yellow')>-1){btn.style.background='#FFF9C4';btn.style.color='#F57F17';btn.style.borderColor='#F57F17';}
+}
+
+function doAction(action){
+  if(!selTicket){showSt('No ticket selected.','error');return;}
+  var data={ticketNo:selTicket.ticketNo,dept:selTicket.dept,priority:selTicket.priority,source:selTicket.source};
+
+  if(action==='save-closed'){
+    var updBy=document.getElementById('ce_updatedBy');
+    if(!updBy||!updBy.value){showSt('Please select your name before saving.','error');return;}
+    data.updatedBy=updBy.value;
+    data.correctiveAction=(document.getElementById('ce_correctiveAction')||{value:''}).value;
+    data.rootCause=(document.getElementById('ce_rootCause')||{value:''}).value;
+    data.workSummary=(document.getElementById('ce_workSummary')||{value:''}).value;
+    data.actualHours=(document.getElementById('ce_actualHours')||{value:''}).value;
+    data.fixType=(document.getElementById('ce_fixType')||{value:''}).value;
+    data.notes=(document.getElementById('ce_notes')||{value:''}).value;
+    showSt('Saving\u2026','info');
+    document.querySelectorAll('#actionPanelBtns .btn').forEach(function(b){b.disabled=true;});
+    google.script.run
+      .withSuccessHandler(function(r){document.querySelectorAll('#actionPanelBtns .btn').forEach(function(b){b.disabled=false;});if(r&&r.success===false){showSt('Error: '+(r.error||'Save failed.'),'error');}else{showSt('Closed ticket '+selTicket.ticketNo+' updated.','success');}})
+      .withFailureHandler(function(e){document.querySelectorAll('#actionPanelBtns .btn').forEach(function(b){b.disabled=false;});showSt('Error: '+e.message,'error');})
+      .editClosedTicket(data);
+    return;
+  }
+
+  var setPri=document.getElementById('setPriority'),assignTo=document.getElementById('assignTo'),mgrNotes=document.getElementById('mgrNotes'),setStatus=document.getElementById('setStatus'),tDept=document.getElementById('transferDept'),tReason=document.getElementById('transferReason'),estHrs=document.getElementById('estHoursInput');
+  if(setPri)data.priority=setPri.value||selTicket.priority;
+  if(assignTo)data.assignedTo=assignTo.value;if(mgrNotes)data.notes=mgrNotes.value;
+  if(setStatus)data.newStatus=setStatus.value;if(estHrs)data.estHours=estHrs.value;
+  if(tDept&&tDept.value&&tDept.value!==selTicket.dept){data.dept=tDept.value;data.transferReason=tReason?tReason.value:'';}
+  data.equipTagStatus=selTagVal;
+  var vBy=document.getElementById('verifiedBy'),vDate=document.getElementById('verifiedDate'),vHrs=document.getElementById('verActualHours'),vNotes=document.getElementById('verNotes');
+  if(vBy)data.verifiedBy=vBy.value;if(vDate)data.verifiedDate=vDate.value;if(vHrs)data.actualHours=vHrs.value;if(vNotes)data.managerNotes=vNotes.value;
+
+  var fnName='';
+  if(action==='approve'){data.newStatus='OPEN';fnName='managerApproveTicket';}
+  if(action==='close'){data.newStatus='CLOSED';fnName='managerApproveTicket';}
+  if(action==='hold'){data.newStatus='ON HOLD';fnName='managerApproveTicket';}
+  if(action==='verify'){data.newStatus='CLOSED';fnName='managerVerifyTicket';}
+  if(action==='back-to-open'){data.newStatus='OPEN';fnName='managerApproveTicket';}
+  if(action==='update'||action==='update-tag')fnName='managerApproveTicket';
+
+  if(action==='void'){
+    var voidSel=document.getElementById('voidReasonSel'),voidReason=voidSel?voidSel.value:'';
+    if(!voidReason){showSt('Please select a Void Reason before voiding.','error');return;}
+    if(!confirm('Are you sure you want to VOID ticket '+selTicket.ticketNo+'?\n\nReason: '+voidReason+'\n\nThis cannot be undone.'))return;
+    showSt('Voiding ticket\u2026','info');
+    google.script.run.withSuccessHandler(function(r){if(r&&r.success===false){showSt('Error: '+(r.error||'Failed.'),'error');}else{showSt('Ticket '+selTicket.ticketNo+' voided.','success');selTicket=null;resetPanels();setTimeout(loadData,1200);}}).withFailureHandler(function(e){showSt('Error: '+e.message,'error');}).voidTicket({ticketNo:selTicket.ticketNo,dept:selTicket.dept,voidReason:voidReason,voidedBy:''});
+    return;
+  }
+  if(action==='verify-report'){
+    var rB=document.getElementById('rptVerifiedBy'),rN=document.getElementById('rptNotes');
+    google.script.run.withSuccessHandler(function(r){if(r&&r.success===false){showSt('Error: '+(r.error||'Failed.'),'error');}else{showSt('Report verified.','success');setTimeout(loadData,1200);}}).withFailureHandler(function(e){showSt('Error: '+e.message,'error');}).managerVerifyReport({reportId:selTicket.reportId,verifiedBy:rB?rB.value:'',notes:rN?rN.value:'',verifiedDate:new Date().toISOString().split('T')[0]});
+    return;
+  }
+  if(action==='verify'){var ws=(selTicket.workSummary||'').trim();if(!ws){showSt('Cannot verify \u2014 no Work Summary on record. The tech must submit a corrective action first.','error');return;}}
+  if(!fnName)return;
+  showSt('Saving\u2026','info');
+  document.querySelectorAll('#actionPanelBtns .btn').forEach(function(b){b.disabled=true;});
+  google.script.run
+    .withSuccessHandler(function(r){document.querySelectorAll('#actionPanelBtns .btn').forEach(function(b){b.disabled=false;});if(r&&r.success===false){showSt('Error: '+(r.error||'Save failed.'),'error');}else{showSt('Ticket '+selTicket.ticketNo+' updated.','success');selTicket=null;resetPanels();setTimeout(loadData,1200);}})
+    .withFailureHandler(function(e){document.querySelectorAll('#actionPanelBtns .btn').forEach(function(b){b.disabled=false;});showSt('Error: '+e.message,'error');})[fnName](data);
+}
+
+function showSt(m,t){var el=document.getElementById('statusBar');el.textContent=m;el.className='status-bar '+t;if(t==='success')setTimeout(function(){el.className='status-bar';},4000);}
+function esc(v){return(v||'').toString().replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/"/g,'&quot;');}
+</script>
+</body>
+</html>

@@ -1,0 +1,827 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:Arial,sans-serif;background:#F2F2F2;color:#2A2A2A;font-size:13px}
+
+/* ── ROUTING BANNER ── */
+.routing-banner{
+  background:#E8F5E9;border:1.5px solid #2E7D32;
+  border-radius:5px;padding:9px 14px;
+  display:flex;align-items:center;gap:10px;
+  margin-bottom:10px;
+}
+
+/* ── HEADER ── */
+.form-header{
+  background:#2A2A2A;padding:0;
+  display:flex;align-items:stretch;flex-shrink:0;
+}
+.header-accent{background:#FFD700;width:6px;flex-shrink:0}
+.header-body{flex:1;padding:12px 20px;display:flex;align-items:center;gap:16px}
+.header-title{flex:1}
+.header-title h1{font-size:16px;font-weight:bold;color:#FFD700;letter-spacing:.4px}
+.header-title p{font-size:10px;color:#9E9E9E;margin-top:3px}
+.header-meta{text-align:right;font-size:10px;color:#9E9E9E;line-height:1.8}
+.header-meta strong{color:#FFD700}
+
+/* ── FORM BODY ── */
+.form-body{padding:16px 24px;overflow-y:auto;max-height:calc(100vh - 140px)}
+
+/* ── SECTION CARD ── */
+.section-card{
+  background:#fff;border-radius:6px;
+  margin-bottom:14px;overflow:hidden;
+  border:1px solid #D0D0D0;
+}
+.section-head{
+  display:flex;align-items:center;gap:8px;
+  padding:9px 16px;
+  border-left:4px solid #FFD700;
+  background:#3C3C3C;
+}
+.section-head h2{
+  font-size:11px;font-weight:bold;color:#FFD700;
+  text-transform:uppercase;letter-spacing:.8px;
+}
+.section-body{padding:14px 16px}
+
+/* ── GRID LAYOUTS ── */
+.grid-2{display:grid;grid-template-columns:1fr 1fr;gap:10px 16px}
+.grid-3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px 16px}
+.grid-4{display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:10px 14px}
+
+/* ── FIELDS ── */
+.field{display:flex;flex-direction:column;gap:3px}
+.field label{
+  font-size:9px;font-weight:bold;color:#616161;
+  text-transform:uppercase;letter-spacing:.6px;
+}
+.field label .req{color:#C62828;margin-left:2px}
+.field select,.field input,.field textarea{
+  padding:7px 10px;border:1.5px solid #D0D0D0;
+  border-radius:5px;font-family:Arial;font-size:12px;
+  color:#2A2A2A;background:#fff;width:100%;
+  transition:border-color .15s;
+}
+.field select:focus,.field input:focus,.field textarea:focus{
+  border-color:#3C3C3C;outline:none;
+}
+.field textarea{resize:vertical;min-height:68px}
+.field .auto{background:#EBEBEB!important;color:#3C3C3C!important;font-weight:bold}
+.field select:disabled,.field input:disabled{
+  background:#F5F5F5;color:#9E9E9E;cursor:not-allowed
+}
+
+/* ── PRIORITY LOCK ── */
+.priority-locked{
+  background:#F5F5F5;border:1.5px solid #D0D0D0;
+  border-radius:5px;padding:7px 10px;
+  font-size:12px;color:#9E9E9E;font-style:italic;
+}
+.priority-note{
+  font-size:10px;color:#E65100;margin-top:3px;
+  display:flex;align-items:center;gap:4px;
+}
+
+/* ── TAG PILLS ── */
+.tag-section{margin-top:14px}
+.tag-label{
+  font-size:9px;font-weight:bold;color:#616161;
+  text-transform:uppercase;letter-spacing:.6px;margin-bottom:8px;
+}
+.tag-pills{
+  display:flex;gap:8px;justify-content:center;flex-wrap:wrap;
+}
+.tag-pill{
+  padding:7px 18px;border-radius:20px;
+  border:2px solid #D0D0D0;font-size:11px;
+  font-weight:bold;cursor:pointer;transition:all .15s;
+  background:#F5F5F5;color:#616161;
+}
+.tag-pill:hover{border-color:#3C3C3C;background:#EBEBEB}
+.tag-pill.active-none{background:#3C3C3C;color:#FFD700;border-color:#3C3C3C}
+.tag-pill.active-red{background:#B71C1C;color:#fff;border-color:#B71C1C}
+.tag-pill.active-yellow{background:#F57F17;color:#fff;border-color:#F57F17}
+.tag-pill:not(.active-none):not(.active-red):not(.active-yellow){opacity:.65}
+.tag-print-note{
+  text-align:center;margin-top:8px;font-size:11px;
+  color:#B71C1C;font-weight:bold;display:none;
+}
+
+/* ── PARTS TABLE ── */
+.parts-table{width:100%;border-collapse:collapse;font-size:11px;margin-top:8px}
+.parts-table thead tr{background:#3C3C3C}
+.parts-table thead th{
+  padding:7px 8px;color:#FFD700;font-weight:bold;
+  font-size:10px;text-align:left;
+}
+.parts-table tbody td{
+  padding:4px 5px;border-bottom:1px solid #EBEBEB;
+}
+.parts-table tbody tr:nth-child(even) td{background:#F9F9F9}
+.parts-table td input,.parts-table td select{
+  border:1px solid #D0D0D0;border-radius:4px;
+  padding:4px 6px;font-size:11px;width:100%;
+  font-family:Arial;background:#fff;
+}
+.parts-table td input:focus,.parts-table td select:focus{
+  border-color:#3C3C3C;outline:none;
+}
+.btn-add-row{
+  margin-top:6px;padding:5px 12px;
+  background:transparent;border:1.5px dashed #D0D0D0;
+  border-radius:4px;font-size:10px;font-weight:bold;
+  color:#616161;cursor:pointer;font-family:Arial;
+  transition:all .13s;
+}
+.btn-add-row:hover{border-color:#3C3C3C;color:#3C3C3C;background:#F5F5F5}
+
+/* ── CRITICAL BANNER ── */
+.critical-banner{
+  background:#B71C1C;color:#fff;padding:8px 14px;
+  border-radius:5px;font-size:11px;font-weight:bold;
+  text-align:center;margin-bottom:10px;display:none;
+}
+
+/* ── FOOTER ── */
+.form-footer{
+  background:#fff;border-top:2px solid #D0D0D0;
+  padding:10px 20px;display:flex;align-items:center;
+  justify-content:flex-end;gap:10px;flex-shrink:0;
+}
+.status-msg{
+  padding:6px 12px;border-radius:5px;font-size:11px;
+  font-weight:bold;display:none;margin-right:auto;
+}
+.status-msg.success{display:block;background:#C8E6C9;color:#2E7D32}
+.status-msg.error{display:block;background:#FFCDD2;color:#C62828}
+.status-msg.loading{display:block;background:#E3F2FD;color:#1565C0}
+.btn{
+  padding:9px 22px;border:none;border-radius:5px;
+  font-size:12px;font-weight:bold;cursor:pointer;
+  font-family:Arial;transition:all .13s;
+}
+.btn-primary{background:#3C3C3C;color:#FFD700}
+.btn-primary:hover{background:#2A2A2A}
+.btn-primary:disabled{background:#B0B0B0;color:#fff;cursor:not-allowed}
+.btn-ghost{
+  background:transparent;border:1.5px solid #D0D0D0;
+  color:#616161;
+}
+.btn-ghost:hover{border-color:#3C3C3C;color:#3C3C3C}
+
+/* ── TICKET NUMBER PREVIEW ── */
+.ticket-preview{
+  display:flex;align-items:center;gap:8px;
+  padding:8px 12px;background:#2A2A2A;border-radius:5px;
+  margin-top:8px;
+}
+.ticket-preview-label{font-size:10px;color:#9E9E9E;text-transform:uppercase;letter-spacing:.6px}
+.ticket-preview-num{
+  font-size:14px;font-weight:bold;color:#FFD700;
+  font-family:'Courier New',monospace;flex:1;
+}
+
+/* ── LOADING OVERLAY ── */
+.overlay{
+  display:none;position:fixed;inset:0;
+  background:rgba(255,255,255,.75);z-index:9999;
+  align-items:center;justify-content:center;flex-direction:column;gap:10px;
+}
+.overlay.show{display:flex}
+.spinner{
+  width:34px;height:34px;border:4px solid #D0D0D0;
+  border-top-color:#3C3C3C;border-radius:50%;
+  animation:spin .7s linear infinite;
+}
+@keyframes spin{to{transform:rotate(360deg)}}
+.spin-lbl{font-size:12px;font-weight:bold;color:#3C3C3C}
+</style>
+</head>
+<body>
+
+<div class="overlay show" id="overlay">
+  <div class="spinner"></div>
+  <div class="spin-lbl">Loading form\u2026</div>
+</div>
+
+<!-- HEADER -->
+<div class="form-header">
+  <div class="header-accent"></div>
+  <div class="header-body">
+    <div class="header-title">
+      <h1>&#x2795; ADD NEW MAINTENANCE TICKET</h1>
+      <p id="companyInfo">Container Supply Co. &mdash; Garden Grove, CA</p>
+    </div>
+    <div class="header-meta">
+      <div><strong id="docNo">FRM-040-001</strong> | Rev: <span id="docRev">0</span></div>
+      <div id="formDate"></div>
+    </div>
+  </div>
+</div>
+
+<div class="form-body">
+
+  <!-- CRITICAL BYPASS BANNER -->
+  <div class="critical-banner" id="criticalBanner">
+    &#x1F6A8; CRITICAL PRIORITY &mdash; This ticket will bypass the Waiting Queue and go directly to Open Tickets
+  </div>
+
+  <!-- SECTION 1: EQUIPMENT INFORMATION -->
+  <div class="section-card">
+    <div class="section-head"><h2>&#x2699;&#xFE0F; 1 &mdash; Equipment Information</h2></div>
+    <div class="section-body">
+
+      <div class="grid-3" style="margin-bottom:10px">
+        <div class="field">
+          <label>Department <span class="req">*</span></label>
+          <select id="dept" onchange="onDeptChange()">
+            <option value="">&mdash; Select Department &mdash;</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Equipment Type <span class="req">*</span></label>
+          <select id="equipType" onchange="onEquipTypeChange()" disabled>
+            <option value="">&mdash; Select Department First &mdash;</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Equipment Description</label>
+          <select id="equipDesc" onchange="onEquipDescChange()" disabled>
+            <option value="">&mdash; Select Equipment Type First &mdash;</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- Routing Banner -->
+      <div class="routing-banner" id="routingBanner" style="display:none">
+        <span style="font-size:16px">&#x1F4CB;</span>
+        <div>
+          <div style="font-size:9px;font-weight:bold;color:#1B5E20;text-transform:uppercase;letter-spacing:.5px">This ticket will route to</div>
+          <div style="display:flex;align-items:center;gap:6px;margin-top:3px">
+            <span style="font-size:12px;font-weight:bold;color:#1B5E20;font-family:monospace" id="routingDept"></span>
+            <span style="color:#2E7D32;font-size:14px">&rarr;</span>
+            <span style="font-size:12px;font-weight:bold;color:#1B5E20" id="routingTracker"></span>
+          </div>
+        </div>
+      </div>
+
+      <div class="grid-4" style="margin-bottom:10px">
+        <div class="field">
+          <label>Equipment Code</label>
+          <input id="equipCode" class="auto" readonly placeholder="Auto-fills from selection">
+        </div>
+        <div class="field">
+          <label>Building / Zone</label>
+          <select id="buildingZone">
+            <option value="">&mdash; Select &mdash;</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Line #</label>
+          <input type="text" id="lineNo" placeholder="e.g. Line 3">
+        </div>
+        <div class="field">
+          <label>Downtime Type</label>
+          <select id="downtimeType">
+            <option value="">&mdash; Select &mdash;</option>
+            <option value="PLANNED">PLANNED</option>
+            <option value="UNPLANNED">UNPLANNED</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- Ticket Number Preview -->
+      <div class="ticket-preview" id="ticketPreview" style="display:none">
+        <div class="ticket-preview-label">Ticket # will be:</div>
+        <div class="ticket-preview-num" id="ticketPreviewNum">MT-000-000000-000</div>
+      </div>
+
+      <!-- Equipment Tag Status -->
+      <div class="tag-section">
+        <div class="tag-label">Equipment Tag Status</div>
+        <div class="tag-pills">
+          <div class="tag-pill active-none" id="tagNone" onclick="selectTag('none',this)">None</div>
+          <div class="tag-pill" id="tagRed" onclick="selectTag('red',this)">&#x1F534; Red &mdash; Out of Service</div>
+          <div class="tag-pill" id="tagYellow" onclick="selectTag('yellow',this)">&#x1F7E1; Yellow &mdash; Use with Caution</div>
+        </div>
+        <div class="tag-print-note" id="tagPrintNote">
+          &#x26A0;&#xFE0F; Equipment will be tagged and logged. You will be asked about printing on save.
+        </div>
+        <input type="hidden" id="equipTagStatus" value="">
+      </div>
+
+    </div>
+  </div>
+
+  <!-- SECTION 2: TICKET DETAILS -->
+  <div class="section-card">
+    <div class="section-head"><h2>&#x1F3AB; 2 &mdash; Ticket Details</h2></div>
+    <div class="section-body">
+
+      <div class="grid-3" style="margin-bottom:10px">
+        <div class="field">
+          <label>Problem Type</label>
+          <select id="problemType" onchange="updateRoutingBanner()">
+            <option value="">&mdash; Select &mdash;</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Shift</label>
+          <select id="shift">
+            <option value="">&mdash; Select &mdash;</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Estimated Hours</label>
+          <input type="number" id="estHours" step="0.5" min="0" placeholder="0.0">
+        </div>
+      </div>
+
+      <div class="grid-2" style="margin-bottom:10px">
+        <div class="field">
+          <label>Priority</label>
+          <div id="priorityField"></div>
+          <div class="priority-note" id="priorityNote" style="display:none">
+            &#x1F512; Priority is set by the manager during review
+          </div>
+        </div>
+        <div class="field">
+          <label>Notes</label>
+          <input type="text" id="notes" placeholder="Additional notes\u2026">
+        </div>
+      </div>
+
+      <div class="field" style="margin-bottom:10px">
+        <label>Problem Description <span class="req">*</span></label>
+        <textarea id="problemDesc" rows="3" placeholder="Describe the problem in detail &mdash; what is happening, when did it start, what have you observed?"></textarea>
+      </div>
+
+      <div class="grid-2">
+        <div class="field">
+          <label>Added By <span class="req">*</span></label>
+          <input type="text" id="addedBy" placeholder="Type name or select&hellip;" list="addedByList">
+<datalist id="addedByList"></datalist>
+        </div>
+        <div></div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- SECTION 3: PARTS NEEDED -->
+  <div class="section-card">
+    <div class="section-head"><h2>&#x1F529; 3 &mdash; Parts Needed</h2></div>
+    <div class="section-body">
+
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
+        <input type="checkbox" id="partsNeeded" style="width:16px;height:16px;accent-color:#3C3C3C;cursor:pointer" onchange="togglePartsTable()">
+        <label for="partsNeeded" style="font-size:12px;font-weight:bold;cursor:pointer;color:#3C3C3C">
+          Parts required for this repair &mdash; checking this will notify the manager
+        </label>
+      </div>
+
+      <div id="partsSection" style="display:none">
+        <table class="parts-table">
+          <thead>
+            <tr>
+              <th style="width:16%">Part ID / #</th>
+              <th style="width:34%">Part Description</th>
+              <th style="width:12%">Qty</th>
+              <th style="width:14%">UOM</th>
+              <th>Notes</th>
+            </tr>
+          </thead>
+          <tbody id="partsBody"></tbody>
+        </table>
+        <button type="button" class="btn-add-row" onclick="addPartsRow()">&#xFF0B; Add Part</button>
+      </div>
+
+    </div>
+  </div>
+
+</div><!-- /form-body -->
+
+<!-- FOOTER -->
+<div class="form-footer">
+  <div class="status-msg" id="statusMsg"></div>
+  <button class="btn btn-ghost" onclick="google.script.host.close()">Cancel</button>
+  <button class="btn btn-primary" id="submitBtn" onclick="submitTicket()">&#x2795; Create Ticket</button>
+</div>
+
+<input type="hidden" id="userRole" value="tech">
+
+<script>
+var FD = {};
+var DEPT_MAPPING = {};
+var selectedTag = '';
+var UOM_OPTIONS = ['EA','PCS','FT','IN','LB','KG','GAL','QT','BOX','SET','PAIR','YD','M','L'];
+
+window.onload = function() {
+  document.getElementById('formDate').textContent =
+    new Date().toLocaleDateString('en-US',{weekday:'short',year:'numeric',month:'short',day:'numeric'});
+
+  google.script.run
+    .withSuccessHandler(initForm)
+    .withFailureHandler(function(e){
+      hideOverlay();
+      setMsg('Error loading form: ' + e.message, 'error');
+    })
+    .getAddTicketFormData();
+
+  google.script.run
+    .withSuccessHandler(function(role){
+      document.getElementById('userRole').value = role;
+      buildPriorityField(role);
+    })
+    .getCurrentUserRole();
+};
+
+function initForm(d) {
+  FD = d;
+  DEPT_MAPPING = d.deptMapping || {};
+  hideOverlay();
+
+  document.getElementById('companyInfo').textContent =
+    (d.companyName || '') + (d.location ? ' \u2014 ' + d.location : '');
+  document.getElementById('docNo').textContent  = d.docNo    || 'FRM-040-001';
+  document.getElementById('docRev').textContent = d.revision || '0';
+
+  // ── FIX 1: Department dropdown shows "METAL \u2014 001" format ──
+  // Option value stays as the source dept name (e.g. METAL) for routing logic.
+  // Display text appends the accounting code so the user sees both.
+  var deptSel = document.getElementById('dept');
+  (d.departments || []).forEach(function(dept) {
+    var o = document.createElement('option');
+    o.value = dept;
+    var code = (d.deptCodes || {})[dept];
+    o.textContent = code ? dept + ' \u2014 ' + code : dept;
+    deptSel.appendChild(o);
+  });
+
+  populateSelect('buildingZone', d.buildingZones  || []);
+  populateSelect('problemType',  d.problemTypes   || []);
+  populateSelect('shift',        d.shifts         || []);
+  // ITEM 4: Added By uses combined people list (techs + managers)
+ var addedByList = document.getElementById('addedByList');
+(d.peopleList || d.technicians || []).forEach(function(v) {
+  var o = document.createElement('option');
+  o.value = v; addedByList.appendChild(o);
+});
+
+  addPartsRow(); addPartsRow(); addPartsRow();
+}
+
+function buildPriorityField(role) {
+  var wrap = document.getElementById('priorityField');
+  var note = document.getElementById('priorityNote');
+  if (role === 'manager' || role === 'admin') {
+    wrap.innerHTML =
+      '<select id="priority" style="width:100%;padding:7px 10px;border:1.5px solid #D0D0D0;border-radius:5px;font-family:Arial;font-size:12px">' +
+      '<option value="">\u2014 Manager Sets Priority \u2014</option>' +
+      '<option value="LOW">LOW</option>' +
+      '<option value="MEDIUM">MEDIUM</option>' +
+      '<option value="HIGH">HIGH</option>' +
+      '<option value="CRITICAL">CRITICAL</option>' +
+      '</select>';
+    var priSel = document.getElementById('priority');
+    if (priSel) priSel.addEventListener('change', function(){
+      document.getElementById('criticalBanner').style.display =
+        this.value === 'CRITICAL' ? 'block' : 'none';
+    });
+    note.style.display = 'none';
+  } else {
+    wrap.innerHTML = '<div class="priority-locked">Set by manager during review</div>';
+    note.style.display = 'flex';
+  }
+}
+
+function populateSelect(id, items) {
+  var s = document.getElementById(id); if (!s) return;
+  items.forEach(function(v) {
+    var o = document.createElement('option');
+    o.value = v; o.textContent = v;
+    s.appendChild(o);
+  });
+}
+
+// ── ROUTING BANNER ──────────────────────────────────────────────────────────
+function getClientTrackerName_(dept, problemType, equipType) {
+  var pt    = String(problemType || '').toUpperCase().trim();
+  var et    = String(equipType   || '').toUpperCase().trim();
+  var group = getDeptGroupClient_(dept);
+  var trackerMap = {
+    'PLASTICS':     'Plastics Tracker',
+    'METALS':       'Metals Tracker',
+    'MACHINE SHOP': 'Machine Shop Tracker',
+    'ELECTRICAL':   'Electrical Tracker',
+    'FACILITIES':   'Facilities Tracker',
+    'LITHO':        'Litho Tracker'
+  };
+  // Mirror server-side routing override rules
+  var rules = FD.routingRules || [
+    { keyword:'ELECTRICAL', matchOn:'PROBLEM_TYPE', routeTo:'ELECTRICAL' },
+    { keyword:'FACILITY',   matchOn:'EQUIP_DESC',   routeTo:'FACILITIES' }
+  ];
+  for (var r = 0; r < rules.length; r++) {
+    var rule = rules[r];
+    var kw   = String(rule.keyword || '').toUpperCase().trim();
+    if (!kw) continue;
+    var haystack = String(rule.matchOn || '').toUpperCase() === 'EQUIP_DESC' ? et : pt;
+    if (haystack.indexOf(kw) > -1) {
+      var dest = String(rule.routeTo || '').toUpperCase();
+      return trackerMap[dest] || dest + ' Tracker';
+    }
+  }
+  return trackerMap[group] || group + ' Tracker';
+}
+
+function updateRoutingBanner() {
+  var banner = document.getElementById('routingBanner');
+  var dept   = document.getElementById('dept').value;
+  if (!dept) { banner.style.display = 'none'; return; }
+  var problemType = document.getElementById('problemType').value;
+  var equipType   = document.getElementById('equipType').value;
+  var trackerName = getClientTrackerName_(dept, problemType, equipType);
+  document.getElementById('routingDept').textContent    = dept;
+  document.getElementById('routingTracker').textContent = trackerName;
+  banner.style.display = 'flex';
+}
+
+// ── EQUIPMENT CASCADE ────────────────────────────────────────────────────────
+function getDeptGroupClient_(dept) {
+  var d = String(dept||'').toUpperCase().trim();
+  if (DEPT_MAPPING[d]) return DEPT_MAPPING[d];
+  var fallback = {
+    'METAL':'METALS','PLASTIC':'PLASTICS','PLASTIC DEC':'PLASTICS',
+    'LITHO':'LITHO','M/S':'MACHINE SHOP','S/R':'FACILITIES','QA':'FACILITIES',
+    'METALS':'METALS','PLASTICS':'PLASTICS','ELECTRICAL':'ELECTRICAL',
+    'MACHINE SHOP':'MACHINE SHOP','FACILITIES':'FACILITIES'
+  };
+  return fallback[d] || d;
+}
+
+function onDeptChange() {
+  var dept    = document.getElementById('dept').value;
+  var typeSel = document.getElementById('equipType');
+  var descSel = document.getElementById('equipDesc');
+
+  typeSel.innerHTML = '<option value="">\u2014 Select Equipment Type \u2014</option>';
+  descSel.innerHTML = '<option value="">\u2014 Select Equipment Type First \u2014</option>';
+  document.getElementById('equipCode').value = '';
+  typeSel.disabled = !dept;
+  descSel.disabled = true;
+
+  if (!dept) {
+    updateTicketPreview();
+    updateRoutingBanner();
+    return;
+  }
+
+  var hier      = FD.equipHierarchy || {};
+  var deptGroup = getDeptGroupClient_(dept);
+  var dUp       = dept.toUpperCase();
+
+  var hierKeys = [];
+  Object.keys(hier).forEach(function(k) {
+    if (getDeptGroupClient_(k) === deptGroup) hierKeys.push(k);
+    else if (k.toUpperCase() === dUp && hierKeys.indexOf(k) < 0) hierKeys.push(k);
+  });
+
+  var types = {};
+  hierKeys.forEach(function(k) {
+    Object.keys(hier[k] || {}).forEach(function(t) { types[t] = true; });
+  });
+  var typeList = Object.keys(types).sort();
+
+  if (typeList.length === 0) {
+    (FD.equipFlatList || []).forEach(function(e) {
+      if (getDeptGroupClient_(e.dept || '') === deptGroup && e.eType) types[e.eType] = true;
+    });
+    typeList = Object.keys(types).sort();
+  }
+
+  if (typeList.length === 0) typeList = FD.equipmentTypes || [];
+
+  typeList.forEach(function(t) {
+    var o = document.createElement('option'); o.value = t; o.textContent = t;
+    typeSel.appendChild(o);
+  });
+  typeSel.disabled = false;
+  typeSel.dataset.hierKeys  = JSON.stringify(hierKeys);
+  typeSel.dataset.deptGroup = deptGroup;
+
+  updateTicketPreview();
+  updateRoutingBanner();
+}
+
+function onEquipTypeChange() {
+  var eType   = document.getElementById('equipType').value;
+  var typeSel = document.getElementById('equipType');
+  var descSel = document.getElementById('equipDesc');
+
+  descSel.innerHTML = '<option value="">\u2014 Select Equipment \u2014</option>';
+  document.getElementById('equipCode').value = '';
+  descSel.disabled = !eType;
+  if (!eType) return;
+
+  var hier     = FD.equipHierarchy || {};
+  var hierKeys = [];
+  try { hierKeys = JSON.parse(typeSel.dataset.hierKeys || '[]'); } catch(e) {}
+
+  var items = [];
+  hierKeys.forEach(function(k) {
+    if (hier[k] && hier[k][eType]) {
+      hier[k][eType].forEach(function(e) { items.push(e); });
+    }
+  });
+
+  if (items.length === 0) {
+    var deptGroup = typeSel.dataset.deptGroup || '';
+    items = (FD.equipFlatList || []).filter(function(e) {
+      return getDeptGroupClient_(e.dept || '') === deptGroup
+          && e.eType === eType && e.specific;
+    });
+  }
+
+  items.forEach(function(e) {
+    var o = document.createElement('option');
+    o.value = JSON.stringify(e);
+    o.textContent = e.specific + (e.code ? ' \u2014 ' + e.code : '');
+    descSel.appendChild(o);
+  });
+  descSel.disabled = false;
+  updateRoutingBanner();
+}
+
+// ── FIX 2: Return just the equipment code (no dept prefix) ──
+// Previously returned "003-356" — now returns just "356"
+function onEquipDescChange() {
+  var val = document.getElementById('equipDesc').value;
+  if (!val) { document.getElementById('equipCode').value = ''; return; }
+  try {
+    var e = JSON.parse(val);
+    document.getElementById('equipCode').value = (e.code || '').trim();
+  } catch(ex) {}
+}
+
+function updateTicketPreview() {
+  var dept = document.getElementById('dept').value;
+  if (!dept) {
+    document.getElementById('ticketPreview').style.display = 'none';
+    return;
+  }
+  var code = (FD.deptCodes || {})[dept] || '000';
+  var now  = new Date();
+  var yy   = String(now.getFullYear()).slice(2);
+  var mm   = String(now.getMonth() + 1).padStart(2, '0');
+  var dd   = String(now.getDate()).padStart(2, '0');
+  document.getElementById('ticketPreviewNum').textContent =
+    'MT-' + code + '-' + yy + mm + dd + '-###';
+  document.getElementById('ticketPreview').style.display = 'flex';
+}
+
+// ── TAG PILLS ────────────────────────────────────────────────────────────────
+function selectTag(type, btn) {
+  selectedTag = type === 'none' ? '' : type;
+  document.getElementById('equipTagStatus').value = selectedTag;
+  document.querySelectorAll('.tag-pill').forEach(function(p){ p.className = 'tag-pill'; });
+  if (type === 'none')   btn.classList.add('active-none');
+  if (type === 'red')    btn.classList.add('active-red');
+  if (type === 'yellow') btn.classList.add('active-yellow');
+  document.getElementById('tagPrintNote').style.display = selectedTag ? 'block' : 'none';
+}
+
+// ── PARTS TABLE ──────────────────────────────────────────────────────────────
+function togglePartsTable() {
+  document.getElementById('partsSection').style.display =
+    document.getElementById('partsNeeded').checked ? 'block' : 'none';
+}
+
+function addPartsRow() {
+  var tbody = document.getElementById('partsBody');
+  var tr    = document.createElement('tr');
+  var uomOpts = UOM_OPTIONS.map(function(u){
+    return '<option value="'+u+'">'+u+'</option>';
+  }).join('');
+  tr.innerHTML =
+    '<td><input type="text" placeholder="Part ID\u2026"></td>' +
+    '<td><input type="text" placeholder="Description\u2026"></td>' +
+    '<td><input type="number" min="0" step="1" placeholder="1" style="text-align:center"></td>' +
+    '<td><select><option value="">\u2014</option>' + uomOpts + '</select></td>' +
+    '<td><input type="text" placeholder="Notes\u2026"></td>';
+  tbody.appendChild(tr);
+}
+
+function getPartsTable() {
+  var rows  = document.querySelectorAll('#partsBody tr');
+  var parts = [];
+  rows.forEach(function(row) {
+    var cells    = row.querySelectorAll('input, select');
+    var partId   = cells[0] ? cells[0].value.trim() : '';
+    var partDesc = cells[1] ? cells[1].value.trim() : '';
+    var qty      = cells[2] ? cells[2].value.trim() : '';
+    var uom      = cells[3] ? cells[3].value.trim() : '';
+    var notes    = cells[4] ? cells[4].value.trim() : '';
+    if (partId || partDesc) {
+      parts.push({ partId:partId, partDesc:partDesc, qty:qty, uom:uom, notes:notes });
+    }
+  });
+  return parts;
+}
+
+// ── SUBMIT ───────────────────────────────────────────────────────────────────
+function submitTicket() {
+  var dept        = document.getElementById('dept').value;
+  var problemDesc = document.getElementById('problemDesc').value.trim();
+  var addedBy     = document.getElementById('addedBy').value;
+
+  if (!dept)        { setMsg('Please select a Department.', 'error'); return; }
+  if (!problemDesc) { setMsg('Please enter a Problem Description.', 'error'); return; }
+  if (!addedBy)     { setMsg('Please select Added By.', 'error'); return; }
+
+  var descVal       = document.getElementById('equipDesc').value;
+  var equipDescText = '';
+  var equipCode     = document.getElementById('equipCode').value;
+  try {
+    var e = JSON.parse(descVal);
+    equipDescText = e.specific || '';
+    if (!equipCode) equipCode = e.code || '';
+  } catch(ex) {}
+
+  var partsNeeded = document.getElementById('partsNeeded').checked;
+  var partsTable  = partsNeeded ? getPartsTable() : [];
+  var priEl       = document.getElementById('priority');
+  var priority    = priEl ? priEl.value : '';
+
+  var data = {
+    dept:          dept,
+    buildingZone:  document.getElementById('buildingZone').value,
+    equipType:     document.getElementById('equipType').value,
+    equipCode:     equipCode,
+    equipDesc:     equipDescText,
+    lineNo:        document.getElementById('lineNo').value,
+    downtimeType:  document.getElementById('downtimeType').value,
+    problemType:   document.getElementById('problemType').value,
+    problemDesc:   problemDesc,
+    priority:      priority,
+    estHours:      document.getElementById('estHours').value,
+    shift:         document.getElementById('shift').value,
+    notes:         document.getElementById('notes').value,
+    addedBy:       addedBy,
+    partsNeeded:   partsNeeded,
+    partsTable:    partsTable,
+    equipTagStatus:selectedTag,
+    source:        'INTERNAL'
+  };
+
+  setMsg('Creating ticket\u2026', 'loading');
+  document.getElementById('submitBtn').disabled = true;
+
+  google.script.run
+    .withSuccessHandler(function(r) {
+      document.getElementById('submitBtn').disabled = false;
+      if (r.success) {
+        var dest = r.isCritical ? 'Open Tickets (CRITICAL bypass)' : 'Waiting Queue';
+        setMsg('\u2705 Ticket ' + r.ticketNo + ' created \u2192 ' + dest + ' | Tracker: ' + r.tracker, 'success');
+        if (r.tagLogged && selectedTag) {
+          setTimeout(function() {
+            var print = confirm(
+              'Equipment has been tagged and logged.\n\nWould you like to print the Equipment Hold Tag now?\n\nTicket: ' + r.ticketNo
+            );
+            if (print) {
+              google.script.host.close();
+              google.script.run.showEquipHoldTag(r.ticketNo);
+            } else {
+              setTimeout(function() { google.script.host.close(); }, 1500);
+            }
+          }, 800);
+        } else {
+          setTimeout(function() { google.script.host.close(); }, 2500);
+        }
+      } else {
+        setMsg('\u274C Error: ' + r.error, 'error');
+      }
+    })
+    .withFailureHandler(function(e) {
+      document.getElementById('submitBtn').disabled = false;
+      setMsg('\u274C Error: ' + e.message, 'error');
+    })
+    .addNewTicket(data);
+}
+
+// ── HELPERS ──────────────────────────────────────────────────────────────────
+function setMsg(t, type) {
+  var el = document.getElementById('statusMsg');
+  el.textContent = t;
+  el.className   = 'status-msg ' + type;
+}
+function hideOverlay() {
+  document.getElementById('overlay').classList.remove('show');
+}
+</script>
+</body>
+</html>

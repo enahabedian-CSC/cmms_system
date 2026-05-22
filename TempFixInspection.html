@@ -1,0 +1,455 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: Arial, sans-serif; font-size: 13px; background: #F5F5F5; color: #2A2A2A; }
+
+.form-header { background: #2A2A2A; padding: 14px 20px; display: flex; align-items: center; justify-content: space-between; }
+.form-header-left { display: flex; align-items: center; gap: 10px; }
+.orange-bar { width: 4px; height: 40px; background: #EF6C00; border-radius: 2px; flex-shrink: 0; }
+.form-title { font-size: 15px; font-weight: bold; color: #FFD700; }
+.form-subtitle { font-size: 11px; color: #9E9E9E; margin-top: 2px; }
+.doc-no { font-size: 11px; color: #9E9E9E; text-align: right; }
+.rev { font-size: 10px; color: #616161; text-align: right; margin-top: 2px; }
+
+.selector-bar { background: #3C3C3C; border-bottom: 2px solid #FFD700; padding: 9px 20px; display: flex; align-items: center; gap: 14px; }
+.selector-bar label { font-size: 13px; font-weight: bold; color: #FFD700; text-transform: uppercase; letter-spacing: 0.8px; white-space: nowrap; }
+
+.info-strip { background: #1B2A3C; padding: 10px 20px; display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
+.info-cell label { font-size: 10px; color: #5C6BC0; text-transform: uppercase; letter-spacing: 0.6px; display: block; }
+.info-cell span { font-size: 12px; color: #ECEFF1; font-weight: bold; display: block; margin-top: 2px; }
+.badge-pastdue { background: #C62828; color: #FFCDD2; font-size: 10px; font-weight: bold; padding: 2px 8px; border-radius: 3px; display: inline-block; }
+.badge-active { background: #2E7D32; color: #C8E6C9; font-size: 10px; font-weight: bold; padding: 2px 8px; border-radius: 3px; display: inline-block; }
+
+.body-wrap { display: grid; grid-template-columns: 1fr 280px; }
+.left-col { padding: 16px 20px; border-right: 1px solid #E0E0E0; background: #fff; }
+.right-col { padding: 16px; background: #F4F6F9; }
+
+.section { margin-bottom: 16px; }
+.section-head { font-size: 11px; font-weight: bold; color: #3C3C3C; text-transform: uppercase; letter-spacing: 0.7px; border-left: 3px solid #EF6C00; padding-left: 8px; margin-bottom: 10px; }
+
+.field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 10px; }
+.field { margin-bottom: 10px; }
+.field label { font-size: 11px; color: #616161; display: block; margin-bottom: 4px; }
+.field input, .field select, .field textarea { width: 100%; font-size: 13px; padding: 7px 10px; border: 1px solid #BDBDBD; border-radius: 4px; background: #fff; color: #2A2A2A; }
+.field textarea { min-height: 70px; resize: vertical; }
+.readonly-val { font-size: 13px; color: #2A2A2A; background: #F5F5F5; padding: 7px 10px; border-radius: 4px; border: 1px solid #E0E0E0; min-height: 34px; word-break: break-word; white-space: pre-wrap; }
+.overdue-val { color: #C62828; font-weight: bold; }
+
+.checklist-card { background: #fff; border: 1px solid #E0E0E0; border-radius: 4px; overflow: hidden; margin-bottom: 10px; }
+.checklist-head { background: #EF6C00; padding: 7px 12px; font-size: 11px; font-weight: bold; color: #fff; text-transform: uppercase; letter-spacing: 0.5px; }
+.checklist-item { display: flex; align-items: flex-start; gap: 10px; padding: 10px 12px; border-bottom: 1px solid #F0F0F0; }
+.checklist-item:last-child { border-bottom: none; }
+.checklist-item input[type=checkbox] { margin-top: 2px; flex-shrink: 0; width: 15px; height: 15px; accent-color: #EF6C00; }
+.checklist-item .item-label { font-size: 12px; color: #2A2A2A; font-weight: bold; }
+.checklist-item .item-sub { font-size: 11px; color: #757575; margin-top: 2px; line-height: 1.4; }
+
+.sidebar-head { font-size: 11px; font-weight: bold; color: #0D47A1; background: #EEF2FF; padding: 6px 10px; border-radius: 4px; margin-bottom: 10px; text-transform: uppercase; letter-spacing: 0.5px; }
+.outcome-head { font-size: 11px; font-weight: bold; color: #3C3C3C; text-transform: uppercase; letter-spacing: 0.6px; border-left: 3px solid #1565C0; padding-left: 8px; margin-bottom: 8px; }
+
+.outcome-option { display: flex; align-items: flex-start; gap: 8px; padding: 8px 10px; border: 1px solid #E0E0E0; border-radius: 4px; margin-bottom: 6px; cursor: pointer; background: #fff; }
+.outcome-option.continue-opt { border-color: #F9A825; background: #FFF9C4; }
+.outcome-option.clear-opt { border-color: #2E7D32; background: #C8E6C9; }
+.outcome-option input[type=radio] { margin-top: 3px; flex-shrink: 0; }
+.opt-title { font-size: 12px; font-weight: bold; }
+.opt-title.continue-opt { color: #633806; }
+.opt-title.clear-opt { color: #1B5E20; }
+.opt-sub { font-size: 11px; margin-top: 2px; line-height: 1.4; }
+.opt-sub.continue-opt { color: #854F0B; }
+.opt-sub.clear-opt { color: #2E7D32; }
+
+.freq-row { display: flex; align-items: center; gap: 8px; margin: 6px 0 10px 0; }
+.freq-row label { font-size: 11px; color: #616161; }
+.freq-row input { width: 60px; font-size: 13px; padding: 5px 8px; border: 1px solid #BDBDBD; border-radius: 4px; }
+.freq-row span { font-size: 11px; color: #616161; }
+
+.sign-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+
+.btn-wrap { display: flex; flex-direction: column; gap: 8px; margin-top: 4px; }
+.btn { padding: 9px 14px; font-size: 13px; font-weight: bold; border-radius: 4px; cursor: pointer; border: none; text-align: center; width: 100%; }
+.btn-continue { background: #F9A825; color: #412402; }
+.btn-continue:hover { background: #F57F17; }
+.btn-clear { background: #2E7D32; color: #fff; }
+.btn-clear:hover { background: #1B5E20; }
+.btn-cancel { background: #fff; color: #616161; border: 1px solid #BDBDBD !important; font-size: 12px; padding: 7px 14px; border-radius: 4px; cursor: pointer; width: 100%; }
+
+.compliance-note { font-size: 10px; color: #9E9E9E; line-height: 1.5; margin-top: 12px; border-top: 1px solid #E0E0E0; padding-top: 10px; }
+
+.stamp-row { display: flex; justify-content: space-between; align-items: center; background: #F4F6F9; padding: 8px 20px; border-top: 1px solid #E0E0E0; }
+.stamp-row span { font-size: 10px; color: #9E9E9E; }
+
+.toast { display: none; position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: #2E7D32; color: #fff; padding: 10px 20px; border-radius: 4px; font-size: 13px; font-weight: bold; z-index: 999; }
+.toast.error { background: #C62828; }
+
+.loading { text-align: center; padding: 40px; color: #616161; font-size: 13px; }
+.no-records { text-align: center; padding: 30px; color: #9E9E9E; font-size: 13px; }
+</style>
+</head>
+<body>
+
+<div class="form-header">
+  <div class="form-header-left">
+    <div class="orange-bar"></div>
+    <div>
+      <div class="form-title">Temp Fix Inspection Checklist</div>
+      <div class="form-subtitle">Container Supply Co. — Garden Grove, CA</div>
+    </div>
+  </div>
+  <div>
+    <div class="doc-no">FRM-040-XXX</div>
+    <div class="rev">Rev. 0 &nbsp;|&nbsp; Effective: [Date]</div>
+  </div>
+</div>
+
+<div class="selector-bar">
+  <label>Select Temp Fix:</label>
+  <div style="flex:1; max-width:600px; position:relative;">
+    <input type="text" id="tfSearch"
+      placeholder="Type ticket #, equipment, dept..."
+      autocomplete="off"
+      oninput="onTfSearch()"
+      onfocus="onTfSearch(true)"
+      style="width:100%;padding:7px 10px;background:#4A4A4A;color:#ECEFF1;border:1.5px solid #616161;border-radius:4px;font-family:Arial;font-size:12px;">
+    <input type="hidden" id="tfSelect" value="">
+    <div id="tfDropdown" style="display:none;position:absolute;top:calc(100% + 2px);left:0;right:0;background:#3C3C3C;border:1.5px solid #EF6C00;border-radius:4px;max-height:220px;overflow-y:auto;z-index:300;box-shadow:0 4px 16px rgba(0,0,0,.35);"></div>
+  </div>
+</div>
+
+<div id="infoStrip" style="display:none;">
+  <div class="info-strip">
+    <div class="info-cell"><label>Ticket #</label><span id="iTicket">—</span></div>
+    <div class="info-cell"><label>Equipment</label><span id="iEquip">—</span></div>
+    <div class="info-cell"><label>Department</label><span id="iDept">—</span></div>
+    <div class="info-cell"><label>Status</label><span id="iStatus">—</span></div>
+  </div>
+</div>
+
+<div id="formBody" style="display:none;">
+  <div class="body-wrap">
+    <div class="left-col">
+
+      <div class="section">
+        <div class="section-head">Equipment & problem details</div>
+        <div class="field-row">
+          <div class="field"><label>Equipment code</label><div class="readonly-val" id="dEquipCode">—</div></div>
+          <div class="field"><label>Equipment type</label><div class="readonly-val" id="dEquipType">—</div></div>
+        </div>
+        <div class="field"><label>Problem description</label><div class="readonly-val" id="dDescription">—</div></div>
+        <div class="field-row">
+          <div class="field"><label>Date temp fix flagged</label><div class="readonly-val" id="dDateFlagged">—</div></div>
+          <div class="field"><label>Next inspection due</label><div class="readonly-val" id="dNextDue">—</div></div>
+        </div>
+        <div class="field-row">
+          <div class="field"><label>Temp fix description</label><div class="readonly-val" id="dTempFixDesc">—</div></div>
+          <div class="field"><label>Flagged by</label><div class="readonly-val" id="dFlaggedBy">—</div></div>
+        </div>
+      </div>
+
+      <div class="section">
+        <div class="section-head">Inspection checklist</div>
+        <div class="checklist-card">
+          <div class="checklist-head">Visual & operational check</div>
+          <div class="checklist-item">
+            <input type="checkbox" id="chk1">
+            <div>
+              <div class="item-label">Temp fix is intact</div>
+              <div class="item-sub">Inspect the repair, reinforcement, or temporary measure — confirm it shows no signs of wear, loosening, or failure</div>
+            </div>
+          </div>
+          <div class="checklist-item">
+            <input type="checkbox" id="chk2">
+            <div>
+              <div class="item-label">Equipment is operating within acceptable parameters</div>
+              <div class="item-sub">No unusual noise, heat, vibration, or output degradation observed</div>
+            </div>
+          </div>
+          <div class="checklist-item">
+            <input type="checkbox" id="chk3">
+            <div>
+              <div class="item-label">No safety or food safety risk identified</div>
+              <div class="item-sub">Confirm no contamination risk, guarding issue, or personnel hazard</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="section">
+        <div class="section-head">Inspection notes</div>
+        <div class="field">
+          <label>Observations / findings</label>
+          <textarea id="inspectionNotes" placeholder="Describe current condition, any changes since last inspection, parts status, etc."></textarea>
+        </div>
+      </div>
+
+      <div class="section">
+        <div class="section-head">Sign-off</div>
+        <div class="sign-row">
+          <div class="field">
+            <label>Inspected by</label>
+            <select id="inspectedBy">
+              <option value="">-- Select --</option>
+            </select>
+          </div>
+          <div class="field">
+            <label>Inspection date</label>
+            <input type="date" id="inspectionDate">
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <div class="right-col">
+      <div class="sidebar-head">Inspection outcome</div>
+      <div class="outcome-head">Select outcome</div>
+
+      <div class="outcome-option continue-opt">
+        <input type="radio" name="outcome" id="outContinue" value="CONTINUE" checked>
+        <div>
+          <div class="opt-title continue-opt">Continue monitoring</div>
+          <div class="opt-sub continue-opt">Equipment can run under current conditions. Reset inspection clock.</div>
+        </div>
+      </div>
+
+      <div class="freq-row">
+        <label>Next inspection in</label>
+        <input type="number" id="freqDays" value="7" min="1" max="90">
+        <span>days</span>
+      </div>
+
+      <div class="outcome-option clear-opt">
+        <input type="radio" name="outcome" id="outClear" value="CLEAR">
+        <div>
+          <div class="opt-title clear-opt">Permanent fix complete — clear</div>
+          <div class="opt-sub clear-opt">Temp fix resolved. Remove from monitoring.</div>
+        </div>
+      </div>
+
+      <div class="btn-wrap" style="margin-top:16px;">
+        <button class="btn btn-continue" onclick="submitInspection('CONTINUE')">Submit — continue monitoring</button>
+        <button class="btn btn-clear" onclick="submitInspection('CLEAR')">Submit — clear temp fix</button>
+        <button class="btn-cancel" onclick="google.script.host.close()">Cancel</button>
+      </div>
+
+      <div class="compliance-note">
+        This record is an SQF-controlled document. All inspections are logged to the Ticket History audit trail with inspector name, date, and outcome. Records are retained per document control policy.
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="loadingMsg" class="loading">Loading temp fix records...</div>
+<div id="noRecords" class="no-records" style="display:none;">No active temp fix records found.</div>
+
+<div class="stamp-row">
+  <span>FRM-040-XXX Rev. 0</span>
+  <span>CSC Maintenance Tracker v3.1</span>
+  <span>Approved by: [QA Manager] — [Date]</span>
+</div>
+
+<div id="toast" class="toast"></div>
+
+<script>
+var _formData = null;
+var _selected = null;
+var _allRecords = [];
+
+window.onload = function() {
+  google.script.run
+    .withSuccessHandler(function(data) {
+      _formData = data;
+      _allRecords = data.records || [];
+      document.getElementById('loadingMsg').style.display = 'none';
+
+      var peopleList = document.getElementById('inspectedBy');
+      if (!_allRecords.length) {
+        document.getElementById('noRecords').style.display = 'block';
+        return;
+      }
+
+      (data.peopleList || []).forEach(function(p) {
+        var opt = document.createElement('option');
+        opt.value = p; opt.textContent = p;
+        peopleList.appendChild(opt);
+      });
+
+      var today = new Date();
+      var mm = String(today.getMonth()+1).padStart(2,'0');
+      var dd = String(today.getDate()).padStart(2,'0');
+      document.getElementById('inspectionDate').value = today.getFullYear()+'-'+mm+'-'+dd;
+    })
+    .withFailureHandler(function(err) {
+      document.getElementById('loadingMsg').textContent = 'Error loading data: ' + err.message;
+    })
+    .getTempFixFormData();
+
+  document.addEventListener('click', function(e) {
+    var drop = document.getElementById('tfDropdown');
+    var search = document.getElementById('tfSearch');
+    if (drop && !drop.contains(e.target) && e.target !== search) {
+      drop.style.display = 'none';
+    }
+  });
+};
+
+function onTfSearch(forceOpen) {
+  var q    = (document.getElementById('tfSearch').value || '').toLowerCase().trim();
+  var drop = document.getElementById('tfDropdown');
+
+  var filtered = !q ? _allRecords : _allRecords.filter(function(r) {
+    return (r.ticketNo      || '').toLowerCase().indexOf(q) >= 0 ||
+           (r.specificEquip || '').toLowerCase().indexOf(q) >= 0 ||
+           (r.dept          || '').toLowerCase().indexOf(q) >= 0 ||
+           (r.equipCode     || '').toLowerCase().indexOf(q) >= 0 ||
+           (r.description   || '').toLowerCase().indexOf(q) >= 0 ||
+           (r.status        || '').toLowerCase().indexOf(q) >= 0;
+  });
+
+  if (!filtered.length) {
+    drop.innerHTML = '<div style="padding:10px;font-size:11px;color:#9E9E9E;font-style:italic;text-align:center;">No matching records</div>';
+    drop.style.display = 'block';
+    drop._filtered = [];
+    return;
+  }
+
+  var html = '';
+  filtered.forEach(function(r, idx) {
+    var pastDue     = r.status === 'PAST DUE';
+    var statusColor = pastDue ? '#FFCDD2' : '#C8E6C9';
+    var statusText  = pastDue ? '#B71C1C' : '#2E7D32';
+    html += '<div onclick="selectTfFromDrop('+idx+')" '+
+      'style="padding:8px 10px;cursor:pointer;border-bottom:1px solid #4A4A4A;font-size:11px;color:#ECEFF1;" '+
+      'onmouseover="this.style.background=\'#4A4A4A\'" onmouseout="this.style.background=\'\'">'+
+      '<div style="display:flex;align-items:center;gap:6px;margin-bottom:3px;">'+
+        '<span style="font-size:11px;font-weight:bold;font-family:monospace;color:#EF6C00;">'+esc(r.ticketNo)+'</span>'+
+        '<span style="background:'+statusColor+';color:'+statusText+';font-size:9px;font-weight:bold;padding:1px 6px;border-radius:3px;">'+esc(r.status)+'</span>'+
+        '<span style="font-size:9px;color:#78909C;margin-left:auto;">'+esc(r.dept)+'</span>'+
+      '</div>'+
+      '<div style="font-size:10px;color:#90A4AE;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+
+        esc(r.specificEquip || '—') + (r.nextDue ? ' &nbsp;&middot;&nbsp; Due: ' + esc(r.nextDue) : '')+
+      '</div>'+
+    '</div>';
+  });
+
+  drop.innerHTML  = html;
+  drop._filtered  = filtered;
+  drop.style.display = 'block';
+}
+
+function selectTfFromDrop(idx) {
+  var drop = document.getElementById('tfDropdown');
+  var r = (drop._filtered || _allRecords)[idx];
+  if (!r) return;
+  document.getElementById('tfSearch').value = r.ticketNo + ' — ' + (r.specificEquip || r.dept || '');
+  drop.style.display = 'none';
+  _selected = r;
+  loadTempFix();
+}
+
+function loadTempFix() {
+  if (!_selected) {
+    document.getElementById('infoStrip').style.display = 'none';
+    document.getElementById('formBody').style.display  = 'none';
+    return;
+  }
+
+  document.getElementById('iTicket').textContent  = _selected.ticketNo     || '—';
+  document.getElementById('iEquip').textContent   = _selected.specificEquip || '—';
+  document.getElementById('iDept').textContent    = _selected.dept          || '—';
+
+  var statusEl = document.getElementById('iStatus');
+  statusEl.innerHTML = _selected.status === 'PAST DUE'
+    ? '<span class="badge-pastdue">Past due</span>'
+    : '<span class="badge-active">Active</span>';
+
+  document.getElementById('dEquipCode').textContent   = _selected.equipCode    || '—';
+  document.getElementById('dEquipType').textContent   = _selected.equipType    || '—';
+  document.getElementById('dDescription').textContent = _selected.description  || '—';
+  document.getElementById('dTempFixDesc').textContent = _selected.tempFixDesc  || '—';
+  document.getElementById('dFlaggedBy').textContent   = _selected.flaggedBy    || '—';
+  document.getElementById('dDateFlagged').textContent = _selected.dateFlagged  || '—';
+
+  var nextDueEl = document.getElementById('dNextDue');
+  nextDueEl.textContent = _selected.nextDue || '—';
+  nextDueEl.className   = 'readonly-val' + (_selected.status === 'PAST DUE' ? ' overdue-val' : '');
+
+  document.getElementById('chk1').checked = false;
+  document.getElementById('chk2').checked = false;
+  document.getElementById('chk3').checked = false;
+  document.getElementById('inspectionNotes').value = '';
+  document.getElementById('outContinue').checked   = true;
+  document.getElementById('freqDays').value        = _selected.freqDays || 7;
+
+  document.getElementById('infoStrip').style.display = 'block';
+  document.getElementById('formBody').style.display  = 'block';
+}
+
+function submitInspection(outcome) {
+  if (!_selected) { showToast('Please select a temp fix record.', true); return; }
+
+  var inspectedBy    = document.getElementById('inspectedBy').value;
+  var inspectionDate = document.getElementById('inspectionDate').value;
+  var notes          = document.getElementById('inspectionNotes').value.trim();
+  var chk1           = document.getElementById('chk1').checked;
+  var chk2           = document.getElementById('chk2').checked;
+  var chk3           = document.getElementById('chk3').checked;
+  var freqDays       = parseInt(document.getElementById('freqDays').value) || 7;
+
+  if (!inspectedBy)              { showToast('Please select who performed the inspection.', true); return; }
+  if (!inspectionDate)           { showToast('Please enter the inspection date.', true); return; }
+  if (!chk1 || !chk2 || !chk3)  { showToast('All checklist items must be checked before submitting.', true); return; }
+
+  var payload = {
+    tempId:         _selected.tempId,
+    ticketNo:       _selected.ticketNo,
+    outcome:        outcome,
+    inspectedBy:    inspectedBy,
+    inspectionDate: inspectionDate,
+    notes:          notes,
+    freqDays:       freqDays,
+    checklist: [
+      { label: 'Temp fix is intact', checked: chk1 },
+      { label: 'Equipment operating within acceptable parameters', checked: chk2 },
+      { label: 'No safety or food safety risk identified', checked: chk3 }
+    ]
+  };
+
+  document.querySelectorAll('.btn').forEach(function(b){ b.disabled = true; });
+
+  google.script.run
+    .withSuccessHandler(function(result) {
+      if (result.success) {
+        var msg = outcome === 'CLEAR'
+          ? 'Temp fix cleared successfully.'
+          : 'Inspection logged. Next due in ' + freqDays + ' days.';
+        showToast(msg, false);
+        setTimeout(function(){ google.script.host.close(); }, 2000);
+      } else {
+        showToast('Error: ' + result.error, true);
+        document.querySelectorAll('.btn').forEach(function(b){ b.disabled = false; });
+      }
+    })
+    .withFailureHandler(function(err) {
+      showToast('Error: ' + err.message, true);
+      document.querySelectorAll('.btn').forEach(function(b){ b.disabled = false; });
+    })
+    .submitTempFixInspection(payload);
+}
+
+function showToast(msg, isError) {
+  var t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className   = 'toast' + (isError ? ' error' : '');
+  t.style.display = 'block';
+  if (!isError) setTimeout(function(){ t.style.display = 'none'; }, 3000);
+}
+
+function esc(v) {
+  return (v || '').toString()
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/"/g,'&quot;');
+}
+</script>
+</body>
+</html>
