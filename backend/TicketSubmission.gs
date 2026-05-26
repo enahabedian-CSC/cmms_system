@@ -229,12 +229,4 @@ function getPeopleList_() {
   return result;
 }
 
-// ═══════════════════════════════════════════════════════════════════════════════
-//  sendNewTicketManagerNotification_
-//  Stub — implemented in Email.gs (Step 8).
-// ═══════════════════════════════════════════════════════════════════════════════
-
-function sendNewTicketManagerNotification_(ticketNo, emailData) {
-  // Step 8 implementation goes here.
-  Logger.log('sendNewTicketManagerNotification_: ticketNo=' + ticketNo + ' dept=' + emailData.dept);
-}
+// sendNewTicketManagerNotification_ is implemented in Email.gs.

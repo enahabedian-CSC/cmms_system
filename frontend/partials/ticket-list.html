@@ -1,0 +1,181 @@
+<!-- ╔══════════════════════════════════════════════════════════════════╗ -->
+<!-- ║  Ticket List partial — queue + tracker views                    ║ -->
+<!-- ║  Registers PAGES for: waiting, open, tracker-{dept}            ║ -->
+<!-- ╚══════════════════════════════════════════════════════════════════╝ -->
+<style>
+/* ── Ticket list ─────────────────────────────────────────────────────── */
+.tl-wrap{padding:20px 24px;}
+.tl-toolbar{display:flex;align-items:center;gap:10px;margin-bottom:14px;flex-wrap:wrap;}
+.tl-title{font-size:15px;font-weight:700;color:var(--text-primary);flex:1;}
+.tl-count{font-size:12px;color:var(--text-secondary);background:var(--bg-subtle);border:1px solid var(--border-default);border-radius:4px;padding:2px 8px;}
+.tl-search{height:30px;padding:0 10px;border:1px solid var(--border-default);border-radius:6px;font-size:12.5px;width:200px;outline:none;color:var(--text-primary);}
+.tl-search:focus{border-color:var(--brand-navy);}
+.tl-filter-select{height:30px;padding:0 8px;border:1px solid var(--border-default);border-radius:6px;font-size:12px;background:#fff;color:var(--text-primary);outline:none;}
+.tl-table-wrap{background:var(--bg-surface);border:1px solid var(--border-default);border-radius:10px;overflow:hidden;box-shadow:var(--shadow-sm);}
+.tl-table{width:100%;border-collapse:collapse;font-size:12.5px;}
+.tl-table th{background:var(--bg-subtle);padding:9px 12px;text-align:left;font-size:11px;font-weight:600;color:var(--text-secondary);text-transform:uppercase;letter-spacing:.04em;border-bottom:1px solid var(--border-default);white-space:nowrap;}
+.tl-table td{padding:10px 12px;border-bottom:1px solid var(--border-default);vertical-align:middle;color:var(--text-primary);}
+.tl-table tr:last-child td{border-bottom:0;}
+.tl-table tbody tr{cursor:pointer;transition:background .1s;}
+.tl-table tbody tr:hover{background:var(--bg-hover);}
+.tl-table .col-ticket{font-family:var(--font-mono);font-weight:600;color:var(--brand-navy);font-size:12px;}
+.tl-table .col-equip{max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.tl-table .col-desc{max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text-secondary);}
+.tl-empty{padding:40px 24px;text-align:center;color:var(--text-secondary);font-size:13px;}
+.pri-badge{display:inline-block;padding:2px 7px;border-radius:4px;font-size:10.5px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;}
+.pri-CRITICAL{background:var(--status-critical-bg);color:var(--status-critical);}
+.pri-HIGH    {background:var(--status-high-bg);    color:var(--status-high);}
+.pri-MEDIUM  {background:var(--status-medium-bg);  color:var(--status-medium);}
+.pri-LOW     {background:var(--status-low-bg);     color:var(--status-low);}
+.pri-        {background:var(--bg-subtle);         color:var(--text-tertiary);}
+.stat-badge{display:inline-block;padding:2px 7px;border-radius:4px;font-size:10.5px;font-weight:600;}
+.stat-WAITING            {background:#EDE9FE;color:#5B21B6;}
+.stat-OPEN               {background:var(--status-info-bg);color:var(--status-info);}
+.stat-PENDING\ VERIFICATION{background:var(--status-warn-bg);color:var(--status-warn);}
+.stat-PENDING\ PARTS     {background:#FFF3E0;color:#E65100;}
+.stat-VOIDED             {background:var(--bg-subtle);color:var(--text-tertiary);}
+.flag-tf{display:inline-block;font-size:10px;background:#FFF3E0;color:#E65100;border:1px solid #FFCCBC;border-radius:3px;padding:1px 5px;margin-left:4px;}
+</style>
+
+<script>
+// ── Ticket list page utilities ────────────────────────────────────────────────
+
+function _loadListPage_(queueType, deptFilter, container) {
+  container.innerHTML =
+    '<div class="loading-overlay"><div class="spinner"></div><span>Loading tickets…</span></div>';
+  google.script.run
+    .withSuccessHandler(function(tickets) { _renderList_(tickets, queueType, deptFilter, container); })
+    .withFailureHandler(function(err) {
+      container.innerHTML =
+        '<div class="tl-empty">Error loading tickets: ' + esc(err.message || String(err)) + '</div>';
+    })
+    .getQueueTickets(queueType, { dept: deptFilter || null });
+}
+
+function _renderList_(tickets, queueType, deptFilter, container) {
+  var title = queueType === 'waiting' ? 'Waiting Queue'
+            : queueType === 'open'    ? 'Open Tickets'
+            : (deptFilter || 'Dept Tracker');
+
+  // Build filter state
+  var _filtered = tickets.slice();
+
+  function applyFilters() {
+    var q   = document.getElementById('tl-search-' + queueType);
+    var pf  = document.getElementById('tl-pri-' + queueType);
+    var sf  = document.getElementById('tl-sta-' + queueType);
+    var qv  = q  ? q.value.toLowerCase()  : '';
+    var pfv = pf ? pf.value.toUpperCase() : '';
+    var sfv = sf ? sf.value.toUpperCase() : '';
+    _filtered = tickets.filter(function(t) {
+      if (pfv && t.priority !== pfv) return false;
+      if (sfv && t.status   !== sfv) return false;
+      if (qv) {
+        var hay = (t.ticketNo + ' ' + t.specificEquip + ' ' + t.description + ' ' +
+                   t.assignedTo + ' ' + t.dept + ' ' + t.equipCode + ' ' + t.addedBy).toLowerCase();
+        if (hay.indexOf(qv) < 0) return false;
+      }
+      return true;
+    });
+    renderRows(_filtered);
+  }
+
+  function renderRows(list) {
+    var tbody = document.getElementById('tl-tbody-' + queueType);
+    if (!tbody) return;
+    var cntEl = document.getElementById('tl-cnt-' + queueType);
+    if (cntEl) cntEl.textContent = list.length + ' ticket' + (list.length !== 1 ? 's' : '');
+    if (list.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="8" class="tl-empty">No tickets match.</td></tr>';
+      return;
+    }
+    tbody.innerHTML = list.map(function(t) {
+      var priCls = 'pri-' + (t.priority || '');
+      var staCls = 'stat-' + t.status;
+      return '<tr onclick="openTicketDetail(\'' + esc(t.ticketNo) + '\')">' +
+        '<td class="col-ticket">' + esc(t.ticketNo) + '</td>' +
+        '<td><span class="pri-badge ' + priCls + '">' + esc(t.priority || '—') + '</span></td>' +
+        '<td><span class="stat-badge ' + staCls + '">' + esc(t.status) + '</span>' +
+          (t.tempFixFlag ? '<span class="flag-tf">TF</span>' : '') + '</td>' +
+        (queueType === 'tracker' ? '' : '<td>' + esc(t.dept) + '</td>') +
+        '<td class="col-equip" title="' + esc(t.equipCode ? t.equipCode + ' — ' + t.specificEquip : t.specificEquip) + '">' +
+          (t.equipCode ? '<span style="font-family:var(--font-mono);font-size:11px;color:var(--text-secondary);">' + esc(t.equipCode) + '</span> ' : '') +
+          esc(t.specificEquip) + '</td>' +
+        '<td class="col-desc" title="' + esc(t.description) + '">' + esc(t.description) + '</td>' +
+        '<td>' + esc(t.assignedTo || '—') + '</td>' +
+        '<td style="color:var(--text-tertiary);font-size:11.5px;">' + esc(t.dateOpened) + '</td>' +
+        '</tr>';
+    }).join('');
+  }
+
+  // Collect unique status values for filter
+  var statuses = [];
+  tickets.forEach(function(t) { if (statuses.indexOf(t.status) < 0) statuses.push(t.status); });
+
+  var showDept = queueType !== 'tracker';
+  container.innerHTML =
+    '<div class="tl-wrap">' +
+    '<div class="tl-toolbar">' +
+      '<span class="tl-title">' + esc(title) + '</span>' +
+      '<span class="tl-count" id="tl-cnt-' + queueType + '">' + tickets.length + ' tickets</span>' +
+      '<input class="tl-search" id="tl-search-' + queueType + '" placeholder="Search…" oninput="_tlFilter_(\'' + queueType + '\')" />' +
+      '<select class="tl-filter-select" id="tl-pri-' + queueType + '" onchange="_tlFilter_(\'' + queueType + '\')">' +
+        '<option value="">All priorities</option>' +
+        ['CRITICAL','HIGH','MEDIUM','LOW'].map(function(p){return '<option>' + p + '</option>';}).join('') +
+      '</select>' +
+      (statuses.length > 1 ?
+        '<select class="tl-filter-select" id="tl-sta-' + queueType + '" onchange="_tlFilter_(\'' + queueType + '\')">' +
+          '<option value="">All statuses</option>' +
+          statuses.map(function(s){return '<option>' + esc(s) + '</option>';}).join('') +
+        '</select>' : '') +
+      '<button onclick="_refreshQueuePage_(\'' + queueType + '\', \'' + (deptFilter||'') + '\')" style="height:30px;padding:0 10px;border:1px solid var(--border-default);border-radius:6px;background:#fff;font-size:12px;cursor:pointer;color:var(--text-secondary);" title="Refresh">↻</button>' +
+    '</div>' +
+    '<div class="tl-table-wrap"><table class="tl-table">' +
+      '<thead><tr>' +
+        '<th>Ticket #</th><th>Priority</th><th>Status</th>' +
+        (showDept ? '<th>Dept</th>' : '') +
+        '<th>Equipment</th><th>Description</th><th>Assigned To</th><th>Date Opened</th>' +
+      '</tr></thead>' +
+      '<tbody id="tl-tbody-' + queueType + '"></tbody>' +
+    '</table></div>' +
+    '</div>';
+
+  // Store filter function reference on window so oninput can call it
+  window['_tlFilterData_' + queueType] = { tickets: tickets, applyFilters: applyFilters };
+  renderRows(tickets);
+}
+
+function _tlFilter_(queueType) {
+  var ref = window['_tlFilterData_' + queueType];
+  if (ref) ref.applyFilters();
+}
+
+function _refreshQueuePage_(queueType, deptFilter) {
+  var pageEl = document.getElementById('page-' + queueType);
+  if (!pageEl) return;
+  _loadListPage_(queueType, deptFilter || null, pageEl);
+}
+
+// ── PAGES registry ────────────────────────────────────────────────────────────
+// Guard: partial scripts execute before the main script defines PAGES.
+window.PAGES = window.PAGES || {};
+
+PAGES['waiting'] = function(c) { _loadListPage_('waiting', null, c); };
+PAGES['open']    = function(c) { _loadListPage_('open',    null, c); };
+
+// Tracker pages registered for all six depts (nav only shows owned depts,
+// but all are registered so deep-linking works without role checks on the client).
+var _TRACKER_DEPTS_ = [
+  { id: 'tracker-electrical',   dept: 'ELECTRICAL'   },
+  { id: 'tracker-machine-shop', dept: 'MACHINE SHOP' },
+  { id: 'tracker-facilities',   dept: 'FACILITIES'   },
+  { id: 'tracker-plastics',     dept: 'PLASTICS'     },
+  { id: 'tracker-metals',       dept: 'METALS'       },
+  { id: 'tracker-litho',        dept: 'LITHO'        }
+];
+_TRACKER_DEPTS_.forEach(function(td) {
+  (function(id, dept) {
+    PAGES[id] = function(c) { _loadListPage_('tracker', dept, c); };
+  })(td.id, td.dept);
+});
+</script>

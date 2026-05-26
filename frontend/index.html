@@ -127,6 +127,22 @@ a{color:inherit;text-decoration:none;}
 .kpi-card.warn .kpi-value{color:var(--status-warn);}
 .kpi-card.success .kpi-value{color:var(--status-success);}
 
+/* ── Trend chart ─────────────────────────────────────────────────────────── */
+.trend-section{padding:0 24px 24px;}
+.trend-card{background:var(--bg-surface);border:1px solid var(--border-default);border-radius:10px;padding:16px 20px;box-shadow:var(--shadow-sm);}
+.trend-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;}
+.trend-title{font-size:13px;font-weight:600;color:var(--text-primary);}
+.trend-legend{display:flex;gap:14px;font-size:11px;color:var(--text-secondary);}
+.trend-legend-dot{width:8px;height:8px;border-radius:50%;display:inline-block;margin-right:4px;}
+.trend-chart{display:flex;align-items:flex-end;gap:8px;height:100px;padding-bottom:20px;position:relative;}
+.trend-chart::after{content:'';position:absolute;left:0;right:0;bottom:20px;height:1px;background:var(--border-default);}
+.trend-col{display:flex;flex-direction:column;align-items:center;gap:2px;flex:1;min-width:0;}
+.trend-bars{display:flex;gap:2px;align-items:flex-end;width:100%;height:80px;}
+.trend-bar-opened,.trend-bar-closed{flex:1;border-radius:2px 2px 0 0;min-height:2px;transition:height .3s;}
+.trend-bar-opened{background:var(--brand-navy-soft);}
+.trend-bar-closed{background:var(--status-success);}
+.trend-month{font-size:9px;color:var(--text-tertiary);text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;width:100%;margin-top:4px;}
+
 /* ── Role badge ──────────────────────────────────────────────────────────── */
 .role-badge{display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:4px;font-size:10.5px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;}
 .role-badge.admin{background:#EDE9FE;color:#5B21B6;}
@@ -203,6 +219,9 @@ var COMPANY = <?!= JSON.stringify(companyName) ?>;
 </div>
 
 <?!= include_('frontend/partials/submit-ticket') ?>
+<?!= include_('frontend/partials/ticket-list') ?>
+<?!= include_('frontend/partials/ticket-detail') ?>
+<?!= include_('frontend/partials/closed-tickets') ?>
 
 <div id="toast-container"></div>
 
@@ -372,11 +391,12 @@ function navigate(pageId) {
 }
 
 // loadPage — each step wires up its own renderer via PAGES registry
-var PAGES = {};
+// Partials run first (server-side include order), so preserve any entries they registered.
+window.PAGES = window.PAGES || {};
 
 function loadPage(pageId, container) {
-  if (PAGES[pageId]) {
-    PAGES[pageId](container);
+  if (window.PAGES[pageId]) {
+    window.PAGES[pageId](container);
   } else {
     container.innerHTML =
       '<div style="padding:40px 24px;color:var(--text-secondary);font-size:13px;">' +
@@ -412,7 +432,7 @@ function esc(s) {
 }
 
 // ── Home page renderer ────────────────────────────────────────────────────────
-PAGES['home'] = function(container) {
+window.PAGES['home'] = function(container) {
   var roleLabel = { admin: 'System Admin', manager: 'Manager', tech: 'Technician' }[USER.role] || USER.role;
   var depts = (USER.ownedDepts || []).join(', ') || 'All departments';
   container.innerHTML =
@@ -427,13 +447,41 @@ PAGES['home'] = function(container) {
         kpiCard('Closed (30 days)', '—', 'Resolved',            'success') +
         kpiCard('Parts Pending',    '—', 'On order',            '') +
       '</div>' +
+    '</div>' +
+    '<div class="trend-section" id="trend-section" style="margin-top:20px;">' +
+      '<div class="trend-card">' +
+        '<div class="trend-header">' +
+          '<span class="trend-title">Ticket Activity — Last 6 Months</span>' +
+          '<span class="trend-legend">' +
+            '<span><span class="trend-legend-dot" style="background:var(--brand-navy-soft);"></span>Opened</span>' +
+            '<span><span class="trend-legend-dot" style="background:var(--status-success);"></span>Closed</span>' +
+          '</span>' +
+        '</div>' +
+        '<div class="trend-chart" id="trend-chart">' +
+          '<div style="width:100%;text-align:center;color:var(--text-tertiary);font-size:12px;">Loading chart…</div>' +
+        '</div>' +
+      '</div>' +
     '</div>';
 
   // Load real counts asynchronously
   google.script.run
     .withSuccessHandler(function(counts) { renderKpis(counts); })
-    .withFailureHandler(function(err) { /* silently skip — KPIs stay as '—' */ })
+    .withFailureHandler(function() { /* silently skip — KPIs stay as '—' */ })
     .getDashboardCounts();
+
+  // Load trend chart (managers only — silently skip if tech)
+  if (USER.isManager) {
+    google.script.run
+      .withSuccessHandler(function(trend) { renderTrendChart(trend); })
+      .withFailureHandler(function() {
+        var el = document.getElementById('trend-section');
+        if (el) el.style.display = 'none';
+      })
+      .getDashboardTrend(6);
+  } else {
+    var el = document.getElementById('trend-section');
+    if (el) el.style.display = 'none';
+  }
 };
 
 function kpiCard(label, value, sub, modifier) {
@@ -460,6 +508,26 @@ function renderKpis(counts) {
       if (map[label] !== undefined) el.textContent = map[label];
     });
   });
+}
+
+function renderTrendChart(trend) {
+  var el = document.getElementById('trend-chart');
+  if (!el || !trend || !trend.labels || !trend.labels.length) return;
+
+  var maxVal = 1;
+  trend.opened.concat(trend.closed).forEach(function(v) { if (v > maxVal) maxVal = v; });
+
+  el.innerHTML = trend.labels.map(function(lbl, i) {
+    var oh = Math.round((trend.opened[i] / maxVal) * 76);
+    var ch = Math.round((trend.closed[i] / maxVal) * 76);
+    return '<div class="trend-col">' +
+      '<div class="trend-bars">' +
+        '<div class="trend-bar-opened" style="height:' + Math.max(oh, 2) + 'px;" title="Opened: ' + trend.opened[i] + '"></div>' +
+        '<div class="trend-bar-closed" style="height:' + Math.max(ch, 2) + 'px;" title="Closed: ' + trend.closed[i] + '"></div>' +
+      '</div>' +
+      '<div class="trend-month">' + esc(lbl.split(' ')[0]) + '</div>' +
+    '</div>';
+  }).join('');
 }
 
 // ── Init ──────────────────────────────────────────────────────────────────────

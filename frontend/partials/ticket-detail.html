@@ -1,0 +1,475 @@
+<!-- ╔══════════════════════════════════════════════════════════════════╗ -->
+<!-- ║  Ticket Detail partial — slide-over overlay with lifecycle     ║ -->
+<!-- ║  actions.  openTicketDetail(ticketNo) is the public API.       ║ -->
+<!-- ╚══════════════════════════════════════════════════════════════════╝ -->
+<style>
+/* ── Ticket Detail overlay ───────────────────────────────────────────── */
+#td-overlay{
+  position:fixed;top:var(--topbar-h);right:0;
+  width:calc(100% - var(--sidebar-w));
+  height:calc(100vh - var(--topbar-h));
+  background:var(--bg-app);z-index:50;
+  transform:translateX(100%);transition:transform .22s ease;
+  overflow-y:auto;display:flex;flex-direction:column;
+}
+#td-overlay.open{transform:translateX(0);}
+.app.collapsed #td-overlay{width:calc(100% - var(--sidebar-w-collapsed));}
+
+.td-header{
+  background:var(--bg-surface);border-bottom:1px solid var(--border-default);
+  padding:12px 20px;display:flex;align-items:center;gap:12px;flex-shrink:0;
+  position:sticky;top:0;z-index:10;
+}
+.td-back{background:transparent;border:1px solid var(--border-default);border-radius:6px;
+  padding:5px 10px;font-size:12px;color:var(--text-secondary);cursor:pointer;display:flex;align-items:center;gap:5px;}
+.td-back:hover{background:var(--bg-hover);color:var(--text-primary);}
+.td-tn{font-family:var(--font-mono);font-weight:700;font-size:15px;color:var(--brand-navy);}
+.td-body{padding:20px 24px;flex:1;}
+.td-section{background:var(--bg-surface);border:1px solid var(--border-default);border-radius:10px;padding:18px 20px;margin-bottom:14px;box-shadow:var(--shadow-sm);}
+.td-section-title{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--text-secondary);margin-bottom:12px;}
+.td-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:10px 18px;}
+.td-field label{font-size:10.5px;font-weight:600;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:.04em;display:block;margin-bottom:3px;}
+.td-field .val{font-size:13px;color:var(--text-primary);}
+.td-field .val.mono{font-family:var(--font-mono);font-size:12px;}
+.td-field .val.desc{white-space:pre-wrap;word-break:break-word;}
+.td-actions{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px;}
+.btn-action{height:34px;padding:0 14px;border-radius:6px;font-size:12.5px;font-weight:600;cursor:pointer;border:0;display:flex;align-items:center;gap:6px;}
+.btn-approve   {background:var(--status-info);color:#fff;}
+.btn-complete  {background:var(--status-success);color:#fff;}
+.btn-verify    {background:var(--status-success);color:#fff;}
+.btn-void      {background:var(--status-low-bg);color:var(--text-secondary);border:1px solid var(--border-strong);}
+.btn-assign    {background:var(--bg-subtle);color:var(--text-primary);border:1px solid var(--border-default);}
+.btn-tempfix   {background:var(--status-warn-bg);color:var(--status-warn);border:1px solid #FDE68A;}
+.btn-transfer  {background:var(--bg-subtle);color:var(--text-primary);border:1px solid var(--border-default);}
+.btn-action:hover{filter:brightness(.93);}
+.btn-action:disabled{opacity:.45;cursor:default;}
+
+/* History timeline */
+.th-list{list-style:none;margin:0;padding:0;}
+.th-item{display:flex;gap:10px;padding:8px 0;border-bottom:1px solid var(--border-default);}
+.th-item:last-child{border-bottom:0;}
+.th-dot{width:8px;height:8px;border-radius:50%;background:var(--brand-navy);flex-shrink:0;margin-top:4px;}
+.th-ts{font-size:11px;color:var(--text-tertiary);white-space:nowrap;min-width:130px;}
+.th-event{font-size:12.5px;font-weight:600;color:var(--text-primary);}
+.th-by{font-size:11.5px;color:var(--text-secondary);}
+.th-notes{font-size:11.5px;color:var(--text-tertiary);margin-top:2px;}
+
+/* Action modals */
+.td-modal-backdrop{position:fixed;inset:0;background:rgba(0,0,0,.35);z-index:200;display:flex;align-items:center;justify-content:center;}
+.td-modal{background:#fff;border-radius:12px;padding:24px;width:440px;max-width:95vw;box-shadow:var(--shadow-lg);}
+.td-modal h3{font-size:14px;font-weight:700;color:var(--text-primary);margin:0 0 14px 0;}
+.td-modal .form-group{margin-bottom:12px;}
+.td-modal label{font-size:11.5px;font-weight:600;color:var(--text-secondary);display:block;margin-bottom:4px;}
+.td-modal input,.td-modal select,.td-modal textarea{width:100%;padding:7px 10px;border:1px solid var(--border-default);border-radius:6px;font-size:13px;font-family:inherit;}
+.td-modal textarea{height:72px;resize:vertical;}
+.td-modal .modal-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:16px;}
+.td-modal .btn-cancel{height:32px;padding:0 14px;border-radius:6px;border:1px solid var(--border-default);background:#fff;font-size:12.5px;cursor:pointer;}
+.td-modal .btn-confirm{height:32px;padding:0 16px;border-radius:6px;border:0;background:var(--brand-navy);color:#fff;font-size:12.5px;font-weight:600;cursor:pointer;}
+.td-modal .btn-confirm:hover{background:var(--brand-navy-soft);}
+</style>
+
+<div id="td-overlay">
+  <div class="td-header">
+    <button class="td-back" onclick="closeTicketDetail()">
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M19 12H5M12 5l-7 7 7 7"/></svg>
+      Back
+    </button>
+    <span class="td-tn" id="td-tn">—</span>
+    <span id="td-status-badge" style="margin-left:4px;"></span>
+    <span id="td-pri-badge" style="margin-left:4px;"></span>
+    <div style="flex:1;"></div>
+    <span id="td-dept-label" style="font-size:12px;color:var(--text-secondary);"></span>
+  </div>
+  <div class="td-body" id="td-body">
+    <div class="loading-overlay"><div class="spinner"></div><span>Loading ticket…</span></div>
+  </div>
+</div>
+
+<!-- Action modal container -->
+<div id="td-modal-container"></div>
+
+<script>
+window.PAGES = window.PAGES || {};
+
+var _tdTicketNo = null;
+var _tdTicket   = null;
+
+// ── Public API ────────────────────────────────────────────────────────────────
+
+function openTicketDetail(ticketNo) {
+  _tdTicketNo = ticketNo;
+  _tdTicket   = null;
+  var overlay = document.getElementById('td-overlay');
+  overlay.classList.add('open');
+  overlay.scrollTop = 0;
+  document.getElementById('td-tn').textContent = ticketNo;
+  document.getElementById('td-status-badge').innerHTML = '';
+  document.getElementById('td-pri-badge').innerHTML    = '';
+  document.getElementById('td-dept-label').textContent = '';
+  document.getElementById('td-body').innerHTML =
+    '<div class="loading-overlay"><div class="spinner"></div><span>Loading ticket…</span></div>';
+
+  google.script.run
+    .withSuccessHandler(function(result) { _renderDetail_(result); })
+    .withFailureHandler(function(err) {
+      document.getElementById('td-body').innerHTML =
+        '<div style="padding:40px 24px;color:var(--text-secondary);">Error: ' + esc(err.message || String(err)) + '</div>';
+    })
+    .getTicketDetail(ticketNo);
+}
+
+function closeTicketDetail() {
+  document.getElementById('td-overlay').classList.remove('open');
+}
+
+// ── Renderer ──────────────────────────────────────────────────────────────────
+
+function _renderDetail_(result) {
+  if (!result || !result.ticket) {
+    document.getElementById('td-body').innerHTML =
+      '<div style="padding:40px 24px;color:var(--text-secondary);">Ticket not found.</div>';
+    return;
+  }
+  _tdTicket = result.ticket;
+  var t      = result.ticket;
+  var hist   = result.history   || [];
+  var techs  = result.techs     || [];
+  var isManager = USER.isManager;
+
+  // Update header badges
+  document.getElementById('td-status-badge').innerHTML =
+    '<span class="stat-badge stat-' + esc(t.status) + '">' + esc(t.status) + '</span>';
+  document.getElementById('td-pri-badge').innerHTML = t.priority
+    ? '<span class="pri-badge pri-' + esc(t.priority) + '">' + esc(t.priority) + '</span>' : '';
+  document.getElementById('td-dept-label').textContent = t.dept;
+
+  // ── Action buttons ─────────────────────────────────────────────────────────
+  var actions = '';
+  if (isManager) {
+    if (t.status === 'WAITING') {
+      actions += '<button class="btn-action btn-approve" onclick="_tdApprove_()">✓ Approve → Open</button>';
+    }
+    if (t.status === 'OPEN' || t.status === 'PENDING PARTS') {
+      actions += '<button class="btn-action btn-complete" onclick="_tdComplete_()">✓ Mark Work Complete</button>';
+      actions += '<button class="btn-action btn-assign" onclick="_tdAssign_(\'' + esc(JSON.stringify(techs).replace(/'/g,"\\'")) + '\')">Assign Tech</button>';
+      if (!t.tempFixFlag) {
+        actions += '<button class="btn-action btn-tempfix" onclick="_tdFlagTF_()">Flag Temp Fix</button>';
+      }
+    }
+    if (t.status === 'PENDING VERIFICATION') {
+      actions += '<button class="btn-action btn-verify" onclick="_tdVerifyClose_()">✓ Verify &amp; Close</button>';
+    }
+    if (t.status !== 'CLOSED' && t.status !== 'VOIDED') {
+      actions += '<button class="btn-action btn-transfer" onclick="_tdTransfer_()">Transfer Dept</button>';
+      actions += '<button class="btn-action btn-void" onclick="_tdVoid_()">Void Ticket</button>';
+    }
+  }
+
+  // ── Info grid ──────────────────────────────────────────────────────────────
+  function field(lbl, val, cls) {
+    return '<div class="td-field"><label>' + esc(lbl) + '</label>' +
+      '<div class="val ' + (cls||'') + '">' + esc(val || '—') + '</div></div>';
+  }
+
+  var html =
+    (actions ? '<div class="td-actions">' + actions + '</div>' : '') +
+
+    '<div class="td-section">' +
+      '<div class="td-section-title">Ticket Overview</div>' +
+      '<div class="td-grid">' +
+        field('Ticket #',      t.ticketNo,    'mono') +
+        field('Status',        t.status) +
+        field('Priority',      t.priority) +
+        field('Department',    t.dept) +
+        field('Date Opened',   t.dateOpened) +
+        field('Added By',      t.addedBy) +
+        field('Assigned To',   t.assignedTo) +
+        field('Est Hours',     t.estHours) +
+        field('Actual Hours',  t.actualHours) +
+        field('Downtime Type', t.downtimeType) +
+      '</div>' +
+    '</div>' +
+
+    '<div class="td-section">' +
+      '<div class="td-section-title">Equipment</div>' +
+      '<div class="td-grid">' +
+        field('Type',          t.equipType) +
+        field('Equipment Code',t.equipCode,   'mono') +
+        field('Equipment',     t.specificEquip) +
+        field('Building / Zone',t.buildingZone) +
+        field('Line #',        t.lineNo) +
+      '</div>' +
+    '</div>' +
+
+    '<div class="td-section">' +
+      '<div class="td-section-title">Problem</div>' +
+      '<div class="td-grid" style="grid-template-columns:1fr;">' +
+        field('Problem Type',  t.problemType) +
+        '<div class="td-field"><label>Description</label><div class="val desc">' + esc(t.description || '—') + '</div></div>' +
+        (t.notes ? '<div class="td-field"><label>Notes / Observations</label><div class="val desc">' + esc(t.notes) + '</div></div>' : '') +
+      '</div>' +
+    '</div>' +
+
+    (t.workSummary || t.correctiveAct || t.rootCause ? (
+    '<div class="td-section">' +
+      '<div class="td-section-title">Work Summary</div>' +
+      '<div class="td-grid" style="grid-template-columns:1fr;">' +
+        (t.workSummary  ? '<div class="td-field"><label>Work Summary</label><div class="val desc">'    + esc(t.workSummary)  + '</div></div>' : '') +
+        (t.correctiveAct? '<div class="td-field"><label>Corrective Action</label><div class="val desc">'+ esc(t.correctiveAct)+ '</div></div>' : '') +
+        (t.rootCause    ? '<div class="td-field"><label>Root Cause</label><div class="val desc">'       + esc(t.rootCause)    + '</div></div>' : '') +
+        field('Fix Type',      t.fixType) +
+        field('Temp Fix Flag', t.tempFixFlag ? 'YES' : 'NO') +
+      '</div>' +
+    '</div>') : '') +
+
+    (t.verifiedBy ? (
+    '<div class="td-section">' +
+      '<div class="td-section-title">Verification</div>' +
+      '<div class="td-grid">' +
+        field('Verified By',   t.verifiedBy) +
+        field('Verified Date', t.verifiedDate) +
+        field('Date Closed',   t.dateClosed) +
+      '</div>' +
+    '</div>') : '') +
+
+    '<div class="td-section">' +
+      '<div class="td-section-title">Ticket History</div>' +
+      (hist.length === 0 ? '<div style="color:var(--text-tertiary);font-size:12.5px;">No history entries.</div>' :
+        '<ul class="th-list">' +
+        hist.map(function(h) {
+          return '<li class="th-item">' +
+            '<div class="th-dot"></div>' +
+            '<div style="flex:1;">' +
+              '<div style="display:flex;gap:12px;align-items:baseline;">' +
+                '<span class="th-event">' + esc(h.eventType) + '</span>' +
+                '<span class="th-by">' + esc(h.performedBy) + '</span>' +
+              '</div>' +
+              (h.statusFrom || h.statusTo ? '<div class="th-notes">' +
+                (h.statusFrom ? esc(h.statusFrom) + ' → ' : '') + esc(h.statusTo) + '</div>' : '') +
+              (h.notes ? '<div class="th-notes">' + esc(h.notes) + '</div>' : '') +
+            '</div>' +
+            '<div class="th-ts">' + esc(h.timestamp) + '</div>' +
+          '</li>';
+        }).join('') +
+        '</ul>') +
+    '</div>';
+
+  document.getElementById('td-body').innerHTML = html;
+}
+
+// ── Action handlers ───────────────────────────────────────────────────────────
+
+function _tdApprove_() {
+  var t = _tdTicket;
+  if (!t) return;
+  _showModal_('Approve Ticket — ' + esc(t.ticketNo),
+    '<div class="form-group"><label>Priority</label>' +
+    '<select id="ma-priority"><option value="LOW">LOW</option><option value="MEDIUM" selected>MEDIUM</option><option value="HIGH">HIGH</option><option value="CRITICAL">CRITICAL</option></select></div>' +
+    '<div class="form-group"><label>Assign To (optional)</label>' +
+    '<select id="ma-assign"><option value="">— Unassigned —</option>' + _techOptions_() + '</select></div>' +
+    '<div class="form-group"><label>Est. Hours (optional)</label><input id="ma-hours" type="number" min="0" step="0.5" /></div>' +
+    '<div class="form-group"><label>Notes (optional)</label><textarea id="ma-notes"></textarea></div>',
+    function() {
+      var data = {
+        ticketNo:   t.ticketNo,
+        priority:   document.getElementById('ma-priority').value,
+        assignedTo: document.getElementById('ma-assign').value,
+        estHours:   document.getElementById('ma-hours').value,
+        notes:      document.getElementById('ma-notes').value,
+        updatedBy:  USER.displayName
+      };
+      _tdRunAction_(approveTicket, data, 'Approved');
+    });
+}
+
+function _tdComplete_() {
+  var t = _tdTicket;
+  if (!t) return;
+  _showModal_('Mark Work Complete — ' + esc(t.ticketNo),
+    '<div class="form-group"><label>Work Summary *</label><textarea id="mc-summary" required></textarea></div>' +
+    '<div class="form-group"><label>Corrective Action</label><textarea id="mc-corrective"></textarea></div>' +
+    '<div class="form-group"><label>Root Cause</label><input id="mc-root" /></div>' +
+    '<div class="form-group"><label>Fix Type</label>' +
+    '<select id="mc-fix"><option value="">—</option><option>Permanent</option><option>Temporary</option></select></div>' +
+    '<div class="form-group"><label>Actual Hours</label><input id="mc-hours" type="number" min="0" step="0.5" /></div>' +
+    '<div class="form-group" style="display:flex;align-items:center;gap:8px;">' +
+    '<input type="checkbox" id="mc-tf" style="width:auto;" /><label for="mc-tf" style="margin:0;cursor:pointer;">Flag as Temp Fix (requires follow-up inspection)</label></div>',
+    function() {
+      var summary = document.getElementById('mc-summary').value.trim();
+      if (!summary) { alert('Work summary is required.'); return; }
+      var data = {
+        ticketNo:     t.ticketNo,
+        workSummary:  summary,
+        correctiveAct:document.getElementById('mc-corrective').value,
+        rootCause:    document.getElementById('mc-root').value,
+        fixType:      document.getElementById('mc-fix').value,
+        actualHours:  document.getElementById('mc-hours').value,
+        tempFixFlag:  document.getElementById('mc-tf').checked,
+        updatedBy:    USER.displayName
+      };
+      _tdRunAction_(completeTicket, data, 'Marked Work Complete');
+    });
+}
+
+function _tdVerifyClose_() {
+  var t = _tdTicket;
+  if (!t) return;
+  _showModal_('Verify &amp; Close — ' + esc(t.ticketNo),
+    '<div class="form-group"><label>Verified By</label><input id="vc-verifier" value="' + esc(USER.displayName) + '" /></div>' +
+    '<div class="form-group"><label>Closing Notes (optional)</label><textarea id="vc-notes"></textarea></div>',
+    function() {
+      var data = {
+        ticketNo:   t.ticketNo,
+        verifiedBy: document.getElementById('vc-verifier').value || USER.displayName,
+        notes:      document.getElementById('vc-notes').value,
+        updatedBy:  USER.displayName
+      };
+      _tdRunAction_(verifyAndCloseTicket, data, 'Verified & Closed');
+    });
+}
+
+function _tdVoid_() {
+  var t = _tdTicket;
+  if (!t) return;
+  _showModal_('Void Ticket — ' + esc(t.ticketNo),
+    '<div style="background:var(--status-critical-bg);border:1px solid var(--status-critical);border-radius:6px;padding:10px 12px;margin-bottom:12px;font-size:12.5px;color:var(--status-critical);">This action cannot be undone. The ticket will be removed from all active queues.</div>' +
+    '<div class="form-group"><label>Reason for voiding *</label><textarea id="vd-reason"></textarea></div>',
+    function() {
+      var reason = document.getElementById('vd-reason').value.trim();
+      if (!reason) { alert('A reason is required to void a ticket.'); return; }
+      var data = { ticketNo: t.ticketNo, reason: reason, updatedBy: USER.displayName };
+      _tdRunAction_(voidTicket, data, 'Voided');
+    });
+}
+
+function _tdAssign_(techsJson) {
+  var t = _tdTicket;
+  if (!t) return;
+  _showModal_('Assign Technician — ' + esc(t.ticketNo),
+    '<div class="form-group"><label>Assign To</label>' +
+    '<select id="as-tech"><option value="">— Unassigned —</option>' + _techOptions_() + '</select></div>' +
+    '<div class="form-group"><label>Est. Hours</label><input id="as-hours" type="number" min="0" step="0.5" value="' + esc(String(t.estHours||'')) + '" /></div>',
+    function() {
+      var data = {
+        ticketNo:   t.ticketNo,
+        assignedTo: document.getElementById('as-tech').value,
+        estHours:   document.getElementById('as-hours').value,
+        updatedBy:  USER.displayName
+      };
+      _tdRunAction_(assignTicket, data, 'Assigned');
+    });
+}
+
+function _tdFlagTF_() {
+  var t = _tdTicket;
+  if (!t) return;
+  _showModal_('Flag Temp Fix — ' + esc(t.ticketNo),
+    '<div class="form-group"><label>Temp Fix Description *</label><textarea id="tf-desc"></textarea></div>',
+    function() {
+      var desc = document.getElementById('tf-desc').value.trim();
+      if (!desc) { alert('Temp fix description is required.'); return; }
+      var data = { ticketNo: t.ticketNo, tempFixDesc: desc, updatedBy: USER.displayName };
+      _tdRunAction_(flagTempFix, data, 'Temp Fix Flagged');
+    });
+}
+
+function _tdTransfer_() {
+  var t = _tdTicket;
+  if (!t) return;
+  var depts = ['ELECTRICAL','MACHINE SHOP','FACILITIES','PLASTICS','METALS','LITHO'];
+  _showModal_('Transfer Ticket — ' + esc(t.ticketNo),
+    '<div class="form-group"><label>Transfer To Department</label>' +
+    '<select id="tr-dept">' + depts.map(function(d) {
+      return '<option' + (d === t.dept ? ' disabled' : '') + ' value="' + esc(d) + '">' + esc(d) + '</option>';
+    }).join('') + '</select></div>' +
+    '<div class="form-group"><label>Reason (optional)</label><textarea id="tr-reason"></textarea></div>',
+    function() {
+      var toDept = document.getElementById('tr-dept').value;
+      if (!toDept || toDept === t.dept) { alert('Select a different department.'); return; }
+      var data = { ticketNo: t.ticketNo, fromDept: t.dept, toDept: toDept,
+                   reason: document.getElementById('tr-reason').value, updatedBy: USER.displayName };
+      _tdRunAction_(transferTicket, data, 'Transferred');
+    });
+}
+
+// ── Action runner ─────────────────────────────────────────────────────────────
+
+function _tdRunAction_(serverFn, data, successLabel) {
+  _closeModal_();
+  document.getElementById('td-body').innerHTML =
+    '<div class="loading-overlay"><div class="spinner"></div><span>Saving…</span></div>';
+
+  google.script.run
+    .withSuccessHandler(function(result) {
+      if (result && result.success) {
+        showToast(successLabel + ': ' + data.ticketNo, 'success');
+        // Refresh detail view
+        openTicketDetail(data.ticketNo);
+        // Refresh whichever queue page is behind the overlay
+        var activePage = document.querySelector('.page.active');
+        if (activePage && activePage.id && activePage.id.startsWith('page-')) {
+          var pid = activePage.id.replace('page-','');
+          var qtype = pid.startsWith('tracker-') ? 'tracker' : pid;
+          var dept  = pid.startsWith('tracker-') ? pid.replace('tracker-','').replace(/-/g,' ').toUpperCase() : null;
+          _refreshQueuePage_(pid, dept);
+        }
+      } else {
+        showToast('Error: ' + ((result && result.error) || 'Unknown error'), 'error');
+        openTicketDetail(data.ticketNo); // reload to recover
+      }
+    })
+    .withFailureHandler(function(err) {
+      showToast('Server error: ' + (err.message || String(err)), 'error');
+      openTicketDetail(data.ticketNo);
+    })
+    [serverFn.name](data);
+}
+
+// ── Modal helpers ─────────────────────────────────────────────────────────────
+
+function _showModal_(title, body, onConfirm) {
+  var html =
+    '<div class="td-modal-backdrop" id="td-modal-backdrop" onclick="if(event.target===this)_closeModal_()">' +
+    '<div class="td-modal">' +
+      '<h3>' + title + '</h3>' +
+      body +
+      '<div class="modal-actions">' +
+        '<button class="btn-cancel" onclick="_closeModal_()">Cancel</button>' +
+        '<button class="btn-confirm" id="td-modal-confirm">Confirm</button>' +
+      '</div>' +
+    '</div>' +
+    '</div>';
+  document.getElementById('td-modal-container').innerHTML = html;
+  document.getElementById('td-modal-confirm').onclick = onConfirm;
+}
+
+function _closeModal_() {
+  document.getElementById('td-modal-container').innerHTML = '';
+}
+
+function _techOptions_() {
+  if (!_tdTicket) return '';
+  // We don't have techs list after initial load; store it from last getTicketDetail call
+  return (window._tdTechs_ || []).map(function(t) {
+    return '<option value="' + esc(t) + '">' + esc(t) + '</option>';
+  }).join('');
+}
+
+// Override _renderDetail_ to also cache techs list
+var _tdRenderOrig_ = _renderDetail_;
+_renderDetail_ = function(result) {
+  if (result && result.techs) window._tdTechs_ = result.techs;
+  _tdRenderOrig_(result);
+};
+
+// ── Backend function proxies (called via _tdRunAction_) ───────────────────────
+// These are defined here as stubs so _tdRunAction_ can call fn.name on them.
+// The actual work is done by google.script.run.[name](data) on the server.
+function approveTicket(d)        { /* server */ }
+function completeTicket(d)       { /* server */ }
+function verifyAndCloseTicket(d) { /* server */ }
+function voidTicket(d)           { /* server */ }
+function assignTicket(d)         { /* server */ }
+function flagTempFix(d)          { /* server */ }
+function transferTicket(d)       { /* server */ }
+</script>
