@@ -482,7 +482,8 @@ function _moveTicketToClosed_(ss, ticketNo, data, now) {
   tkRow[TK.VERIFIED_DATE- 1] = data.verifiedBy  ? formatDateStr_(now) : '';
   tkRow[TK.ACTUAL_HOURS - 1] = data.actualHours || '';
   tkRow[TK.UPDATED_BY   - 1] = data.updatedBy   || data.verifiedBy || '';
-  var nextRow = closedSh.getLastRow() + 1;
+  // Ensure we never write into the frozen header rows.
+  var nextRow = Math.max(closedSh.getLastRow() + 1, QUEUE_FROZEN + 1);
   closedSh.getRange(nextRow, TK_DATA_COL, 1, TK_COLS).setValues([tkRow]);
   removeTicketFromSheet_(ss, SH.OPEN, ticketNo);
 }

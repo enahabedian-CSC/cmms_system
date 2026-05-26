@@ -1,0 +1,180 @@
+<!-- ╔══════════════════════════════════════════════════════════════════╗ -->
+<!-- ║  Reports partial — ticket activity summary + SQF export         ║ -->
+<!-- ║  Registers PAGE: reports                                         ║ -->
+<!-- ╚══════════════════════════════════════════════════════════════════╝ -->
+<style>
+/* ── Reports ─────────────────────────────────────────────────────────── */
+.rpt-wrap{padding:20px 24px;}
+.rpt-toolbar{display:flex;align-items:center;gap:10px;margin-bottom:16px;flex-wrap:wrap;}
+.rpt-title{font-size:15px;font-weight:700;color:var(--text-primary);flex:1;}
+.rpt-filter-select{height:30px;padding:0 8px;border:1px solid var(--border-default);border-radius:6px;font-size:12px;background:#fff;color:var(--text-primary);outline:none;}
+.rpt-search{height:30px;padding:0 10px;border:1px solid var(--border-default);border-radius:6px;font-size:12.5px;width:200px;outline:none;color:var(--text-primary);}
+.rpt-search:focus{border-color:var(--brand-navy);}
+.rpt-btn{height:30px;padding:0 12px;border:1px solid var(--border-default);border-radius:6px;font-size:12px;cursor:pointer;background:#fff;color:var(--text-secondary);}
+.rpt-btn.primary{background:var(--brand-navy);color:#fff;border-color:var(--brand-navy);}
+.rpt-btn.primary:hover{background:var(--brand-navy-soft);}
+.rpt-meta{font-size:11px;color:var(--text-tertiary);margin-bottom:16px;}
+
+/* Summary grid */
+.rpt-summary{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:10px;margin-bottom:20px;}
+.rpt-dept-card{background:var(--bg-surface);border:1px solid var(--border-default);border-radius:8px;padding:14px;box-shadow:var(--shadow-sm);}
+.rpt-dept-name{font-size:12px;font-weight:700;color:var(--brand-navy);text-transform:uppercase;letter-spacing:.04em;margin-bottom:10px;padding-bottom:6px;border-bottom:1px solid var(--border-default);}
+.rpt-stat-row{display:flex;justify-content:space-between;align-items:center;font-size:12px;padding:2px 0;}
+.rpt-stat-label{color:var(--text-secondary);}
+.rpt-stat-val{font-weight:600;font-variant-numeric:tabular-nums;}
+.rpt-stat-val.critical{color:var(--status-critical);}
+.rpt-stat-val.warn{color:var(--status-warn);}
+.rpt-stat-val.success{color:var(--status-success);}
+
+/* Ticket table */
+.rpt-table-wrap{background:var(--bg-surface);border:1px solid var(--border-default);border-radius:10px;overflow:hidden;box-shadow:var(--shadow-sm);}
+.rpt-section-hdr{padding:10px 14px;font-size:12px;font-weight:700;color:var(--text-secondary);background:var(--bg-subtle);border-bottom:1px solid var(--border-default);text-transform:uppercase;letter-spacing:.04em;}
+.rpt-table{width:100%;border-collapse:collapse;font-size:12.5px;}
+.rpt-table th{background:var(--bg-subtle);padding:8px 12px;text-align:left;font-size:11px;font-weight:600;color:var(--text-secondary);text-transform:uppercase;letter-spacing:.04em;border-bottom:1px solid var(--border-default);white-space:nowrap;}
+.rpt-table td{padding:9px 12px;border-bottom:1px solid var(--border-default);vertical-align:middle;}
+.rpt-table tr:last-child td{border-bottom:0;}
+.rpt-table tbody tr{cursor:pointer;}
+.rpt-table tbody tr:hover{background:var(--bg-hover);}
+.rpt-table .col-ticket{font-family:var(--font-mono);font-weight:600;color:var(--brand-navy);font-size:12px;}
+.rpt-table .col-desc{max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text-secondary);}
+.rpt-empty{padding:32px 24px;text-align:center;color:var(--text-secondary);font-size:13px;}
+
+/* Print styles */
+@media print {
+  .rpt-toolbar,.rpt-btn,#sidebar,.topbar{display:none!important;}
+  .rpt-wrap{padding:0;}
+  body{background:#fff;}
+}
+</style>
+
+<script>
+// ── Reports page ──────────────────────────────────────────────────────────────
+window.PAGES = window.PAGES || {};
+
+var _rptData_   = null;
+var _rptSearch_ = '';
+
+PAGES['reports'] = function(c) { _loadReportPage_(c, 30); };
+
+function _loadReportPage_(container, daysBack) {
+  container.innerHTML =
+    '<div class="loading-overlay"><div class="spinner"></div><span>Building report…</span></div>';
+  google.script.run
+    .withSuccessHandler(function(data) { _renderReport_(data, container); })
+    .withFailureHandler(function(err) {
+      var msg = err.message || String(err);
+      container.innerHTML = msg.indexOf('UNAUTHORIZED') >= 0 || msg.indexOf('Manager') >= 0
+        ? '<div class="rpt-empty">Reports are only available to managers.</div>'
+        : '<div class="rpt-empty">Error loading report: ' + esc(msg) + '</div>';
+    })
+    .getReportData({ daysBack: daysBack || 30 });
+}
+
+function _renderReport_(data, container) {
+  _rptData_   = data;
+  _rptSearch_ = '';
+  var daysBack = data.daysBack || 30;
+
+  container.innerHTML =
+    '<div class="rpt-wrap">' +
+    '<div class="rpt-toolbar">' +
+      '<span class="rpt-title">Ticket Activity Report</span>' +
+      '<select class="rpt-filter-select" id="rpt-days" onchange="_rptChangeDays_()">' +
+        [30,60,90,180,365].map(function(d) {
+          return '<option value="' + d + '"' + (d === daysBack ? ' selected' : '') + '>Last ' + d + ' days</option>';
+        }).join('') +
+      '</select>' +
+      '<input class="rpt-search" id="rpt-search" placeholder="Search tickets…" oninput="_rptApply_()" />' +
+      '<button class="rpt-btn" onclick="window.print()">🖨 Print / Export PDF</button>' +
+    '</div>' +
+    '<div class="rpt-meta" id="rpt-meta">Generated ' + esc(data.generatedAt) +
+      ' &nbsp;·&nbsp; ' + data.tickets.length + ' ticket' + (data.tickets.length !== 1 ? 's' : '') + ' in window</div>' +
+
+    // Dept summary cards
+    (data.summary.length > 0
+      ? '<div class="rpt-summary" id="rpt-summary">' +
+          data.summary.map(function(s) {
+            return '<div class="rpt-dept-card">' +
+              '<div class="rpt-dept-name">' + esc(s.dept) + '</div>' +
+              _rptStatRow_('Open',        s.open,        '') +
+              _rptStatRow_('Waiting',     s.waiting,     '') +
+              _rptStatRow_('Closed',      s.closed,      'success') +
+              _rptStatRow_('Critical',    s.critical,    s.critical > 0 ? 'critical' : '') +
+              _rptStatRow_('Temp Fixes',  s.tempFix,     s.tempFix  > 0 ? 'warn'     : '') +
+              _rptStatRow_('Labor Hours', s.totalHours,  '') +
+            '</div>';
+          }).join('')
+        + '</div>'
+      : '<div style="padding:12px 0;font-size:12.5px;color:var(--text-secondary);">No dept data for this window.</div>') +
+
+    // Ticket table
+    '<div class="rpt-table-wrap">' +
+      '<div class="rpt-section-hdr">Ticket Detail — <span id="rpt-cnt">' + data.tickets.length + ' tickets</span></div>' +
+      '<table class="rpt-table">' +
+        '<thead><tr>' +
+          '<th>Ticket #</th><th>Priority</th><th>Status</th><th>Dept</th>' +
+          '<th>Equipment</th><th>Description</th><th>Assigned</th>' +
+          '<th>Opened</th><th>Closed</th><th>Hrs</th>' +
+        '</tr></thead>' +
+        '<tbody id="rpt-tbody"></tbody>' +
+      '</table>' +
+    '</div>' +
+    '</div>';
+
+  _rptRenderRows_(data.tickets);
+}
+
+function _rptStatRow_(label, val, cls) {
+  return '<div class="rpt-stat-row">' +
+    '<span class="rpt-stat-label">' + esc(label) + '</span>' +
+    '<span class="rpt-stat-val ' + esc(cls) + '">' + esc(String(val)) + '</span>' +
+  '</div>';
+}
+
+function _rptApply_() {
+  var q = document.getElementById('rpt-search');
+  _rptSearch_ = q ? q.value.toLowerCase() : '';
+  if (!_rptData_) return;
+  var filtered = _rptData_.tickets.filter(function(t) {
+    if (!_rptSearch_) return true;
+    var hay = (t.ticketNo + ' ' + t.dept + ' ' + t.specificEquip + ' ' +
+               t.description + ' ' + t.assignedTo + ' ' + t.addedBy).toLowerCase();
+    return hay.indexOf(_rptSearch_) >= 0;
+  });
+  _rptRenderRows_(filtered);
+}
+
+function _rptRenderRows_(list) {
+  var tbody = document.getElementById('rpt-tbody');
+  if (!tbody) return;
+  var cntEl = document.getElementById('rpt-cnt');
+  if (cntEl) cntEl.textContent = list.length + ' ticket' + (list.length !== 1 ? 's' : '');
+  if (list.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="10" class="rpt-empty">No tickets match.</td></tr>';
+    return;
+  }
+  tbody.innerHTML = list.map(function(t) {
+    var priCls = 'pri-' + (t.priority || '');
+    var staCls = 'stat-' + t.status;
+    return '<tr onclick="openTicketDetail(\'' + esc(t.ticketNo) + '\')">' +
+      '<td class="col-ticket">' + esc(t.ticketNo) + '</td>' +
+      '<td><span class="pri-badge ' + priCls + '">' + esc(t.priority || '—') + '</span></td>' +
+      '<td><span class="stat-badge ' + staCls + '">' + esc(t.status) + '</span></td>' +
+      '<td>' + esc(t.dept) + '</td>' +
+      '<td style="max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + esc(t.specificEquip) + '</td>' +
+      '<td class="col-desc" title="' + esc(t.description) + '">' + esc(t.description) + '</td>' +
+      '<td>' + esc(t.assignedTo || '—') + '</td>' +
+      '<td style="font-size:11.5px;color:var(--text-tertiary);">' + esc(t.dateOpened) + '</td>' +
+      '<td style="font-size:11.5px;color:var(--text-tertiary);">' + esc(t.dateClosed || '—') + '</td>' +
+      '<td style="font-size:11.5px;color:var(--text-secondary);">' + esc(String(t.actualHours || '—')) + '</td>' +
+    '</tr>';
+  }).join('');
+}
+
+function _rptChangeDays_() {
+  var el = document.getElementById('rpt-days');
+  if (!el) return;
+  var container = document.getElementById('page-reports');
+  if (container) _loadReportPage_(container, parseInt(el.value, 10));
+}
+</script>

@@ -1,0 +1,124 @@
+<!-- ╔══════════════════════════════════════════════════════════════════╗ -->
+<!-- ║  Admin partial — read-only views for config/access/deptmap      ║ -->
+<!-- ║  Registers PAGES for: admin-config, admin-access, admin-deptmap ║ -->
+<!-- ╚══════════════════════════════════════════════════════════════════╝ -->
+<style>
+/* ── Admin views ─────────────────────────────────────────────────────── */
+.adm-wrap{padding:20px 24px;max-width:800px;}
+.adm-header{display:flex;align-items:center;gap:12px;margin-bottom:20px;flex-wrap:wrap;}
+.adm-title{font-size:15px;font-weight:700;color:var(--text-primary);flex:1;}
+.adm-edit-btn{height:30px;padding:0 14px;border:1px solid var(--brand-navy);border-radius:6px;background:#fff;color:var(--brand-navy);font-size:12px;font-weight:600;cursor:pointer;text-decoration:none;display:inline-flex;align-items:center;gap:5px;}
+.adm-edit-btn:hover{background:var(--brand-navy);color:#fff;}
+.adm-notice{background:var(--status-info-bg);border:1px solid #BFDBFE;border-radius:6px;padding:10px 14px;font-size:12px;color:var(--status-info);margin-bottom:16px;}
+.adm-table-wrap{background:var(--bg-surface);border:1px solid var(--border-default);border-radius:10px;overflow:hidden;box-shadow:var(--shadow-sm);}
+.adm-table{width:100%;border-collapse:collapse;font-size:13px;}
+.adm-table th{background:var(--bg-subtle);padding:9px 14px;text-align:left;font-size:11px;font-weight:600;color:var(--text-secondary);text-transform:uppercase;letter-spacing:.04em;border-bottom:1px solid var(--border-default);}
+.adm-table td{padding:10px 14px;border-bottom:1px solid var(--border-default);vertical-align:top;color:var(--text-primary);}
+.adm-table tr:last-child td{border-bottom:0;}
+.adm-table .key-col{font-family:var(--font-mono);font-size:12px;color:var(--brand-navy);white-space:nowrap;width:220px;}
+.adm-table .val-col{color:var(--text-secondary);word-break:break-word;}
+.adm-table .val-col.mono{font-family:var(--font-mono);font-size:12px;}
+.adm-empty{padding:40px;text-align:center;color:var(--text-secondary);font-size:13px;}
+.adm-role-badge{display:inline-block;padding:2px 6px;border-radius:4px;font-size:10.5px;font-weight:600;background:var(--status-info-bg);color:var(--status-info);}
+.adm-tag{display:inline-block;padding:2px 6px;border-radius:4px;font-size:11px;background:var(--bg-subtle);color:var(--text-secondary);margin:1px 2px;}
+.adm-unauthorized{padding:40px 24px;text-align:center;color:var(--text-secondary);font-size:13px;}
+</style>
+
+<script>
+// ── Admin page utilities ──────────────────────────────────────────────────────
+window.PAGES = window.PAGES || {};
+
+function _loadAdminPage_(view, title, container) {
+  container.innerHTML =
+    '<div class="loading-overlay"><div class="spinner"></div><span>Loading ' + esc(title) + '…</span></div>';
+  google.script.run
+    .withSuccessHandler(function(data) { _renderAdminView_(data, container); })
+    .withFailureHandler(function(err) {
+      var msg = err.message || String(err);
+      container.innerHTML = msg.indexOf('UNAUTHORIZED') >= 0 || msg.indexOf('Admin') >= 0
+        ? '<div class="adm-unauthorized">This view requires system admin access.</div>'
+        : '<div class="adm-unauthorized">Error: ' + esc(msg) + '</div>';
+    })
+    .getAdminViewData(view);
+}
+
+function _renderAdminView_(data, container) {
+  var sheetLink = '<a href="' + esc(data.sheetUrl) + '" target="_blank" class="adm-edit-btn">' +
+    '✏ Edit in Sheet</a>';
+
+  var html = '<div class="adm-wrap">';
+
+  if (data.view === 'config') {
+    html +=
+      '<div class="adm-header"><span class="adm-title">⚙️ System Configuration</span>' + sheetLink + '</div>' +
+      '<div class="adm-notice">This is a read-only view. Click "Edit in Sheet" to make changes. Changes take effect on the next page load.</div>' +
+      '<div class="adm-table-wrap"><table class="adm-table">' +
+        '<thead><tr><th>Key</th><th>Value</th></tr></thead><tbody>';
+    if (data.rows && data.rows.length > 0) {
+      data.rows.forEach(function(r) {
+        html +=
+          '<tr><td class="key-col">' + esc(r.key) + '</td>' +
+          '<td class="val-col">' + esc(r.value || '—') + '</td></tr>';
+      });
+    } else {
+      html += '<tr><td colspan="2" class="adm-empty">No configuration entries found.</td></tr>';
+    }
+    html += '</tbody></table></div>';
+  }
+
+  else if (data.view === 'access') {
+    html +=
+      '<div class="adm-header"><span class="adm-title">👔 Manager Access</span>' + sheetLink + '</div>' +
+      '<div class="adm-notice">Role permissions are sourced exclusively from this sheet. Changes take effect immediately on the next API call.</div>' +
+      '<div class="adm-table-wrap"><table class="adm-table">' +
+        '<thead><tr><th>Name</th><th>Email</th><th>Owned Departments</th></tr></thead><tbody>';
+    if (data.managers && data.managers.length > 0) {
+      data.managers.forEach(function(m) {
+        var deptHtml = (m.ownedDepts || []).map(function(d) {
+          return '<span class="adm-tag">' + esc(d) + '</span>';
+        }).join('') || '<span style="color:var(--text-tertiary);font-size:11px;">none assigned</span>';
+        html +=
+          '<tr>' +
+          '<td style="font-weight:600;">' + esc(m.managerName || '—') + '</td>' +
+          '<td class="val-col mono">' + esc(m.managerEmail || '—') + '</td>' +
+          '<td>' + deptHtml + '</td>' +
+          '</tr>';
+      });
+    } else {
+      html += '<tr><td colspan="3" class="adm-empty">No managers configured.</td></tr>';
+    }
+    html += '</tbody></table></div>';
+  }
+
+  else if (data.view === 'deptmap') {
+    html +=
+      '<div class="adm-header"><span class="adm-title">📋 Department Map</span>' + sheetLink + '</div>' +
+      '<div class="adm-notice">Maps raw department strings (from external sources, typos, abbreviations) to canonical dept names. Applied on every inbound ticket.</div>' +
+      '<div class="adm-table-wrap"><table class="adm-table">' +
+        '<thead><tr><th>Source String</th><th>Maps To (Canonical)</th></tr></thead><tbody>';
+    if (data.rows && data.rows.length > 0) {
+      data.rows.forEach(function(r) {
+        html +=
+          '<tr>' +
+          '<td class="key-col">' + esc(r.src) + '</td>' +
+          '<td class="val-col"><span class="adm-role-badge">' + esc(r.dest) + '</span></td>' +
+          '</tr>';
+      });
+    } else {
+      html += '<tr><td colspan="2" class="adm-empty">No department mappings found.</td></tr>';
+    }
+    html += '</tbody></table></div>';
+  }
+
+  else {
+    html += '<div class="adm-empty">Unknown view: ' + esc(data.view) + '</div>';
+  }
+
+  html += '</div>';
+  container.innerHTML = html;
+}
+
+PAGES['admin-config']  = function(c) { _loadAdminPage_('config',  'Configuration',  c); };
+PAGES['admin-access']  = function(c) { _loadAdminPage_('access',  'Manager Access', c); };
+PAGES['admin-deptmap'] = function(c) { _loadAdminPage_('deptmap', 'Dept Map',       c); };
+</script>

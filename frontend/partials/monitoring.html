@@ -1,0 +1,403 @@
+<!-- ╔══════════════════════════════════════════════════════════════════╗ -->
+<!-- ║  Monitoring partial — Temp Fix / Equipment Hold / Parts Needed  ║ -->
+<!-- ║  Registers PAGES for: tempfix, equipment-hold, parts            ║ -->
+<!-- ╚══════════════════════════════════════════════════════════════════╝ -->
+<style>
+/* ── Monitoring shared ───────────────────────────────────────────────── */
+.mon-wrap{padding:20px 24px;}
+.mon-toolbar{display:flex;align-items:center;gap:10px;margin-bottom:14px;flex-wrap:wrap;}
+.mon-title{font-size:15px;font-weight:700;color:var(--text-primary);flex:1;}
+.mon-count{font-size:12px;color:var(--text-secondary);background:var(--bg-subtle);border:1px solid var(--border-default);border-radius:4px;padding:2px 8px;}
+.mon-search{height:30px;padding:0 10px;border:1px solid var(--border-default);border-radius:6px;font-size:12.5px;width:180px;outline:none;color:var(--text-primary);}
+.mon-search:focus{border-color:var(--brand-navy);}
+.mon-filter-select{height:30px;padding:0 8px;border:1px solid var(--border-default);border-radius:6px;font-size:12px;background:#fff;color:var(--text-primary);outline:none;}
+.mon-table-wrap{background:var(--bg-surface);border:1px solid var(--border-default);border-radius:10px;overflow:hidden;box-shadow:var(--shadow-sm);}
+.mon-table{width:100%;border-collapse:collapse;font-size:12.5px;}
+.mon-table th{background:var(--bg-subtle);padding:9px 12px;text-align:left;font-size:11px;font-weight:600;color:var(--text-secondary);text-transform:uppercase;letter-spacing:.04em;border-bottom:1px solid var(--border-default);white-space:nowrap;}
+.mon-table td{padding:9px 12px;border-bottom:1px solid var(--border-default);vertical-align:middle;}
+.mon-table tr:last-child td{border-bottom:0;}
+.mon-table tbody tr:hover{background:var(--bg-hover);}
+.mon-empty{padding:40px 24px;text-align:center;color:var(--text-secondary);font-size:13px;}
+.mon-id{font-family:var(--font-mono);font-size:11px;color:var(--text-secondary);}
+.mon-desc{max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text-secondary);}
+.mon-equip{max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+
+/* Status badges reuse pri-badge / stat-badge; extra monitoring statuses: */
+.stat-ACTIVE    {background:#FFF3E0;color:#E65100;}
+.stat-PAST\ DUE {background:var(--status-critical-bg);color:var(--status-critical);}
+.stat-CLEARED   {background:var(--status-success-bg);color:var(--status-success);}
+.stat-PENDING   {background:#EDE9FE;color:#5B21B6;}
+.stat-ORDERED   {background:var(--status-info-bg);color:var(--status-info);}
+.stat-RECEIVED  {background:var(--status-success-bg);color:var(--status-success);}
+.stat-CANCELLED {background:var(--bg-subtle);color:var(--text-tertiary);}
+.stat-TAGGED    {background:var(--status-critical-bg);color:var(--status-critical);}
+
+/* Action buttons */
+.mon-btn{padding:3px 10px;border:1px solid var(--border-default);border-radius:4px;font-size:11.5px;cursor:pointer;background:#fff;color:var(--text-secondary);white-space:nowrap;}
+.mon-btn:hover{background:var(--bg-hover);}
+.mon-btn.primary{background:var(--brand-navy);color:#fff;border-color:var(--brand-navy);}
+.mon-btn.primary:hover{background:var(--brand-navy-soft);}
+.mon-btn.danger{background:var(--status-critical-bg);color:var(--status-critical);border-color:var(--status-critical);}
+
+/* Monitor action modal */
+.mon-modal-back{position:fixed;inset:0;background:rgba(0,0,0,.35);z-index:5000;display:none;align-items:center;justify-content:center;}
+.mon-modal-back.open{display:flex;}
+.mon-modal{background:#fff;border-radius:10px;padding:22px 24px;width:360px;max-width:95vw;box-shadow:var(--shadow-lg);}
+.mon-modal-title{font-size:14px;font-weight:700;color:var(--text-primary);margin-bottom:4px;}
+.mon-modal-sub{font-size:12px;color:var(--text-secondary);margin-bottom:16px;}
+.mon-modal-notes{width:100%;padding:8px 10px;border:1px solid var(--border-default);border-radius:6px;font-size:12.5px;font-family:inherit;resize:vertical;height:60px;outline:none;}
+.mon-modal-notes:focus{border-color:var(--brand-navy);}
+.mon-modal-footer{display:flex;gap:8px;justify-content:flex-end;margin-top:14px;}
+</style>
+
+<div id="mon-modal-back" class="mon-modal-back">
+  <div class="mon-modal">
+    <div class="mon-modal-title" id="mon-modal-title">Confirm Action</div>
+    <div class="mon-modal-sub"  id="mon-modal-sub"></div>
+    <textarea class="mon-modal-notes" id="mon-modal-notes" placeholder="Notes (optional)"></textarea>
+    <div class="mon-modal-footer">
+      <button class="mon-btn" onclick="_monModalClose_()">Cancel</button>
+      <button class="mon-btn primary" id="mon-modal-confirm">Confirm</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ── Monitoring page utilities ─────────────────────────────────────────────────
+window.PAGES = window.PAGES || {};
+
+// ─── Temp Fix Monitor ─────────────────────────────────────────────────────────
+
+var _tfData_ = [];
+
+PAGES['tempfix'] = function(c) { _loadTfPage_(c); };
+
+function _loadTfPage_(container) {
+  container.innerHTML =
+    '<div class="loading-overlay"><div class="spinner"></div><span>Loading temp fixes…</span></div>';
+  google.script.run
+    .withSuccessHandler(function(items) { _renderTf_(items, container); })
+    .withFailureHandler(function(err) {
+      container.innerHTML =
+        '<div class="mon-empty">Error: ' + esc(err.message || String(err)) + '</div>';
+    })
+    .getTempFixItems({ includeCleared: false });
+}
+
+function _renderTf_(items, container) {
+  _tfData_ = items || [];
+  container.innerHTML =
+    '<div class="mon-wrap">' +
+    '<div class="mon-toolbar">' +
+      '<span class="mon-title">Temp Fix Monitor</span>' +
+      '<span class="mon-count" id="tf-cnt">' + _tfData_.length + ' active</span>' +
+      '<input class="mon-search" id="tf-search" placeholder="Search…" oninput="_tfApply_()" />' +
+      '<select class="mon-filter-select" id="tf-stat" onchange="_tfApply_()">' +
+        '<option value="">All statuses</option>' +
+        '<option>ACTIVE</option><option>PAST DUE</option>' +
+      '</select>' +
+      '<button onclick="_loadTfPage_(document.getElementById(\'page-tempfix\'))" ' +
+        'style="height:30px;padding:0 10px;border:1px solid var(--border-default);border-radius:6px;background:#fff;font-size:12px;cursor:pointer;color:var(--text-secondary);" title="Refresh">↻</button>' +
+    '</div>' +
+    '<div class="mon-table-wrap"><table class="mon-table">' +
+      '<thead><tr>' +
+        '<th>ID</th><th>Ticket #</th><th>Equipment</th><th>Dept</th>' +
+        '<th>Description</th><th>Status</th><th>Flagged</th>' +
+        '<th>Next Due</th><th>Freq (days)</th><th></th>' +
+      '</tr></thead>' +
+      '<tbody id="tf-tbody"></tbody>' +
+    '</table></div></div>';
+  _tfRenderRows_(_tfData_);
+}
+
+function _tfApply_() {
+  var q  = document.getElementById('tf-search');
+  var sf = document.getElementById('tf-stat');
+  var qv = q  ? q.value.toLowerCase()  : '';
+  var sv = sf ? sf.value.toUpperCase() : '';
+  _tfRenderRows_(_tfData_.filter(function(t) {
+    if (sv && t.status !== sv) return false;
+    if (qv) {
+      var hay = (t.tempId + ' ' + t.ticketNo + ' ' + t.equipCode + ' ' +
+                 t.specificEquip + ' ' + t.dept + ' ' + t.description).toLowerCase();
+      if (hay.indexOf(qv) < 0) return false;
+    }
+    return true;
+  }));
+}
+
+function _tfRenderRows_(list) {
+  var tbody = document.getElementById('tf-tbody');
+  if (!tbody) return;
+  var cntEl = document.getElementById('tf-cnt');
+  if (cntEl) cntEl.textContent = list.length + ' item' + (list.length !== 1 ? 's' : '');
+  if (list.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="10" class="mon-empty">No active temp fixes.</td></tr>';
+    return;
+  }
+  tbody.innerHTML = list.map(function(t) {
+    var staCls = 'stat-' + t.status.replace(' ', '\\ ');
+    var isPastDue = t.status === 'PAST DUE';
+    return '<tr>' +
+      '<td class="mon-id">' + esc(t.tempId) + '</td>' +
+      '<td style="font-family:var(--font-mono);font-size:11.5px;color:var(--brand-navy);">' + esc(t.ticketNo) + '</td>' +
+      '<td class="mon-equip" title="' + esc(t.equipCode ? t.equipCode + ' — ' + t.specificEquip : t.specificEquip) + '">' +
+        (t.equipCode ? '<span style="font-family:var(--font-mono);font-size:10.5px;color:var(--text-secondary);">' + esc(t.equipCode) + '</span> ' : '') +
+        esc(t.specificEquip) + '</td>' +
+      '<td>' + esc(t.dept) + '</td>' +
+      '<td class="mon-desc" title="' + esc(t.tempFixDesc || t.description) + '">' + esc(t.tempFixDesc || t.description) + '</td>' +
+      '<td><span class="stat-badge ' + esc('stat-' + t.status) + '">' + esc(t.status) + '</span></td>' +
+      '<td style="font-size:11.5px;color:var(--text-tertiary);">' + esc(t.dateFlagged) + '</td>' +
+      '<td style="font-size:11.5px;' + (isPastDue ? 'color:var(--status-critical);font-weight:600;' : '') + '">' + esc(t.nextDue) + '</td>' +
+      '<td style="font-size:11.5px;color:var(--text-secondary);">' + esc(String(t.freqDays)) + '</td>' +
+      '<td style="white-space:nowrap;">' +
+        '<button class="mon-btn" onclick="_tfInspect_(\'' + esc(t.tempId) + '\')" style="margin-right:4px;">Inspect</button>' +
+        '<button class="mon-btn danger" onclick="_tfClear_(\'' + esc(t.tempId) + '\')">Clear</button>' +
+      '</td>' +
+    '</tr>';
+  }).join('');
+}
+
+function _tfInspect_(tempId) {
+  _monModalOpen_('Record Inspection', 'Update last inspected date and recalculate next due.', function(notes) {
+    google.script.run
+      .withSuccessHandler(function(r) {
+        if (r.success) { showToast('Inspection recorded', 'success'); _loadTfPage_(document.getElementById('page-tempfix')); }
+        else showToast(r.error || 'Error', 'error');
+      })
+      .withFailureHandler(function(e) { showToast(e.message || String(e), 'error'); })
+      .inspectTempFix({ tempId: tempId, notes: notes });
+  });
+}
+
+function _tfClear_(tempId) {
+  _monModalOpen_('Clear Temp Fix', 'Mark this temp fix as cleared. The parent ticket will not be closed.', function(notes) {
+    google.script.run
+      .withSuccessHandler(function(r) {
+        if (r.success) { showToast('Temp fix cleared', 'success'); _loadTfPage_(document.getElementById('page-tempfix')); }
+        else showToast(r.error || 'Error', 'error');
+      })
+      .withFailureHandler(function(e) { showToast(e.message || String(e), 'error'); })
+      .clearTempFix({ tempId: tempId, notes: notes });
+  });
+}
+
+// ─── Equipment Hold Log ───────────────────────────────────────────────────────
+
+var _ehlData_ = [];
+
+PAGES['equipment-hold'] = function(c) { _loadEhlPage_(c); };
+
+function _loadEhlPage_(container) {
+  container.innerHTML =
+    '<div class="loading-overlay"><div class="spinner"></div><span>Loading equipment holds…</span></div>';
+  google.script.run
+    .withSuccessHandler(function(items) { _renderEhl_(items, container); })
+    .withFailureHandler(function(err) {
+      container.innerHTML =
+        '<div class="mon-empty">Error: ' + esc(err.message || String(err)) + '</div>';
+    })
+    .getEquipHoldItems({ includeCleared: false });
+}
+
+function _renderEhl_(items, container) {
+  _ehlData_ = items || [];
+  container.innerHTML =
+    '<div class="mon-wrap">' +
+    '<div class="mon-toolbar">' +
+      '<span class="mon-title">Equipment Hold Log</span>' +
+      '<span class="mon-count" id="ehl-cnt">' + _ehlData_.length + ' tagged</span>' +
+      '<input class="mon-search" id="ehl-search" placeholder="Search…" oninput="_ehlApply_()" />' +
+      '<button onclick="_loadEhlPage_(document.getElementById(\'page-equipment-hold\'))" ' +
+        'style="height:30px;padding:0 10px;border:1px solid var(--border-default);border-radius:6px;background:#fff;font-size:12px;cursor:pointer;color:var(--text-secondary);" title="Refresh">↻</button>' +
+    '</div>' +
+    '<div class="mon-table-wrap"><table class="mon-table">' +
+      '<thead><tr>' +
+        '<th>Tag ID</th><th>Ticket #</th><th>Equipment</th><th>Dept</th>' +
+        '<th>Tag Type</th><th>Date Tagged</th><th>Reason</th><th>Tagged By</th><th></th>' +
+      '</tr></thead>' +
+      '<tbody id="ehl-tbody"></tbody>' +
+    '</table></div></div>';
+  _ehlRenderRows_(_ehlData_);
+}
+
+function _ehlApply_() {
+  var q  = document.getElementById('ehl-search');
+  var qv = q ? q.value.toLowerCase() : '';
+  _ehlRenderRows_(_ehlData_.filter(function(t) {
+    if (!qv) return true;
+    var hay = (t.tagId + ' ' + t.ticketNo + ' ' + t.equipCode + ' ' +
+               t.specificEquip + ' ' + t.dept + ' ' + t.reason).toLowerCase();
+    return hay.indexOf(qv) >= 0;
+  }));
+}
+
+function _ehlRenderRows_(list) {
+  var tbody = document.getElementById('ehl-tbody');
+  if (!tbody) return;
+  var cntEl = document.getElementById('ehl-cnt');
+  if (cntEl) cntEl.textContent = list.length + ' item' + (list.length !== 1 ? 's' : '');
+  if (list.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="9" class="mon-empty">No active equipment holds.</td></tr>';
+    return;
+  }
+  tbody.innerHTML = list.map(function(t) {
+    return '<tr>' +
+      '<td class="mon-id">' + esc(t.tagId) + '</td>' +
+      '<td style="font-family:var(--font-mono);font-size:11.5px;color:var(--brand-navy);">' + esc(t.ticketNo) + '</td>' +
+      '<td class="mon-equip" title="' + esc(t.equipCode ? t.equipCode + ' — ' + t.specificEquip : t.specificEquip) + '">' +
+        (t.equipCode ? '<span style="font-family:var(--font-mono);font-size:10.5px;color:var(--text-secondary);">' + esc(t.equipCode) + '</span> ' : '') +
+        esc(t.specificEquip) + '</td>' +
+      '<td>' + esc(t.dept) + '</td>' +
+      '<td><span style="background:var(--status-critical-bg);color:var(--status-critical);font-size:10.5px;font-weight:700;padding:2px 6px;border-radius:4px;">' + esc(t.tagType || 'HOLD') + '</span></td>' +
+      '<td style="font-size:11.5px;color:var(--text-tertiary);">' + esc(t.dateTagged) + '</td>' +
+      '<td class="mon-desc" title="' + esc(t.reason) + '">' + esc(t.reason) + '</td>' +
+      '<td>' + esc(t.taggedBy) + '</td>' +
+      '<td>' +
+        '<button class="mon-btn danger" onclick="_ehlClear_(\'' + esc(t.tagId) + '\')">Clear Tag</button>' +
+      '</td>' +
+    '</tr>';
+  }).join('');
+}
+
+function _ehlClear_(tagId) {
+  _monModalOpen_('Clear Equipment Tag', 'Confirm equipment is cleared and safe to return to service.', function(notes) {
+    google.script.run
+      .withSuccessHandler(function(r) {
+        if (r.success) { showToast('Equipment tag cleared', 'success'); _loadEhlPage_(document.getElementById('page-equipment-hold')); }
+        else showToast(r.error || 'Error', 'error');
+      })
+      .withFailureHandler(function(e) { showToast(e.message || String(e), 'error'); })
+      .clearEquipTag({ tagId: tagId, notes: notes });
+  });
+}
+
+// ─── Parts Needed ─────────────────────────────────────────────────────────────
+
+var _pnData_ = [];
+
+PAGES['parts'] = function(c) { _loadPnPage_(c); };
+
+function _loadPnPage_(container) {
+  container.innerHTML =
+    '<div class="loading-overlay"><div class="spinner"></div><span>Loading parts…</span></div>';
+  google.script.run
+    .withSuccessHandler(function(items) { _renderPn_(items, container); })
+    .withFailureHandler(function(err) {
+      container.innerHTML =
+        '<div class="mon-empty">Error: ' + esc(err.message || String(err)) + '</div>';
+    })
+    .getPartsItems({});
+}
+
+function _renderPn_(items, container) {
+  _pnData_ = items || [];
+  var statuses = ['PENDING', 'ORDERED', 'RECEIVED', 'CANCELLED'];
+
+  container.innerHTML =
+    '<div class="mon-wrap">' +
+    '<div class="mon-toolbar">' +
+      '<span class="mon-title">Parts Needed</span>' +
+      '<span class="mon-count" id="pn-cnt">' + _pnData_.length + ' parts</span>' +
+      '<input class="mon-search" id="pn-search" placeholder="Search…" oninput="_pnApply_()" />' +
+      '<select class="mon-filter-select" id="pn-stat" onchange="_pnApply_()">' +
+        '<option value="">All statuses</option>' +
+        statuses.map(function(s) { return '<option>' + s + '</option>'; }).join('') +
+      '</select>' +
+      '<button onclick="_loadPnPage_(document.getElementById(\'page-parts\'))" ' +
+        'style="height:30px;padding:0 10px;border:1px solid var(--border-default);border-radius:6px;background:#fff;font-size:12px;cursor:pointer;color:var(--text-secondary);" title="Refresh">↻</button>' +
+    '</div>' +
+    '<div class="mon-table-wrap"><table class="mon-table">' +
+      '<thead><tr>' +
+        '<th>Part ID</th><th>Description</th><th>Ticket #</th><th>Equipment</th>' +
+        '<th>Dept</th><th>Status</th><th>Requested</th><th>Ordered</th><th>Received</th><th></th>' +
+      '</tr></thead>' +
+      '<tbody id="pn-tbody"></tbody>' +
+    '</table></div></div>';
+  _pnApply_();
+}
+
+function _pnApply_() {
+  var q  = document.getElementById('pn-search');
+  var sf = document.getElementById('pn-stat');
+  var qv = q  ? q.value.toLowerCase()  : '';
+  var sv = sf ? sf.value.toUpperCase() : '';
+  var filtered = _pnData_.filter(function(p) {
+    if (sv && p.partsStatus !== sv) return false;
+    if (qv) {
+      var hay = (p.partId + ' ' + p.partDesc + ' ' + p.ticketNo + ' ' +
+                 p.equipCode + ' ' + p.specificEquip + ' ' + p.dept).toLowerCase();
+      if (hay.indexOf(qv) < 0) return false;
+    }
+    return true;
+  });
+  var tbody = document.getElementById('pn-tbody');
+  if (!tbody) return;
+  var cntEl = document.getElementById('pn-cnt');
+  if (cntEl) cntEl.textContent = filtered.length + ' part' + (filtered.length !== 1 ? 's' : '');
+  if (filtered.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="10" class="mon-empty">No parts match.</td></tr>';
+    return;
+  }
+
+  tbody.innerHTML = filtered.map(function(p) {
+    var isManager = typeof USER !== 'undefined' && USER.isManager;
+    var nextStatus = { 'PENDING': 'ORDERED', 'ORDERED': 'RECEIVED' }[p.partsStatus];
+    var actionBtn = '';
+    if (isManager && nextStatus) {
+      actionBtn = '<button class="mon-btn primary" onclick="_pnAdvance_(\'' + esc(p.partId) + '\',\'' + esc(nextStatus) + '\')">→ ' + esc(nextStatus) + '</button>';
+    }
+    if (isManager && p.partsStatus !== 'CANCELLED' && p.partsStatus !== 'RECEIVED') {
+      actionBtn += ' <button class="mon-btn" onclick="_pnAdvance_(\'' + esc(p.partId) + '\',\'CANCELLED\')">Cancel</button>';
+    }
+    return '<tr>' +
+      '<td class="mon-id">' + esc(p.partId) + '</td>' +
+      '<td style="max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="' + esc(p.partDesc) + '">' + esc(p.partDesc) + '</td>' +
+      '<td style="font-family:var(--font-mono);font-size:11.5px;color:var(--brand-navy);">' + esc(p.ticketNo) + '</td>' +
+      '<td class="mon-equip">' + esc(p.equipCode ? p.equipCode + ' ' : '') + esc(p.specificEquip) + '</td>' +
+      '<td>' + esc(p.dept) + '</td>' +
+      '<td><span class="stat-badge ' + esc('stat-' + p.partsStatus) + '">' + esc(p.partsStatus) + '</span></td>' +
+      '<td style="font-size:11.5px;color:var(--text-tertiary);">' + esc(p.dateRequested) + '</td>' +
+      '<td style="font-size:11.5px;color:var(--text-tertiary);">' + esc(p.dateOrdered  || '—') + '</td>' +
+      '<td style="font-size:11.5px;color:var(--text-tertiary);">' + esc(p.dateReceived || '—') + '</td>' +
+      '<td style="white-space:nowrap;">' + actionBtn + '</td>' +
+    '</tr>';
+  }).join('');
+}
+
+function _pnAdvance_(partId, newStatus) {
+  google.script.run
+    .withSuccessHandler(function(r) {
+      if (r.success) { showToast('Status → ' + newStatus, 'success'); _loadPnPage_(document.getElementById('page-parts')); }
+      else showToast(r.error || 'Error', 'error');
+    })
+    .withFailureHandler(function(e) { showToast(e.message || String(e), 'error'); })
+    .updatePartsStatus({ partId: partId, status: newStatus });
+}
+
+// ─── Shared monitor modal ─────────────────────────────────────────────────────
+
+var _monModalCallback_ = null;
+
+function _monModalOpen_(title, sub, onConfirm) {
+  document.getElementById('mon-modal-title').textContent = title;
+  document.getElementById('mon-modal-sub').textContent   = sub;
+  document.getElementById('mon-modal-notes').value       = '';
+  _monModalCallback_ = onConfirm;
+  document.getElementById('mon-modal-back').classList.add('open');
+  document.getElementById('mon-modal-confirm').onclick = function() {
+    var notes = document.getElementById('mon-modal-notes').value.trim();
+    _monModalClose_();
+    if (_monModalCallback_) _monModalCallback_(notes);
+  };
+}
+
+function _monModalClose_() {
+  document.getElementById('mon-modal-back').classList.remove('open');
+  _monModalCallback_ = null;
+}
+
+document.getElementById('mon-modal-back').addEventListener('click', function(e) {
+  if (e.target === this) _monModalClose_();
+});
+</script>
