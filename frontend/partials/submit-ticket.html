@@ -1,0 +1,605 @@
+<!-- ╔══════════════════════════════════════════════════════════════════╗ -->
+<!-- ║  Submit Ticket — three-step form partial                        ║ -->
+<!-- ║  Included server-side into index.html via include_()           ║ -->
+<!-- ╚══════════════════════════════════════════════════════════════════╝ -->
+<style>
+/* ── Submit Ticket page styles ──────────────────────────────────────── */
+.submit-wrap{max-width:720px;margin:0 auto;padding:28px 24px;}
+.submit-steps{display:flex;align-items:center;gap:0;margin-bottom:28px;}
+.step-item{display:flex;align-items:center;flex:1;position:relative;}
+.step-circle{width:28px;height:28px;border-radius:50%;display:grid;place-items:center;font-size:12px;font-weight:700;flex-shrink:0;transition:all .2s;}
+.step-circle.pending{background:var(--bg-subtle);color:var(--text-tertiary);border:2px solid var(--border-default);}
+.step-circle.active{background:var(--brand-navy);color:#fff;border:2px solid var(--brand-navy);}
+.step-circle.done{background:var(--status-success);color:#fff;border:2px solid var(--status-success);}
+.step-label{font-size:11.5px;font-weight:500;margin-left:8px;color:var(--text-secondary);}
+.step-label.active{color:var(--brand-navy);font-weight:600;}
+.step-label.done{color:var(--status-success);}
+.step-connector{flex:1;height:2px;background:var(--border-default);margin:0 8px;}
+.step-connector.done{background:var(--status-success);}
+
+.submit-card{background:#fff;border:1px solid var(--border-default);border-radius:12px;padding:28px;box-shadow:var(--shadow-sm);}
+.submit-card-title{font-size:15px;font-weight:700;color:var(--text-primary);margin-bottom:4px;}
+.submit-card-sub{font-size:12.5px;color:var(--text-secondary);margin-bottom:22px;}
+
+.form-row{display:grid;gap:14px;margin-bottom:14px;}
+.form-row.cols-2{grid-template-columns:1fr 1fr;}
+.form-row.cols-3{grid-template-columns:1fr 1fr 1fr;}
+.form-group{display:flex;flex-direction:column;gap:5px;}
+.form-label{font-size:12px;font-weight:600;color:var(--text-primary);}
+.form-label .req{color:var(--status-critical);margin-left:2px;}
+.form-input,.form-select,.form-textarea{
+  height:34px;padding:0 10px;border:1px solid var(--border-default);border-radius:6px;
+  font-size:13px;color:var(--text-primary);background:#fff;outline:none;width:100%;
+  transition:border-color .15s,box-shadow .15s;
+}
+.form-textarea{height:80px;padding:8px 10px;resize:vertical;}
+.form-input:focus,.form-select:focus,.form-textarea:focus{
+  border-color:var(--brand-navy);box-shadow:0 0 0 3px rgba(0,31,79,.07);}
+.form-input:disabled,.form-select:disabled{background:var(--bg-subtle);color:var(--text-tertiary);cursor:not-allowed;}
+.form-hint{font-size:11px;color:var(--text-tertiary);margin-top:2px;}
+
+/* Priority cards */
+.priority-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;}
+.priority-card{
+  border:2px solid var(--border-default);border-radius:8px;padding:10px 8px;
+  text-align:center;cursor:pointer;transition:all .15s;user-select:none;
+}
+.priority-card:hover{border-color:var(--brand-navy);}
+.priority-card.selected{border-color:var(--brand-navy);background:var(--status-info-bg);}
+.priority-card .p-label{font-size:11.5px;font-weight:700;letter-spacing:.03em;}
+.priority-card.p-low    .p-label{color:var(--status-low);}
+.priority-card.p-medium .p-label{color:var(--status-medium);}
+.priority-card.p-high   .p-label{color:var(--status-high);}
+.priority-card.p-critical .p-label{color:var(--status-critical);}
+.priority-card.p-critical.selected{border-color:var(--status-critical);background:var(--status-critical-bg);}
+.priority-card.p-high.selected   {border-color:var(--status-high);background:var(--status-high-bg);}
+.priority-card.p-medium.selected {border-color:var(--status-medium);background:var(--status-medium-bg);}
+.priority-card .p-sub{font-size:10px;color:var(--text-tertiary);margin-top:3px;}
+
+/* Review summary */
+.review-section{margin-bottom:18px;}
+.review-section-title{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--text-secondary);margin-bottom:8px;padding-bottom:6px;border-bottom:1px solid var(--border-default);}
+.review-grid{display:grid;grid-template-columns:1fr 1fr;gap:6px 18px;}
+.review-field{display:flex;flex-direction:column;gap:2px;}
+.review-field.full{grid-column:1/-1;}
+.review-field .rf-label{font-size:10.5px;font-weight:600;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:.04em;}
+.review-field .rf-value{font-size:13px;color:var(--text-primary);font-weight:500;}
+.review-field .rf-value.empty{color:var(--text-tertiary);font-style:italic;}
+
+/* Success state */
+.submit-success{text-align:center;padding:32px 0;}
+.submit-success .success-icon{width:52px;height:52px;border-radius:50%;background:var(--status-success-bg);display:grid;place-items:center;margin:0 auto 16px;color:var(--status-success);}
+.submit-success h3{font-size:18px;font-weight:700;margin:0 0 8px;}
+.submit-success .ticket-no{display:inline-block;padding:6px 16px;background:var(--bg-subtle);border-radius:6px;font-family:var(--font-mono);font-size:15px;font-weight:700;color:var(--brand-navy);margin-bottom:16px;cursor:pointer;}
+.submit-success .s-sub{font-size:13px;color:var(--text-secondary);}
+
+/* Footer nav */
+.submit-footer{display:flex;justify-content:space-between;align-items:center;margin-top:24px;padding-top:18px;border-top:1px solid var(--border-default);}
+.btn{display:inline-flex;align-items:center;gap:7px;padding:0 16px;height:34px;border-radius:6px;font-size:13px;font-weight:600;border:1px solid transparent;cursor:pointer;transition:all .15s;white-space:nowrap;}
+.btn-primary{background:var(--brand-navy);color:#fff;border-color:var(--brand-navy);}
+.btn-primary:hover{background:var(--brand-navy-soft);}
+.btn-primary:disabled{opacity:.5;cursor:not-allowed;}
+.btn-ghost{background:transparent;color:var(--text-secondary);border-color:var(--border-default);}
+.btn-ghost:hover{background:var(--bg-hover);color:var(--text-primary);}
+.btn-success{background:var(--status-success);color:#fff;border-color:var(--status-success);}
+</style>
+
+<div class="page" id="page-submit">
+  <div class="submit-wrap">
+    <!-- Step indicator -->
+    <div class="submit-steps" id="submit-steps">
+      <div class="step-item">
+        <div class="step-circle active" id="step-circle-1">1</div>
+        <span class="step-label active" id="step-label-1">Equipment</span>
+      </div>
+      <div class="step-connector" id="step-conn-1"></div>
+      <div class="step-item">
+        <div class="step-circle pending" id="step-circle-2">2</div>
+        <span class="step-label" id="step-label-2">Details</span>
+      </div>
+      <div class="step-connector" id="step-conn-2"></div>
+      <div class="step-item">
+        <div class="step-circle pending" id="step-circle-3">3</div>
+        <span class="step-label" id="step-label-3">Review</span>
+      </div>
+    </div>
+
+    <!-- Step 1: Equipment selection -->
+    <div id="submit-step-1">
+      <div class="submit-card">
+        <div class="submit-card-title">Select Equipment</div>
+        <div class="submit-card-sub">Choose the department and specific equipment affected.</div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">Department <span class="req">*</span></label>
+            <select class="form-select" id="sf-dept">
+              <option value="">— Select department —</option>
+            </select>
+          </div>
+        </div>
+        <div class="form-row cols-2">
+          <div class="form-group">
+            <label class="form-label">Equipment Type <span class="req">*</span></label>
+            <select class="form-select" id="sf-etype" disabled>
+              <option value="">— Select type —</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Specific Equipment</label>
+            <select class="form-select" id="sf-equip" disabled>
+              <option value="">— Select equipment —</option>
+            </select>
+          </div>
+        </div>
+        <div class="form-row cols-2">
+          <div class="form-group">
+            <label class="form-label">Building / Zone</label>
+            <select class="form-select" id="sf-zone">
+              <option value="">— Select zone —</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Line #</label>
+            <input type="text" class="form-input" id="sf-line" placeholder="e.g. L-04">
+          </div>
+        </div>
+      </div>
+      <div class="submit-footer">
+        <div></div>
+        <button class="btn btn-primary" onclick="submitStep1Next()">
+          Next — Ticket Details
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"/></svg>
+        </button>
+      </div>
+    </div>
+
+    <!-- Step 2: Ticket details -->
+    <div id="submit-step-2" style="display:none;">
+      <div class="submit-card">
+        <div class="submit-card-title">Ticket Details</div>
+        <div class="submit-card-sub">Describe the issue and set priority.</div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">Priority <span class="req">*</span></label>
+            <div class="priority-grid" id="sf-priority-grid">
+              <div class="priority-card p-low"      onclick="selectPriority('LOW')"      id="pcard-LOW">
+                <div class="p-label">LOW</div><div class="p-sub">Scheduled</div>
+              </div>
+              <div class="priority-card p-medium selected" onclick="selectPriority('MEDIUM')"   id="pcard-MEDIUM">
+                <div class="p-label">MEDIUM</div><div class="p-sub">Soon</div>
+              </div>
+              <div class="priority-card p-high"     onclick="selectPriority('HIGH')"     id="pcard-HIGH">
+                <div class="p-label">HIGH</div><div class="p-sub">Urgent</div>
+              </div>
+              <div class="priority-card p-critical" onclick="selectPriority('CRITICAL')" id="pcard-CRITICAL">
+                <div class="p-label">CRITICAL</div><div class="p-sub">Immediate</div>
+              </div>
+            </div>
+            <div class="form-hint" id="critical-hint" style="display:none;color:var(--status-critical);font-weight:600;">
+              ⚠ Critical tickets bypass the waiting queue and go directly to Open.  No manager approval required.
+            </div>
+          </div>
+        </div>
+        <div class="form-row cols-2">
+          <div class="form-group">
+            <label class="form-label">Problem Type <span class="req">*</span></label>
+            <select class="form-select" id="sf-probtype">
+              <option value="">— Select type —</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Downtime Type</label>
+            <select class="form-select" id="sf-downtime">
+              <option value="UNPLANNED">UNPLANNED</option>
+              <option value="PLANNED">PLANNED</option>
+            </select>
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">Problem Description <span class="req">*</span></label>
+            <textarea class="form-textarea" id="sf-desc" placeholder="Describe the problem in detail…" rows="3"></textarea>
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">Observations <span style="font-weight:400;color:var(--text-tertiary)">(optional)</span></label>
+            <textarea class="form-textarea" id="sf-obs" placeholder="Any additional observations or context…" rows="2"></textarea>
+          </div>
+        </div>
+        <div class="form-row cols-2">
+          <div class="form-group">
+            <label class="form-label">Added By <span class="req">*</span></label>
+            <select class="form-select" id="sf-addedby"></select>
+          </div>
+          <div class="form-group" style="justify-content:flex-end;padding-top:20px;">
+            <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px;font-weight:500;">
+              <input type="checkbox" id="sf-parts" style="width:15px;height:15px;cursor:pointer;">
+              Parts Required
+            </label>
+          </div>
+        </div>
+      </div>
+      <div class="submit-footer">
+        <button class="btn btn-ghost" onclick="submitGoStep(1)">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"/></svg>
+          Back
+        </button>
+        <button class="btn btn-primary" onclick="submitStep2Next()">
+          Review &amp; Submit
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"/></svg>
+        </button>
+      </div>
+    </div>
+
+    <!-- Step 3: Review -->
+    <div id="submit-step-3" style="display:none;">
+      <div class="submit-card" id="submit-review-card">
+        <!-- populated by renderReview() -->
+      </div>
+      <div class="submit-footer">
+        <button class="btn btn-ghost" onclick="submitGoStep(2)">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"/></svg>
+          Back
+        </button>
+        <button class="btn btn-primary" id="submit-btn" onclick="submitTicket()">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+          Submit Ticket
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ── Submit ticket page state ──────────────────────────────────────────────────
+var _sfData      = null;  // server form data
+var _sfStep      = 1;
+var _sfPriority  = 'MEDIUM';
+var _sfEquipCode = '';
+var _sfEquipSpec = '';
+
+PAGES['submit'] = function(container) {
+  if (_sfData) { resetSubmitForm(); return; }
+  // Load form data on first visit
+  google.script.run
+    .withSuccessHandler(function(d) { _sfData = d; populateSubmitForm(d); })
+    .withFailureHandler(function(e) {
+      container.innerHTML =
+        '<div style="padding:32px;color:var(--status-critical)">Failed to load form: ' +
+        esc(e.message || String(e)) + '</div>';
+    })
+    .getAddTicketFormData();
+};
+
+function resetSubmitForm() {
+  _sfStep     = 1;
+  _sfPriority = 'MEDIUM';
+  _sfEquipCode = '';
+  _sfEquipSpec = '';
+  document.getElementById('sf-dept').value    = '';
+  document.getElementById('sf-etype').value   = '';
+  document.getElementById('sf-equip').value   = '';
+  document.getElementById('sf-zone').value    = '';
+  document.getElementById('sf-line').value    = '';
+  document.getElementById('sf-probtype').value = '';
+  document.getElementById('sf-downtime').value = 'UNPLANNED';
+  document.getElementById('sf-desc').value    = '';
+  document.getElementById('sf-obs').value     = '';
+  document.getElementById('sf-parts').checked = false;
+  document.getElementById('sf-etype').disabled = true;
+  document.getElementById('sf-equip').disabled = true;
+  selectPriority('MEDIUM');
+  submitGoStep(1);
+}
+
+function populateSubmitForm(d) {
+  // Departments
+  var deptSel = document.getElementById('sf-dept');
+  deptSel.innerHTML = '<option value="">— Select department —</option>';
+  d.departments.forEach(function(dept) {
+    var opt = document.createElement('option');
+    opt.value = dept; opt.textContent = dept;
+    // Pre-select first owned dept for managers
+    if (d.userOwnedDepts && d.userOwnedDepts.length > 0 && dept === d.userOwnedDepts[0]) {
+      opt.selected = true;
+    }
+    deptSel.appendChild(opt);
+  });
+  if (deptSel.value) onDeptChange(d.equipHierarchy);
+
+  // Building/Zone
+  var zoneSel = document.getElementById('sf-zone');
+  zoneSel.innerHTML = '<option value="">— Select zone —</option>';
+  d.buildingZones.forEach(function(z) {
+    var opt = document.createElement('option');
+    opt.value = z; opt.textContent = z;
+    zoneSel.appendChild(opt);
+  });
+
+  // Problem types
+  var ptSel = document.getElementById('sf-probtype');
+  ptSel.innerHTML = '<option value="">— Select type —</option>';
+  d.problemTypes.forEach(function(pt) {
+    var opt = document.createElement('option');
+    opt.value = pt; opt.textContent = pt;
+    ptSel.appendChild(opt);
+  });
+
+  // Added by — select current user by default
+  var abSel = document.getElementById('sf-addedby');
+  abSel.innerHTML = '';
+  var currentUser = d.userDisplayName || USER.displayName;
+  var people = [currentUser].concat(d.peopleList.filter(function(p) {
+    return p.toLowerCase().trim() !== currentUser.toLowerCase().trim();
+  }));
+  people.forEach(function(p) {
+    var opt = document.createElement('option');
+    opt.value = p; opt.textContent = p;
+    abSel.appendChild(opt);
+  });
+
+  // Wire up dept change
+  document.getElementById('sf-dept').addEventListener('change', function() {
+    onDeptChange(d.equipHierarchy);
+  });
+  document.getElementById('sf-etype').addEventListener('change', function() {
+    onEtypeChange(d.equipHierarchy);
+  });
+}
+
+function onDeptChange(hierarchy) {
+  var dept   = document.getElementById('sf-dept').value;
+  var eSel   = document.getElementById('sf-etype');
+  var eqSel  = document.getElementById('sf-equip');
+  eSel.innerHTML  = '<option value="">— Select type —</option>';
+  eqSel.innerHTML = '<option value="">— Select equipment —</option>';
+  eqSel.disabled  = true;
+
+  if (!dept || !hierarchy[dept]) {
+    eSel.disabled = true;
+    return;
+  }
+  eSel.disabled = false;
+  Object.keys(hierarchy[dept]).sort().forEach(function(eType) {
+    var opt = document.createElement('option');
+    opt.value = eType; opt.textContent = eType;
+    eSel.appendChild(opt);
+  });
+}
+
+function onEtypeChange(hierarchy) {
+  var dept   = document.getElementById('sf-dept').value;
+  var eType  = document.getElementById('sf-etype').value;
+  var eqSel  = document.getElementById('sf-equip');
+  eqSel.innerHTML = '<option value="">— Select equipment —</option>';
+
+  if (!dept || !eType || !hierarchy[dept] || !hierarchy[dept][eType]) {
+    eqSel.disabled = true;
+    return;
+  }
+  eqSel.disabled = false;
+  hierarchy[dept][eType].forEach(function(e) {
+    var opt = document.createElement('option');
+    opt.value = e.code || e.specific;
+    opt.textContent = e.specific + (e.code ? ' (' + e.code + ')' : '');
+    opt.dataset.code    = e.code    || '';
+    opt.dataset.specific = e.specific || '';
+    eqSel.appendChild(opt);
+  });
+}
+
+function selectPriority(p) {
+  _sfPriority = p;
+  ['LOW','MEDIUM','HIGH','CRITICAL'].forEach(function(pr) {
+    var el = document.getElementById('pcard-' + pr);
+    if (el) el.classList.toggle('selected', pr === p);
+  });
+  var hint = document.getElementById('critical-hint');
+  if (hint) hint.style.display = p === 'CRITICAL' ? 'block' : 'none';
+}
+
+function submitStep1Next() {
+  var dept = document.getElementById('sf-dept').value;
+  if (!dept) { showToast('Please select a department', 'error'); return; }
+  var eType = document.getElementById('sf-etype').value;
+  if (!eType) { showToast('Please select an equipment type', 'error'); return; }
+
+  // Capture equip code/specific from selected option
+  var eqSel = document.getElementById('sf-equip');
+  var selOpt = eqSel.options[eqSel.selectedIndex];
+  if (selOpt && selOpt.value) {
+    _sfEquipCode = selOpt.dataset.code    || selOpt.value;
+    _sfEquipSpec = selOpt.dataset.specific || selOpt.textContent;
+  } else {
+    _sfEquipCode = '';
+    _sfEquipSpec = '';
+  }
+  submitGoStep(2);
+}
+
+function submitStep2Next() {
+  var desc = document.getElementById('sf-desc').value.trim();
+  if (!desc) { showToast('Problem description is required', 'error'); return; }
+  if (desc.length < 10) { showToast('Description must be at least 10 characters', 'error'); return; }
+  var pt = document.getElementById('sf-probtype').value;
+  if (!pt) { showToast('Please select a problem type', 'error'); return; }
+  renderReview();
+  submitGoStep(3);
+}
+
+function renderReview() {
+  var dept     = document.getElementById('sf-dept').value;
+  var eType    = document.getElementById('sf-etype').value;
+  var zone     = document.getElementById('sf-zone').value;
+  var line     = document.getElementById('sf-line').value.trim();
+  var probType = document.getElementById('sf-probtype').value;
+  var downtime = document.getElementById('sf-downtime').value;
+  var desc     = document.getElementById('sf-desc').value.trim();
+  var obs      = document.getElementById('sf-obs').value.trim();
+  var addedBy  = document.getElementById('sf-addedby').value;
+  var parts    = document.getElementById('sf-parts').checked;
+
+  var card = document.getElementById('submit-review-card');
+  card.innerHTML =
+    '<div class="submit-card-title">Review &amp; Confirm</div>' +
+    '<div class="submit-card-sub">Please verify the details before submitting.</div>' +
+
+    '<div class="review-section">' +
+      '<div class="review-section-title">Equipment</div>' +
+      '<div class="review-grid">' +
+        reviewField('Department', dept) +
+        reviewField('Equipment Type', eType) +
+        reviewField('Specific Equipment', _sfEquipSpec || '—') +
+        reviewField('Equipment Code', _sfEquipCode || '—') +
+        reviewField('Building / Zone', zone || '—') +
+        reviewField('Line #', line || '—') +
+      '</div>' +
+    '</div>' +
+
+    '<div class="review-section">' +
+      '<div class="review-section-title">Ticket Details</div>' +
+      '<div class="review-grid">' +
+        reviewField('Priority', '<span class="rf-value" style="color:' + priorityColor(_sfPriority) + '">' + _sfPriority + '</span>', true) +
+        reviewField('Problem Type', probType) +
+        reviewField('Downtime Type', downtime) +
+        reviewField('Added By', addedBy) +
+        reviewField('Description', desc, true, true) +
+        (obs ? reviewField('Observations', obs, true, true) : '') +
+        (parts ? reviewField('Parts Required', 'Yes') : '') +
+      '</div>' +
+    '</div>';
+
+  if (_sfPriority === 'CRITICAL') {
+    card.innerHTML +=
+      '<div style="padding:10px 12px;background:var(--status-critical-bg);border:1px solid var(--status-critical);border-radius:6px;font-size:12.5px;color:var(--status-critical);font-weight:600;">' +
+      '⚠ This ticket will be marked CRITICAL and placed in Open immediately — no manager approval needed.' +
+      '</div>';
+  }
+}
+
+function reviewField(label, value, raw, full) {
+  var isEmpty = !value || value === '—';
+  var valueHtml = raw ? value : '<span class="rf-value' + (isEmpty ? ' empty' : '') + '">' + esc(String(value)) + '</span>';
+  return '<div class="review-field' + (full ? ' full' : '') + '">' +
+    '<span class="rf-label">' + esc(label) + '</span>' +
+    valueHtml +
+    '</div>';
+}
+
+function priorityColor(p) {
+  var colors = {LOW: 'var(--status-low)', MEDIUM: 'var(--status-medium)', HIGH: 'var(--status-high)', CRITICAL: 'var(--status-critical)'};
+  return colors[p] || 'var(--text-primary)';
+}
+
+function submitTicket() {
+  var btn = document.getElementById('submit-btn');
+  btn.disabled = true;
+  btn.textContent = 'Submitting…';
+
+  var eqSel = document.getElementById('sf-equip');
+  var selOpt = eqSel.options[eqSel.selectedIndex];
+
+  var payload = {
+    dept:          document.getElementById('sf-dept').value,
+    equipType:     document.getElementById('sf-etype').value,
+    equipCode:     _sfEquipCode,
+    specificEquip: _sfEquipSpec,
+    equipDesc:     _sfEquipSpec,
+    buildingZone:  document.getElementById('sf-zone').value,
+    lineNo:        document.getElementById('sf-line').value.trim(),
+    priority:      _sfPriority,
+    problemType:   document.getElementById('sf-probtype').value,
+    downtimeType:  document.getElementById('sf-downtime').value,
+    description:   document.getElementById('sf-desc').value.trim(),
+    problemDesc:   document.getElementById('sf-desc').value.trim(),
+    observations:  document.getElementById('sf-obs').value.trim(),
+    addedBy:       document.getElementById('sf-addedby').value,
+    partsNeeded:   document.getElementById('sf-parts').checked
+  };
+
+  google.script.run
+    .withSuccessHandler(function(result) {
+      if (result.success) {
+        showSuccessScreen(result.ticketNo, result.status, result.tracker);
+      } else {
+        showToast('Error: ' + (result.error || 'Unknown error'), 'error', 7000);
+        btn.disabled = false;
+        btn.textContent = 'Submit Ticket';
+      }
+    })
+    .withFailureHandler(function(err) {
+      showToast('Submission failed: ' + esc(err.message || String(err)), 'error', 7000);
+      btn.disabled = false;
+      btn.textContent = 'Submit Ticket';
+    })
+    .addNewTicket(payload);
+}
+
+function showSuccessScreen(ticketNo, status, tracker) {
+  var container = document.getElementById('page-submit');
+  var statusMsg = status === 'OPEN'
+    ? 'Ticket is <strong>OPEN</strong> and added to the ' + esc(tracker) + ' tracker.'
+    : 'Ticket is in the <strong>Waiting Queue</strong> pending manager review.';
+
+  container.innerHTML =
+    '<div class="submit-wrap">' +
+      '<div class="submit-card">' +
+        '<div class="submit-success">' +
+          '<div class="success-icon">' +
+            '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>' +
+          '</div>' +
+          '<h3>Ticket Submitted</h3>' +
+          '<div class="ticket-no" onclick="copyTicketNo(\'' + esc(ticketNo) + '\')" title="Click to copy">' +
+            esc(ticketNo) +
+          '</div>' +
+          '<p class="s-sub">' + statusMsg + '</p>' +
+          '<div style="display:flex;gap:10px;justify-content:center;margin-top:20px;">' +
+            '<button class="btn btn-primary" onclick="navigate(\'waiting\')">' +
+              'View Waiting Queue' +
+            '</button>' +
+            '<button class="btn btn-ghost" onclick="submitAnotherTicket()">' +
+              'Submit Another' +
+            '</button>' +
+          '</div>' +
+        '</div>' +
+      '</div>' +
+    '</div>';
+
+  showToast(ticketNo + ' submitted', 'success');
+}
+
+function copyTicketNo(tn) {
+  if (navigator.clipboard) {
+    navigator.clipboard.writeText(tn).then(function() { showToast('Copied: ' + tn); });
+  }
+}
+
+function submitAnotherTicket() {
+  // Re-attach the page, reset form
+  var container = document.getElementById('page-submit');
+  container.innerHTML = '';  // clear success screen
+  // Re-render the full step form by re-running PAGES init
+  _sfData = null;  // force re-fetch
+  navigate('submit');
+}
+
+function submitGoStep(n) {
+  _sfStep = n;
+  [1, 2, 3].forEach(function(i) {
+    var el = document.getElementById('submit-step-' + i);
+    if (el) el.style.display = i === n ? '' : 'none';
+    var circle = document.getElementById('step-circle-' + i);
+    var label  = document.getElementById('step-label-' + i);
+    var conn   = document.getElementById('step-conn-' + i);
+    if (circle) {
+      circle.className = 'step-circle ' + (i < n ? 'done' : i === n ? 'active' : 'pending');
+      circle.textContent = i < n ? '✓' : String(i);
+    }
+    if (label)  label.className  = 'step-label' + (i < n ? ' done' : i === n ? ' active' : '');
+    if (conn)   conn.className   = 'step-connector' + (i < n ? ' done' : '');
+  });
+}
+</script>

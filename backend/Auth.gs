@@ -28,8 +28,10 @@ function getCurrentUserInfo() {
   }
   var isManager = !!mgrRecord;
 
-  // Admins have full visibility across all depts regardless of Manager Access rows.
-  var role = isAdmin ? ROLES.ADMIN : isManager ? ROLES.MANAGER : ROLES.NOACCESS;
+  // Any @cscmfg.com user gets at least TECH role (can submit tickets, view own work).
+  var domain     = email.split('@')[1] || '';
+  var isCorpUser = domain.toLowerCase() === 'cscmfg.com';
+  var role = isAdmin ? ROLES.ADMIN : isManager ? ROLES.MANAGER : isCorpUser ? ROLES.TECH : ROLES.NOACCESS;
 
   var ownedDepts = isAdmin
     ? DEPT_TRACKERS.map(function(dt) { return dt.dept; })

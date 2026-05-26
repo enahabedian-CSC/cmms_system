@@ -10,6 +10,7 @@
 function doGet(e) {
   var userInfo = getCurrentUserInfo();
 
+  // TECH, MANAGER, ADMIN all get the app shell; NOACCESS gets the lock page.
   if (userInfo.role === ROLES.NOACCESS) {
     var denied = HtmlService.createTemplateFromFile('frontend/access-denied');
     denied.userEmail    = userInfo.email || '';
