@@ -184,6 +184,6 @@ function getEquipmentFlatList() {
 // ═══════════════════════════════════════════════════════════════════════════════
 
 function runHourlySync() {
-  try { refreshEquipCache(); }      catch (e) { Logger.log('runHourlySync/equip: '   + e.message); }
-  // syncExternalTickets() added in Step 5
+  try { refreshEquipCache();   } catch (e) { Logger.log('runHourlySync/equip:   ' + e.message); }
+  try { syncExternalTickets(); } catch (e) { Logger.log('runHourlySync/extSync: ' + e.message); }
 }
