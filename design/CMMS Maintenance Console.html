@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=1440" />
+<title>CSC · Maintenance Operations Console</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div id="app"></div>
+
+  <script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+
+  <script src="data.js"></script>
+
+  <script type="text/babel" src="components/icons.jsx"></script>
+  <script type="text/babel" src="components/shell.jsx"></script>
+  <script type="text/babel" src="screens/01-login.jsx"></script>
+  <script type="text/babel" src="screens/02-home.jsx"></script>
+  <script type="text/babel" src="screens/03-tickets-lists.jsx"></script>
+  <script type="text/babel" src="screens/04-ticket-detail.jsx"></script>
+  <script type="text/babel" src="screens/05-submit.jsx"></script>
+  <script type="text/babel" src="screens/06-tracker.jsx"></script>
+  <script type="text/babel" src="screens/07-closed-tempfix.jsx"></script>
+  <script type="text/babel" src="screens/08-parts-equipment.jsx"></script>
+  <script type="text/babel" src="screens/09-reports.jsx"></script>
+  <script type="text/babel" src="screens/10-admin.jsx"></script>
+
+  <script type="text/babel">
+    const { useState, useEffect } = React;
+
+    const SCREENS = {
+      home:                 (mgr) => mgr === 'mike' ? <HomeMike /> : <HomeIzzy />,
+      waiting:              () => <WaitingQueue />,
+      open:                 () => <OpenTickets />,
+      closed:               () => <ClosedTickets />,
+      'ticket-detail':      () => <TicketDetail />,
+      submit:               () => <SubmitTicket />,
+      'tracker-machine':    () => <DeptTracker dept="MACHINE SHOP" />,
+      'tracker-electrical': () => <DeptTracker dept="ELECTRICAL" />,
+      'tracker-facilities': () => <DeptTracker dept="FACILITIES" />,
+      'tracker-plastics':   () => <DeptTracker dept="PLASTICS" />,
+      'tracker-metals':     () => <DeptTracker dept="METALS" />,
+      'tracker-litho':      () => <DeptTracker dept="LITHO" />,
+      'equipment-inventory':() => <EquipmentDetail />,
+      'equipment-hold':     () => <EquipmentHoldLog />,
+      'equipment-detail':   () => <EquipmentDetail />,
+      parts:                () => <PartsLifecycle />,
+      tempfix:              () => <TempFixMonitor />,
+      reports:              () => <ReportsScreen />,
+      admin:                () => <Admin />,
+      'admin-config':       () => <Admin />,
+      'admin-users':        () => <Admin />,
+      'admin-deptmap':      () => <Admin />,
+    };
+
+    function App() {
+      // hash routing: #login | #m=izzy&p=home | #m=mike&p=reports
+      const parseHash = () => {
+        const h = window.location.hash.replace(/^#/, '');
+        if (!h || h === 'login') return { manager: null, page: 'login' };
+        const params = Object.fromEntries(h.split('&').map(p => p.split('=')));
+        return { manager: params.m || 'izzy', page: params.p || 'home' };
+      };
+      const [route, setRoute] = useState(parseHash());
+
+      useEffect(() => {
+        const onHash = () => setRoute(parseHash());
+        window.addEventListener('hashchange', onHash);
+        return () => window.removeEventListener('hashchange', onHash);
+      }, []);
+
+      const go = (page) => {
+        if (page === 'login') window.location.hash = 'login';
+        else window.location.hash = `m=${route.manager || 'izzy'}&p=${page}`;
+      };
+      const pickManager = (mgrId) => {
+        window.location.hash = `m=${mgrId}&p=home`;
+      };
+
+      if (route.page === 'login') {
+        return <LoginScreen onPick={pickManager} />;
+      }
+
+      const managerObj = window.CSC_DATA.MANAGERS.find(m => m.id === route.manager) || window.CSC_DATA.MANAGERS[0];
+      const renderer = SCREENS[route.page] || SCREENS.home;
+
+      return (
+        <PageShell active={route.page} onNav={go} manager={managerObj} onLogout={() => go('login')}>
+          {renderer(route.manager)}
+        </PageShell>
+      );
+    }
+
+    ReactDOM.createRoot(document.getElementById('app')).render(<App />);
+  </script>
+</body>
+</html>
