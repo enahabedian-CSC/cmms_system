@@ -3,7 +3,7 @@
 **Branch:** `claude/peaceful-johnson-KN73v`  
 **Snapshot:** `backup/pre-round2-20260529` (pushed — known-good restore point)  
 **Date:** 2026-05-29  
-**Status:** STOP FOR REVIEW — do not start fixes until this document is confirmed.
+**Status:** REVIEW COMPLETE (2026-05-29) — Q1/Q2/Q4/Q6 answered; Q3 partially answered; Q5 deferred. Fix code proceeding.
 
 ---
 
@@ -167,26 +167,27 @@ Note: `'METAL'` (external form value) is NOT in the hardcoded map. Only `'METALS
 
 `getQueueTickets('tracker', {dept: 'METALS'})` → `deptFilter = normalizeDept('METALS')` = `'METALS'` → filters ML where `dept === 'METALS'`.
 
-### Most likely root cause
+### ✅ RESOLVED (2026-05-29) — NOT a code bug for new tickets
 
-The `📋 Dept Map` sheet almost certainly has a `METAL → METALS` entry (because Metals does show tickets), but is **missing mappings** for:
-- `PLASTIC → PLASTICS`
-- `M/S → MACHINE SHOP`
-- `PLASTIC DEC → PLASTICS` (or whichever dept owns Plastic Dec)
-- `QA → ?` (no tracker for QA)
-- `LITHO → LITHO` (already identity, should work — but if 'LITHO' isn't in the sheet separately from the hardcoded map, it's fine)
+**Confirmed Dept Map sheet contents:**
 
-External tickets submitted with these unmapped dept values get stored as raw strings (`"PLASTIC"`, `"M/S"`) in the Master Log. The tracker filter expects canonical strings (`"PLASTICS"`, `"MACHINE SHOP"`). No match → tickets invisible in all non-Metals trackers.
+| External value (form) | → Canonical |
+|---|---|
+| G&A | MACHINE SHOP |
+| LITHO | LITHO |
+| M/S | MACHINE SHOP |
+| METAL | METALS |
+| PLASTIC | PLASTICS |
+| PLASTIC DEC | PLASTICS |
+| QA | MACHINE SHOP |
+| S/R | MACHINE SHOP |
+| SALES | MACHINE SHOP |
 
-### ⚠️ STOP: Must verify Dept Map sheet contents before writing the fix
+`getDeptMapping_()` overlays these sheet entries on top of the hardcoded identity map. Since `METAL → METALS`, `PLASTIC → PLASTICS`, and `M/S → MACHINE SHOP` are in the sheet, `normalizeDept()` is working correctly for **all new external tickets**.
 
-The Admin screen's `getAdminViewData('deptmap')` reads the `📋 Dept Map` sheet and could show us the actual entries. Before coding the fix, we need to know:
-1. What rows exist in the Dept Map sheet today
-2. What dept values the external form actually sends in column D
+**Remaining risk — historical ML rows:** The legacy `backfillTrackerGroup.js` script exists in the codebase, confirming that TRACKER_GROUP was not always set correctly in early import batches. Any ML rows written before the Dept Map was fully populated may have `TRACKER_GROUP = 'METAL'` instead of `'METALS'`. This makes those tickets invisible in the Metals tracker query. A one-time `repairTrackerGroup()` function should be added to `AdminViews.gs` (admin-only, append-audit-entry, non-destructive to other columns) for the operator to run once. **This is a data-repair operation, not a ongoing code fix.**
 
-**Proposed fix path (pending verification):** Add the missing external→canonical mappings to the `📋 Dept Map` sheet. This is a **data fix**, not a code fix. The code is correct; the sheet data is incomplete. We may also want to add a `migrateUnmappedDeptValues()` function to back-fill existing ML rows that have raw values.
-
-**Alternative:** If we cannot edit the Dept Map sheet directly, we can harden the hardcoded fallback map in `getDeptMapping_()` to include all known external aliases. But the sheet is the right place for this data.
+### ⚠️ No code change needed in `Config.gs`. Add `repairTrackerGroup()` to `AdminViews.gs`.
 
 ---
 
@@ -338,7 +339,7 @@ Need: backend `getTempFixKpis()` + frontend KPI banner in monitoring.html.
 
 Need: backend `getEquipHoldKpis()` + frontend KPI banner in monitoring.html.
 
-**Blocker:** Must confirm TAG_TYPE vocabulary in the live Equipment Hold Log before implementing color-breakdown KPIs.
+**✅ TAG_TYPE vocabulary confirmed (2026-05-29):** Legacy `Code.js` line 335 confirms: `tagTypes = ['Red — Out of Service', 'Yellow — Use with Caution']`. EHL.TAG_TYPE stores these exact strings. Color breakdown KPIs: Red = Out of Service count, Yellow = Use with Caution count. Green Tag is the *clearing action* (not a stored type). No blocker.
 
 ### F5 — Reports Screen
 
@@ -358,83 +359,33 @@ Need: backend `getEquipHoldKpis()` + frontend KPI banner in monitoring.html.
 
 ---
 
-## 8. Summary of Questions Requiring Answers Before Coding Begins
+## 8. Questions — Status
 
-### Q1 — Dept Map sheet contents (gates Bug 3 fix)
-
-I need to see the actual rows in the `📋 Dept Map` sheet. Use the Admin → Dept Map screen, or share the sheet contents. The bug fix is likely adding 4–5 missing `SOURCE → CANONICAL` rows to the sheet. **Cannot finalize the Bug 3 fix without this.**
-
-### Q2 — External form dept column (gates Bug 3 fix)
-
-What values does the external maintenance form actually send in column D? Are they exactly `"METAL"`, `"PLASTIC"`, `"LITHO"`, `"M/S"`? Or different? This determines exactly which Dept Map entries are missing.
-
-### Q3 — Tech roster and dept associations
-
-Is there an existing list of technicians with their departments (on paper, in another sheet, in someone's memory) that can be used to populate the `👷 Tech Directory` tab? Without this, 5a (filtered tech picker) and 5b (Tech Work Board) cannot be verified with real data.
-
-### Q4 — Equipment Hold Tag TYPE vocabulary
-
-What values are currently stored in the `Tag Type` column of the Equipment Hold Log? FRM-029-001 defines Red/Yellow/Orange/Green. If the live data uses these exact values (case-insensitive), the F4 color-breakdown KPIs are straightforward. If not, flag which values exist and how they should map.
-
-### Q5 — Temp Fix Inspection result vocabulary (Program 030 terms)
-
-When inspecting a temp fix, what exact result terms does Maintenance Program 030 use? Options from the current codebase:
-- `inspectTempFix()` currently just records a timestamp + resets the next-due date. It doesn't record an inspection result/outcome.
-- The mockup implies a result field (pass/still-holding/failed or similar).
-
-**Required:** Confirm the exact inspection result vocabulary from Program 030 (or from the inspector's physical form) before adding the result field. Do not invent vocabulary.
-
-### Q6 — Verify & Close → Temp Fix transition rule
-
-When a ticket is closed via `verifyAndCloseTicket()` and that ticket has an active temp fix linked by `ticketNo`, what should happen to the Temp Fix Monitor entry?
-
-Options:
-- Auto-clear the temp fix (status → CLEARED) because the permanent fix is now verified
-- Leave the temp fix active (a closed ticket can still have a temp fix being monitored)
-- Ask the manager during the close flow
-
-**Required:** Confirm the correct business rule before coding. Program 030 likely specifies this.
+| # | Question | Status | Answer |
+|---|---|---|---|
+| Q1 | Dept Map sheet contents | ✅ ANSWERED | Full map confirmed — see Bug 3 section above |
+| Q2 | External form dept values | ✅ ANSWERED | Match LEGACY_DEPT_CODES keys exactly (METAL, PLASTIC, M/S, LITHO, etc.) |
+| Q3 | Tech roster + dept associations | ⚠️ PARTIAL | No static dept-tech mapping exists in legacy system. Legacy uses flat Technicians list. `👷 Tech Directory` tab must be built from scratch; operator must populate. Proceeding with schema + code; end-to-end test blocked until sheet is populated. |
+| Q4 | Equipment Hold Tag TYPE vocabulary | ✅ ANSWERED | `"Red — Out of Service"` and `"Yellow — Use with Caution"` — from legacy Code.js. Green Tag = clearing action, not a stored type value. |
+| Q5 | Temp Fix Inspection result vocabulary (Program 030) | ⏸ DEFERRED | Operator does not know yet. Gap 7 inspection result field deferred until confirmed. |
+| Q6 | Verify & Close → Temp Fix transition rule | ✅ ANSWERED | Requires manager sign-off (verify the work). The close flow prompts manager. When closing, the system should ask whether to also clear any linked temp fix — manager decides. |
 
 ---
 
-## 9. What I Will NOT Start Until These Are Answered
+## 9. Commit Sequence (per Section 10 of task brief)
 
-Per the instructions:
-
-- **Bug 3 fix** — cannot finalize without Q1 + Q2
-- **Gap 6 fix** — CAN proceed (root cause is confirmed in code); will fix `completeTicket` and `verifyAndCloseTicket`
-- **Tech picker (5a) / Work Board (5b)** — cannot be verified without Q3 (tech directory data)
-- **Temp Fix Inspection (Gap 7)** — cannot finalize inspection result field without Q5
-- **Verify & Close (Gap 8)** — cannot finalize temp fix update logic without Q6
-- **Equipment Hold KPIs (F4)** — cannot implement color breakdown without Q4
-- **KPI wiring (F2–F5)** — blocked until Bug 3 and Gap 6 confirmed fixed (per instructions)
-
----
-
-## 10. What CAN Start Without Waiting
-
-If you want to begin on non-blocked items while reviewing this document:
-
-- **Gap 6 fix** — code-only fix in `TicketLifecycle.gs` (`completeTicket` and `verifyAndCloseTicket`)
-- **Bug 2 fix** — 4-line CSS change in 4 partial files
-- **Bug 1 (accordion nav)** — frontend-only change in `index.html`; no data dependencies
-
-These are genuinely independent and cannot cause regressions in audit data.
-
----
-
-## 11. Commit Sequence (per Section 10 of task brief)
-
-1. ✅ This document → `docs/round2-discovery.md` — committed to `claude/peaceful-johnson-KN73v`
-2. ⏸ Bug 3 (dept fix) — **AWAITING Q1 + Q2**
-3. Gap 6 fix — `TicketLifecycle.gs` — can start; needs review of this doc first
-4. Bug 1 (nav accordion) — `frontend/index.html` — independent
-5. Bug 2 (overflow CSS) — 4 partials — independent
-6. Tech Directory tab + 5a filtered picker — **AWAITING Q3**
-7. 5b Tech Work Board — **AWAITING Q3**
-8. Gap 2 Update Ticket + Gap 3 embedded parts request
-9. Gap 7 Temp Fix Inspection — **AWAITING Q5**
-10. Gap 8 Verify & Close gate — **AWAITING Q6**
-11. Gap 5 Monthly Rollover
-12. F1–F5 KPI wiring — **BLOCKED UNTIL Bug 3 + Gap 6 confirmed fixed**
-13. Regression pass → merge to main
+| Step | Item | Status |
+|---|---|---|
+| 1 | `docs/round2-discovery.md` | ✅ Committed |
+| 2 | Bug 3 (dept repair utility) | 🟡 Code fix = `repairTrackerGroup()` in AdminViews — ready to implement |
+| 3 | Gap 6 fix (`TicketLifecycle.gs`) | 🟡 Ready |
+| 4 | Bug 1 (nav accordion) | 🟡 Ready |
+| 5 | Bug 2 (overflow CSS) | 🟡 Ready |
+| 6 | Tech Directory tab + 5a filtered picker | 🟡 Schema ready; operator must populate data |
+| 7 | 5b Tech Work Board | 🟡 Ready after 6 |
+| 8 | Gap 2 Update Ticket + Gap 3 embedded parts | 🟡 Ready |
+| 9 | Gap 7 Temp Fix Inspection | ⏸ Awaiting Q5 (result vocabulary) |
+| 10 | Gap 8 Verify & Close gate | 🟡 Ready (Q6 answered: manager prompt with temp-fix option) |
+| 11 | Gap 5 Monthly Rollover | 🟡 Ready |
+| 12 | F1–F5 KPI wiring | 🟡 Unblocked once steps 2–3 complete |
+| 13 | Regression pass → merge to main | ⏸ Final |
