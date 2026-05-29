@@ -313,6 +313,89 @@ function assignTicket(data) {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
+//  updateTicket — add notes / change mid-workflow state
+//  Techs: notes only.  Managers: notes + status/priority/assignedTo/estHours.
+//  Valid manager status transitions: any of {OPEN, ON HOLD, PENDING PARTS}.
+// ═══════════════════════════════════════════════════════════════════════════════
+
+function updateTicket(data) {
+  var user = requireRole_(ROLES.TECH);
+  var now  = new Date();
+  var tn   = String(data.ticketNo || '').trim();
+  if (!tn) return { success: false, error: 'ticketNo required' };
+
+  var isManager = user.isManager || user.isAdmin;
+
+  try {
+    var orig   = getOriginalMlRow_(tn) || {};
+    var latest = getLatestMlRow_(tn)   || orig;
+    var dept   = normalizeDept(String(orig[ML.DEPT - 1] || ''));
+    var prevStatus = String(latest[ML.STATUS - 1] || '').trim().toUpperCase();
+
+    var MID_STATUSES = ['OPEN', 'ON HOLD', 'PENDING PARTS'];
+    var newStatus = prevStatus;
+    if (isManager && data.status) {
+      var s = data.status.trim().toUpperCase();
+      if (MID_STATUSES.indexOf(s) >= 0) newStatus = s;
+    }
+
+    var prevPriority = String(latest[ML.PRIORITY    - 1] || '');
+    var prevAssigned = String(latest[ML.ASSIGNED_TO - 1] || '');
+    var prevEst      = latest[ML.EST_HOURS - 1] || '';
+
+    var newPriority = isManager && data.priority  ? String(data.priority)  : prevPriority;
+    var newAssigned = isManager && data.assignedTo !== undefined ? String(data.assignedTo) : prevAssigned;
+    var newEstHours = isManager && data.estHours  !== undefined ? data.estHours             : prevEst;
+
+    appendToMasterLog_({
+      ticketNo:      tn,
+      now:           now,
+      action:        ML_ACTIONS.UPDATED,
+      status:        newStatus,
+      dept:          dept,
+      buildingZone:  String(orig[ML.BUILDING_ZONE  - 1] || ''),
+      equipType:     String(orig[ML.EQUIP_TYPE     - 1] || ''),
+      equipCode:     String(orig[ML.EQUIP_CODE     - 1] || ''),
+      specificEquip: String(orig[ML.SPECIFIC_EQUIP - 1] || ''),
+      downtimeType:  String(orig[ML.DOWNTIME_TYPE  - 1] || ''),
+      description:   String(orig[ML.DESCRIPTION    - 1] || ''),
+      priority:      newPriority,
+      assignedTo:    newAssigned,
+      estHours:      newEstHours,
+      dateOpened:    String(orig[ML.DATE_OPENED  - 1] || ''),
+      addedBy:       String(orig[ML.ADDED_BY     - 1] || ''),
+      updatedBy:     user.displayName,
+      problemType:   String(orig[ML.PROBLEM_TYPE - 1] || ''),
+      lineNo:        String(orig[ML.LINE_NO       - 1] || ''),
+      notes:         data.notes || ''
+    });
+
+    var changes = [];
+    if (data.notes) changes.push(data.notes);
+    if (newStatus   !== prevStatus)   changes.push('Status: ' + prevStatus + ' → ' + newStatus);
+    if (newPriority !== prevPriority) changes.push('Priority → ' + newPriority);
+    if (newAssigned !== prevAssigned) changes.push('Assigned → ' + (newAssigned || '—'));
+
+    appendToTicketHistory_(tn, TH_EVENTS.UPDATED, prevStatus, newStatus,
+      user.displayName, changes.join(' | '));
+
+    var ss = getBoundSS_();
+    var sheetUpdates = { status: newStatus, updatedBy: user.displayName };
+    if (newPriority)    sheetUpdates.priority   = newPriority;
+    if (isManager) {
+      sheetUpdates.assignedTo = newAssigned;
+      sheetUpdates.estHours   = newEstHours;
+    }
+    _updateTicketInSheets_(ss, tn, sheetUpdates, now);
+
+    return { success: true, ticketNo: tn, status: newStatus };
+  } catch (e) {
+    Logger.log('updateTicket error: ' + e.message);
+    return { success: false, error: e.message };
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
 //  flagTempFix — logs a temp-fix entry; updates flag in all active sheets
 // ═══════════════════════════════════════════════════════════════════════════════
 

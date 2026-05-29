@@ -41,6 +41,7 @@
 .btn-assign    {background:var(--bg-subtle);color:var(--text-primary);border:1px solid var(--border-default);}
 .btn-tempfix   {background:var(--status-warn-bg);color:var(--status-warn);border:1px solid #FDE68A;}
 .btn-transfer  {background:var(--bg-subtle);color:var(--text-primary);border:1px solid var(--border-default);}
+.btn-update    {background:var(--bg-surface);color:var(--brand-navy);border:1px solid var(--brand-navy);font-weight:600;}
 .btn-action:hover{filter:brightness(.93);}
 .btn-action:disabled{opacity:.45;cursor:default;}
 
@@ -163,6 +164,10 @@ function _renderDetail_(result) {
       actions += '<button class="btn-action btn-transfer" onclick="_tdTransfer_()">Transfer Dept</button>';
       actions += '<button class="btn-action btn-void" onclick="_tdVoid_()">Void Ticket</button>';
     }
+  }
+  // Update button: all roles, any non-terminal status
+  if (t.status !== 'CLOSED' && t.status !== 'VOIDED') {
+    actions += '<button class="btn-action btn-update" onclick="_tdUpdate_()">Update Ticket</button>';
   }
 
   // ── Info grid ──────────────────────────────────────────────────────────────
@@ -373,6 +378,57 @@ function _tdFlagTF_() {
     });
 }
 
+function _tdUpdate_() {
+  var t = _tdTicket;
+  if (!t) return;
+  var isManager = USER.isManager;
+  var canChangeStatus = ['OPEN', 'ON HOLD', 'PENDING PARTS'].indexOf(t.status) >= 0;
+
+  var managerFields = '';
+  if (isManager) {
+    if (canChangeStatus) {
+      managerFields +=
+        '<div class="form-group"><label>Status</label><select id="up-status">' +
+        ['OPEN', 'ON HOLD', 'PENDING PARTS'].map(function(s) {
+          return '<option value="' + esc(s) + '"' + (s === t.status ? ' selected' : '') + '>' + esc(s) + '</option>';
+        }).join('') +
+        '</select></div>';
+    }
+    managerFields +=
+      '<div class="form-group"><label>Priority</label><select id="up-priority">' +
+      ['LOW','MEDIUM','HIGH','CRITICAL'].map(function(p) {
+        return '<option value="' + esc(p) + '"' + (p === t.priority ? ' selected' : '') + '>' + esc(p) + '</option>';
+      }).join('') +
+      '</select></div>' +
+      '<div class="form-group"><label>Assign To</label><select id="up-assign">' +
+      '<option value="">— Unassigned —</option>' +
+      (window._tdTechs_ || []).map(function(name) {
+        return '<option value="' + esc(name) + '"' + (name === t.assignedTo ? ' selected' : '') + '>' + esc(name) + '</option>';
+      }).join('') +
+      '</select></div>' +
+      '<div class="form-group"><label>Est. Hours</label>' +
+      '<input id="up-hours" type="number" min="0" step="0.5" value="' + esc(String(t.estHours || '')) + '" /></div>';
+  }
+
+  _showModal_('Update Ticket — ' + esc(t.ticketNo),
+    managerFields +
+    '<div class="form-group"><label>Notes / Observations' + (isManager ? ' (optional)' : ' *') + '</label>' +
+    '<textarea id="up-notes"></textarea></div>',
+    function() {
+      var notes = document.getElementById('up-notes').value.trim();
+      if (!isManager && !notes) { alert('Notes are required.'); return; }
+      var data = { ticketNo: t.ticketNo, notes: notes, updatedBy: USER.displayName };
+      if (isManager) {
+        var statusEl = document.getElementById('up-status');
+        if (statusEl) data.status = statusEl.value;
+        data.priority   = document.getElementById('up-priority').value;
+        data.assignedTo = document.getElementById('up-assign').value;
+        data.estHours   = document.getElementById('up-hours').value;
+      }
+      _tdRunAction_(updateTicket, data, 'Updated');
+    });
+}
+
 function _tdTransfer_() {
   var t = _tdTicket;
   if (!t) return;
@@ -408,10 +464,15 @@ function _tdRunAction_(serverFn, data, successLabel) {
         // Refresh whichever queue page is behind the overlay
         var activePage = document.querySelector('.page.active');
         if (activePage && activePage.id && activePage.id.startsWith('page-')) {
-          var pid = activePage.id.replace('page-','');
-          var qtype = pid.startsWith('tracker-') ? 'tracker' : pid;
-          var dept  = pid.startsWith('tracker-') ? pid.replace('tracker-','').replace(/-/g,' ').toUpperCase() : null;
-          _refreshQueuePage_(pid, dept);
+          var pid = activePage.id.replace('page-', '');
+          if (pid.startsWith('tracker-')) {
+            var dept = pid.replace('tracker-', '').replace(/-/g, ' ').toUpperCase();
+            _refreshQueuePage_(pid, dept);
+          } else if (pid === 'waiting' || pid === 'open') {
+            _refreshQueuePage_(pid, null);
+          } else if (window.PAGES && window.PAGES[pid]) {
+            window.PAGES[pid](activePage);
+          }
         }
       } else {
         showToast('Error: ' + ((result && result.error) || 'Unknown error'), 'error');
@@ -469,6 +530,7 @@ function approveTicket(d)        { /* server */ }
 function completeTicket(d)       { /* server */ }
 function verifyAndCloseTicket(d) { /* server */ }
 function voidTicket(d)           { /* server */ }
+function updateTicket(d)         { /* server */ }
 function assignTicket(d)         { /* server */ }
 function flagTempFix(d)          { /* server */ }
 function transferTicket(d)       { /* server */ }
