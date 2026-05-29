@@ -80,7 +80,8 @@ function completeTicket(data) {
   if (!tn) return { success: false, error: 'ticketNo required' };
 
   try {
-    var orig = getOriginalMlRow_(tn) || {};
+    var orig   = getOriginalMlRow_(tn) || {};
+    var latest = getLatestMlRow_(tn)   || orig;
     var dept = normalizeDept(String(orig[ML.DEPT - 1] || data.dept || ''));
 
     appendToMasterLog_({
@@ -94,10 +95,10 @@ function completeTicket(data) {
       equipCode:     String(orig[ML.EQUIP_CODE     - 1] || ''),
       specificEquip: String(orig[ML.SPECIFIC_EQUIP - 1] || ''),
       downtimeType:  String(orig[ML.DOWNTIME_TYPE  - 1] || ''),
-      priority:      String(orig[ML.PRIORITY       - 1] || ''),
+      priority:      String(latest[ML.PRIORITY     - 1] || orig[ML.PRIORITY - 1] || ''),
       description:   String(orig[ML.DESCRIPTION    - 1] || ''),
-      assignedTo:    String(data.assignedTo || orig[ML.ASSIGNED_TO - 1] || ''),
-      estHours:      orig[ML.EST_HOURS - 1] || '',
+      assignedTo:    String(data.assignedTo || latest[ML.ASSIGNED_TO - 1] || ''),
+      estHours:      latest[ML.EST_HOURS - 1] || '',
       actualHours:   data.actualHours || '',
       dateOpened:    String(orig[ML.DATE_OPENED - 1] || ''),
       dateCompleted: formatDateStr_(now),
@@ -151,7 +152,8 @@ function verifyAndCloseTicket(data) {
   if (!tn) return { success: false, error: 'ticketNo required' };
 
   try {
-    var orig = getOriginalMlRow_(tn) || {};
+    var orig   = getOriginalMlRow_(tn) || {};
+    var latest = getLatestMlRow_(tn)   || orig;
     var dept = normalizeDept(String(orig[ML.DEPT - 1] || data.dept || ''));
 
     appendToMasterLog_({
@@ -165,19 +167,19 @@ function verifyAndCloseTicket(data) {
       equipCode:     String(orig[ML.EQUIP_CODE     - 1] || ''),
       specificEquip: String(orig[ML.SPECIFIC_EQUIP - 1] || ''),
       downtimeType:  String(orig[ML.DOWNTIME_TYPE  - 1] || ''),
-      priority:      String(orig[ML.PRIORITY       - 1] || ''),
+      priority:      String(latest[ML.PRIORITY     - 1] || orig[ML.PRIORITY - 1] || ''),
       description:   String(orig[ML.DESCRIPTION    - 1] || ''),
-      assignedTo:    String(orig[ML.ASSIGNED_TO    - 1] || ''),
-      actualHours:   orig[ML.ACTUAL_HOURS - 1] || '',
+      assignedTo:    String(latest[ML.ASSIGNED_TO  - 1] || ''),
+      actualHours:   latest[ML.ACTUAL_HOURS - 1] || '',
       dateOpened:    String(orig[ML.DATE_OPENED    - 1] || ''),
-      dateCompleted: String(orig[ML.DATE_COMPLETED - 1] || ''),
+      dateCompleted: String(latest[ML.DATE_COMPLETED - 1] || ''),
       dateClosed:    formatDateStr_(now),
-      workSummary:   String(orig[ML.WORK_SUMMARY   - 1] || ''),
-      correctiveAct: String(orig[ML.CORRECTIVE_ACT - 1] || ''),
-      rootCause:     String(orig[ML.ROOT_CAUSE     - 1] || ''),
-      fixType:       String(orig[ML.FIX_TYPE       - 1] || ''),
-      tempFixFlag:   String(orig[ML.TEMP_FIX_FLAG  - 1] || '') === 'Y',
-      partsNeeded:   String(orig[ML.PARTS_NEEDED   - 1] || '') === 'Y',
+      workSummary:   String(latest[ML.WORK_SUMMARY   - 1] || ''),
+      correctiveAct: String(latest[ML.CORRECTIVE_ACT - 1] || ''),
+      rootCause:     String(latest[ML.ROOT_CAUSE     - 1] || ''),
+      fixType:       String(latest[ML.FIX_TYPE       - 1] || ''),
+      tempFixFlag:   String(latest[ML.TEMP_FIX_FLAG  - 1] || '') === 'Y',
+      partsNeeded:   String(latest[ML.PARTS_NEEDED   - 1] || '') === 'Y',
       verifiedBy:    data.verifiedBy || user.displayName,
       verifiedDate:  formatDateStr_(now),
       addedBy:       String(orig[ML.ADDED_BY - 1] || ''),
@@ -193,7 +195,7 @@ function verifyAndCloseTicket(data) {
       data.verifiedBy || user.displayName, data.notes || '');
 
     var ss = getBoundSS_();
-    var closedData = _buildTicketDataFromMl_(orig, {
+    var closedData = _buildTicketDataFromMl_(latest, {
       verifiedBy:  data.verifiedBy || user.displayName,
       updatedBy:   data.verifiedBy || user.displayName,
       notes:       data.notes || ''

@@ -85,6 +85,8 @@ a{color:inherit;text-decoration:none;}
 .nav-subitem.active{color:#fff;background:rgba(255,255,255,.08);}
 .nav-subitem .nav-badge{background:rgba(255,255,255,.10);color:#fff;font-size:10px;padding:0 5px;border-radius:8px;}
 .nav-subitem .nav-badge.danger{background:var(--status-critical);}
+.nav-chevron{margin-left:auto;transition:transform .2s;opacity:.55;flex-shrink:0;}
+.nav-section-hdr.open .nav-chevron{transform:rotate(180deg);opacity:.85;}
 .sidebar-footer{border-top:1px solid rgba(255,255,255,.06);padding:10px;display:flex;align-items:center;gap:10px;}
 .avatar{width:28px;height:28px;border-radius:50%;background:linear-gradient(135deg,#4D7BC9,#2D4F8A);color:#fff;font-size:11px;font-weight:700;display:grid;place-items:center;flex-shrink:0;}
 .user-meta{flex:1;min-width:0;}
@@ -242,7 +244,8 @@ var ICONS = {
   reports:  '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>',
   admin:    '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83 0 2 2 0 010-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 010-2.83 2 2 0 012.83 0l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 0 2 2 0 010 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>',
   pm:       '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>',
-  newticket:'<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg>'
+  newticket:'<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg>',
+  chevron:  '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg>'
 };
 
 var DEPT_ICONS = {
@@ -262,13 +265,13 @@ function getNavDef() {
 
   var nav = [
     {
-      section: 'Overview',
+      section: 'Overview', icon: 'home',
       items: [
         { id: 'home', label: 'Dashboard', icon: 'home' }
       ]
     },
     {
-      section: 'Tickets',
+      section: 'Tickets', icon: 'open',
       items: [
         { id: 'submit',  label: 'New Ticket',     icon: 'newticket'                           },
         { id: 'waiting', label: 'Waiting Queue',  icon: 'waiting',  badgeId: 'badge-waiting' },
@@ -288,21 +291,21 @@ function getNavDef() {
         dept:    dept
       };
     });
-    nav.push({ section: 'Dept Trackers', items: deptItems });
+    nav.push({ section: 'Dept Trackers', icon: 'tracker', items: deptItems });
   }
 
   nav.push({
-    section: 'Monitoring',
+    section: 'Monitoring', icon: 'tempfix',
     items: [
-      { id: 'tempfix',       label: 'Temp Fix Monitor', icon: 'tempfix', badgeId: 'badge-tempfix' },
-      { id: 'equipment-hold', label: 'Equipment Hold',  icon: 'equip'   },
-      { id: 'parts',         label: 'Parts Needed',     icon: 'parts'   }
+      { id: 'tempfix',        label: 'Temp Fix Monitor', icon: 'tempfix', badgeId: 'badge-tempfix' },
+      { id: 'equipment-hold', label: 'Equipment Hold',   icon: 'equip'   },
+      { id: 'parts',          label: 'Parts Needed',     icon: 'parts'   }
     ]
   });
 
   if (isManager) {
     nav.push({
-      section: 'Reports',
+      section: 'Reports', icon: 'reports',
       items: [
         { id: 'reports', label: 'Reports', icon: 'reports' }
       ]
@@ -311,18 +314,18 @@ function getNavDef() {
 
   if (isAdmin) {
     nav.push({
-      section: 'Admin',
+      section: 'Admin', icon: 'admin',
       items: [
-        { id: 'admin-config', label: 'Configuration',    icon: 'admin' },
-        { id: 'admin-access', label: 'Access & Roles',   icon: 'admin' },
-        { id: 'admin-deptmap', label: 'Dept Map',        icon: 'admin' }
+        { id: 'admin-config',  label: 'Configuration',  icon: 'admin' },
+        { id: 'admin-access',  label: 'Access & Roles', icon: 'admin' },
+        { id: 'admin-deptmap', label: 'Dept Map',       icon: 'admin' }
       ]
     });
   }
 
   // PM — always last, always greyed out (no UI in v1)
   nav.push({
-    section: 'Preventive Maintenance',
+    section: 'Preventive Maintenance', icon: 'pm',
     items: [
       { id: 'pm', label: 'PM Schedules', icon: 'pm', disabled: true,
         sublabel: 'Coming Soon' }
@@ -333,40 +336,105 @@ function getNavDef() {
 }
 
 // ── Build sidebar nav HTML ────────────────────────────────────────────────────
+var _openNavSection_ = null;
+
 function buildNav() {
   var navDef = getNavDef();
   var html   = '';
   navDef.forEach(function(section) {
-    html += '<div class="nav-section">';
-    html += '<div class="nav-section-label">' + esc(section.section) + '</div>';
-    section.items.forEach(function(item) {
-      var cls = 'nav-item' + (item.disabled ? ' disabled' : '');
+    var secId   = section.section.toLowerCase().replace(/\s+/g, '-');
+    var secIcon = ICONS[section.icon] || ICONS.home;
+    var isSingle = section.items.length === 1;
+
+    html += '<div class="nav-section" id="navsec-' + secId + '">';
+
+    if (isSingle) {
+      // Single-item section: render as flat nav-item (no accordion header needed)
+      var item = section.items[0];
+      var cls  = 'nav-item' + (item.disabled ? ' disabled' : '');
       var icon = item.iconHtml || (item.icon && ICONS[item.icon] ? ICONS[item.icon] : ICONS.home);
       var badge = item.badgeId
         ? '<span class="nav-badge" id="' + item.badgeId + '" style="display:none">0</span>'
         : '';
       var sub = item.sublabel
-        ? '<span style="font-size:10px;opacity:.6;">' + esc(item.sublabel) + '</span>'
+        ? '<span style="font-size:10px;opacity:.6;margin-left:4px;">' + esc(item.sublabel) + '</span>'
         : '';
       var onclick = item.disabled ? '' : 'onclick="navigate(\'' + item.id + '\')"';
       html += '<div class="' + cls + '" id="nav-' + item.id + '" ' + onclick + '>';
       html += '<span class="nav-icon">' + icon + '</span>';
       html += '<span class="nav-label">' + esc(item.label) + sub + '</span>';
-      html += badge;
+      html += badge + '</div>';
+    } else {
+      // Multi-item section: accordion header + collapsible sub-items
+      html += '<div class="nav-item nav-section-hdr" id="nav-sec-' + secId + '" onclick="toggleNavSection(\'' + secId + '\')">';
+      html += '<span class="nav-icon">' + secIcon + '</span>';
+      html += '<span class="nav-label">' + esc(section.section) + '</span>';
+      html += '<span class="nav-chevron">' + ICONS.chevron + '</span>';
       html += '</div>';
-    });
+      html += '<div class="nav-subitems" id="navsubitems-' + secId + '" style="display:none">';
+      section.items.forEach(function(item) {
+        var cls   = 'nav-subitem' + (item.disabled ? ' disabled' : '');
+        var badge = item.badgeId
+          ? '<span class="nav-badge" id="' + item.badgeId + '" style="display:none">0</span>'
+          : '';
+        var onclick = item.disabled ? '' : 'onclick="navigate(\'' + item.id + '\')"';
+        html += '<div class="' + cls + '" id="nav-' + item.id + '" ' + onclick + '>';
+        html += '<span>' + esc(item.label) + '</span>';
+        html += badge + '</div>';
+      });
+      html += '</div>';
+    }
+
     html += '</div>';
   });
   document.getElementById('sidebar-nav').innerHTML = html;
+}
+
+// Opens a nav section, closing all others (mutual exclusion).
+function toggleNavSection(sectionId) {
+  var subEl = document.getElementById('navsubitems-' + sectionId);
+  var hdrEl = document.getElementById('nav-sec-' + sectionId);
+  if (!subEl) return;
+  var isOpen = subEl.style.display !== 'none';
+  _closeAllNavSections_();
+  if (!isOpen) {
+    subEl.style.display = 'block';
+    if (hdrEl) hdrEl.classList.add('open');
+    _openNavSection_ = sectionId;
+  }
+}
+
+function _closeAllNavSections_() {
+  document.querySelectorAll('.nav-subitems').forEach(function(el) { el.style.display = 'none'; });
+  document.querySelectorAll('.nav-section-hdr').forEach(function(el) { el.classList.remove('open'); });
+  _openNavSection_ = null;
+}
+
+// Ensures the section containing pageId is open (called from navigate).
+function _openSectionForPage_(pageId) {
+  var itemEl = document.getElementById('nav-' + pageId);
+  if (!itemEl) return;
+  var subitemsEl = itemEl.closest ? itemEl.closest('.nav-subitems') : null;
+  if (!subitemsEl) return;
+  var sectionId = subitemsEl.id.replace('navsubitems-', '');
+  if (_openNavSection_ === sectionId) return;
+  _closeAllNavSections_();
+  subitemsEl.style.display = 'block';
+  var hdrEl = document.getElementById('nav-sec-' + sectionId);
+  if (hdrEl) hdrEl.classList.add('open');
+  _openNavSection_ = sectionId;
 }
 
 // ── Navigation ────────────────────────────────────────────────────────────────
 var _currentPage = 'home';
 
 function navigate(pageId) {
-  // Deactivate old nav item
+  // Deactivate old nav item (works for both .nav-item and .nav-subitem)
   var oldEl = document.getElementById('nav-' + _currentPage);
   if (oldEl) oldEl.classList.remove('active');
+
+  // Ensure parent accordion section is open before activating new item
+  _openSectionForPage_(pageId);
 
   // Activate new nav item
   var newEl = document.getElementById('nav-' + pageId);
@@ -543,6 +611,9 @@ function renderTrendChart(trend) {
   document.getElementById('topbar-company').textContent  = COMPANY;
 
   buildNav();
+
+  // Open "Tickets" section by default so the queue is visible on first load
+  toggleNavSection('tickets');
 
   // Activate home nav item
   var homeEl = document.getElementById('nav-home');
