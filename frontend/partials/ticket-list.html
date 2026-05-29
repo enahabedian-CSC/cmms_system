@@ -31,17 +31,11 @@
 .stat-badge{display:inline-block;padding:2px 7px;border-radius:4px;font-size:10.5px;font-weight:600;}
 .stat-WAITING            {background:#EDE9FE;color:#5B21B6;}
 .stat-OPEN               {background:var(--status-info-bg);color:var(--status-info);}
-.stat-PENDING\ VERIFICATION{background:var(--status-warn-bg);color:var(--status-warn);}
-.stat-PENDING\ PARTS     {background:#FFF3E0;color:#E65100;}
+.stat-PENDING-VERIFICATION{background:var(--status-warn-bg);color:var(--status-warn);}
+.stat-PENDING-PARTS     {background:#FFF3E0;color:#E65100;}
 .stat-VOIDED             {background:var(--bg-subtle);color:var(--text-tertiary);}
 .flag-tf{display:inline-block;font-size:10px;background:#FFF3E0;color:#E65100;border:1px solid #FFCCBC;border-radius:3px;padding:1px 5px;margin-left:4px;}
-.tl-kpi-bar{display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap;}
-.tl-kpi{background:var(--bg-surface);border:1px solid var(--border-default);border-radius:8px;padding:8px 14px;min-width:76px;display:flex;flex-direction:column;align-items:center;box-shadow:var(--shadow-sm);}
-.tl-kpi-val{font-size:22px;font-weight:700;color:var(--text-primary);line-height:1;font-variant-numeric:tabular-nums;}
-.tl-kpi-val.kpi-critical{color:var(--status-critical);}
-.tl-kpi-val.kpi-warn{color:var(--status-warn);}
-.tl-kpi-val.kpi-info{color:var(--status-info);}
-.tl-kpi-lbl{font-size:10px;color:var(--text-secondary);text-transform:uppercase;letter-spacing:.04em;margin-top:3px;white-space:nowrap;}
+.stat-ON-HOLD{background:var(--status-warn-bg);color:var(--status-warn);}
 </style>
 
 <script>
@@ -98,7 +92,7 @@ function _renderList_(tickets, queueType, deptFilter, container) {
     }
     tbody.innerHTML = list.map(function(t) {
       var priCls = 'pri-' + (t.priority || '');
-      var staCls = 'stat-' + t.status;
+      var staCls = 'stat-' + t.status.replace(/\s+/g, '-');
       return '<tr onclick="openTicketDetail(\'' + esc(t.ticketNo) + '\')">' +
         '<td class="col-ticket">' + esc(t.ticketNo) + '</td>' +
         '<td><span class="pri-badge ' + priCls + '">' + esc(t.priority || '—') + '</span></td>' +
@@ -157,25 +151,28 @@ function _renderList_(tickets, queueType, deptFilter, container) {
 }
 
 function _tlKpiBar_(tickets) {
-  var total = tickets.length;
-  var open  = tickets.filter(function(t) { return t.status === 'OPEN'; }).length;
-  var crit  = tickets.filter(function(t) { return t.priority === 'CRITICAL'; }).length;
-  var pv    = tickets.filter(function(t) { return t.status === 'PENDING VERIFICATION'; }).length;
-  var pp    = tickets.filter(function(t) { return t.status === 'PENDING PARTS'; }).length;
-  var tf    = tickets.filter(function(t) { return !!t.tempFixFlag; }).length;
-  var un    = tickets.filter(function(t) { return !t.assignedTo; }).length;
-  function chip(val, label, cls) {
-    return '<div class="tl-kpi"><span class="tl-kpi-val' + (cls ? ' ' + cls : '') + '">' + val + '</span>' +
-           '<span class="tl-kpi-lbl">' + esc(label) + '</span></div>';
+  var total  = tickets.length;
+  var open   = tickets.filter(function(t) { return t.status === 'OPEN'; }).length;
+  var crit   = tickets.filter(function(t) { return t.priority === 'CRITICAL'; }).length;
+  var high   = tickets.filter(function(t) { return t.priority === 'HIGH'; }).length;
+  var pp     = tickets.filter(function(t) { return t.status === 'PENDING PARTS'; }).length;
+  var hold   = tickets.filter(function(t) { return t.status === 'ON HOLD'; }).length;
+  var pv     = tickets.filter(function(t) { return t.status === 'PENDING VERIFICATION'; }).length;
+  var un     = tickets.filter(function(t) { return !t.assignedTo; }).length;
+  function cell(val, label, mod) {
+    return '<div class="ds-cell' + (mod ? ' ' + mod : '') + '">' +
+           '<div class="ds-lbl">' + esc(label) + '</div>' +
+           '<div class="ds-v">' + val + '</div></div>';
   }
-  return '<div class="tl-kpi-bar">' +
-    chip(total, 'Total',         '') +
-    chip(open,  'Open',          open  > 0 ? 'kpi-info'     : '') +
-    chip(crit,  'Critical',      crit  > 0 ? 'kpi-critical' : '') +
-    chip(pv,    'Pending Verify',pv    > 0 ? 'kpi-warn'     : '') +
-    chip(pp,    'Pending Parts', pp    > 0 ? 'kpi-warn'     : '') +
-    chip(tf,    'Temp Fixes',    tf    > 0 ? 'kpi-warn'     : '') +
-    chip(un,    'Unassigned',    un    > 0 ? 'kpi-info'     : '') +
+  return '<div class="dept-strip" style="grid-template-columns:repeat(8,1fr);">' +
+    cell(total, 'Total',         '') +
+    cell(open,  'Open',          '') +
+    cell(crit,  'Critical',      crit > 0 ? 'ds-crit' : '') +
+    cell(high,  'High',          high > 0 ? 'ds-high' : '') +
+    cell(pp,    'Pending Parts', pp   > 0 ? 'ds-warn' : '') +
+    cell(hold,  'On Hold',       hold > 0 ? 'ds-warn' : '') +
+    cell(pv,    'Pend. Verify',  pv   > 0 ? 'ds-warn' : '') +
+    cell(un,    'Unassigned',    '') +
   '</div>';
 }
 

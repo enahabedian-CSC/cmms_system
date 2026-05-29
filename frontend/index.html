@@ -145,6 +145,27 @@ a{color:inherit;text-decoration:none;}
 .trend-bar-closed{background:var(--status-success);}
 .trend-month{font-size:9px;color:var(--text-tertiary);text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;width:100%;margin-top:4px;}
 
+/* ── Design-system KPI card (accent-bar style from mockup) ──────────────── */
+.kpi{background:var(--bg-surface);border:1px solid var(--border-default);border-radius:8px;padding:12px 14px;position:relative;overflow:hidden;box-shadow:var(--shadow-sm);}
+.kpi .kpi-accent{position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--brand-navy);}
+.kpi.kpi-critical .kpi-accent{background:var(--status-critical);}
+.kpi.kpi-warn     .kpi-accent{background:var(--status-warn);}
+.kpi.kpi-success  .kpi-accent{background:var(--status-success);}
+.kpi.kpi-info     .kpi-accent{background:var(--status-info);}
+.kpi .kpi-label{font-size:10.5px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:var(--text-secondary);}
+.kpi .kpi-value{font-size:22px;font-weight:700;letter-spacing:-.02em;margin-top:5px;font-variant-numeric:tabular-nums;line-height:1;}
+.kpi .kpi-foot{font-size:10.5px;color:var(--text-tertiary);margin-top:5px;font-family:var(--font-mono);}
+.kpi-band{display:grid;gap:10px;margin-bottom:14px;}
+
+/* ── Dept KPI strip (tracker pages) ─────────────────────────────────────── */
+.dept-strip{display:grid;gap:1px;background:var(--border-default);border:1px solid var(--border-default);border-radius:8px;overflow:hidden;margin-bottom:14px;}
+.dept-strip .ds-cell{background:var(--bg-surface);padding:9px 12px;}
+.dept-strip .ds-cell .ds-lbl{font-size:10px;text-transform:uppercase;letter-spacing:.06em;color:var(--text-secondary);font-weight:600;white-space:nowrap;}
+.dept-strip .ds-cell .ds-v{font-size:18px;font-weight:700;font-variant-numeric:tabular-nums;margin-top:3px;line-height:1;}
+.dept-strip .ds-cell.ds-crit .ds-v{color:var(--status-critical);}
+.dept-strip .ds-cell.ds-high .ds-v{color:var(--status-high);}
+.dept-strip .ds-cell.ds-warn .ds-v{color:var(--status-warn);}
+
 /* ── Role badge ──────────────────────────────────────────────────────────── */
 .role-badge{display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:4px;font-size:10.5px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;}
 .role-badge.admin{background:#EDE9FE;color:#5B21B6;}

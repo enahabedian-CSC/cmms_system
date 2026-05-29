@@ -24,7 +24,7 @@
 
 /* Status badges reuse pri-badge / stat-badge; extra monitoring statuses: */
 .stat-ACTIVE    {background:#FFF3E0;color:#E65100;}
-.stat-PAST\ DUE {background:var(--status-critical-bg);color:var(--status-critical);}
+.stat-PAST-DUE  {background:var(--status-critical-bg);color:var(--status-critical);}
 .stat-CLEARED   {background:var(--status-success-bg);color:var(--status-success);}
 .stat-PENDING   {background:#EDE9FE;color:#5B21B6;}
 .stat-ORDERED   {background:var(--status-info-bg);color:var(--status-info);}
@@ -38,15 +38,6 @@
 .mon-btn.primary{background:var(--brand-navy);color:#fff;border-color:var(--brand-navy);}
 .mon-btn.primary:hover{background:var(--brand-navy-soft);}
 .mon-btn.danger{background:var(--status-critical-bg);color:var(--status-critical);border-color:var(--status-critical);}
-
-/* KPI bars */
-.mon-kpi-bar{display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap;}
-.mon-kpi{background:var(--bg-surface);border:1px solid var(--border-default);border-radius:8px;padding:8px 14px;min-width:80px;display:flex;flex-direction:column;align-items:center;box-shadow:var(--shadow-sm);}
-.mon-kpi-val{font-size:22px;font-weight:700;color:var(--text-primary);line-height:1;font-variant-numeric:tabular-nums;}
-.mon-kpi-val.kpi-critical{color:var(--status-critical);}
-.mon-kpi-val.kpi-warn{color:var(--status-warn);}
-.mon-kpi-val.kpi-success{color:var(--status-success);}
-.mon-kpi-lbl{font-size:10px;color:var(--text-secondary);text-transform:uppercase;letter-spacing:.04em;margin-top:3px;white-space:nowrap;}
 
 /* Monitor action modal */
 .mon-modal-back{position:fixed;inset:0;background:rgba(0,0,0,.35);z-index:5000;display:none;align-items:center;justify-content:center;}
@@ -146,7 +137,7 @@ function _tfRenderRows_(list) {
     return;
   }
   tbody.innerHTML = list.map(function(t) {
-    var staCls = 'stat-' + t.status.replace(' ', '\\ ');
+    var staCls = 'stat-' + t.status.replace(/\s+/g, '-');
     var isPastDue = t.status === 'PAST DUE';
     return '<tr>' +
       '<td class="mon-id">' + esc(t.tempId) + '</td>' +
@@ -156,7 +147,7 @@ function _tfRenderRows_(list) {
         esc(t.specificEquip) + '</td>' +
       '<td>' + esc(t.dept) + '</td>' +
       '<td class="mon-desc" title="' + esc(t.tempFixDesc || t.description) + '">' + esc(t.tempFixDesc || t.description) + '</td>' +
-      '<td><span class="stat-badge ' + esc('stat-' + t.status) + '">' + esc(t.status) + '</span></td>' +
+      '<td><span class="stat-badge ' + esc('stat-' + t.status.replace(/\s+/g, '-')) + '">' + esc(t.status) + '</span></td>' +
       '<td style="font-size:11.5px;color:var(--text-tertiary);">' + esc(t.dateFlagged) + '</td>' +
       '<td style="font-size:11.5px;' + (isPastDue ? 'color:var(--status-critical);font-weight:600;' : '') + '">' + esc(t.nextDue) + '</td>' +
       '<td style="font-size:11.5px;color:var(--text-secondary);">' + esc(String(t.freqDays)) + '</td>' +
@@ -388,19 +379,24 @@ function _pnAdvance_(partId, newStatus) {
 
 // ─── KPI helpers ─────────────────────────────────────────────────────────────
 
-function _monKpiChip_(val, label, cls) {
-  return '<div class="mon-kpi"><span class="mon-kpi-val' + (cls ? ' ' + cls : '') + '">' + val + '</span>' +
-         '<span class="mon-kpi-lbl">' + esc(label) + '</span></div>';
+function _monKpiCard_(val, label, accent, foot) {
+  return '<div class="kpi' + (accent ? ' kpi-' + accent : '') + '">' +
+    '<div class="kpi-accent"></div>' +
+    '<div class="kpi-label">' + esc(label) + '</div>' +
+    '<div class="kpi-value">' + val + '</div>' +
+    (foot ? '<div class="kpi-foot">' + esc(foot) + '</div>' : '') +
+  '</div>';
 }
 
 function _tfKpiBar_(items) {
   var total   = items.length;
   var pastDue = items.filter(function(t) { return t.status === 'PAST DUE'; }).length;
   var active  = items.filter(function(t) { return t.status === 'ACTIVE';   }).length;
-  return '<div class="mon-kpi-bar">' +
-    _monKpiChip_(total,   'Total Flagged', '') +
-    _monKpiChip_(active,  'Active',        active  > 0 ? 'kpi-warn'     : '') +
-    _monKpiChip_(pastDue, 'Past Due',      pastDue > 0 ? 'kpi-critical' : 'kpi-success') +
+  var pdFoot  = pastDue > 0 ? pastDue + ' need immediate attention' : 'all inspected on schedule';
+  return '<div class="kpi-band" style="grid-template-columns:repeat(3,1fr);">' +
+    _monKpiCard_(total,   'Total Active',   '',         total + ' temp fix' + (total !== 1 ? 'es' : '') + ' on the floor') +
+    _monKpiCard_(active,  'Active',         active  > 0 ? 'warn'     : 'success', '') +
+    _monKpiCard_(pastDue, 'Past Due',       pastDue > 0 ? 'critical' : 'success', pdFoot) +
   '</div>';
 }
 
@@ -408,10 +404,10 @@ function _ehlKpiBar_(items) {
   var total  = items.length;
   var red    = items.filter(function(t) { return t.tagType && t.tagType.indexOf('Red')    === 0; }).length;
   var yellow = items.filter(function(t) { return t.tagType && t.tagType.indexOf('Yellow') === 0; }).length;
-  return '<div class="mon-kpi-bar">' +
-    _monKpiChip_(total,  'Total Tagged',     '') +
-    _monKpiChip_(red,    'Out of Service',   red    > 0 ? 'kpi-critical' : '') +
-    _monKpiChip_(yellow, 'Use w/ Caution',   yellow > 0 ? 'kpi-warn'     : '') +
+  return '<div class="kpi-band" style="grid-template-columns:repeat(3,1fr);">' +
+    _monKpiCard_(total,  'Total Tagged',        total  > 0 ? 'critical' : '', 'active hold tags') +
+    _monKpiCard_(red,    '🟥 Out of Service',   red    > 0 ? 'critical' : '', 'Red tag — production blocked') +
+    _monKpiCard_(yellow, '🟨 Use with Caution', yellow > 0 ? 'warn'     : '', 'Yellow tag — limited operation') +
   '</div>';
 }
 

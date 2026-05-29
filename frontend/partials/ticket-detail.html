@@ -140,7 +140,7 @@ function _renderDetail_(result) {
 
   // Update header badges
   document.getElementById('td-status-badge').innerHTML =
-    '<span class="stat-badge stat-' + esc(t.status) + '">' + esc(t.status) + '</span>';
+    '<span class="stat-badge stat-' + esc(t.status.replace(/\s+/g, '-')) + '">' + esc(t.status) + '</span>';
   document.getElementById('td-pri-badge').innerHTML = t.priority
     ? '<span class="pri-badge pri-' + esc(t.priority) + '">' + esc(t.priority) + '</span>' : '';
   document.getElementById('td-dept-label').textContent = t.dept;

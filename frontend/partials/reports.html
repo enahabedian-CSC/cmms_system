@@ -40,14 +40,15 @@
 .rpt-empty{padding:32px 24px;text-align:center;color:var(--text-secondary);font-size:13px;}
 
 /* Analytics panels */
-.rpt-analytics-panel{background:var(--bg-surface);border:1px solid var(--border-default);border-radius:8px;padding:14px;box-shadow:var(--shadow-sm);margin-bottom:14px;}
-.rpt-analytics-title{font-size:11px;font-weight:700;color:var(--brand-navy);text-transform:uppercase;letter-spacing:.06em;margin-bottom:10px;padding-bottom:6px;border-bottom:1px solid var(--border-default);}
+.rpt-analytics-card{background:var(--bg-surface);border:1px solid var(--border-default);border-radius:8px;padding:14px;box-shadow:var(--shadow-sm);}
+.rpt-analytics-hdr{font-size:11px;font-weight:700;color:var(--brand-navy);text-transform:uppercase;letter-spacing:.06em;margin-bottom:10px;padding-bottom:6px;border-bottom:1px solid var(--border-default);display:flex;align-items:center;justify-content:space-between;}
+.rpt-analytics-hdr .rpt-legend{font-size:10px;font-weight:400;letter-spacing:0;color:var(--text-secondary);}
 .rpt-pt-row{display:flex;align-items:center;gap:8px;margin-bottom:6px;}
-.rpt-pt-label{font-size:11.5px;color:var(--text-secondary);width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex-shrink:0;}
+.rpt-pt-label{font-size:11.5px;color:var(--text-secondary);width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex-shrink:0;}
 .rpt-pt-bar-wrap{flex:1;height:10px;background:var(--bg-subtle);border-radius:4px;overflow:hidden;}
-.rpt-pt-bar{height:100%;background:var(--brand-navy);border-radius:4px;opacity:.75;}
-.rpt-pt-count{font-size:11.5px;font-weight:600;color:var(--text-primary);width:28px;text-align:right;flex-shrink:0;}
-.rpt-analytics-loading{padding:16px;text-align:center;color:var(--text-secondary);font-size:12px;}
+.rpt-pt-bar{height:100%;background:var(--brand-navy);border-radius:4px;opacity:.8;}
+.rpt-pt-count{font-size:11px;font-weight:600;color:var(--text-primary);width:28px;text-align:right;flex-shrink:0;}
+.rpt-analytics-loading{padding:20px;text-align:center;color:var(--text-secondary);font-size:12px;}
 
 /* Print styles */
 @media print {
@@ -170,7 +171,7 @@ function _rptRenderRows_(list) {
   }
   tbody.innerHTML = list.map(function(t) {
     var priCls = 'pri-' + (t.priority || '');
-    var staCls = 'stat-' + t.status;
+    var staCls = 'stat-' + t.status.replace(/\s+/g, '-');
     return '<tr onclick="openTicketDetail(\'' + esc(t.ticketNo) + '\')">' +
       '<td class="col-ticket">' + esc(t.ticketNo) + '</td>' +
       '<td><span class="pri-badge ' + priCls + '">' + esc(t.priority || '—') + '</span></td>' +
@@ -190,7 +191,7 @@ function _rptAnalytics_(tickets) {
   var ptEl    = document.getElementById('rpt-analytics');
   var trendEl = document.getElementById('rpt-trend');
 
-  // Problem type breakdown
+  // ── Problem type breakdown ──────────────────────────────────────────────
   if (ptEl) {
     var ptMap = {};
     tickets.forEach(function(t) {
@@ -201,24 +202,43 @@ function _rptAnalytics_(tickets) {
     ptList.sort(function(a, b) { return b.count - a.count; });
     var ptMax = ptList.length > 0 ? ptList[0].count : 1;
 
-    ptEl.innerHTML = ptList.length > 0
-      ? '<div class="rpt-analytics-panel">' +
-          '<div class="rpt-analytics-title">Problem Type Breakdown</div>' +
-          ptList.slice(0, 8).map(function(pt) {
-            var pct = Math.round((pt.count / ptMax) * 100);
-            return '<div class="rpt-pt-row">' +
-              '<div class="rpt-pt-label" title="' + esc(pt.type) + '">' + esc(pt.type) + '</div>' +
-              '<div class="rpt-pt-bar-wrap"><div class="rpt-pt-bar" style="width:' + pct + '%"></div></div>' +
-              '<div class="rpt-pt-count">' + pt.count + '</div>' +
-            '</div>';
-          }).join('') +
-        '</div>'
-      : '';
+    // Compute summary KPIs from tickets
+    var closed   = tickets.filter(function(t) { return t.status === 'CLOSED'; }).length;
+    var open     = tickets.filter(function(t) { return !['CLOSED','VOIDED'].includes(t.status); }).length;
+    var critical = tickets.filter(function(t) { return t.priority === 'CRITICAL'; }).length;
+    var tfActive = tickets.filter(function(t) { return !!t.tempFixFlag; }).length;
+    var totHrs   = tickets.reduce(function(s, t) { return s + (parseFloat(t.actualHours) || 0); }, 0);
+
+    ptEl.innerHTML =
+      // Ops health KPI band
+      '<div class="kpi-band" style="grid-template-columns:repeat(5,1fr);margin-bottom:14px;">' +
+        _rptKpi_(tickets.length, 'Total Tickets',    '', '') +
+        _rptKpi_(closed,  'Closed',     'success', closed  > 0 ? 'in period'          : '') +
+        _rptKpi_(open,    'Active',     open > 0 ? 'info' : '', '') +
+        _rptKpi_(critical,'Critical',   critical > 0 ? 'critical' : '', '') +
+        _rptKpi_(totHrs.toFixed(1), 'Labor Hours', '', 'total across period') +
+      '</div>' +
+      // Problem type bar chart
+      (ptList.length > 0
+        ? '<div class="rpt-analytics-card" style="margin-bottom:14px;">' +
+            '<div class="rpt-analytics-hdr">Problem Type Breakdown' +
+              '<span class="rpt-legend">top ' + Math.min(ptList.length, 8) + ' of ' + ptList.length + ' types</span>' +
+            '</div>' +
+            ptList.slice(0, 8).map(function(pt) {
+              var pct = Math.round((pt.count / ptMax) * 100);
+              return '<div class="rpt-pt-row">' +
+                '<div class="rpt-pt-label" title="' + esc(pt.type) + '">' + esc(pt.type) + '</div>' +
+                '<div class="rpt-pt-bar-wrap"><div class="rpt-pt-bar" style="width:' + pct + '%"></div></div>' +
+                '<div class="rpt-pt-count">' + pt.count + '</div>' +
+              '</div>';
+            }).join('') +
+          '</div>'
+        : '');
   }
 
-  // Activity trend chart (async)
+  // ── Activity trend chart (async) ────────────────────────────────────────
   if (trendEl) {
-    trendEl.innerHTML = '<div class="rpt-analytics-panel"><div class="rpt-analytics-loading">Loading trend…</div></div>';
+    trendEl.innerHTML = '<div class="rpt-analytics-card"><div class="rpt-analytics-loading">Loading trend…</div></div>';
     google.script.run
       .withSuccessHandler(function(d) { _rptRenderTrend_(d, trendEl); })
       .withFailureHandler(function()  { trendEl.innerHTML = ''; })
@@ -226,13 +246,22 @@ function _rptAnalytics_(tickets) {
   }
 }
 
+function _rptKpi_(val, label, accent, foot) {
+  return '<div class="kpi' + (accent ? ' kpi-' + accent : '') + '">' +
+    '<div class="kpi-accent"></div>' +
+    '<div class="kpi-label">' + esc(label) + '</div>' +
+    '<div class="kpi-value">' + val + '</div>' +
+    (foot ? '<div class="kpi-foot">' + esc(foot) + '</div>' : '') +
+  '</div>';
+}
+
 function _rptRenderTrend_(d, el) {
   if (!d || !d.labels || d.labels.length === 0) { el.innerHTML = ''; return; }
   var n    = d.labels.length;
   var maxV = Math.max.apply(null, d.opened.concat(d.closed).concat([1]));
-  var W = 560, H = 130, padL = 8, padR = 8, padB = 22, padT = 8;
+  var W = 560, H = 130, padL = 8, padR = 8, padB = 24, padT = 8;
   var slotW  = (W - padL - padR) / n;
-  var barW   = Math.max(6, Math.floor(slotW * 0.35));
+  var barW   = Math.max(8, Math.floor(slotW * 0.38));
   var chartH = H - padT - padB;
 
   var rects = '';
@@ -240,16 +269,16 @@ function _rptRenderTrend_(d, el) {
     var cx = padL + (i + 0.5) * slotW;
     var oH = Math.max(2, Math.round((d.opened[i] / maxV) * chartH));
     var cH = Math.max(2, Math.round((d.closed[i] / maxV) * chartH));
-    rects += '<rect x="' + (cx - barW - 2) + '" y="' + (padT + chartH - oH) + '" width="' + barW + '" height="' + oH + '" fill="#3B82F6" opacity=".7" rx="2"/>';
-    rects += '<rect x="' + (cx + 2)         + '" y="' + (padT + chartH - cH) + '" width="' + barW + '" height="' + cH + '" fill="#10B981" opacity=".7" rx="2"/>';
-    rects += '<text x="' + cx + '" y="' + (H - 5) + '" text-anchor="middle" font-size="9" fill="#94a3b8">' + esc(label) + '</text>';
+    rects += '<rect x="' + (cx - barW - 2) + '" y="' + (padT + chartH - oH) + '" width="' + barW + '" height="' + oH + '" fill="var(--status-info)" opacity=".75" rx="2"/>';
+    rects += '<rect x="' + (cx + 2)         + '" y="' + (padT + chartH - cH) + '" width="' + barW + '" height="' + cH + '" fill="var(--status-success)" opacity=".75" rx="2"/>';
+    rects += '<text x="' + cx + '" y="' + (H - 6) + '" text-anchor="middle" font-size="9" fill="var(--text-tertiary)" font-family="var(--font-mono)">' + esc(label) + '</text>';
   });
 
-  el.innerHTML = '<div class="rpt-analytics-panel">' +
-    '<div class="rpt-analytics-title">Activity Trend — Last 6 Months' +
-      '<span style="float:right;font-size:10px;font-weight:400;letter-spacing:0;">' +
-        '<span style="color:#3B82F6;">&#9632;</span> Opened &nbsp;' +
-        '<span style="color:#10B981;">&#9632;</span> Closed' +
+  el.innerHTML = '<div class="rpt-analytics-card" style="margin-bottom:14px;">' +
+    '<div class="rpt-analytics-hdr">Activity Trend — Last 6 Months' +
+      '<span class="rpt-legend">' +
+        '<span style="color:var(--status-info);">&#9632;</span> Opened &nbsp;' +
+        '<span style="color:var(--status-success);">&#9632;</span> Closed' +
       '</span>' +
     '</div>' +
     '<svg viewBox="0 0 ' + W + ' ' + H + '" style="width:100%;height:auto;display:block;">' +
