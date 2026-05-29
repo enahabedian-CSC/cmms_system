@@ -321,18 +321,43 @@ function _tdComplete_() {
 function _tdVerifyClose_() {
   var t = _tdTicket;
   if (!t) return;
+
+  var tempFixSection = '';
+  if (t.tempFixFlag) {
+    tempFixSection =
+      '<div style="background:#F5F3FF;border:1px solid #C4B5FD;border-radius:6px;padding:12px 14px;margin-top:4px;">' +
+        '<div style="font-size:12.5px;font-weight:700;color:#5B21B6;margin-bottom:6px;">🔧 Active Temp Fix Detected</div>' +
+        '<div style="font-size:12px;color:#6D28D9;margin-bottom:10px;">This ticket has an active temp fix on record. If the permanent repair is confirmed, clear the temp fix now so it no longer appears on the monitor.</div>' +
+        '<div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;">' +
+          '<input type="checkbox" id="vc-cleartf" checked style="width:auto;" />' +
+          '<label for="vc-cleartf" style="margin:0;font-size:12.5px;font-weight:600;color:#5B21B6;cursor:pointer;">Clear temp fix — permanent repair confirmed</label>' +
+        '</div>' +
+        '<div class="form-group" style="margin-bottom:0;">' +
+          '<label>Clear Reason (optional)</label>' +
+          '<input id="vc-tf-reason" type="text" placeholder="e.g. Permanent fix installed and tested" />' +
+        '</div>' +
+      '</div>';
+  }
+
   _showModal_('Verify &amp; Close — ' + esc(t.ticketNo),
+    '<div style="background:var(--status-info-bg);border:1px solid var(--status-info);border-radius:6px;padding:9px 12px;margin-bottom:12px;font-size:12px;color:var(--status-info);">Closing this ticket is permanent. Confirm the repair has been completed and verified before proceeding.</div>' +
     '<div class="form-group"><label>Verified By</label><input id="vc-verifier" value="' + esc(USER.displayName) + '" /></div>' +
-    '<div class="form-group"><label>Closing Notes (optional)</label><textarea id="vc-notes"></textarea></div>',
+    '<div class="form-group"><label>Closing Notes (optional)</label><textarea id="vc-notes"></textarea></div>' +
+    tempFixSection,
     function() {
       var data = {
         ticketNo:   t.ticketNo,
-        verifiedBy: document.getElementById('vc-verifier').value || USER.displayName,
+        verifiedBy: document.getElementById('vc-verifier').value.trim() || USER.displayName,
         notes:      document.getElementById('vc-notes').value,
         updatedBy:  USER.displayName
       };
+      var clearEl = document.getElementById('vc-cleartf');
+      if (clearEl) {
+        data.clearTempFix  = clearEl.checked;
+        data.tempFixNotes  = document.getElementById('vc-tf-reason').value.trim();
+      }
       _tdRunAction_(verifyAndCloseTicket, data, 'Verified & Closed');
-    });
+    }, 'Verify &amp; Close');
 }
 
 function _tdVoid_() {

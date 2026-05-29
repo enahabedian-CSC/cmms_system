@@ -208,7 +208,27 @@ function verifyAndCloseTicket(data) {
       updatedBy:    data.verifiedBy || user.displayName
     }, now);
 
-    return { success: true, ticketNo: tn, status: 'CLOSED' };
+    // Optional: clear linked temp fix record(s) when permanent repair is confirmed
+    if (data.clearTempFix) {
+      var clearedBy = data.verifiedBy || user.displayName;
+      var tfNotes   = data.tempFixNotes || 'Cleared at ticket close';
+      var tfCleared = _clearTempFixForTicket_(ss, tn, clearedBy, tfNotes, now);
+      if (tfCleared > 0) {
+        appendToMasterLog_({
+          ticketNo:  tn,
+          now:       now,
+          action:    ML_ACTIONS.MANAGER_ACTION + ' — TEMP FIX CLEARED',
+          status:    'CLOSED',
+          dept:      dept,
+          updatedBy: clearedBy,
+          notes:     tfNotes
+        });
+        appendToTicketHistory_(tn, TH_EVENTS.TEMP_FIX_CLEARED, 'CLOSED', 'CLOSED',
+          clearedBy, tfNotes);
+      }
+    }
+
+    return { success: true, ticketNo: tn, status: 'CLOSED', tempFixCleared: !!(data.clearTempFix) };
   } catch (e) {
     Logger.log('verifyAndCloseTicket error: ' + e.message);
     return { success: false, error: e.message };
@@ -721,4 +741,28 @@ function _buildTicketDataFromMl_(mlRow, overrides) {
     lineNo:        overrides.lineNo       || String(mlRow[ML.LINE_NO       - 1] || ''),
     verifiedBy:    overrides.verifiedBy   || String(mlRow[ML.VERIFIED_BY   - 1] || '')
   };
+}
+
+// Clears all non-CLEARED temp fix rows for a given ticket.
+// Returns the count of rows cleared.
+function _clearTempFixForTicket_(ss, ticketNo, clearedBy, notes, now) {
+  var sh = ss.getSheetByName(SH.TEMP_FIX);
+  if (!sh || sh.getLastRow() <= HIST_HEADER_ROW) return 0;
+  var startRow = HIST_HEADER_ROW + 1;
+  var numRows  = sh.getLastRow() - HIST_HEADER_ROW;
+  var data     = sh.getRange(startRow, 1, numRows, TF_COLS).getValues();
+  var cleared  = 0;
+  var dateStr  = formatDateStr_(now);
+  for (var i = 0; i < data.length; i++) {
+    if (String(data[i][TF.TICKET_NO - 1] || '').trim() !== ticketNo) continue;
+    var status = String(data[i][TF.STATUS - 1] || '').trim().toUpperCase();
+    if (status === 'CLEARED') continue;
+    var sheetRow = startRow + i;
+    sh.getRange(sheetRow, TF.STATUS).setValue('CLEARED');
+    sh.getRange(sheetRow, TF.CLEARED_BY).setValue(clearedBy);
+    sh.getRange(sheetRow, TF.CLEARED_DATE).setValue(dateStr);
+    if (notes) sh.getRange(sheetRow, TF.NOTES).setValue(notes);
+    cleared++;
+  }
+  return cleared;
 }
