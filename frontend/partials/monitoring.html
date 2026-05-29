@@ -39,6 +39,15 @@
 .mon-btn.primary:hover{background:var(--brand-navy-soft);}
 .mon-btn.danger{background:var(--status-critical-bg);color:var(--status-critical);border-color:var(--status-critical);}
 
+/* KPI bars */
+.mon-kpi-bar{display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap;}
+.mon-kpi{background:var(--bg-surface);border:1px solid var(--border-default);border-radius:8px;padding:8px 14px;min-width:80px;display:flex;flex-direction:column;align-items:center;box-shadow:var(--shadow-sm);}
+.mon-kpi-val{font-size:22px;font-weight:700;color:var(--text-primary);line-height:1;font-variant-numeric:tabular-nums;}
+.mon-kpi-val.kpi-critical{color:var(--status-critical);}
+.mon-kpi-val.kpi-warn{color:var(--status-warn);}
+.mon-kpi-val.kpi-success{color:var(--status-success);}
+.mon-kpi-lbl{font-size:10px;color:var(--text-secondary);text-transform:uppercase;letter-spacing:.04em;margin-top:3px;white-space:nowrap;}
+
 /* Monitor action modal */
 .mon-modal-back{position:fixed;inset:0;background:rgba(0,0,0,.35);z-index:5000;display:none;align-items:center;justify-content:center;}
 .mon-modal-back.open{display:flex;}
@@ -99,6 +108,7 @@ function _renderTf_(items, container) {
       '<button onclick="_loadTfPage_(document.getElementById(\'page-tempfix\'))" ' +
         'style="height:30px;padding:0 10px;border:1px solid var(--border-default);border-radius:6px;background:#fff;font-size:12px;cursor:pointer;color:var(--text-secondary);" title="Refresh">↻</button>' +
     '</div>' +
+    _tfKpiBar_(_tfData_) +
     '<div class="mon-table-wrap"><table class="mon-table">' +
       '<thead><tr>' +
         '<th>ID</th><th>Ticket #</th><th>Equipment</th><th>Dept</th>' +
@@ -211,6 +221,7 @@ function _renderEhl_(items, container) {
       '<button onclick="_loadEhlPage_(document.getElementById(\'page-equipment-hold\'))" ' +
         'style="height:30px;padding:0 10px;border:1px solid var(--border-default);border-radius:6px;background:#fff;font-size:12px;cursor:pointer;color:var(--text-secondary);" title="Refresh">↻</button>' +
     '</div>' +
+    _ehlKpiBar_(_ehlData_) +
     '<div class="mon-table-wrap"><table class="mon-table">' +
       '<thead><tr>' +
         '<th>Tag ID</th><th>Ticket #</th><th>Equipment</th><th>Dept</th>' +
@@ -373,6 +384,35 @@ function _pnAdvance_(partId, newStatus) {
     })
     .withFailureHandler(function(e) { showToast(e.message || String(e), 'error'); })
     .updatePartsStatus({ partId: partId, status: newStatus });
+}
+
+// ─── KPI helpers ─────────────────────────────────────────────────────────────
+
+function _monKpiChip_(val, label, cls) {
+  return '<div class="mon-kpi"><span class="mon-kpi-val' + (cls ? ' ' + cls : '') + '">' + val + '</span>' +
+         '<span class="mon-kpi-lbl">' + esc(label) + '</span></div>';
+}
+
+function _tfKpiBar_(items) {
+  var total   = items.length;
+  var pastDue = items.filter(function(t) { return t.status === 'PAST DUE'; }).length;
+  var active  = items.filter(function(t) { return t.status === 'ACTIVE';   }).length;
+  return '<div class="mon-kpi-bar">' +
+    _monKpiChip_(total,   'Total Flagged', '') +
+    _monKpiChip_(active,  'Active',        active  > 0 ? 'kpi-warn'     : '') +
+    _monKpiChip_(pastDue, 'Past Due',      pastDue > 0 ? 'kpi-critical' : 'kpi-success') +
+  '</div>';
+}
+
+function _ehlKpiBar_(items) {
+  var total  = items.length;
+  var red    = items.filter(function(t) { return t.tagType && t.tagType.indexOf('Red')    === 0; }).length;
+  var yellow = items.filter(function(t) { return t.tagType && t.tagType.indexOf('Yellow') === 0; }).length;
+  return '<div class="mon-kpi-bar">' +
+    _monKpiChip_(total,  'Total Tagged',     '') +
+    _monKpiChip_(red,    'Out of Service',   red    > 0 ? 'kpi-critical' : '') +
+    _monKpiChip_(yellow, 'Use w/ Caution',   yellow > 0 ? 'kpi-warn'     : '') +
+  '</div>';
 }
 
 // ─── Shared monitor modal ─────────────────────────────────────────────────────

@@ -39,6 +39,16 @@
 .rpt-table .col-desc{max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text-secondary);}
 .rpt-empty{padding:32px 24px;text-align:center;color:var(--text-secondary);font-size:13px;}
 
+/* Analytics panels */
+.rpt-analytics-panel{background:var(--bg-surface);border:1px solid var(--border-default);border-radius:8px;padding:14px;box-shadow:var(--shadow-sm);margin-bottom:14px;}
+.rpt-analytics-title{font-size:11px;font-weight:700;color:var(--brand-navy);text-transform:uppercase;letter-spacing:.06em;margin-bottom:10px;padding-bottom:6px;border-bottom:1px solid var(--border-default);}
+.rpt-pt-row{display:flex;align-items:center;gap:8px;margin-bottom:6px;}
+.rpt-pt-label{font-size:11.5px;color:var(--text-secondary);width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex-shrink:0;}
+.rpt-pt-bar-wrap{flex:1;height:10px;background:var(--bg-subtle);border-radius:4px;overflow:hidden;}
+.rpt-pt-bar{height:100%;background:var(--brand-navy);border-radius:4px;opacity:.75;}
+.rpt-pt-count{font-size:11.5px;font-weight:600;color:var(--text-primary);width:28px;text-align:right;flex-shrink:0;}
+.rpt-analytics-loading{padding:16px;text-align:center;color:var(--text-secondary);font-size:12px;}
+
 /* Print styles */
 @media print {
   .rpt-toolbar,.rpt-btn,#sidebar,.topbar{display:none!important;}
@@ -107,6 +117,10 @@ function _renderReport_(data, container) {
         + '</div>'
       : '<div style="padding:12px 0;font-size:12.5px;color:var(--text-secondary);">No dept data for this window.</div>') +
 
+    // Analytics placeholders (populated after render)
+    '<div id="rpt-analytics"></div>' +
+    '<div id="rpt-trend"></div>' +
+
     // Ticket table
     '<div class="rpt-table-wrap">' +
       '<div class="rpt-section-hdr">Ticket Detail — <span id="rpt-cnt">' + data.tickets.length + ' tickets</span></div>' +
@@ -122,6 +136,7 @@ function _renderReport_(data, container) {
     '</div>';
 
   _rptRenderRows_(data.tickets);
+  _rptAnalytics_(data.tickets);
 }
 
 function _rptStatRow_(label, val, cls) {
@@ -169,6 +184,78 @@ function _rptRenderRows_(list) {
       '<td style="font-size:11.5px;color:var(--text-secondary);">' + esc(String(t.actualHours || '—')) + '</td>' +
     '</tr>';
   }).join('');
+}
+
+function _rptAnalytics_(tickets) {
+  var ptEl    = document.getElementById('rpt-analytics');
+  var trendEl = document.getElementById('rpt-trend');
+
+  // Problem type breakdown
+  if (ptEl) {
+    var ptMap = {};
+    tickets.forEach(function(t) {
+      var pt = (t.problemType && t.problemType.trim()) || 'Unspecified';
+      ptMap[pt] = (ptMap[pt] || 0) + 1;
+    });
+    var ptList = Object.keys(ptMap).map(function(k) { return { type: k, count: ptMap[k] }; });
+    ptList.sort(function(a, b) { return b.count - a.count; });
+    var ptMax = ptList.length > 0 ? ptList[0].count : 1;
+
+    ptEl.innerHTML = ptList.length > 0
+      ? '<div class="rpt-analytics-panel">' +
+          '<div class="rpt-analytics-title">Problem Type Breakdown</div>' +
+          ptList.slice(0, 8).map(function(pt) {
+            var pct = Math.round((pt.count / ptMax) * 100);
+            return '<div class="rpt-pt-row">' +
+              '<div class="rpt-pt-label" title="' + esc(pt.type) + '">' + esc(pt.type) + '</div>' +
+              '<div class="rpt-pt-bar-wrap"><div class="rpt-pt-bar" style="width:' + pct + '%"></div></div>' +
+              '<div class="rpt-pt-count">' + pt.count + '</div>' +
+            '</div>';
+          }).join('') +
+        '</div>'
+      : '';
+  }
+
+  // Activity trend chart (async)
+  if (trendEl) {
+    trendEl.innerHTML = '<div class="rpt-analytics-panel"><div class="rpt-analytics-loading">Loading trend…</div></div>';
+    google.script.run
+      .withSuccessHandler(function(d) { _rptRenderTrend_(d, trendEl); })
+      .withFailureHandler(function()  { trendEl.innerHTML = ''; })
+      .getDashboardTrend(6);
+  }
+}
+
+function _rptRenderTrend_(d, el) {
+  if (!d || !d.labels || d.labels.length === 0) { el.innerHTML = ''; return; }
+  var n    = d.labels.length;
+  var maxV = Math.max.apply(null, d.opened.concat(d.closed).concat([1]));
+  var W = 560, H = 130, padL = 8, padR = 8, padB = 22, padT = 8;
+  var slotW  = (W - padL - padR) / n;
+  var barW   = Math.max(6, Math.floor(slotW * 0.35));
+  var chartH = H - padT - padB;
+
+  var rects = '';
+  d.labels.forEach(function(label, i) {
+    var cx = padL + (i + 0.5) * slotW;
+    var oH = Math.max(2, Math.round((d.opened[i] / maxV) * chartH));
+    var cH = Math.max(2, Math.round((d.closed[i] / maxV) * chartH));
+    rects += '<rect x="' + (cx - barW - 2) + '" y="' + (padT + chartH - oH) + '" width="' + barW + '" height="' + oH + '" fill="#3B82F6" opacity=".7" rx="2"/>';
+    rects += '<rect x="' + (cx + 2)         + '" y="' + (padT + chartH - cH) + '" width="' + barW + '" height="' + cH + '" fill="#10B981" opacity=".7" rx="2"/>';
+    rects += '<text x="' + cx + '" y="' + (H - 5) + '" text-anchor="middle" font-size="9" fill="#94a3b8">' + esc(label) + '</text>';
+  });
+
+  el.innerHTML = '<div class="rpt-analytics-panel">' +
+    '<div class="rpt-analytics-title">Activity Trend — Last 6 Months' +
+      '<span style="float:right;font-size:10px;font-weight:400;letter-spacing:0;">' +
+        '<span style="color:#3B82F6;">&#9632;</span> Opened &nbsp;' +
+        '<span style="color:#10B981;">&#9632;</span> Closed' +
+      '</span>' +
+    '</div>' +
+    '<svg viewBox="0 0 ' + W + ' ' + H + '" style="width:100%;height:auto;display:block;">' +
+      rects +
+    '</svg>' +
+  '</div>';
 }
 
 function _rptChangeDays_() {
