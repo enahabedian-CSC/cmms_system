@@ -1,0 +1,217 @@
+<!-- ╔══════════════════════════════════════════════════════════════════╗ -->
+<!-- ║  Tech Work Board partial                                        ║ -->
+<!-- ║  Registers PAGE: tech-board                                     ║ -->
+<!-- ║  Managers: all open tickets for owned depts, grouped by tech    ║ -->
+<!-- ║  Techs: only their own assigned tickets                         ║ -->
+<!-- ╚══════════════════════════════════════════════════════════════════╝ -->
+<style>
+/* ── Tech Work Board ─────────────────────────────────────────────── */
+.twb-wrap{padding:20px 24px;}
+.twb-toolbar{display:flex;align-items:center;gap:10px;margin-bottom:14px;flex-wrap:wrap;}
+.twb-title{font-size:15px;font-weight:700;color:var(--text-primary);flex:1;}
+.twb-count{font-size:12px;color:var(--text-secondary);background:var(--bg-subtle);border:1px solid var(--border-default);border-radius:4px;padding:2px 8px;}
+.twb-search{height:30px;padding:0 10px;border:1px solid var(--border-default);border-radius:6px;font-size:12.5px;width:200px;outline:none;color:var(--text-primary);}
+.twb-search:focus{border-color:var(--brand-navy);}
+.twb-filter-select{height:30px;padding:0 8px;border:1px solid var(--border-default);border-radius:6px;font-size:12px;background:#fff;color:var(--text-primary);outline:none;}
+
+/* Tech group cards */
+.twb-tech-group{background:var(--bg-surface);border:1px solid var(--border-default);border-radius:10px;overflow:hidden;box-shadow:var(--shadow-sm);margin-bottom:14px;}
+.twb-tech-hdr{padding:10px 16px;background:var(--brand-navy);display:flex;align-items:center;gap:10px;cursor:pointer;}
+.twb-tech-hdr:hover{background:var(--brand-navy-soft);}
+.twb-avatar{width:30px;height:30px;border-radius:50%;background:rgba(255,255,255,.15);color:#fff;font-size:11px;font-weight:700;display:grid;place-items:center;flex-shrink:0;}
+.twb-tech-name{font-size:13px;font-weight:600;color:#fff;flex:1;}
+.twb-tech-stats{display:flex;gap:8px;}
+.twb-stat-badge{font-size:11px;font-weight:600;padding:2px 8px;border-radius:10px;background:rgba(255,255,255,.15);color:#fff;}
+.twb-stat-badge.crit{background:var(--status-critical);}
+
+/* Unassigned section */
+.twb-unassigned-hdr{padding:10px 16px;background:var(--bg-subtle);border-bottom:1px solid var(--border-default);display:flex;align-items:center;gap:10px;}
+.twb-unassigned-label{font-size:12px;font-weight:700;color:var(--text-secondary);text-transform:uppercase;letter-spacing:.04em;flex:1;}
+
+/* Ticket table within each group */
+.twb-table{width:100%;border-collapse:collapse;font-size:12.5px;}
+.twb-table th{background:var(--bg-subtle);padding:7px 12px;text-align:left;font-size:11px;font-weight:600;color:var(--text-secondary);text-transform:uppercase;letter-spacing:.04em;border-bottom:1px solid var(--border-default);white-space:nowrap;}
+.twb-table td{padding:9px 12px;border-bottom:1px solid var(--border-default);vertical-align:middle;color:var(--text-primary);}
+.twb-table tr:last-child td{border-bottom:0;}
+.twb-table tbody tr{cursor:pointer;transition:background .1s;}
+.twb-table tbody tr:hover{background:var(--bg-hover);}
+.twb-table .col-tn{font-family:var(--font-mono);font-weight:600;color:var(--brand-navy);font-size:12px;}
+.twb-table .col-desc{max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text-secondary);}
+.twb-table .col-equip{max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.twb-empty{padding:32px 24px;text-align:center;color:var(--text-secondary);font-size:13px;}
+
+/* My tickets banner (tech view) */
+.twb-my-banner{background:var(--status-info-bg);border:1px solid var(--status-info);border-radius:8px;padding:10px 14px;margin-bottom:14px;font-size:12.5px;color:var(--status-info);}
+</style>
+
+<script>
+window.PAGES = window.PAGES || {};
+
+var _twbData_   = null;
+var _twbSearch_ = '';
+
+PAGES['tech-board'] = function(c) { _loadTechBoard_(c); };
+
+function _loadTechBoard_(container) {
+  container.innerHTML =
+    '<div class="loading-overlay"><div class="spinner"></div><span>Loading work board…</span></div>';
+  google.script.run
+    .withSuccessHandler(function(data) { _renderTechBoard_(data, container); })
+    .withFailureHandler(function(err) {
+      container.innerHTML =
+        '<div class="twb-empty">Error loading work board: ' + esc(err.message || String(err)) + '</div>';
+    })
+    .getTechWorkBoardData();
+}
+
+function _renderTechBoard_(data, container) {
+  _twbData_   = data;
+  _twbSearch_ = '';
+  var isManager = data.isManager;
+  var tickets   = data.tickets || [];
+
+  container.innerHTML =
+    '<div class="twb-wrap">' +
+    '<div class="twb-toolbar">' +
+      '<span class="twb-title">' + (isManager ? 'Tech Work Board' : 'My Work Queue') + '</span>' +
+      '<span class="twb-count" id="twb-cnt">' + tickets.length + ' ticket' + (tickets.length !== 1 ? 's' : '') + '</span>' +
+      '<input class="twb-search" id="twb-search" placeholder="Search…" oninput="_twbApply_()" />' +
+      (isManager ? '<select class="twb-filter-select" id="twb-dept" onchange="_twbApply_()">' +
+        '<option value="">All Depts</option>' +
+        _twbDeptOptions_(tickets) +
+        '</select>' : '') +
+      '<button onclick="_loadTechBoard_(document.getElementById(\'page-tech-board\'))" style="height:30px;padding:0 10px;border:1px solid var(--border-default);border-radius:6px;background:#fff;font-size:12px;cursor:pointer;color:var(--text-secondary);" title="Refresh">↻</button>' +
+    '</div>' +
+    (!isManager ? '<div class="twb-my-banner">Showing tickets assigned to <strong>' + esc(data.userDisplayName) + '</strong></div>' : '') +
+    '<div id="twb-body"></div>' +
+    '</div>';
+
+  _twbRender_(tickets, isManager);
+}
+
+function _twbDeptOptions_(tickets) {
+  var depts = [];
+  tickets.forEach(function(t) { if (depts.indexOf(t.dept) < 0) depts.push(t.dept); });
+  return depts.sort().map(function(d) { return '<option value="' + esc(d) + '">' + esc(d) + '</option>'; }).join('');
+}
+
+function _twbApply_() {
+  if (!_twbData_) return;
+  var q     = document.getElementById('twb-search');
+  var deptEl= document.getElementById('twb-dept');
+  var qv    = q     ? q.value.toLowerCase()  : '';
+  var dv    = deptEl? deptEl.value.toUpperCase() : '';
+  _twbSearch_ = qv;
+  var list = (_twbData_.tickets || []).filter(function(t) {
+    if (dv && t.dept !== dv) return false;
+    if (qv) {
+      var hay = (t.ticketNo + ' ' + t.dept + ' ' + t.specificEquip + ' ' +
+                 t.description + ' ' + (t.assignedTo || '')).toLowerCase();
+      if (hay.indexOf(qv) < 0) return false;
+    }
+    return true;
+  });
+  _twbRender_(list, _twbData_.isManager);
+}
+
+function _twbRender_(tickets, isManager) {
+  var body  = document.getElementById('twb-body');
+  var cntEl = document.getElementById('twb-cnt');
+  if (!body) return;
+  if (cntEl) cntEl.textContent = tickets.length + ' ticket' + (tickets.length !== 1 ? 's' : '');
+
+  if (tickets.length === 0) {
+    body.innerHTML = '<div class="twb-empty">' +
+      (isManager ? 'No active tickets for your departments.' : 'No tickets assigned to you.') +
+      '</div>';
+    return;
+  }
+
+  if (!isManager) {
+    // Tech view: flat table
+    body.innerHTML =
+      '<div class="twb-tech-group">' +
+        '<div style="overflow-x:auto;">' +
+          '<table class="twb-table">' +
+            _twbTableHead_(false) +
+            '<tbody>' + tickets.map(_twbRow_).join('') + '</tbody>' +
+          '</table>' +
+        '</div>' +
+      '</div>';
+    return;
+  }
+
+  // Manager view: group by assigned tech
+  var groups = {};
+  var unassigned = [];
+  tickets.forEach(function(t) {
+    var tech = (t.assignedTo || '').trim();
+    if (!tech) { unassigned.push(t); return; }
+    if (!groups[tech]) groups[tech] = [];
+    groups[tech].push(t);
+  });
+
+  var html = '';
+
+  // Assigned groups
+  Object.keys(groups).sort().forEach(function(tech) {
+    var list = groups[tech];
+    var initials = tech.trim().split(/\s+/).map(function(w) { return w[0] || ''; }).join('').substring(0, 2).toUpperCase();
+    var critCt   = list.filter(function(t) { return t.priority === 'CRITICAL'; }).length;
+    html +=
+      '<div class="twb-tech-group">' +
+        '<div class="twb-tech-hdr">' +
+          '<div class="twb-avatar">' + esc(initials) + '</div>' +
+          '<div class="twb-tech-name">' + esc(tech) + '</div>' +
+          '<div class="twb-tech-stats">' +
+            '<span class="twb-stat-badge">' + list.length + ' ticket' + (list.length !== 1 ? 's' : '') + '</span>' +
+            (critCt > 0 ? '<span class="twb-stat-badge crit">' + critCt + ' Critical</span>' : '') +
+          '</div>' +
+        '</div>' +
+        '<div style="overflow-x:auto;"><table class="twb-table">' +
+          _twbTableHead_(true) +
+          '<tbody>' + list.map(_twbRow_).join('') + '</tbody>' +
+        '</table></div>' +
+      '</div>';
+  });
+
+  // Unassigned
+  if (unassigned.length > 0) {
+    html +=
+      '<div class="twb-tech-group">' +
+        '<div class="twb-unassigned-hdr">' +
+          '<span class="twb-unassigned-label">Unassigned</span>' +
+          '<span class="twb-count">' + unassigned.length + ' ticket' + (unassigned.length !== 1 ? 's' : '') + '</span>' +
+        '</div>' +
+        '<div style="overflow-x:auto;"><table class="twb-table">' +
+          _twbTableHead_(true) +
+          '<tbody>' + unassigned.map(_twbRow_).join('') + '</tbody>' +
+        '</table></div>' +
+      '</div>';
+  }
+
+  body.innerHTML = html;
+}
+
+function _twbTableHead_(showDept) {
+  return '<thead><tr>' +
+    '<th>Ticket #</th><th>Priority</th><th>Status</th>' +
+    (showDept ? '<th>Dept</th>' : '') +
+    '<th>Equipment</th><th>Description</th><th>Est Hrs</th><th>Opened</th>' +
+    '</tr></thead>';
+}
+
+function _twbRow_(t) {
+  var showDept = _twbData_ && _twbData_.isManager;
+  return '<tr onclick="openTicketDetail(\'' + esc(t.ticketNo) + '\')">' +
+    '<td class="col-tn">' + esc(t.ticketNo) + '</td>' +
+    '<td><span class="pri-badge pri-' + esc(t.priority || '') + '">' + esc(t.priority || '—') + '</span></td>' +
+    '<td><span class="stat-badge stat-' + esc(t.status) + '">' + esc(t.status) + '</span></td>' +
+    (showDept ? '<td>' + esc(t.dept) + '</td>' : '') +
+    '<td class="col-equip" title="' + esc(t.specificEquip) + '">' + esc(t.specificEquip) + '</td>' +
+    '<td class="col-desc" title="' + esc(t.description) + '">' + esc(t.description) + '</td>' +
+    '<td style="font-size:11.5px;color:var(--text-secondary);">' + esc(String(t.estHours || '—')) + '</td>' +
+    '<td style="font-size:11.5px;color:var(--text-tertiary);">' + esc(t.dateOpened) + '</td>' +
+    '</tr>';
+}
+</script>

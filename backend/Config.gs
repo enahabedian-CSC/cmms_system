@@ -44,6 +44,7 @@ var SH = {
   EQUIP_CACHE:    '⚙️ Equip Inventory Cache',
   TRANSFER_LOG:   '📋 Transfer Log',
   DEPT_MAP:       '📋 Dept Map',
+  TECH_DIR:       '👷 Tech Directory',
   // PM forward-design: schemas in place, no UI in v1
   PM_SCHEDULES:   '📅 PM Schedules',
   PM_CHECKLIST:   '📋 PM Checklist Items',
@@ -508,12 +509,33 @@ function getManagersForDept_(dept) {
 
 // ═══════════════════════════════════════════════════════════════════════════════
 //  TECH DIRECTORY READER
-//  Legacy code reads technician list from 📋 Data Lists col 'Technicians'.
-//  The prompt references a '👷 Tech Directory' tab that does not yet exist
-//  in the sheet.  This function reads Data Lists until that tab is added.
+//  Reads from 👷 Tech Directory tab (cols: Tech Name, Email, Department, Active).
+//  Falls back to flat 📋 Data Lists 'Technicians' column when tab is absent.
+//  Returns [{name, email, dept, active}] — email/dept are '' in fallback mode.
 // ═══════════════════════════════════════════════════════════════════════════════
 
 function getTechDirectory() {
+  try {
+    var tdSh = getBoundSS_().getSheetByName(SH.TECH_DIR);
+    if (tdSh && tdSh.getLastRow() >= 2) {
+      return tdSh.getRange(2, 1, tdSh.getLastRow() - 1, 4).getValues()
+        .filter(function(r) {
+          return String(r[0] || '').trim() !== '' &&
+                 String(r[3] !== undefined ? r[3] : 'Y').trim().toUpperCase() !== 'N';
+        })
+        .map(function(r) {
+          return {
+            name:  String(r[0] || '').trim(),
+            email: String(r[1] || '').trim().toLowerCase(),
+            dept:  normalizeDept(String(r[2] || '').trim()),
+            active: true
+          };
+        });
+    }
+  } catch (e) {
+    Logger.log('getTechDirectory (new tab) error: ' + e.message);
+  }
+  // Fallback: flat list from 📋 Data Lists
   try {
     var sh = getBoundSS_().getSheetByName(SH.DATA_VALID);
     if (!sh || sh.getLastRow() < 2) return [];
@@ -525,11 +547,25 @@ function getTechDirectory() {
     if (techCol === -1) return [];
     return sh.getRange(2, techCol + 1, sh.getLastRow() - 1, 1).getValues()
       .map(function(r) { return String(r[0] || '').trim(); })
-      .filter(function(v) { return v !== ''; });
+      .filter(function(v) { return v !== ''; })
+      .map(function(name) { return { name: name, email: '', dept: '', active: true }; });
   } catch (e) {
     Logger.log('getTechDirectory error: ' + e.message);
     return [];
   }
+}
+
+// Returns names of active techs for a given dept (canonical).
+// Falls back to all techs if tab has no dept data or none match.
+function getTechsForDept(dept) {
+  var norm = normalizeDept(dept || '');
+  var all  = getTechDirectory();
+  var hasDeptData = all.some(function(t) { return t.dept !== ''; });
+  if (hasDeptData && norm) {
+    var filtered = all.filter(function(t) { return t.dept === norm; });
+    return (filtered.length > 0 ? filtered : all).map(function(t) { return t.name; });
+  }
+  return all.map(function(t) { return t.name; });
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════

@@ -135,7 +135,7 @@ function getTicketDetail(ticketNo) {
       });
     }
 
-    return { ticket: ticket, history: history, techs: getPeopleList_() };
+    return { ticket: ticket, history: history, techs: getTechsForDept(ticket.dept) };
   } catch (e) {
     Logger.log('getTicketDetail error: ' + e.message);
     throw e;

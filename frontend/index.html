@@ -226,6 +226,7 @@ var COMPANY = <?!= JSON.stringify(companyName) ?>;
 <?!= include_('frontend/partials/closed-tickets') ?>
 <?!= include_('frontend/partials/monitoring') ?>
 <?!= include_('frontend/partials/reports') ?>
+<?!= include_('frontend/partials/tech-work-board') ?>
 <?!= include_('frontend/partials/admin') ?>
 
 <div id="toast-container"></div>
@@ -273,10 +274,11 @@ function getNavDef() {
     {
       section: 'Tickets', icon: 'open',
       items: [
-        { id: 'submit',  label: 'New Ticket',     icon: 'newticket'                           },
-        { id: 'waiting', label: 'Waiting Queue',  icon: 'waiting',  badgeId: 'badge-waiting' },
-        { id: 'open',    label: 'Open Tickets',   icon: 'open',     badgeId: 'badge-open'    },
-        { id: 'closed',  label: 'Closed Tickets', icon: 'closed'                              }
+        { id: 'submit',     label: 'New Ticket',     icon: 'newticket'                           },
+        { id: 'waiting',   label: 'Waiting Queue',  icon: 'waiting',  badgeId: 'badge-waiting' },
+        { id: 'open',      label: 'Open Tickets',   icon: 'open',     badgeId: 'badge-open'    },
+        { id: 'tech-board',label: 'Work Board',     icon: 'tracker'                             },
+        { id: 'closed',    label: 'Closed Tickets', icon: 'closed'                              }
       ]
     }
   ];
