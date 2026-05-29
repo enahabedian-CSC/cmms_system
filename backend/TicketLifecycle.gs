@@ -313,6 +313,95 @@ function assignTicket(data) {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
+//  requestParts — logs parts to 🔩 Parts Needed; sets partsNeeded flag.
+//  Available to TECH+.  Managers may also transition ticket to PENDING PARTS
+//  by passing setStatus: 'PENDING PARTS' (only valid when current status is OPEN).
+// ═══════════════════════════════════════════════════════════════════════════════
+
+function requestParts(data) {
+  var user = requireRole_(ROLES.TECH);
+  var now  = new Date();
+  var tn   = String(data.ticketNo || '').trim();
+  if (!tn) return { success: false, error: 'ticketNo required' };
+
+  var validParts = (data.partsList || []).filter(function(p) {
+    return String(p.desc || '').trim() !== '';
+  });
+  if (validParts.length === 0) return { success: false, error: 'At least one part description is required' };
+
+  var isManager = user.isManager || user.isAdmin;
+
+  try {
+    var orig   = getOriginalMlRow_(tn) || {};
+    var latest = getLatestMlRow_(tn)   || orig;
+    var dept   = normalizeDept(String(orig[ML.DEPT - 1] || ''));
+    var equipCode     = String(orig[ML.EQUIP_CODE     - 1] || '');
+    var specificEquip = String(orig[ML.SPECIFIC_EQUIP - 1] || '');
+    var prevStatus    = String(latest[ML.STATUS - 1] || '').trim().toUpperCase();
+
+    var newStatus = prevStatus;
+    if (isManager && data.setStatus === 'PENDING PARTS' && prevStatus === 'OPEN') {
+      newStatus = 'PENDING PARTS';
+    }
+
+    var enriched = validParts.map(function(p) {
+      return { desc: String(p.desc).trim(), equipCode: equipCode, specificEquip: specificEquip, notes: String(p.notes || '').trim() };
+    });
+
+    logPartsNeeded_(tn, dept, enriched, user.displayName, now);
+
+    var partSummary = enriched.map(function(p) { return p.desc; }).join(', ');
+
+    appendToMasterLog_({
+      ticketNo:      tn,
+      now:           now,
+      action:        'PARTS REQUESTED',
+      status:        newStatus,
+      dept:          dept,
+      buildingZone:  String(orig[ML.BUILDING_ZONE  - 1] || ''),
+      equipType:     String(orig[ML.EQUIP_TYPE     - 1] || ''),
+      equipCode:     equipCode,
+      specificEquip: specificEquip,
+      downtimeType:  String(orig[ML.DOWNTIME_TYPE  - 1] || ''),
+      description:   String(orig[ML.DESCRIPTION    - 1] || ''),
+      priority:      String(latest[ML.PRIORITY     - 1] || ''),
+      assignedTo:    String(latest[ML.ASSIGNED_TO  - 1] || ''),
+      partsNeeded:   true,
+      dateOpened:    String(orig[ML.DATE_OPENED  - 1] || ''),
+      addedBy:       String(orig[ML.ADDED_BY     - 1] || ''),
+      updatedBy:     user.displayName,
+      problemType:   String(orig[ML.PROBLEM_TYPE - 1] || ''),
+      lineNo:        String(orig[ML.LINE_NO       - 1] || ''),
+      notes:         (data.notes ? data.notes + ' | ' : '') + enriched.length + ' part(s): ' + partSummary
+    });
+
+    appendToTicketHistory_(tn, TH_EVENTS.PARTS_REQUESTED, prevStatus, newStatus,
+      user.displayName,
+      enriched.length + ' part(s) requested: ' + partSummary);
+
+    var ss = getBoundSS_();
+    _updateTicketInSheets_(ss, tn, {
+      partsNeeded: 'Y',
+      status:      newStatus,
+      updatedBy:   user.displayName
+    }, now);
+
+    sendPartsNeededEmail_(tn, {
+      dept:          dept,
+      specificEquip: specificEquip,
+      equipCode:     equipCode,
+      addedBy:       user.displayName,
+      partsList:     enriched
+    });
+
+    return { success: true, ticketNo: tn, partsLogged: enriched.length, status: newStatus };
+  } catch (e) {
+    Logger.log('requestParts error: ' + e.message);
+    return { success: false, error: e.message };
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
 //  updateTicket — add notes / change mid-workflow state
 //  Techs: notes only.  Managers: notes + status/priority/assignedTo/estHours.
 //  Valid manager status transitions: any of {OPEN, ON HOLD, PENDING PARTS}.
@@ -550,6 +639,7 @@ function _updateTicketInSheets_(ss, ticketNo, updates, now) {
     if (updates.actualHours !== undefined) sh.getRange(row, base + TK.ACTUAL_HOURS).setValue(updates.actualHours);
     if (updates.fixType)     sh.getRange(row, base + TK.FIX_TYPE).setValue(updates.fixType);
     if (updates.tempFixFlag) sh.getRange(row, base + TK.TEMP_FIX_FLAG).setValue(updates.tempFixFlag);
+    if (updates.partsNeeded) sh.getRange(row, base + TK.PARTS_NEEDED).setValue('Y');
     if (updates.verifiedBy)  sh.getRange(row, base + TK.VERIFIED_BY).setValue(updates.verifiedBy);
     if (updates.verifiedDate)sh.getRange(row, base + TK.VERIFIED_DATE).setValue(updates.verifiedDate);
     if (updates.updatedBy)   sh.getRange(row, base + TK.UPDATED_BY).setValue(updates.updatedBy);
