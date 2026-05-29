@@ -128,6 +128,9 @@ function _renderList_(tickets, queueType, deptFilter, container) {
           '<option value="">All statuses</option>' +
           statuses.map(function(s){return '<option>' + esc(s) + '</option>';}).join('') +
         '</select>' : '') +
+      (queueType === 'tracker' && USER.isManager
+        ? '<button onclick="_tlRollover_(\'' + esc(deptFilter||'') + '\')" style="height:30px;padding:0 10px;border:1px solid var(--border-default);border-radius:6px;background:#fff;font-size:12px;cursor:pointer;color:var(--text-secondary);" title="Remove CLOSED and VOIDED rows from the tracker sheet">Roll Up Closed</button>'
+        : '') +
       '<button onclick="_refreshQueuePage_(\'' + queueType + '\', \'' + (deptFilter||'') + '\')" style="height:30px;padding:0 10px;border:1px solid var(--border-default);border-radius:6px;background:#fff;font-size:12px;cursor:pointer;color:var(--text-secondary);" title="Refresh">↻</button>' +
     '</div>' +
     '<div class="tl-table-wrap"><table class="tl-table">' +
@@ -148,6 +151,30 @@ function _renderList_(tickets, queueType, deptFilter, container) {
 function _tlFilter_(queueType) {
   var ref = window['_tlFilterData_' + queueType];
   if (ref) ref.applyFilters();
+}
+
+function _tlRollover_(dept) {
+  if (!confirm('Remove all CLOSED and VOIDED tickets from the ' + (dept || 'tracker') + ' sheet?\n\nTickets remain in the Closed Tickets record — this only cleans up the physical tracker sheet view.')) return;
+  var deptId = 'tracker-' + (dept || '').toLowerCase().replace(/\s+/g, '-');
+  google.script.run
+    .withSuccessHandler(function(result) {
+      if (result && result.success) {
+        var n = result.totalRemoved;
+        showToast(
+          n > 0 ? 'Removed ' + n + ' closed/voided ticket' + (n !== 1 ? 's' : '') + ' from ' + (dept || 'tracker') + ' sheet'
+                : 'Nothing to remove — tracker sheet is already clean',
+          n > 0 ? 'success' : 'info'
+        );
+      } else {
+        showToast('Rollover failed: ' + ((result && result.error) || 'Unknown error'), 'error');
+      }
+      _refreshQueuePage_(deptId, dept);
+    })
+    .withFailureHandler(function(err) {
+      showToast('Server error: ' + (err.message || String(err)), 'error');
+      _refreshQueuePage_(deptId, dept);
+    })
+    .monthlyRollover({ dept: dept });
 }
 
 function _refreshQueuePage_(queueType, deptFilter) {

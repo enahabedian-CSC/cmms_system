@@ -187,3 +187,108 @@ function getTechWorkBoardData() {
     return { tickets: [], userDisplayName: '', isManager: false };
   }
 }
+
+// ═══════════════════════════════════════════════════════════════════════════════
+//  monthlyRollover
+//  Removes CLOSED and VOIDED rows from dept tracker sheets.
+//  Managers process their own depts; admins may pass data.dept to scope it.
+//  Priority Watch List rows (8-27) are cleared in-place (fixed layout).
+//  All Open Tickets rows (30+) are deleted bottom-to-top.
+//  Writes one ML audit row per dept where rows were actually removed.
+// ═══════════════════════════════════════════════════════════════════════════════
+
+function monthlyRollover(data) {
+  requireManager_();
+  var user = getCurrentUserInfo();
+  var now  = new Date();
+  data = data || {};
+
+  var allOwned = user.isAdmin
+    ? DEPT_TRACKERS.map(function(dt) { return dt.dept; })
+    : (user.ownedDepts || []);
+
+  var toProcess;
+  if (data.dept) {
+    var norm = normalizeDept(String(data.dept));
+    if (!user.isAdmin && allOwned.indexOf(norm) < 0) {
+      return { success: false, error: 'Not authorized for: ' + norm };
+    }
+    toProcess = DEPT_TRACKERS.filter(function(dt) { return dt.dept === norm; });
+  } else {
+    toProcess = DEPT_TRACKERS.filter(function(dt) { return allOwned.indexOf(dt.dept) >= 0; });
+  }
+
+  if (toProcess.length === 0) {
+    return { success: false, error: 'No matching dept trackers found' };
+  }
+
+  var ss       = getBoundSS_();
+  var TERMINAL = ['CLOSED', 'VOIDED'];
+  var totalRemoved = 0;
+  var results      = [];
+
+  toProcess.forEach(function(dt) {
+    var sh = ss.getSheetByName(dt.name);
+    if (!sh) {
+      results.push({ dept: dt.dept, removed: 0, error: 'Sheet not found' });
+      return;
+    }
+
+    var lastRow = sh.getLastRow();
+    var removed = 0;
+
+    // ── Priority Watch List (rows 8-27): clear closed/voided rows in-place ──
+    var priEnd = Math.min(TRACKER_PRIO_END, lastRow);
+    if (priEnd >= TRACKER_PRIO_START) {
+      var priData = sh.getRange(TRACKER_PRIO_START, TK_DATA_COL,
+        priEnd - TRACKER_PRIO_START + 1, TK_COLS).getValues();
+      for (var p = 0; p < priData.length; p++) {
+        if (!String(priData[p][TK.TICKET_NO - 1] || '').trim()) continue;
+        if (TERMINAL.indexOf(String(priData[p][TK.STATUS - 1] || '').trim().toUpperCase()) >= 0) {
+          sh.getRange(TRACKER_PRIO_START + p, TK_DATA_COL, 1, TK_COLS).clearContent();
+          removed++;
+        }
+      }
+    }
+
+    // ── All Open Tickets (rows 30+): delete closed/voided rows bottom→top ───
+    if (lastRow >= TRACKER_OPEN_START) {
+      var openData = sh.getRange(TRACKER_OPEN_START, TK_DATA_COL,
+        lastRow - TRACKER_OPEN_START + 1, TK_COLS).getValues();
+      var rowsToDelete = [];
+      for (var o = 0; o < openData.length; o++) {
+        if (!String(openData[o][TK.TICKET_NO - 1] || '').trim()) continue;
+        if (TERMINAL.indexOf(String(openData[o][TK.STATUS - 1] || '').trim().toUpperCase()) >= 0) {
+          rowsToDelete.push(TRACKER_OPEN_START + o);
+        }
+      }
+      for (var d = rowsToDelete.length - 1; d >= 0; d--) {
+        sh.deleteRow(rowsToDelete[d]);
+        removed++;
+      }
+    }
+
+    totalRemoved += removed;
+    results.push({ dept: dt.dept, removed: removed });
+
+    if (removed > 0) {
+      appendToMasterLog_({
+        ticketNo:  '',
+        now:       now,
+        action:    ML_ACTIONS.MONTH_ROLLOVER,
+        status:    '',
+        dept:      dt.dept,
+        updatedBy: user.displayName,
+        notes:     removed + ' closed/voided ticket(s) removed from ' + dt.name
+      });
+    }
+  });
+
+  return {
+    success:      true,
+    totalRemoved: totalRemoved,
+    results:      results,
+    performedBy:  user.displayName,
+    timestamp:    formatDateStr_(now)
+  };
+}
