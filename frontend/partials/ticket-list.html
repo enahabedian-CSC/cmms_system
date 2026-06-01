@@ -53,9 +53,20 @@ function _loadListPage_(queueType, deptFilter, container) {
     .getQueueTickets(queueType, { dept: deptFilter || null });
 }
 
+// Maps tracker dept → formal display title matching PAGE_TITLES in index.html
+var _TRACKER_TITLES_ = {
+  'ELECTRICAL':   'Electrical Tracker',
+  'MACHINE SHOP': 'Machine Shop Tracker',
+  'FACILITIES':   'Facilities Tracker',
+  'PLASTICS':     'Plastics Tracker',
+  'METALS':       'Metals Tracker',
+  'LITHO':        'Litho Tracker'
+};
+
 function _renderList_(tickets, queueType, deptFilter, container) {
   var title = queueType === 'waiting' ? 'Waiting Queue'
             : queueType === 'open'    ? 'Open Tickets'
+            : queueType === 'tracker' ? (_TRACKER_TITLES_[deptFilter] || (deptFilter ? deptFilter.charAt(0) + deptFilter.slice(1).toLowerCase() + ' Tracker' : 'Dept Tracker'))
             : (deptFilter || 'Dept Tracker');
 
   // Build filter state
