@@ -350,3 +350,65 @@ function _emptyTrend_(n) {
   var zeros = labels.map(function() { return 0; });
   return { labels: labels, opened: zeros, closed: zeros };
 }
+
+// ═══════════════════════════════════════════════════════════════════════════════
+//  getEquipQuickStats
+//  Returns a lightweight summary of recent ticket activity for a given
+//  equipment code — used by the Submit Ticket "Heads Up" panel.
+//  Caller must be at least MANAGER level.
+// ═══════════════════════════════════════════════════════════════════════════════
+function getEquipQuickStats(equipCode) {
+  if (!equipCode) return null;
+  requireManager_();
+  try {
+    var ss  = getBoundSS_();
+    var ml  = ss.getSheetByName(SH.MASTER_LOG);
+    if (!ml || ml.getLastRow() < 2) return { count60d: 0, topProbType: null, lastDate: null };
+
+    var tz      = Session.getScriptTimeZone();
+    var cutoff  = new Date();
+    cutoff.setDate(cutoff.getDate() - 60);
+    var data    = ml.getRange(2, 1, ml.getLastRow() - 1, ML_COLS).getValues();
+    var byTicket = {};
+
+    data.forEach(function(r) {
+      var tn = String(r[ML.TICKET_NO  - 1] || '').trim();
+      var ec = String(r[ML.EQUIP_CODE - 1] || '').trim();
+      if (!tn || ec.toUpperCase() !== equipCode.trim().toUpperCase()) return;
+      if (!byTicket[tn]) { byTicket[tn] = r.slice(); return; }
+      var cur = byTicket[tn];
+      for (var c = 0; c < r.length; c++) {
+        if (r[c] !== '' && r[c] !== null && r[c] !== undefined) cur[c] = r[c];
+      }
+    });
+
+    var count60d = 0;
+    var probTypes = {};
+    var lastDate  = null;
+
+    Object.keys(byTicket).forEach(function(tn) {
+      var r  = byTicket[tn];
+      var do_ = r[ML.DATE_OPENED - 1];
+      if (!(do_ instanceof Date) || isNaN(do_) || do_ < cutoff) return;
+      count60d++;
+      var pt = String(r[ML.PROBLEM_TYPE - 1] || '').trim();
+      if (pt) probTypes[pt] = (probTypes[pt] || 0) + 1;
+      if (!lastDate || do_ > lastDate) lastDate = do_;
+    });
+
+    var topProbType = null;
+    var maxCt = 0;
+    Object.keys(probTypes).forEach(function(pt) {
+      if (probTypes[pt] > maxCt) { maxCt = probTypes[pt]; topProbType = pt; }
+    });
+
+    return {
+      count60d:    count60d,
+      topProbType: topProbType,
+      lastDate:    lastDate ? Utilities.formatDate(lastDate, tz, 'MM/dd/yyyy') : null
+    };
+  } catch (e) {
+    Logger.log('getEquipQuickStats error: ' + e.message);
+    return null;
+  }
+}
