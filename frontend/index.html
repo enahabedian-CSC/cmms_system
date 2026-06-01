@@ -116,18 +116,24 @@ a{color:inherit;text-decoration:none;}
 .spinner{width:24px;height:24px;border:2.5px solid var(--border-strong);border-top-color:var(--brand-navy);border-radius:50%;animation:spin .7s linear infinite;}
 @keyframes spin{to{transform:rotate(360deg);}}
 
-/* ── Welcome / home placeholder ─────────────────────────────────────────── */
-.home-welcome{padding:32px 24px 0;}
+/* ── Welcome / home ──────────────────────────────────────────────────────── */
+.home-welcome{padding:24px 24px 0;}
 .home-greeting{font-size:22px;font-weight:700;color:var(--text-primary);margin-bottom:4px;}
 .home-sub{font-size:13px;color:var(--text-secondary);}
-.kpi-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:12px;margin-top:24px;}
+.kpi-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:10px;}
+/* legacy card style kept for backward compat with other partials */
 .kpi-card{background:var(--bg-surface);border:1px solid var(--border-default);border-radius:10px;padding:16px;box-shadow:var(--shadow-sm);}
-.kpi-label{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--text-secondary);margin-bottom:8px;}
-.kpi-value{font-size:28px;font-weight:700;color:var(--text-primary);font-variant-numeric:tabular-nums;line-height:1;}
-.kpi-sub{font-size:11px;color:var(--text-tertiary);margin-top:4px;}
+.kpi-card .kpi-label{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--text-secondary);margin-bottom:8px;}
+.kpi-card .kpi-value{font-size:28px;font-weight:700;color:var(--text-primary);font-variant-numeric:tabular-nums;line-height:1;}
+.kpi-card .kpi-sub{font-size:11px;color:var(--text-tertiary);margin-top:4px;}
 .kpi-card.critical .kpi-value{color:var(--status-critical);}
 .kpi-card.warn .kpi-value{color:var(--status-warn);}
 .kpi-card.success .kpi-value{color:var(--status-success);}
+/* Generic button for home page (also used by submit-ticket partial) */
+.btn{display:inline-flex;align-items:center;gap:6px;padding:0 14px;height:32px;border-radius:6px;font-size:12.5px;font-weight:600;border:1px solid var(--border-default);background:#fff;color:var(--text-secondary);cursor:pointer;transition:background .15s;white-space:nowrap;}
+.btn:hover{background:var(--bg-hover);color:var(--text-primary);}
+.btn-primary{background:var(--brand-navy);color:#fff;border-color:var(--brand-navy);}
+.btn-primary:hover{background:var(--brand-navy-soft);}
 
 /* ── Trend chart ─────────────────────────────────────────────────────────── */
 .trend-section{padding:0 24px 24px;}
@@ -558,80 +564,251 @@ function esc(s) {
 // ── Home page renderer ────────────────────────────────────────────────────────
 window.PAGES['home'] = function(container) {
   var roleLabel = { admin: 'System Admin', manager: 'Manager', tech: 'Technician' }[USER.role] || USER.role;
-  var depts = (USER.ownedDepts || []).join(', ') || 'All departments';
+  var depts = (USER.ownedDepts || []).join(' + ') || 'All departments';
+  var firstName = USER.displayName.split(' ')[0];
+  var now = new Date();
+  var hour = now.getHours();
+  var greeting = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
+
   container.innerHTML =
     '<div class="home-welcome">' +
-      '<div class="home-greeting">Welcome, ' + esc(USER.displayName.split(' ')[0]) + '</div>' +
-      '<div class="home-sub">' + esc(depts) + ' &nbsp;·&nbsp; <span class="role-badge ' + USER.role + '">' + esc(roleLabel) + '</span></div>' +
-      '<div class="kpi-grid" id="kpi-grid">' +
-        kpiCard('Open Tickets',     '—', 'Active work items',   '') +
-        kpiCard('Waiting',          '—', 'Pending approval',    '') +
-        kpiCard('Critical',         '—', 'Immediate attention', 'critical') +
-        kpiCard('Temp Fix Active',  '—', 'Monitoring required', 'warn') +
-        kpiCard('Closed (30 days)', '—', 'Resolved',            'success') +
-        kpiCard('Parts Pending',    '—', 'On order',            '') +
+      '<div style="display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:12px;">' +
+        '<div>' +
+          '<div class="home-greeting">' + greeting + ', ' + esc(firstName) + '.</div>' +
+          '<div class="home-sub">' + esc(depts) + ' &nbsp;·&nbsp; <span class="role-badge ' + USER.role + '">' + esc(roleLabel) + '</span></div>' +
+        '</div>' +
+        '<button class="btn btn-primary" onclick="navigate(\'submit\')" style="margin-top:4px;">' +
+          '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>' +
+          ' New Ticket' +
+        '</button>' +
+      '</div>' +
+      '<div class="kpi-grid" id="kpi-grid" style="margin-top:20px;">' +
+        _homeKpiCard_('Open · Mine',        '—', 'Active work items',        'info',     'kpi-open') +
+        _homeKpiCard_('Waiting Review',      '—', 'Pending your approval',    '',         'kpi-waiting') +
+        _homeKpiCard_('Critical Open',       '—', 'Immediate attention',      'critical', 'kpi-critical') +
+        _homeKpiCard_('Pending Parts',       '—', 'On order / backordered',   'warn',     'kpi-parts') +
+        _homeKpiCard_('Temp Fix Active',     '—', 'Monitoring required',      '',         'kpi-tempfix') +
+        _homeKpiCard_('Closed This Week',    '—', 'Resolved since Monday',    'success',  'kpi-closed') +
       '</div>' +
     '</div>' +
-    '<div class="trend-section" id="trend-section" style="margin-top:20px;">' +
-      '<div class="trend-card">' +
-        '<div class="trend-header">' +
-          '<span class="trend-title">Ticket Activity — Last 6 Months</span>' +
-          '<span class="trend-legend">' +
-            '<span><span class="trend-legend-dot" style="background:var(--brand-navy-soft);"></span>Opened</span>' +
-            '<span><span class="trend-legend-dot" style="background:var(--status-success);"></span>Closed</span>' +
-          '</span>' +
+
+    '<div style="padding:0 24px 24px;display:grid;grid-template-columns:2fr 1fr;gap:16px;" id="home-panels">' +
+      // Left column
+      '<div>' +
+        // Needs your attention card
+        '<div class="trend-card" style="margin-bottom:14px;">' +
+          '<div class="trend-header" style="margin-bottom:0;">' +
+            '<span class="trend-title">Needs your attention</span>' +
+            '<button onclick="navigate(\'waiting\')" style="font-size:11.5px;color:var(--text-secondary);background:transparent;border:0;cursor:pointer;padding:0;">View all →</button>' +
+          '</div>' +
+          '<div id="home-attn-list" style="min-height:40px;padding-top:8px;">' +
+            '<div class="loading-overlay" style="height:60px;"><div class="spinner"></div></div>' +
+          '</div>' +
         '</div>' +
-        '<div class="trend-chart" id="trend-chart">' +
-          '<div style="width:100%;text-align:center;color:var(--text-tertiary);font-size:12px;">Loading chart…</div>' +
+        // My open tickets table
+        '<div class="trend-card">' +
+          '<div class="trend-header" style="margin-bottom:12px;">' +
+            '<span class="trend-title">My open tickets</span>' +
+            '<button onclick="navigate(\'open\')" style="font-size:11.5px;color:var(--text-secondary);background:transparent;border:0;cursor:pointer;padding:0;">View all →</button>' +
+          '</div>' +
+          '<div style="overflow-x:auto;">' +
+            '<table style="width:100%;border-collapse:collapse;font-size:12.5px;" id="home-open-tbl">' +
+              '<thead><tr style="border-bottom:1px solid var(--border-default);">' +
+                '<th style="padding:6px 10px;text-align:left;font-size:10.5px;font-weight:600;color:var(--text-secondary);text-transform:uppercase;letter-spacing:.04em;white-space:nowrap;">Ticket</th>' +
+                '<th style="padding:6px 10px;text-align:left;font-size:10.5px;font-weight:600;color:var(--text-secondary);text-transform:uppercase;letter-spacing:.04em;">Priority</th>' +
+                '<th style="padding:6px 10px;text-align:left;font-size:10.5px;font-weight:600;color:var(--text-secondary);text-transform:uppercase;letter-spacing:.04em;">Status</th>' +
+                '<th style="padding:6px 10px;text-align:left;font-size:10.5px;font-weight:600;color:var(--text-secondary);text-transform:uppercase;letter-spacing:.04em;max-width:160px;">Equipment</th>' +
+                '<th style="padding:6px 10px;text-align:left;font-size:10.5px;font-weight:600;color:var(--text-secondary);text-transform:uppercase;letter-spacing:.04em;">Assigned</th>' +
+                '<th style="padding:6px 10px;text-align:left;font-size:10.5px;font-weight:600;color:var(--text-secondary);text-transform:uppercase;letter-spacing:.04em;white-space:nowrap;">Date Opened</th>' +
+              '</tr></thead>' +
+              '<tbody id="home-open-tbody"><tr><td colspan="6" style="padding:20px;text-align:center;color:var(--text-tertiary);font-size:12px;">Loading…</td></tr></tbody>' +
+            '</table>' +
+          '</div>' +
+        '</div>' +
+      '</div>' +
+
+      // Right column
+      '<div>' +
+        // Equipment on hold card
+        '<div class="trend-card" style="margin-bottom:14px;">' +
+          '<div class="trend-header" style="margin-bottom:8px;">' +
+            '<span class="trend-title">Equipment on hold</span>' +
+            '<button onclick="navigate(\'equipment-hold\')" style="font-size:11.5px;color:var(--text-secondary);background:transparent;border:0;cursor:pointer;padding:0;">View all →</button>' +
+          '</div>' +
+          '<div id="home-hold-list" style="min-height:40px;">' +
+            '<div class="loading-overlay" style="height:60px;"><div class="spinner"></div></div>' +
+          '</div>' +
+        '</div>' +
+
+        // Trend chart (right column)
+        '<div class="trend-card">' +
+          '<div class="trend-header">' +
+            '<span class="trend-title">Ticket activity — last 6 months</span>' +
+          '</div>' +
+          '<div id="home-trend-legend" style="display:flex;gap:12px;font-size:11px;color:var(--text-secondary);margin-bottom:8px;">' +
+            '<span><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--brand-navy-soft);margin-right:4px;"></span>Opened</span>' +
+            '<span><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--status-success);margin-right:4px;"></span>Closed</span>' +
+          '</div>' +
+          '<div class="trend-chart" id="trend-chart" style="height:90px;">' +
+            '<div style="width:100%;text-align:center;color:var(--text-tertiary);font-size:12px;padding-top:20px;">Loading chart…</div>' +
+          '</div>' +
         '</div>' +
       '</div>' +
     '</div>';
 
-  // Load real counts asynchronously
+  // Load real counts
   google.script.run
-    .withSuccessHandler(function(counts) { renderKpis(counts); })
-    .withFailureHandler(function() { /* silently skip — KPIs stay as '—' */ })
+    .withSuccessHandler(function(counts) { _homeRenderKpis_(counts); })
+    .withFailureHandler(function() { /* KPIs stay as '—' */ })
     .getDashboardCounts();
 
-  // Load trend chart (managers only — silently skip if tech)
   if (USER.isManager) {
+    // Load panels (attention items, open tickets, hold tags)
+    google.script.run
+      .withSuccessHandler(function(panels) { _homeRenderPanels_(panels); })
+      .withFailureHandler(function() {
+        var attnEl = document.getElementById('home-attn-list');
+        if (attnEl) attnEl.innerHTML = '<div style="padding:12px;color:var(--text-tertiary);font-size:12px;">Unable to load attention items.</div>';
+      })
+      .getDashboardPanels();
+
+    // Load trend chart
     google.script.run
       .withSuccessHandler(function(trend) { renderTrendChart(trend); })
       .withFailureHandler(function() {
-        var el = document.getElementById('trend-section');
-        if (el) el.style.display = 'none';
+        var el = document.getElementById('trend-chart');
+        if (el) el.innerHTML = '<div style="padding:20px;text-align:center;color:var(--text-tertiary);font-size:12px;">Chart unavailable.</div>';
       })
       .getDashboardTrend(6);
   } else {
-    var el = document.getElementById('trend-section');
-    if (el) el.style.display = 'none';
+    // Tech view: hide right column panels
+    var panels = document.getElementById('home-panels');
+    if (panels) panels.style.gridTemplateColumns = '1fr';
+    var attnEl = document.getElementById('home-attn-list');
+    if (attnEl) attnEl.innerHTML = '<div style="padding:12px;color:var(--text-tertiary);font-size:12px;">Dashboard panels available to managers.</div>';
+    var holdEl = document.getElementById('home-hold-list');
+    if (holdEl) holdEl.innerHTML = '';
   }
 };
 
-function kpiCard(label, value, sub, modifier) {
-  return '<div class="kpi-card ' + modifier + '">' +
+function _homeKpiCard_(label, value, foot, accent, id) {
+  return '<div class="kpi' + (accent ? ' kpi-' + accent : '') + '" id="' + id + '" style="cursor:default;">' +
+    '<div class="kpi-accent"></div>' +
     '<div class="kpi-label">' + esc(label) + '</div>' +
-    '<div class="kpi-value" data-kpi="' + esc(label) + '">' + esc(value) + '</div>' +
-    '<div class="kpi-sub">' + esc(sub) + '</div>' +
-    '</div>';
+    '<div class="kpi-value" id="' + id + '-val">' + esc(value) + '</div>' +
+    '<div class="kpi-foot">' + esc(foot) + '</div>' +
+  '</div>';
 }
 
-function renderKpis(counts) {
+function _homeRenderKpis_(counts) {
   if (!counts) return;
   var map = {
-    'Open Tickets':     counts.open,
-    'Waiting':          counts.waiting,
-    'Critical':         counts.critical,
-    'Temp Fix Active':  counts.tempFixActive,
-    'Closed (30 days)': counts.closedRecent,
-    'Parts Pending':    counts.partsPending
+    'kpi-open':    counts.open,
+    'kpi-waiting': counts.waiting,
+    'kpi-critical':counts.critical,
+    'kpi-parts':   counts.partsPending,
+    'kpi-tempfix': counts.tempFixActive,
+    'kpi-closed':  counts.closedThisWeek !== undefined ? counts.closedThisWeek : counts.closedRecent
   };
-  Object.keys(map).forEach(function(label) {
-    var els = document.querySelectorAll('[data-kpi="' + label + '"]');
-    els.forEach(function(el) {
-      if (map[label] !== undefined) el.textContent = map[label];
-    });
+  Object.keys(map).forEach(function(id) {
+    var el = document.getElementById(id + '-val');
+    if (el && map[id] !== undefined) el.textContent = map[id];
   });
+
+  // Update nav badges if applicable
+  var wb = document.getElementById('badge-waiting');
+  if (wb && counts.waiting > 0) { wb.textContent = counts.waiting; wb.style.display = ''; }
+  var ob = document.getElementById('badge-open');
+  if (ob && counts.open > 0) { ob.textContent = counts.open; ob.style.display = ''; }
+}
+
+function _homeRenderPanels_(panels) {
+  if (!panels) return;
+
+  // Attention items
+  var attnEl = document.getElementById('home-attn-list');
+  if (attnEl) {
+    if (!panels.attentionItems || panels.attentionItems.length === 0) {
+      attnEl.innerHTML =
+        '<div style="padding:16px 0;text-align:center;color:var(--status-success);font-size:13px;">' +
+        '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:middle;margin-right:6px;"><polyline points="20 6 9 17 4 12"/></svg>' +
+        'All clear — no action required.</div>';
+    } else {
+      var kindIcon = { review: '📋', parts: '📦', temp: '🔧', complete: '✅' };
+      var kindColor = { review: 'var(--status-info)', parts: 'var(--status-warn)', temp: 'var(--status-high)', complete: 'var(--status-success)' };
+      attnEl.innerHTML = panels.attentionItems.map(function(item) {
+        var col = kindColor[item.kind] || 'var(--text-secondary)';
+        return '<div style="display:flex;align-items:flex-start;gap:10px;padding:9px 0;border-bottom:1px solid var(--border-default);">' +
+          '<div style="width:28px;height:28px;border-radius:6px;background:var(--bg-subtle);display:grid;place-items:center;flex-shrink:0;font-size:13px;">' + (kindIcon[item.kind] || '📌') + '</div>' +
+          '<div style="flex:1;min-width:0;">' +
+            '<div style="font-size:12.5px;font-weight:600;color:var(--text-primary);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' +
+              '<span style="font-family:var(--font-mono);font-size:11px;color:var(--brand-navy);margin-right:6px;">' + esc(item.ticketNo) + '</span>' +
+              esc(item.title) +
+            '</div>' +
+            '<div style="font-size:11.5px;color:var(--text-secondary);margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + esc(item.sub) + '</div>' +
+          '</div>' +
+          '<button onclick="navigate(\'' + esc(item.pageTarget || 'waiting') + '\')" ' +
+            'style="height:26px;padding:0 10px;border:1px solid var(--border-default);border-radius:4px;font-size:11.5px;background:#fff;color:var(--text-secondary);cursor:pointer;white-space:nowrap;flex-shrink:0;">' +
+            esc(item.action) +
+          '</button>' +
+        '</div>';
+      }).join('') +
+      '<div style="padding-top:6px;"></div>';
+    }
+  }
+
+  // Open tickets table
+  var tbody = document.getElementById('home-open-tbody');
+  if (tbody) {
+    if (!panels.openTickets || panels.openTickets.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="6" style="padding:20px;text-align:center;color:var(--text-tertiary);font-size:12px;">No open tickets.</td></tr>';
+    } else {
+      var prioColors = { CRITICAL: 'var(--status-critical)', HIGH: 'var(--status-high)', MEDIUM: 'var(--status-medium)', LOW: 'var(--status-low)' };
+      tbody.innerHTML = panels.openTickets.map(function(t) {
+        var staCls = 'stat-' + (t.status || '').replace(/\s+/g, '-');
+        var priCls = 'pri-' + (t.priority || '');
+        return '<tr onclick="openTicketDetail(\'' + esc(t.ticketNo) + '\')" style="cursor:pointer;" onmouseover="this.style.background=\'var(--bg-hover)\'" onmouseout="this.style.background=\'\'">' +
+          '<td style="padding:8px 10px;font-family:var(--font-mono);font-size:11.5px;color:var(--brand-navy);font-weight:600;white-space:nowrap;">' + esc(t.ticketNo) + '</td>' +
+          '<td style="padding:8px 10px;"><span class="pri-badge ' + esc(priCls) + '">' + esc(t.priority || '—') + '</span></td>' +
+          '<td style="padding:8px 10px;"><span class="stat-badge ' + esc(staCls) + '">' + esc(t.status) + '</span></td>' +
+          '<td style="padding:8px 10px;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' +
+            (t.equipCode ? '<span style="font-family:var(--font-mono);font-size:10.5px;color:var(--text-secondary);margin-right:4px;">' + esc(t.equipCode) + '</span>' : '') +
+            esc(t.specificEquip || t.description || '—') +
+          '</td>' +
+          '<td style="padding:8px 10px;font-size:12px;">' + esc(t.assignedTo || '—') + '</td>' +
+          '<td style="padding:8px 10px;font-size:11.5px;color:var(--text-tertiary);">' + esc(t.dateOpened) + '</td>' +
+        '</tr>';
+      }).join('');
+    }
+  }
+
+  // Equipment hold tags
+  var holdEl = document.getElementById('home-hold-list');
+  if (holdEl) {
+    if (!panels.holdTags || panels.holdTags.length === 0) {
+      holdEl.innerHTML = '<div style="padding:10px 0;font-size:12px;color:var(--text-tertiary);">No active hold tags.</div>';
+    } else {
+      var tagColors = { Red: '#DC2626', Yellow: '#CA8A04', Orange: '#EA580C', Green: '#059669' };
+      holdEl.innerHTML = panels.holdTags.slice(0, 5).map(function(h) {
+        var color = '#64748B';
+        Object.keys(tagColors).forEach(function(k) {
+          if ((h.tagType || '').toLowerCase().indexOf(k.toLowerCase()) >= 0) color = tagColors[k];
+        });
+        return '<div style="display:flex;align-items:flex-start;gap:10px;padding:7px 0;border-bottom:1px solid var(--border-default);">' +
+          '<div style="width:10px;height:10px;border-radius:50%;background:' + color + ';margin-top:4px;flex-shrink:0;"></div>' +
+          '<div style="flex:1;min-width:0;">' +
+            '<div style="font-size:12px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' +
+              esc(h.specificEquip || h.equipCode || h.tagId) +
+            '</div>' +
+            '<div style="font-size:11px;color:var(--text-secondary);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + esc(h.reason) + '</div>' +
+            '<div style="font-family:var(--font-mono);font-size:10.5px;color:var(--text-tertiary);margin-top:1px;">' + esc(h.tagId) + ' · ' + esc(h.dateTagged) + '</div>' +
+          '</div>' +
+        '</div>';
+      }).join('') +
+      (panels.holdTags.length > 5 ?
+        '<div style="font-size:11.5px;color:var(--text-tertiary);padding-top:6px;">+' + (panels.holdTags.length - 5) + ' more</div>' : '');
+    }
+  }
 }
 
 function renderTrendChart(trend) {
@@ -642,8 +819,8 @@ function renderTrendChart(trend) {
   trend.opened.concat(trend.closed).forEach(function(v) { if (v > maxVal) maxVal = v; });
 
   el.innerHTML = trend.labels.map(function(lbl, i) {
-    var oh = Math.round((trend.opened[i] / maxVal) * 76);
-    var ch = Math.round((trend.closed[i] / maxVal) * 76);
+    var oh = Math.round((trend.opened[i] / maxVal) * 70);
+    var ch = Math.round((trend.closed[i] / maxVal) * 70);
     return '<div class="trend-col">' +
       '<div class="trend-bars">' +
         '<div class="trend-bar-opened" style="height:' + Math.max(oh, 2) + 'px;" title="Opened: ' + trend.opened[i] + '"></div>' +
