@@ -103,8 +103,8 @@ function _renderTf_(items, container) {
     '<div class="mon-table-wrap"><table class="mon-table">' +
       '<thead><tr>' +
         '<th>ID</th><th>Ticket #</th><th>Equipment</th><th>Dept</th>' +
-        '<th>Description</th><th>Status</th><th>Flagged</th>' +
-        '<th>Next Due</th><th>Freq (days)</th><th></th>' +
+        '<th>Description</th><th>Status</th><th>Date Flagged</th>' +
+        '<th>Days to Re-Inspect</th><th>Freq (days)</th><th></th>' +
       '</tr></thead>' +
       '<tbody id="tf-tbody"></tbody>' +
     '</table></div></div>';
@@ -136,10 +136,30 @@ function _tfRenderRows_(list) {
     tbody.innerHTML = '<tr><td colspan="10" class="mon-empty">No active temp fixes.</td></tr>';
     return;
   }
+  var today = new Date(); today.setHours(0,0,0,0);
   tbody.innerHTML = list.map(function(t) {
     var staCls = 'stat-' + t.status.replace(/\s+/g, '-');
     var isPastDue = t.status === 'PAST DUE';
-    return '<tr>' +
+    // Compute days to re-inspect from nextDue
+    var daysCell = '—';
+    var daysCellStyle = 'font-size:11.5px;color:var(--text-secondary);font-family:var(--font-mono);font-variant-numeric:tabular-nums;';
+    if (t.nextDue) {
+      var nd = new Date(t.nextDue); nd.setHours(0,0,0,0);
+      if (!isNaN(nd)) {
+        var diff = Math.round((nd - today) / (1000 * 60 * 60 * 24));
+        if (diff < 0) {
+          daysCell = Math.abs(diff) + 'd overdue';
+          daysCellStyle += 'color:var(--status-critical);font-weight:700;';
+        } else if (diff <= 3) {
+          daysCell = diff + 'd';
+          daysCellStyle += 'color:var(--status-warn);font-weight:600;';
+        } else {
+          daysCell = diff + 'd';
+        }
+      }
+    }
+    var rowStyle = isPastDue ? 'background:var(--status-critical-bg);' : '';
+    return '<tr style="' + rowStyle + '">' +
       '<td class="mon-id">' + esc(t.tempId) + '</td>' +
       '<td style="font-family:var(--font-mono);font-size:11.5px;color:var(--brand-navy);">' + esc(t.ticketNo) + '</td>' +
       '<td class="mon-equip" title="' + esc(t.equipCode ? t.equipCode + ' — ' + t.specificEquip : t.specificEquip) + '">' +
@@ -149,7 +169,7 @@ function _tfRenderRows_(list) {
       '<td class="mon-desc" title="' + esc(t.tempFixDesc || t.description) + '">' + esc(t.tempFixDesc || t.description) + '</td>' +
       '<td><span class="stat-badge ' + esc('stat-' + t.status.replace(/\s+/g, '-')) + '">' + esc(t.status) + '</span></td>' +
       '<td style="font-size:11.5px;color:var(--text-tertiary);">' + esc(t.dateFlagged) + '</td>' +
-      '<td style="font-size:11.5px;' + (isPastDue ? 'color:var(--status-critical);font-weight:600;' : '') + '">' + esc(t.nextDue) + '</td>' +
+      '<td style="' + daysCellStyle + '">' + daysCell + '</td>' +
       '<td style="font-size:11.5px;color:var(--text-secondary);">' + esc(String(t.freqDays)) + '</td>' +
       '<td style="white-space:nowrap;">' +
         '<button class="mon-btn" onclick="_tfInspect_(\'' + esc(t.tempId) + '\')" style="margin-right:4px;">Inspect</button>' +
@@ -393,21 +413,35 @@ function _tfKpiBar_(items) {
   var pastDue = items.filter(function(t) { return t.status === 'PAST DUE'; }).length;
   var active  = items.filter(function(t) { return t.status === 'ACTIVE';   }).length;
   var pdFoot  = pastDue > 0 ? pastDue + ' need immediate attention' : 'all inspected on schedule';
-  return '<div class="kpi-band" style="grid-template-columns:repeat(3,1fr);">' +
-    _monKpiCard_(total,   'Total Active',   '',         total + ' temp fix' + (total !== 1 ? 'es' : '') + ' on the floor') +
-    _monKpiCard_(active,  'Active',         active  > 0 ? 'warn'     : 'success', '') +
-    _monKpiCard_(pastDue, 'Past Due',       pastDue > 0 ? 'critical' : 'success', pdFoot) +
+  // "Converted to permanent" requires historical data not yet available — shown as pending
+  var convertCard = _monKpiCard_(
+    '<span style="color:var(--text-tertiary);font-size:16px;">—</span>',
+    'Converted to Permanent',
+    'success',
+    'this quarter · data pending'
+  );
+  return '<div class="kpi-band" style="grid-template-columns:repeat(4,1fr);">' +
+    _monKpiCard_(total,   'Active Temp Fixes', '',         total + ' temp fix' + (total !== 1 ? 'es' : '') + ' on the floor') +
+    _monKpiCard_(pastDue, 'Past Due',          pastDue > 0 ? 'critical' : 'success', pdFoot) +
+    _monKpiCard_('<span style="color:var(--text-tertiary);font-size:16px;">—</span>', 'Inspected On Schedule', '', 'rolling 90d · data pending') +
+    convertCard +
   '</div>';
 }
 
 function _ehlKpiBar_(items) {
   var total  = items.length;
-  var red    = items.filter(function(t) { return t.tagType && t.tagType.indexOf('Red')    === 0; }).length;
-  var yellow = items.filter(function(t) { return t.tagType && t.tagType.indexOf('Yellow') === 0; }).length;
-  return '<div class="kpi-band" style="grid-template-columns:repeat(3,1fr);">' +
-    _monKpiCard_(total,  'Total Tagged',        total  > 0 ? 'critical' : '', 'active hold tags') +
+  // Tag type matching: case-insensitive, partial match on leading color word
+  function tagMatch(t, color) {
+    return t.tagType && t.tagType.toLowerCase().indexOf(color.toLowerCase()) >= 0;
+  }
+  var red    = items.filter(function(t) { return tagMatch(t, 'red');    }).length;
+  var yellow = items.filter(function(t) { return tagMatch(t, 'yellow'); }).length;
+  var orange = items.filter(function(t) { return tagMatch(t, 'orange'); }).length;
+  return '<div class="kpi-band" style="grid-template-columns:repeat(4,1fr);">' +
+    _monKpiCard_(total,  'Active Tags',         total  > 0 ? 'critical' : '', 'across all depts') +
     _monKpiCard_(red,    '🟥 Out of Service',   red    > 0 ? 'critical' : '', 'Red tag — production blocked') +
     _monKpiCard_(yellow, '🟨 Use with Caution', yellow > 0 ? 'warn'     : '', 'Yellow tag — limited operation') +
+    _monKpiCard_(orange, '🟧 Temp Fix Tagged',  orange > 0 ? 'warn'     : '', 'Orange tag — temp fix in place') +
   '</div>';
 }
 
