@@ -448,6 +448,32 @@ function _openSectionForPage_(pageId) {
   _openNavSection_ = sectionId;
 }
 
+// ── Formal display-name map — single source of truth for screen titles ────────
+// Keyed by pageId → human-readable title. Subitems in the accordion nav do NOT
+// carry a .nav-label span, so navigate() must use this map, never the DOM text.
+var PAGE_TITLES = {
+  'home':                  'Dashboard',
+  'submit':                'Submit Ticket',
+  'waiting':               'Waiting Queue',
+  'open':                  'Open Tickets',
+  'tech-board':            'Work Board',
+  'closed':                'Closed Tickets',
+  'tracker-electrical':    'Electrical Tracker',
+  'tracker-machine-shop':  'Machine Shop Tracker',
+  'tracker-facilities':    'Facilities Tracker',
+  'tracker-plastics':      'Plastics Tracker',
+  'tracker-metals':        'Metals Tracker',
+  'tracker-litho':         'Litho Tracker',
+  'tempfix':               'Temp Fix Monitor',
+  'equipment-hold':        'Equipment Hold',
+  'parts':                 'Parts & Inventory',
+  'reports':               'Reports',
+  'admin-config':          'Configuration',
+  'admin-access':          'Access & Roles',
+  'admin-deptmap':         'Dept Map',
+  'pm':                    'PM Schedules'
+};
+
 // ── Navigation ────────────────────────────────────────────────────────────────
 var _currentPage = 'home';
 
@@ -469,19 +495,23 @@ function navigate(pageId) {
   document.querySelectorAll('.page').forEach(function(p) { p.classList.remove('active'); });
   var pageEl = document.getElementById('page-' + pageId);
   if (!pageEl) {
+    // Page doesn't exist in DOM — create it and load its content.
     pageEl = document.createElement('div');
     pageEl.className = 'page';
     pageEl.id = 'page-' + pageId;
     pageEl.innerHTML = '<div class="loading-overlay"><div class="spinner"></div><span>Loading…</span></div>';
     document.getElementById('content').appendChild(pageEl);
     loadPage(pageId, pageEl);
+  } else if (!pageEl.getAttribute('data-loaded')) {
+    // Page was pre-inserted by a server-side partial but hasn't been initialized
+    // yet (form data not fetched, dropdowns empty, etc.) — run loadPage once.
+    loadPage(pageId, pageEl);
   }
+  pageEl.setAttribute('data-loaded', '1');
   pageEl.classList.add('active');
 
-  // Update topbar title
-  var navEl = document.getElementById('nav-' + pageId);
-  var label = navEl ? navEl.querySelector('.nav-label') : null;
-  document.getElementById('topbar-title').textContent = label ? label.textContent.trim() : pageId;
+  // Update topbar title from the formal display-name map — never from raw pageId.
+  document.getElementById('topbar-title').textContent = PAGE_TITLES[pageId] || pageId;
 }
 
 // loadPage — each step wires up its own renderer via PAGES registry
@@ -642,9 +672,12 @@ function renderTrendChart(trend) {
   var homeEl = document.getElementById('nav-home');
   if (homeEl) homeEl.classList.add('active');
 
-  // Render home page content
+  // Render home page content (mark as loaded so navigate() won't re-init)
   var homePage = document.getElementById('page-home');
-  if (homePage) loadPage('home', homePage);
+  if (homePage) {
+    loadPage('home', homePage);
+    homePage.setAttribute('data-loaded', '1');
+  }
 })();
 </script>
 </body>
