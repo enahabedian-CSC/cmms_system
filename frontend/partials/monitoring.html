@@ -39,6 +39,22 @@
 .mon-btn.primary:hover{background:var(--brand-navy-soft);}
 .mon-btn.danger{background:var(--status-critical-bg);color:var(--status-critical);border-color:var(--status-critical);}
 
+/* ── Parts Kanban ────────────────────────────────────────────────────── */
+.pn-kanban{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;overflow-x:auto;align-items:start;}
+.pn-col{background:var(--bg-subtle);border:1px solid var(--border-default);border-radius:8px;min-height:60px;}
+.pn-col-h{display:flex;align-items:center;justify-content:space-between;padding:8px 12px;border-bottom:1px solid var(--border-default);font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--text-secondary);}
+.pn-col-h .ct{background:var(--bg-surface);border:1px solid var(--border-default);border-radius:10px;font-size:10px;padding:1px 6px;font-weight:600;color:var(--text-primary);}
+.pn-col-list{display:flex;flex-direction:column;gap:8px;padding:10px;}
+.pn-card{background:var(--bg-surface);border:1px solid var(--border-default);border-radius:6px;padding:10px 12px;cursor:pointer;transition:box-shadow .1s;}
+.pn-card:hover{box-shadow:var(--shadow-sm);}
+.pn-card-id{font-family:var(--font-mono);font-size:10px;color:var(--text-tertiary);}
+.pn-card-desc{font-size:12.5px;font-weight:600;color:var(--text-primary);margin:3px 0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.pn-card-ticket{font-family:var(--font-mono);font-size:11px;color:var(--brand-navy);font-weight:600;}
+.pn-card-equip{font-size:11px;color:var(--text-secondary);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.pn-card-meta{font-size:10.5px;color:var(--text-tertiary);margin-top:4px;display:flex;align-items:center;justify-content:space-between;}
+.pn-card-actions{display:flex;gap:6px;margin-top:8px;flex-wrap:wrap;}
+.pn-col-empty{padding:16px;text-align:center;font-size:11px;color:var(--text-tertiary);}
+
 /* Monitor action modal */
 .mon-modal-back{position:fixed;inset:0;background:rgba(0,0,0,.35);z-index:5000;display:none;align-items:center;justify-content:center;}
 .mon-modal-back.open{display:flex;}
@@ -314,76 +330,73 @@ function _loadPnPage_(container) {
 
 function _renderPn_(items, container) {
   _pnData_ = items || [];
-  var statuses = ['PENDING', 'ORDERED', 'RECEIVED', 'CANCELLED'];
 
   container.innerHTML =
     '<div class="mon-wrap">' +
     '<div class="mon-toolbar">' +
-      '<span class="mon-title">Parts Needed</span>' +
+      '<span class="mon-title">Parts & Inventory</span>' +
       '<span class="mon-count" id="pn-cnt">' + _pnData_.length + ' parts</span>' +
       '<input class="mon-search" id="pn-search" placeholder="Search…" oninput="_pnApply_()" />' +
-      '<select class="mon-filter-select" id="pn-stat" onchange="_pnApply_()">' +
-        '<option value="">All statuses</option>' +
-        statuses.map(function(s) { return '<option>' + s + '</option>'; }).join('') +
-      '</select>' +
       '<button onclick="_loadPnPage_(document.getElementById(\'page-parts\'))" ' +
         'style="height:30px;padding:0 10px;border:1px solid var(--border-default);border-radius:6px;background:#fff;font-size:12px;cursor:pointer;color:var(--text-secondary);" title="Refresh">↻</button>' +
     '</div>' +
-    '<div class="mon-table-wrap"><table class="mon-table">' +
-      '<thead><tr>' +
-        '<th>Part ID</th><th>Description</th><th>Ticket #</th><th>Equipment</th>' +
-        '<th>Dept</th><th>Status</th><th>Requested</th><th>Ordered</th><th>Received</th><th></th>' +
-      '</tr></thead>' +
-      '<tbody id="pn-tbody"></tbody>' +
-    '</table></div></div>';
+    '<div id="pn-kanban" class="pn-kanban"></div>' +
+    '</div>';
   _pnApply_();
 }
 
+var _PN_STAGES_ = ['PENDING', 'ORDERED', 'RECEIVED', 'CANCELLED'];
+var _PN_STAGE_LABELS_ = { 'PENDING': 'Requested / Pending', 'ORDERED': 'Ordered', 'RECEIVED': 'Received', 'CANCELLED': 'Cancelled' };
+
 function _pnApply_() {
   var q  = document.getElementById('pn-search');
-  var sf = document.getElementById('pn-stat');
-  var qv = q  ? q.value.toLowerCase()  : '';
-  var sv = sf ? sf.value.toUpperCase() : '';
+  var qv = q ? q.value.toLowerCase() : '';
   var filtered = _pnData_.filter(function(p) {
-    if (sv && p.partsStatus !== sv) return false;
-    if (qv) {
-      var hay = (p.partId + ' ' + p.partDesc + ' ' + p.ticketNo + ' ' +
-                 p.equipCode + ' ' + p.specificEquip + ' ' + p.dept).toLowerCase();
-      if (hay.indexOf(qv) < 0) return false;
-    }
-    return true;
+    if (!qv) return true;
+    var hay = (p.partId + ' ' + p.partDesc + ' ' + p.ticketNo + ' ' +
+               p.equipCode + ' ' + p.specificEquip + ' ' + p.dept).toLowerCase();
+    return hay.indexOf(qv) >= 0;
   });
-  var tbody = document.getElementById('pn-tbody');
-  if (!tbody) return;
+  var kanban = document.getElementById('pn-kanban');
+  if (!kanban) return;
   var cntEl = document.getElementById('pn-cnt');
   if (cntEl) cntEl.textContent = filtered.length + ' part' + (filtered.length !== 1 ? 's' : '');
-  if (filtered.length === 0) {
-    tbody.innerHTML = '<tr><td colspan="10" class="mon-empty">No parts match.</td></tr>';
-    return;
-  }
+  var isManager = typeof USER !== 'undefined' && USER.isManager;
 
-  tbody.innerHTML = filtered.map(function(p) {
-    var isManager = typeof USER !== 'undefined' && USER.isManager;
-    var nextStatus = { 'PENDING': 'ORDERED', 'ORDERED': 'RECEIVED' }[p.partsStatus];
-    var actionBtn = '';
-    if (isManager && nextStatus) {
-      actionBtn = '<button class="mon-btn primary" onclick="_pnAdvance_(\'' + esc(p.partId) + '\',\'' + esc(nextStatus) + '\')">→ ' + esc(nextStatus) + '</button>';
-    }
-    if (isManager && p.partsStatus !== 'CANCELLED' && p.partsStatus !== 'RECEIVED') {
-      actionBtn += ' <button class="mon-btn" onclick="_pnAdvance_(\'' + esc(p.partId) + '\',\'CANCELLED\')">Cancel</button>';
-    }
-    return '<tr>' +
-      '<td class="mon-id">' + esc(p.partId) + '</td>' +
-      '<td style="max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="' + esc(p.partDesc) + '">' + esc(p.partDesc) + '</td>' +
-      '<td style="font-family:var(--font-mono);font-size:11.5px;color:var(--brand-navy);">' + esc(p.ticketNo) + '</td>' +
-      '<td class="mon-equip">' + esc(p.equipCode ? p.equipCode + ' ' : '') + esc(p.specificEquip) + '</td>' +
-      '<td>' + esc(p.dept) + '</td>' +
-      '<td><span class="stat-badge ' + esc('stat-' + p.partsStatus) + '">' + esc(p.partsStatus) + '</span></td>' +
-      '<td style="font-size:11.5px;color:var(--text-tertiary);">' + esc(p.dateRequested) + '</td>' +
-      '<td style="font-size:11.5px;color:var(--text-tertiary);">' + esc(p.dateOrdered  || '—') + '</td>' +
-      '<td style="font-size:11.5px;color:var(--text-tertiary);">' + esc(p.dateReceived || '—') + '</td>' +
-      '<td style="white-space:nowrap;">' + actionBtn + '</td>' +
-    '</tr>';
+  kanban.innerHTML = _PN_STAGES_.map(function(stage) {
+    var cards = filtered.filter(function(p) { return p.partsStatus === stage; });
+    var cardHtml = cards.length === 0
+      ? '<div class="pn-col-empty">No parts</div>'
+      : cards.map(function(p) {
+          var nextStatus = { 'PENDING': 'ORDERED', 'ORDERED': 'RECEIVED' }[stage];
+          var actions = '';
+          if (isManager && nextStatus) {
+            actions += '<button class="mon-btn primary" onclick="event.stopPropagation();_pnAdvance_(\'' + esc(p.partId) + '\',\'' + esc(nextStatus) + '\')">→ ' + esc(nextStatus) + '</button>';
+          }
+          if (isManager && stage !== 'CANCELLED' && stage !== 'RECEIVED') {
+            actions += '<button class="mon-btn" onclick="event.stopPropagation();_pnAdvance_(\'' + esc(p.partId) + '\',\'CANCELLED\')">Cancel</button>';
+          }
+          return '<div class="pn-card">' +
+            '<div class="pn-card-id">' + esc(p.partId) + '</div>' +
+            '<div class="pn-card-desc" title="' + esc(p.partDesc) + '">' + esc(p.partDesc) + '</div>' +
+            '<div class="pn-card-ticket">' + esc(p.ticketNo) + '</div>' +
+            '<div class="pn-card-equip" title="' + esc(p.specificEquip) + '">' +
+              (p.equipCode ? '<span style="font-family:var(--font-mono);font-size:10px;color:var(--text-tertiary);">' + esc(p.equipCode) + '</span> ' : '') + esc(p.specificEquip) +
+            '</div>' +
+            '<div class="pn-card-meta">' +
+              '<span>' + esc(p.dept) + '</span>' +
+              '<span>' + esc(p.dateRequested || '') + '</span>' +
+            '</div>' +
+            (actions ? '<div class="pn-card-actions">' + actions + '</div>' : '') +
+          '</div>';
+        }).join('');
+    return '<div class="pn-col">' +
+      '<div class="pn-col-h">' +
+        '<span>' + esc(_PN_STAGE_LABELS_[stage] || stage) + '</span>' +
+        '<span class="ct">' + cards.length + '</span>' +
+      '</div>' +
+      '<div class="pn-col-list">' + cardHtml + '</div>' +
+    '</div>';
   }).join('');
 }
 
