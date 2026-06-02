@@ -24,7 +24,8 @@ function refreshEquipCache() {
       'Add a row with key "Equipment Inventory Tab Name" and the exact tab name from the Equipment Register.'
     );
 
-    var srcSS = SpreadsheetApp.openById(EXT_SHEET_IDS.EQUIP_REGISTER);
+    var sheetId = getEquipRegisterSheetId_();
+    var srcSS = SpreadsheetApp.openById(sheetId);
     var srcSh = srcSS.getSheetByName(tabName);
     if (!srcSh) throw new Error(
       'Tab "' + tabName + '" not found in the Equipment Register spreadsheet. ' +
@@ -64,7 +65,7 @@ function refreshEquipCache() {
       row[ML.TIMESTAMP - 1] = formatTimestamp_(now);
       row[ML.ACTION    - 1] = ML_ACTIONS.EQUIP_CACHE_REFRESH;
       row[ML.STATUS    - 1] = 'SYSTEM';
-      row[ML.NOTES     - 1] = 'Rows cached: ' + dataRows + ' | Tab: ' + tabName;
+      row[ML.NOTES     - 1] = 'Rows cached: ' + dataRows + ' | Tab: ' + tabName + ' | SheetID: ' + sheetId;
       mlSh.appendRow(row);
     }
 
@@ -188,6 +189,58 @@ function getEquipmentHierarchy() {
     hierarchy[dept][eType].push(e);
   });
   return hierarchy;
+}
+
+// Returns the Equipment Register sheet ID from config (preferred) or the
+// hard-coded fallback constant.  Accepts either a full Google Sheets URL or
+// a bare sheet ID in the config key "Equipment Register Sheet URL".
+function getEquipRegisterSheetId_() {
+  var urlOrId = String(getConfigValue('Equipment Register Sheet URL') || '').trim();
+  if (urlOrId) {
+    var m = urlOrId.match(/\/d\/([a-zA-Z0-9_-]{25,})/);
+    if (m) return m[1];
+    if (urlOrId.indexOf('/') < 0 && urlOrId.length >= 25) return urlOrId;
+  }
+  return EXT_SHEET_IDS.EQUIP_REGISTER;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+//  getEquipCacheStatus
+//  Returns cache health diagnostics for the admin Equipment Cache screen.
+//  Admin-only.
+// ═══════════════════════════════════════════════════════════════════════════════
+
+function getEquipCacheStatus() {
+  requireAdmin_();
+
+  var ss      = getBoundSS_();
+  var cacheSh = ss.getSheetByName(SH.EQUIP_CACHE);
+
+  var cacheRows     = 0;
+  var lastRefreshed = String(getConfigValue('Equip Cache Last Refreshed') || '').trim() || 'Never';
+
+  if (cacheSh && cacheSh.getLastRow() > 4) {
+    cacheRows = cacheSh.getLastRow() - 4; // row 4 = headers; rows 5+ = data
+  }
+
+  var hierarchy  = getEquipmentHierarchy();
+  var deptKeys   = Object.keys(hierarchy);
+  var deptSummary = deptKeys.map(function(d) {
+    var types = Object.keys(hierarchy[d]).length;
+    var items = 0;
+    Object.keys(hierarchy[d]).forEach(function(t) { items += hierarchy[d][t].length; });
+    return { dept: d, types: types, items: items };
+  });
+
+  return {
+    lastRefreshed:    lastRefreshed,
+    cacheRows:        cacheRows,
+    deptSummary:      deptSummary,
+    configTabName:    String(getConfigValue('Equipment Inventory Tab Name') || '').trim(),
+    configSheetUrl:   String(getConfigValue('Equipment Register Sheet URL') || '').trim(),
+    resolvedSheetId:  getEquipRegisterSheetId_(),
+    canonicalDepts:   DEPT_TRACKERS.map(function(dt) { return dt.dept; })
+  };
 }
 
 // Returns flat array of equipment items for cascade lookups.

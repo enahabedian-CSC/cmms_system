@@ -121,4 +121,160 @@ function _renderAdminView_(data, container) {
 PAGES['admin-config']  = function(c) { _loadAdminPage_('config',  'Configuration',  c); };
 PAGES['admin-access']  = function(c) { _loadAdminPage_('access',  'Manager Access', c); };
 PAGES['admin-deptmap'] = function(c) { _loadAdminPage_('deptmap', 'Dept Map',       c); };
+
+// ── Equipment Cache admin page ─────────────────────────────────────────────────
+
+PAGES['admin-equip'] = function(c) { _loadEquipCachePage_(c); };
+
+function _loadEquipCachePage_(container) {
+  container.innerHTML =
+    '<div class="loading-overlay"><div class="spinner"></div><span>Checking equipment cache…</span></div>';
+  google.script.run
+    .withSuccessHandler(function(d) { _renderEquipCachePage_(d, container); })
+    .withFailureHandler(function(err) {
+      container.innerHTML = '<div class="adm-unauthorized">Error: ' + esc(err.message || String(err)) + '</div>';
+    })
+    .getEquipCacheStatus();
+}
+
+function _renderEquipCachePage_(d, container) {
+  var noUrl  = !d.configSheetUrl;
+  var noTab  = !d.configTabName;
+  var noData = d.cacheRows === 0;
+
+  // Config status row
+  function cfgRow(label, val, ok) {
+    var dot = ok
+      ? '<span style="color:var(--status-success);font-weight:700;">●</span>'
+      : '<span style="color:var(--status-critical);font-weight:700;">●</span>';
+    return '<tr><td class="key-col">' + esc(label) + '</td>' +
+      '<td class="val-col">' + dot + ' &nbsp;' + esc(val || '—') + '</td></tr>';
+  }
+
+  var configWarning = '';
+  if (noUrl) {
+    configWarning +=
+      '<div class="adm-notice" style="background:var(--status-critical-bg);border-color:var(--status-critical);color:var(--status-critical);">' +
+      '<strong>⚠ Equipment Register URL not configured.</strong> ' +
+      'In the ⚙️ Configuration sheet, add a row with key <code>Equipment Register Sheet URL</code> ' +
+      'and paste the full URL (or just the sheet ID) of your Equipment Register spreadsheet. ' +
+      'Without this, the cache refresh uses a fallback ID that may not match your register.' +
+      '</div>';
+  }
+  if (noTab) {
+    configWarning +=
+      '<div class="adm-notice" style="background:var(--status-critical-bg);border-color:var(--status-critical);color:var(--status-critical);">' +
+      '<strong>⚠ Equipment Inventory Tab Name not set.</strong> ' +
+      'Add a row in ⚙️ Configuration with key <code>Equipment Inventory Tab Name</code> ' +
+      'and the exact tab name inside the Equipment Register (case-sensitive).' +
+      '</div>';
+  }
+  if (!noUrl && !noTab && noData) {
+    configWarning +=
+      '<div class="adm-notice">' +
+      '<strong>Cache is empty.</strong> ' +
+      'Config keys look set — click <strong>Refresh Cache Now</strong> to populate it. ' +
+      'If it fails, check the Master Log for the error.' +
+      '</div>';
+  }
+
+  // Dept matching table
+  var deptByKey = {};
+  (d.deptSummary || []).forEach(function(s) { deptByKey[s.dept] = s; });
+
+  var deptRows = (d.canonicalDepts || []).map(function(dept) {
+    var s = deptByKey[dept];
+    if (s) {
+      return '<tr>' +
+        '<td style="font-weight:600;">' + esc(dept) + '</td>' +
+        '<td><span style="color:var(--status-success);font-weight:700;">●</span> Found</td>' +
+        '<td>' + s.types + ' types</td>' +
+        '<td>' + s.items + ' items</td>' +
+      '</tr>';
+    }
+    return '<tr>' +
+      '<td style="font-weight:600;color:var(--text-tertiary);">' + esc(dept) + '</td>' +
+      '<td><span style="color:var(--status-critical);font-weight:700;">●</span> <span style="color:var(--status-critical);">Not in cache</span></td>' +
+      '<td style="color:var(--text-tertiary);">—</td>' +
+      '<td style="color:var(--text-tertiary);">—</td>' +
+    '</tr>';
+  });
+  // Also show any extra depts in cache that don't match canonical names
+  (d.deptSummary || []).forEach(function(s) {
+    if ((d.canonicalDepts || []).indexOf(s.dept) < 0) {
+      deptRows.push('<tr style="background:var(--status-high-bg);">' +
+        '<td style="font-weight:600;color:var(--status-high);">' + esc(s.dept) + '</td>' +
+        '<td><span style="color:var(--status-high);font-weight:700;">●</span> <span style="color:var(--status-high);">Name mismatch</span></td>' +
+        '<td>' + s.types + ' types</td>' +
+        '<td>' + s.items + ' items — <em>add to Dept Map to route correctly</em></td>' +
+      '</tr>');
+    }
+  });
+
+  var html =
+    '<div class="adm-wrap" style="max-width:900px;">' +
+    '<div class="adm-header">' +
+      '<span class="adm-title">⚙️ Equipment Cache</span>' +
+      '<button id="equip-refresh-btn" class="adm-edit-btn" onclick="_runEquipCacheRefresh_()" style="background:var(--brand-navy);color:#fff;border-color:var(--brand-navy);">↻ Refresh Cache Now</button>' +
+      '<button onclick="_loadEquipCachePage_(document.getElementById(\'page-admin-equip\'))" class="adm-edit-btn">↺ Reload Status</button>' +
+    '</div>' +
+    '<div id="equip-refresh-result"></div>' +
+    configWarning +
+
+    '<div class="adm-table-wrap" style="margin-bottom:16px;"><table class="adm-table">' +
+      '<thead><tr><th colspan="2">Cache Configuration</th></tr></thead><tbody>' +
+      cfgRow('Equipment Register Sheet URL', d.configSheetUrl || '(not set — using fallback ID)', !!d.configSheetUrl) +
+      cfgRow('Resolved Sheet ID', d.resolvedSheetId, !!d.resolvedSheetId) +
+      cfgRow('Equipment Inventory Tab Name', d.configTabName || '(not set)', !!d.configTabName) +
+      cfgRow('Last Refreshed', d.lastRefreshed, d.lastRefreshed !== 'Never') +
+      cfgRow('Cached Rows', d.cacheRows + ' equipment records', d.cacheRows > 0) +
+    '</tbody></table></div>' +
+
+    '<div class="adm-table-wrap"><table class="adm-table">' +
+      '<thead><tr><th>Canonical Dept</th><th>Cache Status</th><th>Types</th><th>Equipment Items</th></tr></thead>' +
+      '<tbody>' + deptRows.join('') + '</tbody>' +
+    '</table></div>' +
+
+    '<div class="adm-notice" style="margin-top:12px;">' +
+      '<strong>Orange rows</strong> = dept names in the cache that don\'t match canonical dept names — ' +
+      'add a mapping in the <strong>Dept Map</strong> sheet (raw name → canonical name) to route tickets correctly.' +
+    '</div>' +
+    '</div>';
+
+  container.innerHTML = html;
+}
+
+function _runEquipCacheRefresh_() {
+  var btn = document.getElementById('equip-refresh-btn');
+  var res = document.getElementById('equip-refresh-result');
+  if (btn) { btn.disabled = true; btn.textContent = '↻ Refreshing…'; }
+  if (res) res.innerHTML = '';
+  google.script.run
+    .withSuccessHandler(function(result) {
+      if (btn) { btn.disabled = false; btn.textContent = '↻ Refresh Cache Now'; }
+      if (res) {
+        if (result.success) {
+          res.innerHTML =
+            '<div class="adm-notice" style="background:var(--status-success-bg);border-color:var(--status-success);color:var(--status-success);margin-bottom:10px;">' +
+            '✓ Cache refreshed — <strong>' + result.rows + ' rows</strong> cached. Reloading status…</div>';
+          setTimeout(function() {
+            _loadEquipCachePage_(document.getElementById('page-admin-equip'));
+          }, 1500);
+        } else {
+          res.innerHTML =
+            '<div class="adm-notice" style="background:var(--status-critical-bg);border-color:var(--status-critical);color:var(--status-critical);margin-bottom:10px;">' +
+            '✗ Refresh failed: ' + esc(result.error || 'Unknown error') + '</div>';
+        }
+      }
+    })
+    .withFailureHandler(function(err) {
+      if (btn) { btn.disabled = false; btn.textContent = '↻ Refresh Cache Now'; }
+      if (res) {
+        res.innerHTML =
+          '<div class="adm-notice" style="background:var(--status-critical-bg);border-color:var(--status-critical);color:var(--status-critical);margin-bottom:10px;">' +
+          '✗ ' + esc(err.message || String(err)) + '</div>';
+      }
+    })
+    .refreshEquipCache();
+}
 </script>
