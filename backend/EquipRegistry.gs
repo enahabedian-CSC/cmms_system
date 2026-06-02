@@ -127,6 +127,36 @@ function getEquipmentFromInventory() {
     });
 }
 
+// Shared column-header → field mapping.  Used by both getEquipmentFromCache_
+// and getEquipCacheStatus (diagnostic).  Keys are field names; values are arrays
+// of lowercase header strings that map to that field.
+var _EQUIP_COL_MAPPINGS_ = {
+  dept:     ['department','dept','dept.','department name','dept name',
+             'area','division','plant','facility','location','cost center',
+             'work center','workcenter','shop','building'],
+  deptCode: ['dept code','department code','dept #','dept no','dept no.',
+             'dept number','department #'],
+  group:    ['group','equipment group','line #','line#','line number',
+             'line','asset group','sub-type','subtype','sub type'],
+  eType:    ['equipment type','equip type','type','asset type','machine type',
+             'category','class','equipment class','asset class','object type',
+             'machine class'],
+  code:     ['equipment code','equip code','code','asset code',
+             'job #','job no','job no.','job number',
+             'id','asset id','asset #','asset no','asset no.','asset number',
+             'machine code','machine #','machine id','machine no','machine no.',
+             'equip id','equip #','equip no','equip no.','equip number',
+             'equipment #','equipment id','equipment no','equipment no.',
+             'equipment number','plant no','plant #','plant no.','no.','number',
+             'serial','serial #','serial no','serial number'],
+  specific: ['specific equipment','equipment name','name','description',
+             'asset name','equipment description','machine name','equip name',
+             'item','item name','equipment','machine','asset description',
+             'short text','desc','long description','full name','title'],
+  status:   ['status','active','state','asset status','equip status',
+             'condition','in service','active/inactive']
+};
+
 // Reads cache tab with flexible column header mapping.
 function getEquipmentFromCache_(cacheSh) {
   var lastRow = cacheSh.getLastRow();
@@ -136,32 +166,25 @@ function getEquipmentFromCache_(cacheSh) {
   var headers = cacheSh.getRange(4, 1, 1, lastCol).getValues()[0]
     .map(function(h) { return String(h || '').trim().toLowerCase(); });
 
-  var colMap   = {};
-  var mappings = {
-    dept:     ['department','dept','dept.','department name','dept name','area','division'],
-    deptCode: ['dept code','department code','dept #','dept no','dept no.','dept number','department #'],
-    group:    ['group','category','equipment group','line #','line#','line number','line','asset group'],
-    eType:    ['equipment type','equip type','type','asset type','machine type','category'],
-    code:     ['equipment code','equip code','code','asset code','job #','job no','id','job number','job no.',
-               'asset id','asset #','asset no','asset number','machine code','machine #','machine id',
-               'equip id','equip #','equip no','equipment #','equipment id','equipment no'],
-    specific: ['specific equipment','equipment name','name','description','asset name',
-               'equipment description','machine name','equip name','item','item name','equipment'],
-    status:   ['status','active','state','asset status','equip status']
-  };
-  Object.keys(mappings).forEach(function(key) {
-    for (var i = 0; i < headers.length; i++) {
-      if (mappings[key].indexOf(headers[i]) >= 0) { colMap[key] = i; break; }
-    }
-  });
+  var colMap = _buildEquipColMap_(headers);
 
   var data = cacheSh.getRange(5, 1, lastRow - 4, lastCol).getValues();
   return data
     .filter(function(r) {
-      var code = colMap.code     !== undefined ? String(r[colMap.code]     || '').trim() : '';
-      var spec = colMap.specific !== undefined ? String(r[colMap.specific] || '').trim() : '';
-      var stat = colMap.status   !== undefined ? String(r[colMap.status]   || '').trim().toUpperCase() : 'ACTIVE';
-      return (code || spec) && stat !== 'INACTIVE' && stat !== '';
+      var stat = colMap.status !== undefined
+        ? String(r[colMap.status] || '').trim().toUpperCase()
+        : 'ACTIVE';
+      if (stat === 'INACTIVE') return false;
+
+      // If code or specific columns were recognised, require at least one to be non-empty.
+      // If NEITHER was recognised (headers didn't match), accept any non-empty row so we
+      // don't silently discard all data due to an unrecognised column name.
+      if (colMap.code !== undefined || colMap.specific !== undefined) {
+        var code = colMap.code     !== undefined ? String(r[colMap.code]     || '').trim() : '';
+        var spec = colMap.specific !== undefined ? String(r[colMap.specific] || '').trim() : '';
+        return !!(code || spec);
+      }
+      return r.some(function(cell) { return String(cell || '').trim() !== ''; });
     })
     .map(function(r) {
       function col(k) { return colMap[k] !== undefined ? String(r[colMap[k]] || '').trim() : ''; }
@@ -175,6 +198,18 @@ function getEquipmentFromCache_(cacheSh) {
         status:   col('status')   || 'ACTIVE'
       };
     });
+}
+
+// Builds a colIndex map from lowercased headers using _EQUIP_COL_MAPPINGS_.
+function _buildEquipColMap_(lowerHeaders) {
+  var colMap = {};
+  Object.keys(_EQUIP_COL_MAPPINGS_).forEach(function(key) {
+    var variants = _EQUIP_COL_MAPPINGS_[key];
+    for (var i = 0; i < lowerHeaders.length; i++) {
+      if (variants.indexOf(lowerHeaders[i]) >= 0) { colMap[key] = i; break; }
+    }
+  });
+  return colMap;
 }
 
 // Returns { dept: { eType: [{ code, specific, status, deptCode, group }] } }
@@ -253,6 +288,35 @@ function getEquipCacheStatus() {
     cacheRows = cacheSh.getLastRow() - 4; // row 4 = headers; rows 5+ = data
   }
 
+  // ── Column-header diagnostics ──────────────────────────────────────────
+  var rawHeaders  = [];
+  var mappedCols  = {};   // field → actual header string that matched
+  var unmappedHdrs= [];   // headers that matched no field
+  if (cacheSh && cacheSh.getLastRow() >= 4 && cacheSh.getLastColumn() >= 1) {
+    var hdrVals = cacheSh.getRange(4, 1, 1, cacheSh.getLastColumn()).getValues()[0];
+    rawHeaders = hdrVals.map(function(h) { return String(h || '').trim(); })
+                        .filter(function(h) { return h !== ''; });
+    var lowerHdrs = rawHeaders.map(function(h) { return h.toLowerCase(); });
+    var colMap = _buildEquipColMap_(lowerHdrs);
+    Object.keys(_EQUIP_COL_MAPPINGS_).forEach(function(field) {
+      if (colMap[field] !== undefined) {
+        mappedCols[field] = rawHeaders[colMap[field]];
+      }
+    });
+    lowerHdrs.forEach(function(h, i) {
+      var matched = false;
+      Object.keys(_EQUIP_COL_MAPPINGS_).forEach(function(field) {
+        if (_EQUIP_COL_MAPPINGS_[field].indexOf(h) >= 0) matched = true;
+      });
+      if (!matched) unmappedHdrs.push(rawHeaders[i]);
+    });
+  }
+
+  // ── Parse count (after filter) ─────────────────────────────────────────
+  var parsedItems = getEquipmentFromInventory();
+  var parsedItemCount = parsedItems.length;
+
+  // ── Hierarchy summary ──────────────────────────────────────────────────
   var hierarchy  = getEquipmentHierarchy();
   var deptKeys   = Object.keys(hierarchy);
   var deptSummary = deptKeys.map(function(d) {
@@ -263,7 +327,6 @@ function getEquipCacheStatus() {
   });
 
   var resolvedId = getEquipRegisterSheetId_();
-  // Show whichever config value actually supplied the sheet ID
   var foundUrl = '';
   var cfg = getConfig();
   Object.keys(cfg).forEach(function(k) {
@@ -277,7 +340,11 @@ function getEquipCacheStatus() {
   return {
     lastRefreshed:    lastRefreshed,
     cacheRows:        cacheRows,
+    parsedItemCount:  parsedItemCount,
     deptSummary:      deptSummary,
+    rawHeaders:       rawHeaders,
+    mappedCols:       mappedCols,
+    unmappedHdrs:     unmappedHdrs,
     configTabName:    String(getConfigValue('Equipment Inventory Tab Name') || '').trim(),
     configSheetUrl:   foundUrl || (resolvedId === EXT_SHEET_IDS.EQUIP_REGISTER ? '(using fallback hard-coded ID)' : resolvedId),
     resolvedSheetId:  resolvedId,

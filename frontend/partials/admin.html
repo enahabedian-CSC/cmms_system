@@ -227,8 +227,43 @@ function _renderEquipCachePage_(d, container) {
       cfgRow('Resolved Sheet ID', d.resolvedSheetId, !!d.resolvedSheetId) +
       cfgRow('Equipment Inventory Tab Name', d.configTabName || '(not set)', !!d.configTabName) +
       cfgRow('Last Refreshed', d.lastRefreshed, d.lastRefreshed !== 'Never') +
-      cfgRow('Cached Rows', d.cacheRows + ' equipment records', d.cacheRows > 0) +
+      cfgRow('Rows in Cache Tab', d.cacheRows + ' physical rows', d.cacheRows > 0) +
+      cfgRow('Rows After Parsing', d.parsedItemCount + ' items passed column filter', d.parsedItemCount > 0) +
     '</tbody></table></div>' +
+
+    // Column mapping diagnostic
+    (function() {
+      var FIELDS = ['dept','eType','code','specific','status','group','deptCode'];
+      var FIELD_LABELS = { dept:'Department', eType:'Equipment Type', code:'Equipment Code',
+        specific:'Equipment Name', status:'Status', group:'Group/Line', deptCode:'Dept Code' };
+      var rows = FIELDS.map(function(f) {
+        var mapped = d.mappedCols && d.mappedCols[f];
+        return '<tr>' +
+          '<td class="key-col">' + esc(FIELD_LABELS[f] || f) + '</td>' +
+          (mapped
+            ? '<td><span style="color:var(--status-success);font-weight:700;">●</span> &nbsp;Mapped to column <strong>"' + esc(mapped) + '"</strong></td>'
+            : '<td><span style="color:var(--status-critical);font-weight:700;">●</span> &nbsp;<span style="color:var(--status-critical);">Not recognised</span></td>') +
+        '</tr>';
+      });
+      var unmapped = (d.unmappedHdrs || []);
+      var unmappedRow = unmapped.length > 0
+        ? '<tr><td class="key-col" style="color:var(--text-tertiary);">Unrecognised headers</td>' +
+          '<td style="color:var(--status-high);">' + unmapped.map(function(h){ return '"' + esc(h) + '"'; }).join(', ') + '<br>' +
+          '<span style="font-size:11px;color:var(--text-tertiary);">Report these to your developer to add to the mapping.</span></td></tr>'
+        : '';
+      return '<div class="adm-table-wrap" style="margin-bottom:16px;"><table class="adm-table">' +
+        '<thead><tr><th colspan="2">Column Header Mapping (row 4 of cache tab)</th></tr></thead><tbody>' +
+        rows.join('') + unmappedRow +
+        '</tbody></table></div>';
+    })() +
+
+    // Raw headers from cache
+    (d.rawHeaders && d.rawHeaders.length > 0
+      ? '<div class="adm-notice" style="margin-bottom:12px;"><strong>Raw headers detected in cache (row 4):</strong><br>' +
+        '<span style="font-family:monospace;font-size:12px;">' +
+        d.rawHeaders.map(function(h, i) { return (i+1) + '. ' + esc(h); }).join(' &nbsp;|&nbsp; ') +
+        '</span></div>'
+      : '') +
 
     '<div class="adm-table-wrap"><table class="adm-table">' +
       '<thead><tr><th>Canonical Dept</th><th>Cache Status</th><th>Types</th><th>Equipment Items</th></tr></thead>' +
