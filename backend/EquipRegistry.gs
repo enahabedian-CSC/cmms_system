@@ -41,6 +41,12 @@ function refreshEquipCache() {
 
     var srcData = srcSh.getRange(1, 1, srcLastRow, srcLastCol).getValues();
 
+    // Find the real header row — skip title/logo rows that precede the column labels.
+    // We scan the first 10 rows and pick the one with the most recognised header matches.
+    // Falls back to the first row with ≥ 3 non-empty cells, then row 0.
+    var headerRowIdx = _findSourceHeaderRow_(srcData);
+    var relevantData = srcData.slice(headerRowIdx); // header row + data rows only
+
     var cacheSh = getBoundSS_().getSheetByName(SH.EQUIP_CACHE);
     if (!cacheSh) throw new Error(SH.EQUIP_CACHE + ' tab not found in bound sheet');
 
@@ -51,9 +57,9 @@ function refreshEquipCache() {
       cacheSh.getRange(clearStart, 1, existingRows - clearStart + 1, cacheSh.getLastColumn() || srcLastCol)
         .clearContent();
     }
-    cacheSh.getRange(clearStart, 1, srcData.length, srcLastCol).setValues(srcData);
+    cacheSh.getRange(clearStart, 1, relevantData.length, srcLastCol).setValues(relevantData);
 
-    var dataRows = srcLastRow - 1;
+    var dataRows = relevantData.length - 1; // minus the header row
     var now = new Date();
 
     // Log success to Master Log
@@ -65,7 +71,7 @@ function refreshEquipCache() {
       row[ML.TIMESTAMP - 1] = formatTimestamp_(now);
       row[ML.ACTION    - 1] = ML_ACTIONS.EQUIP_CACHE_REFRESH;
       row[ML.STATUS    - 1] = 'SYSTEM';
-      row[ML.NOTES     - 1] = 'Rows cached: ' + dataRows + ' | Tab: ' + tabName + ' | SheetID: ' + sheetId;
+      row[ML.NOTES     - 1] = 'Rows cached: ' + dataRows + ' | Header at source row: ' + (headerRowIdx + 1) + ' | Tab: ' + tabName + ' | SheetID: ' + sheetId;
       mlSh.appendRow(row);
     }
 
@@ -210,6 +216,41 @@ function _buildEquipColMap_(lowerHeaders) {
     }
   });
   return colMap;
+}
+
+// Scans the first 10 source rows to find which row holds the real column headers.
+// Returns the 0-based index of that row.
+// Strategy: pick the row with the most matches against known column-name variants.
+// Tie-break / fallback: first row with ≥ 3 non-empty cells.
+// Final fallback: row 0 (preserves previous behaviour).
+function _findSourceHeaderRow_(srcData) {
+  var allVariants = [];
+  Object.keys(_EQUIP_COL_MAPPINGS_).forEach(function(key) {
+    allVariants = allVariants.concat(_EQUIP_COL_MAPPINGS_[key]);
+  });
+
+  var limit          = Math.min(10, srcData.length);
+  var bestIdx        = -1;
+  var bestCount      = 0;
+  var firstMultiCell = -1;
+
+  for (var i = 0; i < limit; i++) {
+    var row      = srcData[i];
+    var nonEmpty = 0;
+    var matches  = 0;
+    for (var c = 0; c < row.length; c++) {
+      var lc = String(row[c] || '').trim().toLowerCase();
+      if (!lc) continue;
+      nonEmpty++;
+      if (allVariants.indexOf(lc) >= 0) matches++;
+    }
+    if (matches > bestCount) { bestCount = matches; bestIdx = i; }
+    if (firstMultiCell < 0 && nonEmpty >= 3) firstMultiCell = i;
+  }
+
+  if (bestIdx >= 0 && bestCount > 0) return bestIdx;
+  if (firstMultiCell >= 0) return firstMultiCell;
+  return 0;
 }
 
 // Returns { dept: { eType: [{ code, specific, status, deptCode, group }] } }
