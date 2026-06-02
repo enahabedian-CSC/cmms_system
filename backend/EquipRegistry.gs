@@ -19,17 +19,23 @@
 function refreshEquipCache() {
   try {
     var tabName = getConfigValue('Equipment Inventory Tab Name');
-    if (!tabName) throw new Error('"Equipment Inventory Tab Name" not set in ⚙️ Configuration');
+    if (!tabName) throw new Error(
+      '"Equipment Inventory Tab Name" is not set in ⚙️ Configuration. ' +
+      'Add a row with key "Equipment Inventory Tab Name" and the exact tab name from the Equipment Register.'
+    );
 
     var srcSS = SpreadsheetApp.openById(EXT_SHEET_IDS.EQUIP_REGISTER);
     var srcSh = srcSS.getSheetByName(tabName);
-    if (!srcSh) throw new Error('Tab "' + tabName + '" not found in Equipment Register');
+    if (!srcSh) throw new Error(
+      'Tab "' + tabName + '" not found in the Equipment Register spreadsheet. ' +
+      'Verify the tab name in ⚙️ Configuration matches exactly (case-sensitive).'
+    );
 
     var srcLastRow = srcSh.getLastRow();
     var srcLastCol = srcSh.getLastColumn();
     if (srcLastRow < 2 || srcLastCol < 1) {
-      Logger.log('refreshEquipCache: source sheet appears empty');
-      return { success: true, rows: 0 };
+      Logger.log('refreshEquipCache: source sheet appears empty, skipping write');
+      return { success: true, rows: 0, warning: 'Source tab is empty — no equipment cached.' };
     }
 
     var srcData = srcSh.getRange(1, 1, srcLastRow, srcLastCol).getValues();
@@ -46,23 +52,40 @@ function refreshEquipCache() {
     }
     cacheSh.getRange(clearStart, 1, srcData.length, srcLastCol).setValues(srcData);
 
-    // Log system action to Master Log (no ticket number — system event)
+    var dataRows = srcLastRow - 1;
+    var now = new Date();
+
+    // Log success to Master Log
     var mlSh = getBoundSS_().getSheetByName(SH.MASTER_LOG);
     if (mlSh) {
       var row = new Array(ML_COLS).fill('');
       row[ML.ROW_ID    - 1] = generateRowId();
       row[ML.TICKET_NO - 1] = 'SYSTEM';
-      row[ML.TIMESTAMP - 1] = formatTimestamp_(new Date());
+      row[ML.TIMESTAMP - 1] = formatTimestamp_(now);
       row[ML.ACTION    - 1] = ML_ACTIONS.EQUIP_CACHE_REFRESH;
       row[ML.STATUS    - 1] = 'SYSTEM';
-      row[ML.NOTES     - 1] = 'Rows cached: ' + (srcLastRow - 1);
+      row[ML.NOTES     - 1] = 'Rows cached: ' + dataRows + ' | Tab: ' + tabName;
       mlSh.appendRow(row);
     }
 
-    setConfigValue('Equip Cache Last Refreshed', formatTimestamp_(new Date()));
-    return { success: true, rows: srcLastRow - 1 };
+    setConfigValue('Equip Cache Last Refreshed', formatTimestamp_(now));
+    return { success: true, rows: dataRows };
   } catch (e) {
     Logger.log('refreshEquipCache error: ' + e.message);
+    // Write failure to Master Log so admins can diagnose without checking script logs
+    try {
+      var mlSh2 = getBoundSS_().getSheetByName(SH.MASTER_LOG);
+      if (mlSh2) {
+        var errRow = new Array(ML_COLS).fill('');
+        errRow[ML.ROW_ID    - 1] = generateRowId();
+        errRow[ML.TICKET_NO - 1] = 'SYSTEM';
+        errRow[ML.TIMESTAMP - 1] = formatTimestamp_(new Date());
+        errRow[ML.ACTION    - 1] = 'EQUIP CACHE REFRESH FAILED';
+        errRow[ML.STATUS    - 1] = 'ERROR';
+        errRow[ML.NOTES     - 1] = e.message;
+        mlSh2.appendRow(errRow);
+      }
+    } catch (logErr) { /* ignore secondary log failure */ }
     return { success: false, error: e.message };
   }
 }
@@ -114,13 +137,16 @@ function getEquipmentFromCache_(cacheSh) {
 
   var colMap   = {};
   var mappings = {
-    dept:     ['department','dept','dept.'],
+    dept:     ['department','dept','dept.','department name','dept name','area','division'],
     deptCode: ['dept code','department code','dept #','dept no','dept no.','dept number','department #'],
-    group:    ['group','category','equipment group','line #','line#','line number','line'],
-    eType:    ['equipment type','equip type','type'],
-    code:     ['equipment code','equip code','code','asset code','job #','job no','id','job number','job no.'],
-    specific: ['specific equipment','equipment name','name','description','asset name','equipment description'],
-    status:   ['status','active','state']
+    group:    ['group','category','equipment group','line #','line#','line number','line','asset group'],
+    eType:    ['equipment type','equip type','type','asset type','machine type','category'],
+    code:     ['equipment code','equip code','code','asset code','job #','job no','id','job number','job no.',
+               'asset id','asset #','asset no','asset number','machine code','machine #','machine id',
+               'equip id','equip #','equip no','equipment #','equipment id','equipment no'],
+    specific: ['specific equipment','equipment name','name','description','asset name',
+               'equipment description','machine name','equip name','item','item name','equipment'],
+    status:   ['status','active','state','asset status','equip status']
   };
   Object.keys(mappings).forEach(function(key) {
     for (var i = 0; i < headers.length; i++) {
