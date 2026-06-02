@@ -192,15 +192,45 @@ function getEquipmentHierarchy() {
 }
 
 // Returns the Equipment Register sheet ID from config (preferred) or the
-// hard-coded fallback constant.  Accepts either a full Google Sheets URL or
-// a bare sheet ID in the config key "Equipment Register Sheet URL".
+// hard-coded fallback constant.
+// Strategy: try several common key name variants first, then scan ALL config
+// values for any Google Sheets URL — so whatever key name the admin used,
+// it will be found automatically.
 function getEquipRegisterSheetId_() {
-  var urlOrId = String(getConfigValue('Equipment Register Sheet URL') || '').trim();
-  if (urlOrId) {
-    var m = urlOrId.match(/\/d\/([a-zA-Z0-9_-]{25,})/);
+  var CANDIDATES = [
+    'Equipment Register Sheet URL',
+    'Equipment List Source URL',
+    'Equipment Register URL',
+    'Equip Register URL',
+    'Equipment Register Sheet ID',
+    'Equipment Source URL'
+  ];
+
+  function extractId_(str) {
+    if (!str) return '';
+    var s = String(str).trim();
+    var m = s.match(/\/d\/([a-zA-Z0-9_-]{25,})/);
     if (m) return m[1];
-    if (urlOrId.indexOf('/') < 0 && urlOrId.length >= 25) return urlOrId;
+    if (s.indexOf('/') < 0 && s.length >= 25) return s;
+    return '';
   }
+
+  for (var i = 0; i < CANDIDATES.length; i++) {
+    var id = extractId_(getConfigValue(CANDIDATES[i]));
+    if (id) return id;
+  }
+
+  // Last resort: scan every config value for a Google Sheets URL
+  var cfg = getConfig();
+  var keys = Object.keys(cfg);
+  for (var j = 0; j < keys.length; j++) {
+    var val = String(cfg[keys[j]] || '').trim();
+    if (val.indexOf('docs.google.com/spreadsheets') >= 0) {
+      var id2 = extractId_(val);
+      if (id2) return id2;
+    }
+  }
+
   return EXT_SHEET_IDS.EQUIP_REGISTER;
 }
 
@@ -232,13 +262,25 @@ function getEquipCacheStatus() {
     return { dept: d, types: types, items: items };
   });
 
+  var resolvedId = getEquipRegisterSheetId_();
+  // Show whichever config value actually supplied the sheet ID
+  var foundUrl = '';
+  var cfg = getConfig();
+  Object.keys(cfg).forEach(function(k) {
+    if (foundUrl) return;
+    var v = String(cfg[k] || '').trim();
+    if (v.indexOf('docs.google.com/spreadsheets') >= 0 && v.indexOf(resolvedId) >= 0) {
+      foundUrl = k + ' = ' + v;
+    }
+  });
+
   return {
     lastRefreshed:    lastRefreshed,
     cacheRows:        cacheRows,
     deptSummary:      deptSummary,
     configTabName:    String(getConfigValue('Equipment Inventory Tab Name') || '').trim(),
-    configSheetUrl:   String(getConfigValue('Equipment Register Sheet URL') || '').trim(),
-    resolvedSheetId:  getEquipRegisterSheetId_(),
+    configSheetUrl:   foundUrl || (resolvedId === EXT_SHEET_IDS.EQUIP_REGISTER ? '(using fallback hard-coded ID)' : resolvedId),
+    resolvedSheetId:  resolvedId,
     canonicalDepts:   DEPT_TRACKERS.map(function(dt) { return dt.dept; })
   };
 }
