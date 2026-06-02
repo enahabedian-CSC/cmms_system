@@ -123,16 +123,17 @@
 
 <script>
 // ── Module state ──────────────────────────────────────────────────────────────
-var _sfData      = null;
-var _sfStep      = 1;
-var _sfPriority  = 'MEDIUM';
-var _sfEquipCode = '';
-var _sfEquipSpec = '';
+var _sfData        = null;
+var _sfStep        = 1;
+var _sfPriority    = 'MEDIUM';
+var _sfEquipCode   = '';
+var _sfEquipSpec   = '';
+var _sfEquipLookup = {}; // datalist-value → {code, specific}
 
 window.PAGES = window.PAGES || {};
 
 PAGES['submit'] = function(container) {
-  _sfStep = 1; _sfPriority = 'MEDIUM'; _sfEquipCode = ''; _sfEquipSpec = '';
+  _sfStep = 1; _sfPriority = 'MEDIUM'; _sfEquipCode = ''; _sfEquipSpec = ''; _sfEquipLookup = {};
   container.innerHTML = _buildSubmitHTML_();
   if (_sfData) {
     _sfPopulate_(_sfData);
@@ -196,11 +197,14 @@ function _buildSubmitHTML_() {
         '<div class="form-row cols-2">' +
           '<div class="form-group">' +
             '<label class="form-label">Equipment Type <span class="req">*</span></label>' +
-            '<select class="form-select" id="sf-etype" disabled onchange="_sfCascadeEtype_()"><option value="">— Select type —</option></select>' +
+            '<input type="text" class="form-input" id="sf-etype" list="sf-etype-list" placeholder="Select or type type…" disabled oninput="_sfCascadeEtype_()" autocomplete="off">' +
+            '<datalist id="sf-etype-list"></datalist>' +
+            '<div class="form-hint" id="sf-etype-hint" style="display:none;"></div>' +
           '</div>' +
           '<div class="form-group">' +
             '<label class="form-label">Specific Equipment</label>' +
-            '<select class="form-select" id="sf-equip" disabled onchange="_sfCascadeEquip_()"><option value="">— Select equipment —</option></select>' +
+            '<input type="text" class="form-input" id="sf-equip" list="sf-equip-list" placeholder="Select or type equipment…" disabled oninput="_sfCascadeEquip_()" autocomplete="off">' +
+            '<datalist id="sf-equip-list"></datalist>' +
           '</div>' +
         '</div>' +
         '<div class="form-row cols-2">' +
@@ -386,73 +390,100 @@ function _sfPopulate_(d) {
 // ── Cascade helpers — use _sfData directly to avoid closure issues ────────────
 
 function _sfCascadeDept_() {
-  var hier = _sfData && _sfData.equipHierarchy;
-  var dept = document.getElementById('sf-dept');
-  var eSel = document.getElementById('sf-etype');
-  var eqSel= document.getElementById('sf-equip');
-  if (!dept || !eSel || !eqSel) return;
+  var hier  = _sfData && _sfData.equipHierarchy;
+  var dept  = document.getElementById('sf-dept');
+  var eIn   = document.getElementById('sf-etype');
+  var eqIn  = document.getElementById('sf-equip');
+  var eList = document.getElementById('sf-etype-list');
+  var eqList= document.getElementById('sf-equip-list');
+  var hint  = document.getElementById('sf-etype-hint');
+  if (!dept || !eIn || !eqIn) return;
 
   var dv = dept.value;
-  eSel.innerHTML  = '<option value="">— Select type —</option>';
-  eqSel.innerHTML = '<option value="">— Select equipment —</option>';
-  eqSel.disabled  = true;
-  _sfEquipCode = ''; _sfEquipSpec = '';
 
-  if (!dv || !hier || !hier[dv]) {
-    eSel.disabled = true;
-    _sfUpdatePreview_();
-    return;
+  // Reset downstream inputs and lookup
+  eIn.value = ''; eqIn.value = '';
+  if (eList)  eList.innerHTML  = '';
+  if (eqList) eqList.innerHTML = '';
+  _sfEquipCode = ''; _sfEquipSpec = ''; _sfEquipLookup = {};
+
+  if (!dv) {
+    eIn.disabled = true; eqIn.disabled = true;
+    if (hint) hint.style.display = 'none';
+    _sfUpdatePreview_(); return;
   }
-  eSel.disabled = false;
-  Object.keys(hier[dv]).sort().forEach(function(eType) {
-    var opt = document.createElement('option');
-    opt.value = eType; opt.textContent = eType;
-    eSel.appendChild(opt);
-  });
+
+  // Dept selected — always unlock etype so user can type
+  eIn.disabled  = false;
+  eqIn.disabled = true; // enabled once etype has a value
+
+  if (hint) hint.style.display = 'none';
+
+  if (hier && hier[dv] && Object.keys(hier[dv]).length > 0) {
+    // Populate etype datalist from hierarchy
+    Object.keys(hier[dv]).sort().forEach(function(eType) {
+      var opt = document.createElement('option');
+      opt.value = eType;
+      if (eList) eList.appendChild(opt);
+    });
+  } else {
+    // No synced data — show a subtle hint; input is still usable
+    if (hint) {
+      hint.textContent = 'Equipment list not synced for this dept — type manually.';
+      hint.style.display = '';
+    }
+  }
   _sfUpdatePreview_();
 }
 
 function _sfCascadeEtype_() {
-  var hier = _sfData && _sfData.equipHierarchy;
-  var dept = document.getElementById('sf-dept');
-  var eSel = document.getElementById('sf-etype');
-  var eqSel= document.getElementById('sf-equip');
-  if (!dept || !eSel || !eqSel) return;
+  var hier  = _sfData && _sfData.equipHierarchy;
+  var deptEl= document.getElementById('sf-dept');
+  var eIn   = document.getElementById('sf-etype');
+  var eqIn  = document.getElementById('sf-equip');
+  var eqList= document.getElementById('sf-equip-list');
+  if (!deptEl || !eIn || !eqIn) return;
 
-  var dv = dept.value;
-  var tv = eSel.value;
-  eqSel.innerHTML = '<option value="">— Select equipment —</option>';
-  _sfEquipCode = ''; _sfEquipSpec = '';
+  var dv = deptEl.value;
+  var tv = eIn.value.trim();
 
-  if (!dv || !tv || !hier || !hier[dv] || !hier[dv][tv]) {
-    eqSel.disabled = true;
-    _sfUpdatePreview_();
-    return;
+  // Reset equip
+  eqIn.value = '';
+  if (eqList) eqList.innerHTML = '';
+  _sfEquipCode = ''; _sfEquipSpec = ''; _sfEquipLookup = {};
+
+  // Enable equip as long as etype has any value
+  eqIn.disabled = !tv;
+
+  if (dv && tv && hier && hier[dv] && hier[dv][tv]) {
+    // Exact match in hierarchy → populate equip datalist
+    hier[dv][tv].forEach(function(e) {
+      var label = e.specific + (e.code ? ' (' + e.code + ')' : '');
+      var opt   = document.createElement('option');
+      opt.value = label;
+      if (eqList) eqList.appendChild(opt);
+      _sfEquipLookup[label] = { code: e.code || '', specific: e.specific || '' };
+    });
   }
-  eqSel.disabled = false;
-  hier[dv][tv].forEach(function(e) {
-    var opt = document.createElement('option');
-    opt.value = e.code || e.specific;
-    opt.textContent = e.specific + (e.code ? ' (' + e.code + ')' : '');
-    opt.setAttribute('data-code',     e.code     || '');
-    opt.setAttribute('data-specific', e.specific || '');
-    eqSel.appendChild(opt);
-  });
+  // If no hierarchy match, equip field is still open for manual text entry
   _sfUpdatePreview_();
 }
 
 function _sfCascadeEquip_() {
-  var eqSel = document.getElementById('sf-equip');
-  if (!eqSel) return;
-  var sel = eqSel.options[eqSel.selectedIndex];
-  if (sel && sel.value) {
-    _sfEquipCode = sel.getAttribute('data-code')     || sel.value;
-    _sfEquipSpec = sel.getAttribute('data-specific') || sel.textContent;
+  var eqIn = document.getElementById('sf-equip');
+  if (!eqIn) return;
+  var val  = eqIn.value.trim();
+  var info = _sfEquipLookup[val];
+  if (info) {
+    _sfEquipCode = info.code;
+    _sfEquipSpec = info.specific;
   } else {
-    _sfEquipCode = ''; _sfEquipSpec = '';
+    // Free-text entry — no code, use raw value as equipment name
+    _sfEquipCode = '';
+    _sfEquipSpec = val;
   }
   _sfUpdatePreview_();
-  _sfUpdateHeadsUp_();
+  if (_sfEquipSpec) _sfUpdateHeadsUp_();
 }
 
 // ── Priority selection ────────────────────────────────────────────────────────
@@ -576,8 +607,8 @@ function submitStep1Next() {
   var dept  = (document.getElementById('sf-dept')  || {}).value || '';
   var eType = (document.getElementById('sf-etype') || {}).value || '';
   if (!dept)  { showToast('Please select a department', 'error'); return; }
-  if (!eType) { showToast('Please select an equipment type', 'error'); return; }
-  // Capture equip values from whatever is currently selected
+  if (!eType) { showToast('Please enter an equipment type', 'error'); return; }
+  // Final sync of equip module vars from whatever is currently entered
   _sfCascadeEquip_();
   submitGoStep(2);
 }
@@ -716,7 +747,7 @@ function copyTicketNo(tn) {
 }
 
 function submitAnotherTicket() {
-  _sfStep = 1; _sfPriority = 'MEDIUM'; _sfEquipCode = ''; _sfEquipSpec = '';
+  _sfStep = 1; _sfPriority = 'MEDIUM'; _sfEquipCode = ''; _sfEquipSpec = ''; _sfEquipLookup = {};
   var container = document.getElementById('page-submit');
   if (!container) { navigate('submit'); return; }
   container.innerHTML = _buildSubmitHTML_();
