@@ -1,37 +1,51 @@
 <!-- ╔══════════════════════════════════════════════════════════════════╗ -->
 <!-- ║  Submit Ticket — three-step form partial                        ║ -->
 <!-- ║  Registers PAGE: submit                                         ║ -->
-<!-- ║  No static <div class="page"> — rendered dynamically into the  ║ -->
-<!-- ║  #content container so it sits inside the scroll area.         ║ -->
+<!-- ║  No static <div class="page"> — rendered dynamically so the    ║ -->
+<!-- ║  form is always inside #content (the scroll container).        ║ -->
 <!-- ╚══════════════════════════════════════════════════════════════════╝ -->
 <style>
-/* ── Submit Ticket layout ───────────────────────────────────────────── */
-.submit-layout{display:grid;grid-template-columns:1.5fr 1fr;gap:16px;align-items:start;}
-@media(max-width:900px){.submit-layout{grid-template-columns:1fr;}}
-.submit-right{position:sticky;top:20px;display:flex;flex-direction:column;gap:12px;}
+/* ── Submit Ticket page chrome ──────────────────────────────────────── */
+.submit-page-hdr{
+  display:flex;align-items:center;justify-content:space-between;
+  margin-bottom:16px;flex-wrap:wrap;gap:10px;
+}
+.submit-page-title{font-size:18px;font-weight:700;color:var(--text-primary);line-height:1.2;}
+.submit-page-sub{font-size:12px;color:var(--text-secondary);margin-top:2px;}
 
-/* Step indicator */
-.submit-steps{display:flex;align-items:center;gap:0;margin-bottom:18px;}
-.step-item{display:flex;align-items:center;flex:1;position:relative;}
-.step-circle{width:28px;height:28px;border-radius:50%;display:grid;place-items:center;font-size:12px;font-weight:700;flex-shrink:0;transition:all .2s;}
+/* Step indicator dots (in page header) */
+.submit-steps{display:flex;align-items:center;gap:0;}
+.step-item{display:flex;align-items:center;}
+.step-circle{
+  width:26px;height:26px;border-radius:50%;display:grid;place-items:center;
+  font-size:11px;font-weight:700;flex-shrink:0;transition:all .2s;
+}
 .step-circle.pending{background:var(--bg-subtle);color:var(--text-tertiary);border:2px solid var(--border-default);}
-.step-circle.active{background:var(--brand-navy);color:#fff;border:2px solid var(--brand-navy);}
+.step-circle.active{background:var(--brand-navy);color:#fff;border:2px solid var(--brand-navy);box-shadow:0 0 0 3px rgba(0,31,79,.15);}
 .step-circle.done{background:var(--status-success);color:#fff;border:2px solid var(--status-success);}
-.step-label{font-size:11.5px;font-weight:500;margin-left:8px;color:var(--text-secondary);}
+.step-label{font-size:11.5px;font-weight:500;margin-left:7px;color:var(--text-secondary);white-space:nowrap;}
 .step-label.active{color:var(--brand-navy);font-weight:600;}
 .step-label.done{color:var(--status-success);}
-.step-connector{flex:1;height:2px;background:var(--border-default);margin:0 8px;}
+.step-connector{width:32px;height:2px;background:var(--border-default);margin:0 6px;flex-shrink:0;}
 .step-connector.done{background:var(--status-success);}
 
-/* Form card */
-.submit-card{background:#fff;border:1px solid var(--border-default);border-radius:12px;padding:24px;box-shadow:var(--shadow-sm);}
-.submit-card-title{font-size:15px;font-weight:700;color:var(--text-primary);margin-bottom:3px;}
-.submit-card-sub{font-size:12px;color:var(--text-secondary);margin-bottom:20px;}
+/* Two-column grid — form left, preview right */
+.submit-layout{display:grid;grid-template-columns:1.5fr 1fr;gap:16px;align-items:start;}
+@media(max-width:920px){
+  .submit-layout{grid-template-columns:1fr;}
+  .submit-right{order:-1;}  /* preview above form on narrow screens */
+}
+.submit-right{display:flex;flex-direction:column;gap:12px;position:sticky;top:24px;}
 
-.form-row{display:grid;gap:14px;margin-bottom:14px;}
+/* Form card */
+.submit-card{background:#fff;border:1px solid var(--border-default);border-radius:10px;padding:22px;box-shadow:var(--shadow-sm);}
+.submit-card-title{font-size:14px;font-weight:700;color:var(--text-primary);margin-bottom:2px;}
+.submit-card-sub{font-size:12px;color:var(--text-secondary);margin-bottom:18px;}
+
+.form-row{display:grid;gap:12px;margin-bottom:12px;}
 .form-row.cols-2{grid-template-columns:1fr 1fr;}
 .form-row.cols-3{grid-template-columns:1fr 1fr 1fr;}
-.form-group{display:flex;flex-direction:column;gap:5px;}
+.form-group{display:flex;flex-direction:column;gap:4px;}
 .form-label{font-size:12px;font-weight:600;color:var(--text-primary);}
 .form-label .req{color:var(--status-critical);margin-left:2px;}
 .form-input,.form-select,.form-textarea{
@@ -39,21 +53,21 @@
   font-size:13px;color:var(--text-primary);background:#fff;outline:none;width:100%;
   box-sizing:border-box;transition:border-color .15s,box-shadow .15s;
 }
-.form-textarea{height:80px;padding:8px 10px;resize:vertical;}
+.form-textarea{height:78px;padding:8px 10px;resize:vertical;}
 .form-input:focus,.form-select:focus,.form-textarea:focus{
   border-color:var(--brand-navy);box-shadow:0 0 0 3px rgba(0,31,79,.07);}
 .form-input:disabled,.form-select:disabled{background:var(--bg-subtle);color:var(--text-tertiary);cursor:not-allowed;}
-.form-hint{font-size:11px;color:var(--text-tertiary);margin-top:2px;}
+.form-hint{font-size:11px;color:var(--text-tertiary);margin-top:1px;}
 
 /* Priority cards */
 .priority-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;}
 .priority-card{
-  border:2px solid var(--border-default);border-radius:8px;padding:10px 8px;
+  border:2px solid var(--border-default);border-radius:8px;padding:9px 6px;
   text-align:center;cursor:pointer;transition:all .15s;user-select:none;
 }
-.priority-card:hover{border-color:var(--brand-navy);}
+.priority-card:hover{border-color:var(--text-secondary);}
 .priority-card.selected{border-color:var(--brand-navy);background:var(--status-info-bg);}
-.priority-card .p-label{font-size:11.5px;font-weight:700;letter-spacing:.03em;}
+.priority-card .p-label{font-size:11px;font-weight:700;letter-spacing:.03em;}
 .priority-card.p-low    .p-label{color:var(--status-low);}
 .priority-card.p-medium .p-label{color:var(--status-medium);}
 .priority-card.p-high   .p-label{color:var(--status-high);}
@@ -61,41 +75,45 @@
 .priority-card.p-critical.selected{border-color:var(--status-critical);background:var(--status-critical-bg);}
 .priority-card.p-high.selected   {border-color:var(--status-high);background:var(--status-high-bg);}
 .priority-card.p-medium.selected {border-color:var(--status-medium);background:var(--status-medium-bg);}
-.priority-card .p-sub{font-size:10px;color:var(--text-tertiary);margin-top:3px;}
+.priority-card .p-sub{font-size:10px;color:var(--text-tertiary);margin-top:2px;}
+
+/* Form footer */
+.submit-footer{
+  display:flex;justify-content:space-between;align-items:center;
+  margin-top:18px;padding-top:14px;border-top:1px solid var(--border-default);
+}
 
 /* Review summary */
-.review-section{margin-bottom:18px;}
-.review-section-title{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--text-secondary);margin-bottom:8px;padding-bottom:6px;border-bottom:1px solid var(--border-default);}
-.review-grid{display:grid;grid-template-columns:1fr 1fr;gap:6px 18px;}
+.review-section{margin-bottom:16px;}
+.review-section-title{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--text-secondary);margin-bottom:6px;padding-bottom:5px;border-bottom:1px solid var(--border-default);}
+.review-grid{display:grid;grid-template-columns:1fr 1fr;gap:5px 16px;}
 .review-field{display:flex;flex-direction:column;gap:2px;}
 .review-field.full{grid-column:1/-1;}
 .review-field .rf-label{font-size:10.5px;font-weight:600;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:.04em;}
 .review-field .rf-value{font-size:13px;color:var(--text-primary);font-weight:500;}
 .review-field .rf-value.empty{color:var(--text-tertiary);font-style:italic;}
 
-/* Footer nav */
-.submit-footer{display:flex;justify-content:space-between;align-items:center;margin-top:20px;padding-top:16px;border-top:1px solid var(--border-default);}
-
 /* Success state */
-.submit-success{text-align:center;padding:32px 0;}
-.submit-success .success-icon{width:52px;height:52px;border-radius:50%;background:var(--status-success-bg);display:grid;place-items:center;margin:0 auto 16px;color:var(--status-success);}
+.submit-success{text-align:center;padding:28px 0;}
+.submit-success .success-icon{width:48px;height:48px;border-radius:50%;background:var(--status-success-bg);display:grid;place-items:center;margin:0 auto 14px;color:var(--status-success);}
 .submit-success h3{font-size:18px;font-weight:700;margin:0 0 8px;}
-.submit-success .ticket-no{display:inline-block;padding:6px 16px;background:var(--bg-subtle);border-radius:6px;font-family:var(--font-mono);font-size:15px;font-weight:700;color:var(--brand-navy);margin-bottom:16px;cursor:pointer;}
+.submit-success .ticket-no{display:inline-block;padding:6px 16px;background:var(--bg-subtle);border-radius:6px;font-family:var(--font-mono);font-size:15px;font-weight:700;color:var(--brand-navy);margin-bottom:14px;cursor:pointer;}
 .submit-success .s-sub{font-size:13px;color:var(--text-secondary);}
 
 /* Live preview card */
 .submit-preview-card{background:var(--bg-surface);border:1px solid var(--border-default);border-radius:10px;overflow:hidden;box-shadow:var(--shadow-sm);}
-.preview-header{display:flex;align-items:baseline;justify-content:space-between;padding:10px 14px;border-bottom:1px solid var(--border-default);}
-.preview-title{font-size:13px;font-weight:700;color:var(--text-primary);}
-.preview-sub{font-size:11px;color:var(--text-tertiary);}
+.preview-hdr{display:flex;align-items:baseline;justify-content:space-between;padding:10px 14px;border-bottom:1px solid var(--border-default);}
+.preview-hdr-title{font-size:13px;font-weight:700;color:var(--text-primary);}
+.preview-hdr-sub{font-size:11px;color:var(--text-tertiary);}
 .preview-body{padding:14px;}
 
 /* Heads-up panel */
-.submit-headsup{background:var(--bg-subtle);border:1px solid var(--border-default);border-radius:8px;padding:12px 14px;font-size:12.5px;line-height:1.5;}
-.headsup-tag{display:inline-block;background:var(--brand-navy);color:#fff;font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;padding:2px 8px;border-radius:3px;margin-bottom:8px;}
+.submit-headsup{background:var(--bg-subtle);border:1px solid var(--border-default);border-radius:8px;padding:12px 14px;}
+.headsup-tag{display:inline-block;background:var(--brand-navy);color:#fff;font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;padding:2px 8px;border-radius:3px;margin-bottom:7px;}
+.headsup-body{font-size:12.5px;color:var(--text-secondary);line-height:1.5;}
 
-/* Shared btn classes (also declared in index.html — safe to repeat) */
-.btn{display:inline-flex;align-items:center;gap:7px;padding:0 16px;height:34px;border-radius:6px;font-size:13px;font-weight:600;border:1px solid transparent;cursor:pointer;transition:all .15s;white-space:nowrap;}
+/* Shared btn classes */
+.btn{display:inline-flex;align-items:center;gap:6px;padding:0 16px;height:34px;border-radius:6px;font-size:13px;font-weight:600;border:1px solid transparent;cursor:pointer;transition:all .15s;white-space:nowrap;}
 .btn-primary{background:var(--brand-navy);color:#fff;border-color:var(--brand-navy);}
 .btn-primary:hover{background:var(--brand-navy-soft);}
 .btn-primary:disabled{opacity:.5;cursor:not-allowed;}
@@ -104,7 +122,7 @@
 </style>
 
 <script>
-// ── Submit ticket page state ──────────────────────────────────────────────────
+// ── Module state ──────────────────────────────────────────────────────────────
 var _sfData      = null;
 var _sfStep      = 1;
 var _sfPriority  = 'MEDIUM';
@@ -114,19 +132,20 @@ var _sfEquipSpec = '';
 window.PAGES = window.PAGES || {};
 
 PAGES['submit'] = function(container) {
+  _sfStep = 1; _sfPriority = 'MEDIUM'; _sfEquipCode = ''; _sfEquipSpec = '';
   container.innerHTML = _buildSubmitHTML_();
   if (_sfData) {
-    populateSubmitForm(_sfData);
+    _sfPopulate_(_sfData);
   } else {
     google.script.run
       .withSuccessHandler(function(d) {
         _sfData = d;
-        populateSubmitForm(d);
+        _sfPopulate_(d);
         _sfUpdatePreview_();
       })
       .withFailureHandler(function(e) {
         container.innerHTML =
-          '<div style="padding:32px;color:var(--status-critical)">Failed to load form: ' +
+          '<div style="padding:32px;color:var(--status-critical);">Failed to load form: ' +
           esc(e.message || String(e)) + '</div>';
       })
       .getAddTicketFormData();
@@ -134,81 +153,124 @@ PAGES['submit'] = function(container) {
   _sfUpdatePreview_();
 };
 
-// ── HTML builders ─────────────────────────────────────────────────────────────
+// ── HTML builder ──────────────────────────────────────────────────────────────
 
 function _buildSubmitHTML_() {
-  var stepBar =
-    '<div class="submit-steps" id="submit-steps">' +
-      '<div class="step-item"><div class="step-circle active" id="step-circle-1">1</div><span class="step-label active" id="step-label-1">Equipment</span></div>' +
-      '<div class="step-connector" id="step-conn-1"></div>' +
-      '<div class="step-item"><div class="step-circle pending" id="step-circle-2">2</div><span class="step-label" id="step-label-2">Details</span></div>' +
-      '<div class="step-connector" id="step-conn-2"></div>' +
-      '<div class="step-item"><div class="step-circle pending" id="step-circle-3">3</div><span class="step-label" id="step-label-3">Review</span></div>' +
+  // Page header: title + step dots
+  var header =
+    '<div class="submit-page-hdr">' +
+      '<div>' +
+        '<div class="submit-page-title">New Maintenance Ticket</div>' +
+        '<div class="submit-page-sub" id="sf-step-sub">FRM-030-001 · Step 1 of 3 — Select Equipment</div>' +
+      '</div>' +
+      '<div class="submit-steps" id="submit-steps">' +
+        '<div class="step-item">' +
+          '<div class="step-circle active" id="step-circle-1">1</div>' +
+          '<span class="step-label active" id="step-label-1">Equipment</span>' +
+        '</div>' +
+        '<div class="step-connector" id="step-conn-1"></div>' +
+        '<div class="step-item">' +
+          '<div class="step-circle pending" id="step-circle-2">2</div>' +
+          '<span class="step-label" id="step-label-2">Details</span>' +
+        '</div>' +
+        '<div class="step-connector" id="step-conn-2"></div>' +
+        '<div class="step-item">' +
+          '<div class="step-circle pending" id="step-circle-3">3</div>' +
+          '<span class="step-label" id="step-label-3">Review</span>' +
+        '</div>' +
+      '</div>' +
     '</div>';
 
+  // Step 1 — Equipment
   var step1 =
     '<div id="submit-step-1">' +
       '<div class="submit-card">' +
-        '<div class="submit-card-title">Step 1 — Select Equipment</div>' +
-        '<div class="submit-card-sub">FRM-030-001 · Choose the department and specific equipment affected.</div>' +
+        '<div class="submit-card-title">Select Equipment</div>' +
+        '<div class="submit-card-sub">Choose the department and specific equipment that needs attention.</div>' +
         '<div class="form-row">' +
-          '<div class="form-group"><label class="form-label">Department <span class="req">*</span></label>' +
-          '<select class="form-select" id="sf-dept"><option value="">— Select department —</option></select></div>' +
+          '<div class="form-group">' +
+            '<label class="form-label">Department <span class="req">*</span></label>' +
+            '<select class="form-select" id="sf-dept" onchange="_sfCascadeDept_()"><option value="">— Select department —</option></select>' +
+          '</div>' +
         '</div>' +
         '<div class="form-row cols-2">' +
-          '<div class="form-group"><label class="form-label">Equipment Type <span class="req">*</span></label>' +
-          '<select class="form-select" id="sf-etype" disabled><option value="">— Select type —</option></select></div>' +
-          '<div class="form-group"><label class="form-label">Specific Equipment</label>' +
-          '<select class="form-select" id="sf-equip" disabled><option value="">— Select equipment —</option></select></div>' +
+          '<div class="form-group">' +
+            '<label class="form-label">Equipment Type <span class="req">*</span></label>' +
+            '<select class="form-select" id="sf-etype" disabled onchange="_sfCascadeEtype_()"><option value="">— Select type —</option></select>' +
+          '</div>' +
+          '<div class="form-group">' +
+            '<label class="form-label">Specific Equipment</label>' +
+            '<select class="form-select" id="sf-equip" disabled onchange="_sfCascadeEquip_()"><option value="">— Select equipment —</option></select>' +
+          '</div>' +
         '</div>' +
         '<div class="form-row cols-2">' +
-          '<div class="form-group"><label class="form-label">Building / Zone</label>' +
-          '<select class="form-select" id="sf-zone"><option value="">— Select zone —</option></select></div>' +
-          '<div class="form-group"><label class="form-label">Line #</label>' +
-          '<input type="text" class="form-input" id="sf-line" placeholder="e.g. L-04" oninput="_sfUpdatePreview_()"></div>' +
+          '<div class="form-group">' +
+            '<label class="form-label">Building / Zone</label>' +
+            '<select class="form-select" id="sf-zone" onchange="_sfUpdatePreview_()"><option value="">— Select zone —</option></select>' +
+          '</div>' +
+          '<div class="form-group">' +
+            '<label class="form-label">Line #</label>' +
+            '<input type="text" class="form-input" id="sf-line" placeholder="e.g. L-04" oninput="_sfUpdatePreview_()">' +
+          '</div>' +
         '</div>' +
       '</div>' +
-      '<div class="submit-footer"><div></div>' +
-        '<button class="btn btn-primary" onclick="submitStep1Next()">Next — Ticket Details' +
-          '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"/></svg>' +
+      '<div class="submit-footer">' +
+        '<div></div>' +
+        '<button class="btn btn-primary" onclick="submitStep1Next()">' +
+          'Next — Ticket Details ' +
+          '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"/></svg>' +
         '</button>' +
       '</div>' +
     '</div>';
 
+  // Step 2 — Ticket Details
   var step2 =
     '<div id="submit-step-2" style="display:none;">' +
       '<div class="submit-card">' +
-        '<div class="submit-card-title">Step 2 — Ticket Details</div>' +
-        '<div class="submit-card-sub">Describe the issue, set priority, and capture downtime impact.</div>' +
+        '<div class="submit-card-title">Ticket Details</div>' +
+        '<div class="submit-card-sub">Set priority, describe the issue, and capture downtime impact.</div>' +
         '<div class="form-row">' +
-          '<div class="form-group"><label class="form-label">Priority <span class="req">*</span></label>' +
+          '<div class="form-group">' +
+            '<label class="form-label">Priority <span class="req">*</span></label>' +
             '<div class="priority-grid" id="sf-priority-grid">' +
-              '<div class="priority-card p-low"      onclick="selectPriority(\'LOW\')"      id="pcard-LOW"><div class="p-label">LOW</div><div class="p-sub">Scheduled</div></div>' +
-              '<div class="priority-card p-medium selected" onclick="selectPriority(\'MEDIUM\')"   id="pcard-MEDIUM"><div class="p-label">MEDIUM</div><div class="p-sub">Soon</div></div>' +
-              '<div class="priority-card p-high"     onclick="selectPriority(\'HIGH\')"     id="pcard-HIGH"><div class="p-label">HIGH</div><div class="p-sub">Urgent</div></div>' +
-              '<div class="priority-card p-critical" onclick="selectPriority(\'CRITICAL\')" id="pcard-CRITICAL"><div class="p-label">CRITICAL</div><div class="p-sub">Immediate</div></div>' +
+              '<div class="priority-card p-low"      id="pcard-LOW"      onclick="selectPriority(\'LOW\')"><div class="p-label">LOW</div><div class="p-sub">Scheduled</div></div>' +
+              '<div class="priority-card p-medium selected" id="pcard-MEDIUM"   onclick="selectPriority(\'MEDIUM\')"><div class="p-label">MEDIUM</div><div class="p-sub">Soon</div></div>' +
+              '<div class="priority-card p-high"     id="pcard-HIGH"     onclick="selectPriority(\'HIGH\')"><div class="p-label">HIGH</div><div class="p-sub">Urgent</div></div>' +
+              '<div class="priority-card p-critical" id="pcard-CRITICAL" onclick="selectPriority(\'CRITICAL\')"><div class="p-label">CRITICAL</div><div class="p-sub">Immediate</div></div>' +
             '</div>' +
-            '<div class="form-hint" id="critical-hint" style="display:none;color:var(--status-critical);font-weight:600;">⚠ Critical tickets bypass the waiting queue and go directly to Open.</div>' +
+            '<div class="form-hint" id="critical-hint" style="display:none;color:var(--status-critical);font-weight:600;margin-top:6px;">⚠ Critical tickets bypass the waiting queue and go directly to Open.</div>' +
           '</div>' +
         '</div>' +
         '<div class="form-row cols-2">' +
-          '<div class="form-group"><label class="form-label">Problem Type <span class="req">*</span></label>' +
-          '<select class="form-select" id="sf-probtype"><option value="">— Select type —</option></select></div>' +
-          '<div class="form-group"><label class="form-label">Downtime Type</label>' +
-          '<select class="form-select" id="sf-downtime"><option value="UNPLANNED">UNPLANNED</option><option value="PLANNED">PLANNED</option></select></div>' +
+          '<div class="form-group">' +
+            '<label class="form-label">Problem Type <span class="req">*</span></label>' +
+            '<select class="form-select" id="sf-probtype" onchange="_sfUpdatePreview_()"><option value="">— Select type —</option></select>' +
+          '</div>' +
+          '<div class="form-group">' +
+            '<label class="form-label">Downtime Type</label>' +
+            '<select class="form-select" id="sf-downtime" onchange="_sfUpdatePreview_()">' +
+              '<option value="UNPLANNED">UNPLANNED</option><option value="PLANNED">PLANNED</option>' +
+            '</select>' +
+          '</div>' +
         '</div>' +
         '<div class="form-row">' +
-          '<div class="form-group"><label class="form-label">Problem Description <span class="req">*</span></label>' +
-          '<textarea class="form-textarea" id="sf-desc" placeholder="Describe the problem in detail…" rows="3" oninput="_sfUpdatePreview_()"></textarea></div>' +
+          '<div class="form-group">' +
+            '<label class="form-label">Problem Description <span class="req">*</span></label>' +
+            '<textarea class="form-textarea" id="sf-desc" placeholder="Describe the problem in detail…" rows="3" oninput="_sfUpdatePreview_()"></textarea>' +
+          '</div>' +
         '</div>' +
         '<div class="form-row">' +
-          '<div class="form-group"><label class="form-label">Observations <span style="font-weight:400;color:var(--text-tertiary)">(optional)</span></label>' +
-          '<textarea class="form-textarea" id="sf-obs" placeholder="Any additional observations or context…" rows="2"></textarea></div>' +
+          '<div class="form-group">' +
+            '<label class="form-label">Observations <span style="font-weight:400;color:var(--text-tertiary)">(optional)</span></label>' +
+            '<textarea class="form-textarea" id="sf-obs" placeholder="Any additional observations or context…" rows="2"></textarea>' +
+          '</div>' +
         '</div>' +
         '<div class="form-row cols-2">' +
-          '<div class="form-group"><label class="form-label">Added By <span class="req">*</span></label>' +
-          '<select class="form-select" id="sf-addedby"></select></div>' +
-          '<div class="form-group" style="justify-content:flex-end;padding-top:20px;">' +
+          '<div class="form-group">' +
+            '<label class="form-label">Added By <span class="req">*</span></label>' +
+            '<select class="form-select" id="sf-addedby" onchange="_sfUpdatePreview_()"></select>' +
+          '</div>' +
+          '<div class="form-group" style="justify-content:flex-end;padding-top:18px;">' +
             '<label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px;font-weight:500;">' +
               '<input type="checkbox" id="sf-parts" style="width:15px;height:15px;cursor:pointer;"> Parts Required' +
             '</label>' +
@@ -216,37 +278,51 @@ function _buildSubmitHTML_() {
         '</div>' +
       '</div>' +
       '<div class="submit-footer">' +
-        '<button class="btn btn-ghost" onclick="submitGoStep(1)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"/></svg>Back</button>' +
-        '<button class="btn btn-primary" onclick="submitStep2Next()">Review &amp; Submit<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"/></svg></button>' +
+        '<button class="btn btn-ghost" onclick="submitGoStep(1)">' +
+          '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"/></svg> Back' +
+        '</button>' +
+        '<button class="btn btn-primary" onclick="submitStep2Next()">' +
+          'Review &amp; Submit <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"/></svg>' +
+        '</button>' +
       '</div>' +
     '</div>';
 
+  // Step 3 — Review
   var step3 =
     '<div id="submit-step-3" style="display:none;">' +
       '<div class="submit-card" id="submit-review-card"></div>' +
       '<div class="submit-footer">' +
-        '<button class="btn btn-ghost" onclick="submitGoStep(2)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"/></svg>Back</button>' +
-        '<button class="btn btn-primary" id="submit-btn" onclick="submitTicket()"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>Submit Ticket</button>' +
+        '<button class="btn btn-ghost" onclick="submitGoStep(2)">' +
+          '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"/></svg> Back' +
+        '</button>' +
+        '<button class="btn btn-primary" id="submit-btn" onclick="submitTicket()">' +
+          '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg> Submit Ticket' +
+        '</button>' +
       '</div>' +
     '</div>';
 
+  // Right column: live preview + heads-up
   var preview =
     '<div class="submit-preview-card">' +
-      '<div class="preview-header"><span class="preview-title">Live Preview</span><span class="preview-sub">ticket as it will appear</span></div>' +
+      '<div class="preview-hdr">' +
+        '<span class="preview-hdr-title">Live Preview</span>' +
+        '<span class="preview-hdr-sub">as it will appear in queue</span>' +
+      '</div>' +
       '<div class="preview-body" id="sf-preview-body">' +
-        '<div style="color:var(--text-tertiary);font-size:12px;">Fill in equipment details to see a preview.</div>' +
+        '<div style="color:var(--text-tertiary);font-size:12px;">Fill in the form to see a preview of this ticket.</div>' +
       '</div>' +
     '</div>';
 
   var headsup =
     '<div class="submit-headsup">' +
       '<div class="headsup-tag">Heads Up</div>' +
-      '<div id="sf-headsup-text">Select equipment above to see recent ticket history for that piece of equipment.</div>' +
+      '<div class="headsup-body" id="sf-headsup-text">Select specific equipment above to see recent ticket context.</div>' +
     '</div>';
 
   return (
+    header +
     '<div class="submit-layout">' +
-      '<div class="submit-left">' + stepBar + step1 + step2 + step3 + '</div>' +
+      '<div class="submit-left">' + step1 + step2 + step3 + '</div>' +
       '<div class="submit-right">' + preview + headsup + '</div>' +
     '</div>'
   );
@@ -254,180 +330,129 @@ function _buildSubmitHTML_() {
 
 // ── Form population ───────────────────────────────────────────────────────────
 
-function populateSubmitForm(d) {
+function _sfPopulate_(d) {
   var deptSel = document.getElementById('sf-dept');
   if (!deptSel) return;
 
+  // Departments
   deptSel.innerHTML = '<option value="">— Select department —</option>';
-  d.departments.forEach(function(dept) {
+  (d.departments || []).forEach(function(dept) {
     var opt = document.createElement('option');
     opt.value = dept; opt.textContent = dept;
     if (d.userOwnedDepts && d.userOwnedDepts.length > 0 && dept === d.userOwnedDepts[0]) opt.selected = true;
     deptSel.appendChild(opt);
   });
-  if (deptSel.value) onDeptChange(d.equipHierarchy);
 
+  // Building / Zone
   var zoneSel = document.getElementById('sf-zone');
-  zoneSel.innerHTML = '<option value="">— Select zone —</option>';
-  d.buildingZones.forEach(function(z) {
-    var opt = document.createElement('option'); opt.value = z; opt.textContent = z;
-    zoneSel.appendChild(opt);
-  });
+  if (zoneSel) {
+    zoneSel.innerHTML = '<option value="">— Select zone —</option>';
+    (d.buildingZones || []).forEach(function(z) {
+      var opt = document.createElement('option'); opt.value = z; opt.textContent = z;
+      zoneSel.appendChild(opt);
+    });
+  }
 
+  // Problem types
   var ptSel = document.getElementById('sf-probtype');
-  ptSel.innerHTML = '<option value="">— Select type —</option>';
-  d.problemTypes.forEach(function(pt) {
-    var opt = document.createElement('option'); opt.value = pt; opt.textContent = pt;
-    ptSel.appendChild(opt);
-  });
+  if (ptSel) {
+    ptSel.innerHTML = '<option value="">— Select type —</option>';
+    (d.problemTypes || []).forEach(function(pt) {
+      var opt = document.createElement('option'); opt.value = pt; opt.textContent = pt;
+      ptSel.appendChild(opt);
+    });
+  }
 
+  // Added by — current user first
   var abSel = document.getElementById('sf-addedby');
-  abSel.innerHTML = '';
-  var currentUser = d.userDisplayName || USER.displayName;
-  var people = [currentUser].concat(d.peopleList.filter(function(p) {
-    return p.toLowerCase().trim() !== currentUser.toLowerCase().trim();
-  }));
-  people.forEach(function(p) {
-    var opt = document.createElement('option'); opt.value = p; opt.textContent = p;
-    abSel.appendChild(opt);
-  });
-
-  // Equipment cascade listeners
-  deptSel.addEventListener('change', function() { onDeptChange(d.equipHierarchy); _sfUpdatePreview_(); });
-  document.getElementById('sf-etype').addEventListener('change', function() { onEtypeChange(d.equipHierarchy); _sfUpdatePreview_(); });
-  document.getElementById('sf-equip').addEventListener('change', function() {
-    var sel = this.options[this.selectedIndex];
-    if (sel && sel.value) {
-      _sfEquipCode = sel.dataset.code     || sel.value;
-      _sfEquipSpec = sel.dataset.specific || sel.textContent;
-    } else {
-      _sfEquipCode = ''; _sfEquipSpec = '';
-    }
-    _sfUpdatePreview_();
-    _sfUpdateHeadsUp_();
-  });
-
-  // Preview reactive listeners
-  ['sf-probtype', 'sf-downtime', 'sf-addedby', 'sf-zone'].forEach(function(id) {
-    var el = document.getElementById(id);
-    if (el) el.addEventListener('change', _sfUpdatePreview_);
-  });
-}
-
-// ── Live preview ──────────────────────────────────────────────────────────────
-
-function _sfUpdatePreview_() {
-  var body = document.getElementById('sf-preview-body');
-  if (!body) return;
-
-  function val(id) { var e = document.getElementById(id); return e ? e.value : ''; }
-
-  var priority = _sfPriority || 'MEDIUM';
-  var status   = priority === 'CRITICAL' ? 'OPEN' : 'WAITING';
-  var priClass = 'pri-'  + priority;
-  var staClass = 'stat-' + status;
-  var equipName = _sfEquipSpec || null;
-  var equipCode = _sfEquipCode || null;
-  var zone      = val('sf-zone');
-  var probType  = val('sf-probtype');
-  var desc      = (val('sf-desc') || '').trim();
-  var descExcerpt = desc.length > 140 ? desc.substring(0, 140) + '…' : desc;
-  var downtime  = val('sf-downtime') || 'UNPLANNED';
-  var addedBy   = val('sf-addedby') || (typeof USER !== 'undefined' ? USER.displayName : '—');
-
-  var noEquip = !equipName && !equipCode && !probType && !desc;
-  if (noEquip) {
-    body.innerHTML = '<div style="color:var(--text-tertiary);font-size:12px;">Fill in equipment details to see a preview.</div>';
-    return;
+  if (abSel) {
+    abSel.innerHTML = '';
+    var currentUser = d.userDisplayName || (typeof USER !== 'undefined' ? USER.displayName : '');
+    var people = currentUser
+      ? [currentUser].concat((d.peopleList || []).filter(function(p) {
+          return p.toLowerCase().trim() !== currentUser.toLowerCase().trim();
+        }))
+      : (d.peopleList || []);
+    people.forEach(function(p) {
+      var opt = document.createElement('option'); opt.value = p; opt.textContent = p;
+      abSel.appendChild(opt);
+    });
   }
 
-  body.innerHTML =
-    '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">' +
-      '<div style="display:flex;gap:6px;flex-wrap:wrap;">' +
-        '<span class="pri-badge ' + priClass + '">' + esc(priority) + '</span>' +
-        '<span class="stat-badge ' + staClass + '">' + esc(status) + '</span>' +
-      '</div>' +
-      '<span style="font-size:10px;color:var(--text-tertiary);font-family:var(--font-mono);">auto-numbered</span>' +
-    '</div>' +
-    '<div style="font-size:13px;font-weight:600;margin-bottom:2px;">' + esc(equipName || '—') + '</div>' +
-    '<div style="font-size:11px;color:var(--text-secondary);margin-bottom:8px;">' +
-      (equipCode ? '<span style="font-family:var(--font-mono);">' + esc(equipCode) + '</span>' : '') +
-      (equipCode && zone ? ' · ' : '') + esc(zone) +
-    '</div>' +
-    '<div style="height:1px;background:var(--border-default);margin:8px 0;"></div>' +
-    (probType ? '<div style="font-size:11px;color:var(--text-secondary);text-transform:uppercase;letter-spacing:.06em;font-weight:600;margin-bottom:4px;">Problem</div>' +
-    '<div style="font-size:12.5px;font-weight:500;margin-bottom:2px;">' + esc(probType) + '</div>' : '') +
-    (descExcerpt ? '<div style="font-size:12px;color:var(--text-secondary);line-height:1.45;margin-bottom:8px;">' + esc(descExcerpt) + '</div>' : '') +
-    '<div style="height:1px;background:var(--border-default);margin:8px 0;"></div>' +
-    '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:12px;">' +
-      '<div><div style="color:var(--text-secondary);font-size:10.5px;">Downtime</div><div>' + esc(downtime) + '</div></div>' +
-      '<div><div style="color:var(--text-secondary);font-size:10.5px;">Submitted by</div><div>' + esc(addedBy) + '</div></div>' +
-    '</div>';
+  // Pre-trigger cascade if a dept was pre-selected
+  if (deptSel.value) _sfCascadeDept_();
 }
 
-// ── Heads-up panel ────────────────────────────────────────────────────────────
+// ── Cascade helpers — use _sfData directly to avoid closure issues ────────────
 
-function _sfUpdateHeadsUp_() {
-  var el = document.getElementById('sf-headsup-text');
-  if (!el) return;
-  if (!_sfEquipCode) {
-    el.innerHTML = 'Select equipment above to see recent ticket history for that piece of equipment.';
-    return;
-  }
-  el.innerHTML = '<span style="color:var(--text-tertiary);">Loading history for ' + esc(_sfEquipCode) + '…</span>';
-  google.script.run
-    .withSuccessHandler(function(stats) {
-      if (!el) return;
-      if (!stats || stats.count60d === 0) {
-        el.innerHTML = 'No tickets found for <strong>' + esc(_sfEquipCode) + '</strong> in the last 60 days. First ticket of its kind!';
-        return;
-      }
-      var msg = 'This equipment (<strong>' + esc(_sfEquipCode) + '</strong>) has had <strong>' +
-        stats.count60d + ' ticket' + (stats.count60d !== 1 ? 's' : '') + '</strong> in the last 60 days.';
-      if (stats.topProbType) msg += ' Most common issue type: <strong>' + esc(stats.topProbType) + '</strong>.';
-      if (stats.count60d >= 3) msg += ' Consider opening a parallel preventive ticket if a root cause hasn\'t been addressed.';
-      el.innerHTML = msg;
-    })
-    .withFailureHandler(function() {
-      if (el) el.innerHTML = 'Could not load equipment ticket history.';
-    })
-    .getEquipQuickStats(_sfEquipCode);
-}
+function _sfCascadeDept_() {
+  var hier = _sfData && _sfData.equipHierarchy;
+  var dept = document.getElementById('sf-dept');
+  var eSel = document.getElementById('sf-etype');
+  var eqSel= document.getElementById('sf-equip');
+  if (!dept || !eSel || !eqSel) return;
 
-// ── Equipment cascade ─────────────────────────────────────────────────────────
-
-function onDeptChange(hierarchy) {
-  var dept  = document.getElementById('sf-dept').value;
-  var eSel  = document.getElementById('sf-etype');
-  var eqSel = document.getElementById('sf-equip');
+  var dv = dept.value;
   eSel.innerHTML  = '<option value="">— Select type —</option>';
   eqSel.innerHTML = '<option value="">— Select equipment —</option>';
   eqSel.disabled  = true;
   _sfEquipCode = ''; _sfEquipSpec = '';
-  if (!dept || !hierarchy[dept]) { eSel.disabled = true; return; }
+
+  if (!dv || !hier || !hier[dv]) {
+    eSel.disabled = true;
+    _sfUpdatePreview_();
+    return;
+  }
   eSel.disabled = false;
-  Object.keys(hierarchy[dept]).sort().forEach(function(eType) {
-    var opt = document.createElement('option'); opt.value = eType; opt.textContent = eType;
+  Object.keys(hier[dv]).sort().forEach(function(eType) {
+    var opt = document.createElement('option');
+    opt.value = eType; opt.textContent = eType;
     eSel.appendChild(opt);
   });
+  _sfUpdatePreview_();
 }
 
-function onEtypeChange(hierarchy) {
-  var dept  = document.getElementById('sf-dept').value;
-  var eType = document.getElementById('sf-etype').value;
-  var eqSel = document.getElementById('sf-equip');
+function _sfCascadeEtype_() {
+  var hier = _sfData && _sfData.equipHierarchy;
+  var dept = document.getElementById('sf-dept');
+  var eSel = document.getElementById('sf-etype');
+  var eqSel= document.getElementById('sf-equip');
+  if (!dept || !eSel || !eqSel) return;
+
+  var dv = dept.value;
+  var tv = eSel.value;
   eqSel.innerHTML = '<option value="">— Select equipment —</option>';
   _sfEquipCode = ''; _sfEquipSpec = '';
-  if (!dept || !eType || !hierarchy[dept] || !hierarchy[dept][eType]) { eqSel.disabled = true; return; }
+
+  if (!dv || !tv || !hier || !hier[dv] || !hier[dv][tv]) {
+    eqSel.disabled = true;
+    _sfUpdatePreview_();
+    return;
+  }
   eqSel.disabled = false;
-  hierarchy[dept][eType].forEach(function(e) {
+  hier[dv][tv].forEach(function(e) {
     var opt = document.createElement('option');
     opt.value = e.code || e.specific;
     opt.textContent = e.specific + (e.code ? ' (' + e.code + ')' : '');
-    opt.dataset.code     = e.code     || '';
-    opt.dataset.specific = e.specific || '';
+    opt.setAttribute('data-code',     e.code     || '');
+    opt.setAttribute('data-specific', e.specific || '');
     eqSel.appendChild(opt);
   });
+  _sfUpdatePreview_();
+}
+
+function _sfCascadeEquip_() {
+  var eqSel = document.getElementById('sf-equip');
+  if (!eqSel) return;
+  var sel = eqSel.options[eqSel.selectedIndex];
+  if (sel && sel.value) {
+    _sfEquipCode = sel.getAttribute('data-code')     || sel.value;
+    _sfEquipSpec = sel.getAttribute('data-specific') || sel.textContent;
+  } else {
+    _sfEquipCode = ''; _sfEquipSpec = '';
+  }
+  _sfUpdatePreview_();
+  _sfUpdateHeadsUp_();
 }
 
 // ── Priority selection ────────────────────────────────────────────────────────
@@ -443,32 +468,93 @@ function selectPriority(p) {
   _sfUpdatePreview_();
 }
 
+// ── Live preview ──────────────────────────────────────────────────────────────
+
+function _sfUpdatePreview_() {
+  var body = document.getElementById('sf-preview-body');
+  if (!body) return;
+
+  function val(id) { var e = document.getElementById(id); return e ? e.value : ''; }
+
+  var priority    = _sfPriority || 'MEDIUM';
+  var status      = priority === 'CRITICAL' ? 'OPEN' : 'WAITING';
+  var equipName   = _sfEquipSpec || null;
+  var equipCode   = _sfEquipCode || null;
+  var zone        = val('sf-zone');
+  var probType    = val('sf-probtype');
+  var desc        = (val('sf-desc') || '').trim();
+  var descPreview = desc.length > 130 ? desc.substring(0, 130) + '…' : desc;
+  var downtime    = val('sf-downtime') || 'UNPLANNED';
+  var addedBy     = val('sf-addedby') || (typeof USER !== 'undefined' ? USER.displayName : '—');
+
+  var hasContent = equipName || probType || desc;
+  if (!hasContent) {
+    body.innerHTML = '<div style="color:var(--text-tertiary);font-size:12px;">Fill in the form to see a preview of this ticket.</div>';
+    return;
+  }
+
+  var priClass = 'pri-' + priority;
+  var staClass = 'stat-' + status;
+
+  body.innerHTML =
+    '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px;">' +
+      '<span class="pri-badge ' + priClass + '">' + esc(priority) + '</span>' +
+      '<span class="stat-badge ' + staClass + '">' + esc(status) + '</span>' +
+      '<span style="font-size:10px;color:var(--text-tertiary);font-family:var(--font-mono);margin-left:auto;align-self:center;">auto-numbered</span>' +
+    '</div>' +
+    '<div style="font-size:13px;font-weight:600;color:var(--text-primary);margin-bottom:2px;">' + esc(equipName || '—') + '</div>' +
+    '<div style="font-size:11px;color:var(--text-secondary);margin-bottom:8px;">' +
+      (equipCode ? '<span style="font-family:var(--font-mono);">' + esc(equipCode) + '</span>' : '') +
+      (equipCode && zone ? ' · ' : '') +
+      esc(zone) +
+    '</div>' +
+    '<div style="height:1px;background:var(--border-default);margin:8px 0;"></div>' +
+    (probType ?
+      '<div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--text-secondary);margin-bottom:4px;">Problem</div>' +
+      '<div style="font-size:12.5px;font-weight:500;color:var(--text-primary);margin-bottom:3px;">' + esc(probType) + '</div>' : '') +
+    (descPreview ? '<div style="font-size:12px;color:var(--text-secondary);line-height:1.45;margin-bottom:8px;">' + esc(descPreview) + '</div>' : '') +
+    '<div style="height:1px;background:var(--border-default);margin:8px 0;"></div>' +
+    '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:12px;">' +
+      '<div><div style="font-size:10.5px;color:var(--text-secondary);">Downtime</div><div>' + esc(downtime) + '</div></div>' +
+      '<div><div style="font-size:10.5px;color:var(--text-secondary);">Submitted by</div><div>' + esc(addedBy) + '</div></div>' +
+    '</div>';
+}
+
+// ── Heads-up panel ────────────────────────────────────────────────────────────
+
+function _sfUpdateHeadsUp_() {
+  var el = document.getElementById('sf-headsup-text');
+  if (!el) return;
+  if (!_sfEquipCode) {
+    el.innerHTML = 'Select specific equipment above to see recent ticket context.';
+    return;
+  }
+  el.innerHTML = '<span style="color:var(--text-tertiary);">Loading history for ' + esc(_sfEquipCode) + '…</span>';
+  var code = _sfEquipCode;
+  google.script.run
+    .withSuccessHandler(function(stats) {
+      var el2 = document.getElementById('sf-headsup-text');
+      if (!el2) return;
+      if (!stats || stats.count60d === 0) {
+        el2.innerHTML = 'No tickets found for <strong>' + esc(code) + '</strong> in the last 60 days.';
+        return;
+      }
+      var msg = 'Equipment <strong>' + esc(code) + '</strong> has had <strong>' +
+        stats.count60d + ' ticket' + (stats.count60d !== 1 ? 's' : '') + '</strong> in the past 60 days.';
+      if (stats.topProbType) msg += ' Most common issue: <strong>' + esc(stats.topProbType) + '</strong>.';
+      if (stats.count60d >= 3) msg += ' Consider a parallel preventive ticket if the root cause is unresolved.';
+      el2.innerHTML = msg;
+    })
+    .withFailureHandler(function() {
+      var el2 = document.getElementById('sf-headsup-text');
+      if (el2) el2.innerHTML = 'Could not load equipment ticket history.';
+    })
+    .getEquipQuickStats(code);
+}
+
 // ── Step navigation ───────────────────────────────────────────────────────────
 
-function submitStep1Next() {
-  var dept = document.getElementById('sf-dept').value;
-  if (!dept) { showToast('Please select a department', 'error'); return; }
-  var eType = document.getElementById('sf-etype').value;
-  if (!eType) { showToast('Please select an equipment type', 'error'); return; }
-  var eqSel = document.getElementById('sf-equip');
-  var selOpt = eqSel.options[eqSel.selectedIndex];
-  if (selOpt && selOpt.value) {
-    _sfEquipCode = selOpt.dataset.code     || selOpt.value;
-    _sfEquipSpec = selOpt.dataset.specific || selOpt.textContent;
-  } else {
-    _sfEquipCode = ''; _sfEquipSpec = '';
-  }
-  submitGoStep(2);
-}
-
-function submitStep2Next() {
-  var desc = document.getElementById('sf-desc').value.trim();
-  if (!desc) { showToast('Problem description is required', 'error'); return; }
-  if (desc.length < 10) { showToast('Description must be at least 10 characters', 'error'); return; }
-  if (!document.getElementById('sf-probtype').value) { showToast('Please select a problem type', 'error'); return; }
-  renderReview();
-  submitGoStep(3);
-}
+var _SF_STEP_NAMES_ = { 1: 'Select Equipment', 2: 'Ticket Details', 3: 'Review & Submit' };
 
 function submitGoStep(n) {
   _sfStep = n;
@@ -477,99 +563,111 @@ function submitGoStep(n) {
     var circle = document.getElementById('step-circle-' + i);
     var label  = document.getElementById('step-label-' + i);
     var conn   = document.getElementById('step-conn-' + i);
-    if (el) el.style.display = i === n ? '' : 'none';
+    if (el)     el.style.display = i === n ? '' : 'none';
     if (circle) { circle.className = 'step-circle ' + (i < n ? 'done' : i === n ? 'active' : 'pending'); circle.textContent = i < n ? '✓' : String(i); }
-    if (label)  label.className  = 'step-label'  + (i < n ? ' done' : i === n ? ' active' : '');
-    if (conn)   conn.className   = 'step-connector' + (i < n ? ' done' : '');
+    if (label)  label.className   = 'step-label' + (i < n ? ' done' : i === n ? ' active' : '');
+    if (conn)   conn.className    = 'step-connector' + (i < n ? ' done' : '');
   });
+  var sub = document.getElementById('sf-step-sub');
+  if (sub) sub.textContent = 'FRM-030-001 · Step ' + n + ' of 3 — ' + (_SF_STEP_NAMES_[n] || '');
+}
+
+function submitStep1Next() {
+  var dept  = (document.getElementById('sf-dept')  || {}).value || '';
+  var eType = (document.getElementById('sf-etype') || {}).value || '';
+  if (!dept)  { showToast('Please select a department', 'error'); return; }
+  if (!eType) { showToast('Please select an equipment type', 'error'); return; }
+  // Capture equip values from whatever is currently selected
+  _sfCascadeEquip_();
+  submitGoStep(2);
+}
+
+function submitStep2Next() {
+  var desc = ((document.getElementById('sf-desc') || {}).value || '').trim();
+  if (!desc)         { showToast('Problem description is required', 'error'); return; }
+  if (desc.length < 10) { showToast('Description must be at least 10 characters', 'error'); return; }
+  if (!((document.getElementById('sf-probtype') || {}).value || '')) { showToast('Please select a problem type', 'error'); return; }
+  renderReview();
+  submitGoStep(3);
 }
 
 // ── Review rendering ──────────────────────────────────────────────────────────
 
 function renderReview() {
-  var dept     = document.getElementById('sf-dept').value;
-  var eType    = document.getElementById('sf-etype').value;
-  var zone     = document.getElementById('sf-zone').value;
-  var line     = document.getElementById('sf-line').value.trim();
-  var probType = document.getElementById('sf-probtype').value;
-  var downtime = document.getElementById('sf-downtime').value;
-  var desc     = document.getElementById('sf-desc').value.trim();
-  var obs      = document.getElementById('sf-obs').value.trim();
-  var addedBy  = document.getElementById('sf-addedby').value;
-  var parts    = document.getElementById('sf-parts').checked;
+  function val(id) { return ((document.getElementById(id) || {}).value || ''); }
+  var dept     = val('sf-dept');
+  var eType    = val('sf-etype');
+  var zone     = val('sf-zone');
+  var line     = val('sf-line').trim();
+  var probType = val('sf-probtype');
+  var downtime = val('sf-downtime');
+  var desc     = val('sf-desc').trim();
+  var obs      = val('sf-obs').trim();
+  var addedBy  = val('sf-addedby');
+  var parts    = (document.getElementById('sf-parts') || {}).checked;
 
   var card = document.getElementById('submit-review-card');
+  if (!card) return;
   card.innerHTML =
     '<div class="submit-card-title">Review &amp; Confirm</div>' +
-    '<div class="submit-card-sub">Please verify the details before submitting.</div>' +
+    '<div class="submit-card-sub">Please verify the details below before submitting.</div>' +
     '<div class="review-section">' +
       '<div class="review-section-title">Equipment</div>' +
       '<div class="review-grid">' +
-        reviewField('Department', dept) +
-        reviewField('Equipment Type', eType) +
-        reviewField('Specific Equipment', _sfEquipSpec || '—') +
-        reviewField('Equipment Code', _sfEquipCode || '—') +
-        reviewField('Building / Zone', zone || '—') +
-        reviewField('Line #', line || '—') +
+        _rf_('Department', dept) + _rf_('Equipment Type', eType) +
+        _rf_('Specific Equipment', _sfEquipSpec || '—') + _rf_('Equipment Code', _sfEquipCode || '—') +
+        _rf_('Building / Zone', zone || '—') + _rf_('Line #', line || '—') +
       '</div>' +
     '</div>' +
     '<div class="review-section">' +
       '<div class="review-section-title">Ticket Details</div>' +
       '<div class="review-grid">' +
-        reviewField('Priority', '<span class="rf-value" style="color:' + priorityColor(_sfPriority) + '">' + _sfPriority + '</span>', true) +
-        reviewField('Problem Type', probType) +
-        reviewField('Downtime Type', downtime) +
-        reviewField('Added By', addedBy) +
-        reviewField('Description', desc, true, true) +
-        (obs   ? reviewField('Observations', obs, true, true) : '') +
-        (parts ? reviewField('Parts Required', 'Yes') : '') +
+        _rf_('Priority', '<span class="rf-value" style="color:' + _priColor_(_sfPriority) + '">' + _sfPriority + '</span>', true) +
+        _rf_('Problem Type', probType) + _rf_('Downtime Type', downtime) + _rf_('Added By', addedBy) +
+        _rf_('Description', desc, true, true) +
+        (obs   ? _rf_('Observations', obs, true, true) : '') +
+        (parts ? _rf_('Parts Required', 'Yes') : '') +
       '</div>' +
-    '</div>';
-
-  if (_sfPriority === 'CRITICAL') {
-    card.innerHTML +=
-      '<div style="padding:10px 12px;background:var(--status-critical-bg);border:1px solid var(--status-critical);border-radius:6px;font-size:12.5px;color:var(--status-critical);font-weight:600;">' +
-      '⚠ This ticket will be marked CRITICAL and placed in Open immediately — no manager approval needed.' +
-      '</div>';
-  }
+    '</div>' +
+    (_sfPriority === 'CRITICAL'
+      ? '<div style="padding:10px 12px;background:var(--status-critical-bg);border:1px solid var(--status-critical);border-radius:6px;font-size:12.5px;color:var(--status-critical);font-weight:600;">⚠ CRITICAL — ticket placed in Open immediately, no manager approval required.</div>'
+      : '');
 }
 
-function reviewField(label, value, raw, full) {
+function _rf_(label, value, raw, full) {
   var isEmpty = !value || value === '—';
-  var valueHtml = raw ? value : '<span class="rf-value' + (isEmpty ? ' empty' : '') + '">' + esc(String(value)) + '</span>';
-  return '<div class="review-field' + (full ? ' full' : '') + '">' +
-    '<span class="rf-label">' + esc(label) + '</span>' + valueHtml + '</div>';
+  var vHtml = raw ? value : '<span class="rf-value' + (isEmpty ? ' empty' : '') + '">' + esc(String(value)) + '</span>';
+  return '<div class="review-field' + (full ? ' full' : '') + '"><span class="rf-label">' + esc(label) + '</span>' + vHtml + '</div>';
 }
 
-function priorityColor(p) {
-  var c = {LOW: 'var(--status-low)', MEDIUM: 'var(--status-medium)', HIGH: 'var(--status-high)', CRITICAL: 'var(--status-critical)'};
-  return c[p] || 'var(--text-primary)';
+function _priColor_(p) {
+  return ({LOW:'var(--status-low)',MEDIUM:'var(--status-medium)',HIGH:'var(--status-high)',CRITICAL:'var(--status-critical)'})[p] || 'var(--text-primary)';
 }
 
 // ── Submission ────────────────────────────────────────────────────────────────
 
 function submitTicket() {
   var btn = document.getElementById('submit-btn');
-  btn.disabled = true; btn.textContent = 'Submitting…';
+  if (btn) { btn.disabled = true; btn.textContent = 'Submitting…'; }
 
-  var eqSel = document.getElementById('sf-equip');
+  function val(id) { return ((document.getElementById(id) || {}).value || ''); }
 
   var payload = {
-    dept:          document.getElementById('sf-dept').value,
-    equipType:     document.getElementById('sf-etype').value,
+    dept:          val('sf-dept'),
+    equipType:     val('sf-etype'),
     equipCode:     _sfEquipCode,
     specificEquip: _sfEquipSpec,
     equipDesc:     _sfEquipSpec,
-    buildingZone:  document.getElementById('sf-zone').value,
-    lineNo:        document.getElementById('sf-line').value.trim(),
+    buildingZone:  val('sf-zone'),
+    lineNo:        val('sf-line').trim(),
     priority:      _sfPriority,
-    problemType:   document.getElementById('sf-probtype').value,
-    downtimeType:  document.getElementById('sf-downtime').value,
-    description:   document.getElementById('sf-desc').value.trim(),
-    problemDesc:   document.getElementById('sf-desc').value.trim(),
-    observations:  document.getElementById('sf-obs').value.trim(),
-    addedBy:       document.getElementById('sf-addedby').value,
-    partsNeeded:   document.getElementById('sf-parts').checked
+    problemType:   val('sf-probtype'),
+    downtimeType:  val('sf-downtime'),
+    description:   val('sf-desc').trim(),
+    problemDesc:   val('sf-desc').trim(),
+    observations:  val('sf-obs').trim(),
+    addedBy:       val('sf-addedby'),
+    partsNeeded:   !!((document.getElementById('sf-parts') || {}).checked)
   };
 
   google.script.run
@@ -578,20 +676,21 @@ function submitTicket() {
         showSuccessScreen(result.ticketNo, result.status, result.tracker);
       } else {
         showToast('Error: ' + (result.error || 'Unknown error'), 'error', 7000);
-        btn.disabled = false; btn.textContent = 'Submit Ticket';
+        if (btn) { btn.disabled = false; btn.textContent = 'Submit Ticket'; }
       }
     })
     .withFailureHandler(function(err) {
       showToast('Submission failed: ' + esc(err.message || String(err)), 'error', 7000);
-      btn.disabled = false; btn.textContent = 'Submit Ticket';
+      if (btn) { btn.disabled = false; btn.textContent = 'Submit Ticket'; }
     })
     .addNewTicket(payload);
 }
 
 function showSuccessScreen(ticketNo, status, tracker) {
   var container = document.getElementById('page-submit');
+  if (!container) return;
   var statusMsg = status === 'OPEN'
-    ? 'Ticket is <strong>OPEN</strong> and added to the ' + esc(tracker) + ' tracker.'
+    ? 'Ticket is <strong>OPEN</strong> and added to the ' + esc(tracker || '') + ' tracker.'
     : 'Ticket is in the <strong>Waiting Queue</strong> pending manager review.';
 
   container.innerHTML =
@@ -609,7 +708,6 @@ function showSuccessScreen(ticketNo, status, tracker) {
         '</div>' +
       '</div>' +
     '</div>';
-
   showToast(ticketNo + ' submitted', 'success');
 }
 
@@ -623,10 +721,10 @@ function submitAnotherTicket() {
   if (!container) { navigate('submit'); return; }
   container.innerHTML = _buildSubmitHTML_();
   if (_sfData) {
-    populateSubmitForm(_sfData);
+    _sfPopulate_(_sfData);
   } else {
     google.script.run
-      .withSuccessHandler(function(d) { _sfData = d; populateSubmitForm(d); _sfUpdatePreview_(); })
+      .withSuccessHandler(function(d) { _sfData = d; _sfPopulate_(d); _sfUpdatePreview_(); })
       .withFailureHandler(function(e) { showToast('Error reloading form: ' + esc(e.message || String(e)), 'error'); })
       .getAddTicketFormData();
   }
