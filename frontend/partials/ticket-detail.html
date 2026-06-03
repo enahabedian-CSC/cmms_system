@@ -153,7 +153,6 @@ function _renderDetail_(result) {
     }
     if (t.status === 'OPEN' || t.status === 'PENDING PARTS') {
       actions += '<button class="btn-action btn-complete" onclick="_tdComplete_()">✓ Mark Work Complete</button>';
-      actions += '<button class="btn-action btn-assign" onclick="_tdAssign_(\'' + esc(JSON.stringify(techs).replace(/'/g,"\\'")) + '\')">Assign Tech</button>';
       if (!t.tempFixFlag) {
         actions += '<button class="btn-action btn-tempfix" onclick="_tdFlagTF_()">Flag Temp Fix</button>';
       }
