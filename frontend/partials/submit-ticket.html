@@ -128,6 +128,7 @@ var _sfStep      = 1;
 var _sfPriority  = 'MEDIUM';
 var _sfEquipCode = '';
 var _sfEquipSpec = '';
+var _sfAggTypes_ = null;  // aggregated eType→items after cross-group dept scan
 
 window.PAGES = window.PAGES || {};
 
@@ -204,6 +205,7 @@ function _buildSubmitHTML_() {
           '</div>' +
         '</div>' +
         '<div id="sf-equip-msg" style="display:none;margin-top:-4px;margin-bottom:8px;padding:8px 12px;background:var(--status-info-bg);border:1px solid var(--status-info);border-radius:6px;font-size:12px;color:var(--status-info);line-height:1.4;"></div>' +
+        '<div id="sf-routing-banner" style="display:none;margin-top:4px;margin-bottom:8px;padding:7px 12px;background:var(--bg-subtle);border:1px solid var(--border-default);border-radius:6px;font-size:11.5px;color:var(--text-secondary);"></div>' +
         '<div class="form-row cols-2">' +
           '<div class="form-group">' +
             '<label class="form-label">Building / Zone</label>' +
@@ -275,6 +277,17 @@ function _buildSubmitHTML_() {
             '<label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px;font-weight:500;">' +
               '<input type="checkbox" id="sf-parts" style="width:15px;height:15px;cursor:pointer;"> Parts Required' +
             '</label>' +
+          '</div>' +
+        '</div>' +
+        '<div class="form-row">' +
+          '<div class="form-group">' +
+            '<label class="form-label">Photo URL <span style="font-weight:400;color:var(--text-tertiary)">(optional — paste a Drive share link)</span></label>' +
+            '<div style="display:flex;gap:8px;align-items:center;">' +
+              '<input type="url" class="form-input" id="sf-photo" placeholder="https://…" oninput="_sfUpdatePhotoPreview_()" style="flex:1;">' +
+              '<a id="sf-photo-link" href="#" target="_blank" rel="noopener" style="display:none;flex-shrink:0;color:var(--brand-navy);line-height:0;" title="Open photo">' +
+                '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>' +
+              '</a>' +
+            '</div>' +
           '</div>' +
         '</div>' +
       '</div>' +
@@ -380,11 +393,43 @@ function _sfPopulate_(d) {
     });
   }
 
+  // A7: Lock priority grid for non-managers — techs cannot change priority
+  if (!d.userIsManager) {
+    var grid = document.getElementById('sf-priority-grid');
+    if (grid) {
+      var cards = grid.querySelectorAll('.priority-card');
+      for (var ci = 0; ci < cards.length; ci++) {
+        cards[ci].style.cursor        = 'default';
+        cards[ci].style.pointerEvents = 'none';
+        cards[ci].style.opacity       = '0.65';
+      }
+      var lockNote = document.createElement('div');
+      lockNote.className = 'form-hint';
+      lockNote.style.marginTop = '6px';
+      lockNote.textContent = 'Priority is assigned by your manager. Default: MEDIUM.';
+      grid.parentNode.appendChild(lockNote);
+    }
+  }
+
+  // Wire problem type change to routing banner update
+  var ptSel2 = document.getElementById('sf-probtype');
+  if (ptSel2) {
+    var origChange = ptSel2.onchange;
+    ptSel2.onchange = function() { if (origChange) origChange(); _sfUpdateRoutingBanner_(); _sfUpdatePreview_(); };
+  }
+
   // Pre-trigger cascade if a dept was pre-selected
   if (deptSel.value) _sfCascadeDept_();
 }
 
 // ── Cascade helpers — use _sfData directly to avoid closure issues ────────────
+
+// Returns the canonical dept for a raw name using the server-side deptMapping.
+function getDeptGroupClient_(dept) {
+  if (!_sfData || !_sfData.deptMapping) return String(dept || '').toUpperCase().trim();
+  var d = String(dept || '').toUpperCase().trim();
+  return _sfData.deptMapping[d] || d;
+}
 
 function _sfCascadeDept_() {
   var hier = _sfData && _sfData.equipHierarchy;
@@ -398,12 +443,29 @@ function _sfCascadeDept_() {
   eSel.innerHTML  = '<option value="">— Select type —</option>';
   eqSel.innerHTML = '<option value="">— Select equipment —</option>';
   eqSel.disabled  = true;
-  _sfEquipCode = ''; _sfEquipSpec = '';
+  _sfAggTypes_    = null;
+  _sfEquipCode    = ''; _sfEquipSpec = '';
   if (msg) msg.style.display = 'none';
+  _sfUpdateRoutingBanner_();
 
   if (!dv) { eSel.disabled = true; _sfUpdatePreview_(); return; }
 
-  if (!hier || !hier[dv] || Object.keys(hier[dv]).length === 0) {
+  // A2+A3: cross-group scan — aggregate all hierarchy keys that map to the
+  // same canonical dept (handles legacy Sage names like "METAL" → "METALS")
+  var aggTypes = {};
+  if (hier) {
+    var canonDv = getDeptGroupClient_(dv);
+    Object.keys(hier).forEach(function(k) {
+      if (getDeptGroupClient_(k) === canonDv) {
+        Object.keys(hier[k]).forEach(function(eType) {
+          if (!aggTypes[eType]) aggTypes[eType] = [];
+          hier[k][eType].forEach(function(item) { aggTypes[eType].push(item); });
+        });
+      }
+    });
+  }
+
+  if (!Object.keys(aggTypes).length) {
     eSel.disabled = true;
     if (msg) {
       msg.innerHTML =
@@ -415,8 +477,9 @@ function _sfCascadeDept_() {
     _sfUpdatePreview_(); return;
   }
 
+  _sfAggTypes_ = aggTypes;
   eSel.disabled = false;
-  Object.keys(hier[dv]).sort().forEach(function(eType) {
+  Object.keys(aggTypes).sort().forEach(function(eType) {
     var opt = document.createElement('option');
     opt.value = eType; opt.textContent = eType;
     eSel.appendChild(opt);
@@ -425,22 +488,19 @@ function _sfCascadeDept_() {
 }
 
 function _sfCascadeEtype_() {
-  var hier = _sfData && _sfData.equipHierarchy;
-  var dept = document.getElementById('sf-dept');
   var eSel = document.getElementById('sf-etype');
   var eqSel= document.getElementById('sf-equip');
-  if (!dept || !eSel || !eqSel) return;
+  if (!eSel || !eqSel) return;
 
-  var dv = dept.value;
   var tv = eSel.value;
   eqSel.innerHTML = '<option value="">— Select equipment —</option>';
   _sfEquipCode = ''; _sfEquipSpec = '';
 
-  if (!dv || !tv || !hier || !hier[dv] || !hier[dv][tv]) {
+  if (!tv || !_sfAggTypes_ || !_sfAggTypes_[tv]) {
     eqSel.disabled = true; _sfUpdatePreview_(); return;
   }
   eqSel.disabled = false;
-  hier[dv][tv].forEach(function(e) {
+  _sfAggTypes_[tv].forEach(function(e) {
     var opt = document.createElement('option');
     opt.value = e.code || e.specific;
     opt.textContent = e.specific + (e.code ? ' (' + e.code + ')' : '');
@@ -476,6 +536,52 @@ function selectPriority(p) {
   var hint = document.getElementById('critical-hint');
   if (hint) hint.style.display = p === 'CRITICAL' ? 'block' : 'none';
   _sfUpdatePreview_();
+}
+
+// ── Routing banner (A6) ───────────────────────────────────────────────────────
+
+function _sfUpdateRoutingBanner_() {
+  var banner = document.getElementById('sf-routing-banner');
+  if (!banner || !_sfData) return;
+  var dept = (document.getElementById('sf-dept') || {}).value || '';
+  if (!dept) { banner.style.display = 'none'; return; }
+  var pt      = (document.getElementById('sf-probtype') || {}).value || '';
+  var tracker = _sfComputeTracker_(dept, pt);
+  banner.innerHTML = 'Routing: ticket will be sent to <strong>' + esc(tracker) + '</strong>';
+  banner.style.display = '';
+}
+
+function _sfComputeTracker_(dept, problemType) {
+  if (!_sfData) return dept;
+  var rules   = _sfData.routingRules  || [];
+  var deptMap = _sfData.deptMapping   || {};
+  var d  = String(dept        || '').toUpperCase().trim();
+  var dg = deptMap[d] || d;
+  var pt = String(problemType || '').toUpperCase().trim();
+  for (var i = 0; i < rules.length; i++) {
+    var rule = rules[i];
+    var kw   = String(rule.keyword || '').toUpperCase().trim();
+    if (!kw) continue;
+    var matchOn  = String(rule.matchOn || '').toUpperCase();
+    var haystack = matchOn === 'EQUIP_DESC' ? '' : pt;
+    if (haystack.indexOf(kw) > -1) return String(rule.routeTo || dg);
+  }
+  return dg;
+}
+
+// ── Photo URL preview (A5) ────────────────────────────────────────────────────
+
+function _sfUpdatePhotoPreview_() {
+  var inp  = document.getElementById('sf-photo');
+  var link = document.getElementById('sf-photo-link');
+  if (!inp || !link) return;
+  var v = inp.value.trim();
+  if (v && (v.indexOf('http://') === 0 || v.indexOf('https://') === 0)) {
+    link.href = v;
+    link.style.display = '';
+  } else {
+    link.style.display = 'none';
+  }
 }
 
 // ── Live preview ──────────────────────────────────────────────────────────────
@@ -677,7 +783,8 @@ function submitTicket() {
     problemDesc:   val('sf-desc').trim(),
     observations:  val('sf-obs').trim(),
     addedBy:       val('sf-addedby'),
-    partsNeeded:   !!((document.getElementById('sf-parts') || {}).checked)
+    partsNeeded:   !!((document.getElementById('sf-parts') || {}).checked),
+    photoUrl:      val('sf-photo').trim()
   };
 
   google.script.run

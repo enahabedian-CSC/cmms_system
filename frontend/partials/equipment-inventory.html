@@ -1,0 +1,306 @@
+<!-- ╔══════════════════════════════════════════════════════════════════╗ -->
+<!-- ║  Equipment Inventory partial                                    ║ -->
+<!-- ║  Registers PAGE: equipment-inventory                           ║ -->
+<!-- ║  List view + per-equipment KPI detail (MTTR, MTBF, etc.)       ║ -->
+<!-- ╚══════════════════════════════════════════════════════════════════╝ -->
+<style>
+/* ── Equipment Inventory ─────────────────────────────────────────────── */
+.ei-wrap{padding:20px 24px;}
+.ei-toolbar{display:flex;align-items:center;gap:10px;margin-bottom:14px;flex-wrap:wrap;}
+.ei-title{font-size:15px;font-weight:700;color:var(--text-primary);flex:1;}
+.ei-count{font-size:12px;color:var(--text-secondary);background:var(--bg-subtle);border:1px solid var(--border-default);border-radius:4px;padding:2px 8px;}
+.ei-search{height:30px;padding:0 10px;border:1px solid var(--border-default);border-radius:6px;font-size:12.5px;width:200px;outline:none;color:var(--text-primary);}
+.ei-search:focus{border-color:var(--brand-navy);}
+.ei-filter{height:30px;padding:0 8px;border:1px solid var(--border-default);border-radius:6px;font-size:12px;background:#fff;color:var(--text-primary);outline:none;}
+
+/* KPI summary bar */
+.ei-kpi-bar{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin-bottom:16px;}
+.ei-kpi-card{background:var(--bg-surface);border:1px solid var(--border-default);border-radius:8px;padding:12px 14px;box-shadow:var(--shadow-sm);}
+.ei-kpi-label{font-size:10.5px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;color:var(--text-tertiary);margin-bottom:4px;}
+.ei-kpi-value{font-size:20px;font-weight:700;color:var(--text-primary);line-height:1.2;}
+.ei-kpi-foot{font-size:10.5px;color:var(--text-tertiary);margin-top:3px;}
+
+/* Equipment table */
+.ei-table-wrap{background:var(--bg-surface);border:1px solid var(--border-default);border-radius:10px;overflow:hidden;box-shadow:var(--shadow-sm);}
+.ei-table{width:100%;border-collapse:collapse;font-size:12.5px;}
+.ei-table th{background:var(--bg-subtle);padding:7px 12px;text-align:left;font-size:11px;font-weight:600;color:var(--text-secondary);text-transform:uppercase;letter-spacing:.04em;border-bottom:1px solid var(--border-default);white-space:nowrap;}
+.ei-table th.right,.ei-table td.right{text-align:right;}
+.ei-table td{padding:9px 12px;border-bottom:1px solid var(--border-default);vertical-align:middle;color:var(--text-primary);}
+.ei-table tr:last-child td{border-bottom:0;}
+.ei-table tbody tr{cursor:pointer;transition:background .1s;}
+.ei-table tbody tr:hover{background:var(--bg-hover);}
+.ei-table .col-code{font-family:var(--font-mono);font-weight:600;color:var(--brand-navy);font-size:12px;}
+.ei-table .col-name{max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.ei-kpi-num{font-size:12px;font-family:var(--font-mono);color:var(--text-secondary);}
+.ei-kpi-num.warn{color:var(--status-warn);}
+.ei-kpi-num.good{color:var(--status-success);}
+.ei-empty{padding:40px 24px;text-align:center;color:var(--text-secondary);font-size:13px;}
+
+/* Detail slide-over */
+.ei-detail-overlay{
+  position:fixed;top:var(--topbar-h);right:0;
+  width:calc(100% - var(--sidebar-w));
+  height:calc(100vh - var(--topbar-h));
+  background:var(--bg-app);z-index:50;
+  transform:translateX(100%);transition:transform .22s ease;
+  overflow-y:auto;display:flex;flex-direction:column;
+}
+.ei-detail-overlay.open{transform:translateX(0);}
+.app.collapsed .ei-detail-overlay{width:calc(100% - var(--sidebar-w-collapsed));}
+.ei-detail-hdr{
+  background:var(--bg-surface);border-bottom:1px solid var(--border-default);
+  padding:12px 20px;display:flex;align-items:center;gap:12px;flex-shrink:0;
+  position:sticky;top:0;z-index:10;
+}
+.ei-detail-back{background:transparent;border:1px solid var(--border-default);border-radius:6px;
+  padding:5px 10px;font-size:12px;color:var(--text-secondary);cursor:pointer;display:flex;align-items:center;gap:5px;}
+.ei-detail-back:hover{background:var(--bg-hover);}
+.ei-detail-code{font-family:var(--font-mono);font-weight:700;font-size:15px;color:var(--brand-navy);}
+.ei-detail-body{padding:20px 24px;flex:1;}
+.ei-detail-section{background:var(--bg-surface);border:1px solid var(--border-default);border-radius:10px;padding:18px 20px;margin-bottom:14px;box-shadow:var(--shadow-sm);}
+.ei-detail-section-title{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--text-secondary);margin-bottom:12px;}
+.ei-detail-kpi-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:12px;margin-bottom:14px;}
+.ei-detail-kpi{background:var(--bg-surface);border:1px solid var(--border-default);border-radius:8px;padding:12px 14px;}
+.ei-detail-kpi-label{font-size:10.5px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;color:var(--text-tertiary);margin-bottom:4px;}
+.ei-detail-kpi-value{font-size:22px;font-weight:700;color:var(--text-primary);}
+.ei-detail-kpi-foot{font-size:10.5px;color:var(--text-tertiary);margin-top:3px;}
+.ei-hist-table{width:100%;border-collapse:collapse;font-size:12px;}
+.ei-hist-table th{background:var(--bg-subtle);padding:7px 10px;text-align:left;font-size:11px;font-weight:600;color:var(--text-secondary);text-transform:uppercase;letter-spacing:.04em;border-bottom:1px solid var(--border-default);}
+.ei-hist-table td{padding:8px 10px;border-bottom:1px solid var(--border-default);vertical-align:middle;}
+.ei-hist-table tr:last-child td{border-bottom:0;}
+.ei-hist-table tbody tr{cursor:pointer;transition:background .1s;}
+.ei-hist-table tbody tr:hover{background:var(--bg-hover);}
+</style>
+
+<!-- Detail slide-over (initially hidden) -->
+<div id="ei-detail-overlay" class="ei-detail-overlay">
+  <div class="ei-detail-hdr">
+    <button class="ei-detail-back" onclick="_eiCloseDetail_()">
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M19 12H5M12 5l-7 7 7 7"/></svg>
+      Back
+    </button>
+    <span class="ei-detail-code" id="ei-detail-code">—</span>
+    <span id="ei-detail-name" style="font-size:13px;font-weight:600;color:var(--text-primary);"></span>
+    <div style="flex:1;"></div>
+    <span id="ei-detail-dept" style="font-size:12px;color:var(--text-secondary);"></span>
+  </div>
+  <div class="ei-detail-body" id="ei-detail-body">
+    <div class="loading-overlay"><div class="spinner"></div><span>Loading…</span></div>
+  </div>
+</div>
+
+<script>
+window.PAGES = window.PAGES || {};
+
+var _eiData_   = null;
+var _eiSearch_ = '';
+
+PAGES['equipment-inventory'] = function(c) { _loadEquipInventory_(c); };
+
+function _loadEquipInventory_(container) {
+  container.innerHTML =
+    '<div class="loading-overlay"><div class="spinner"></div><span>Loading equipment inventory…</span></div>';
+  google.script.run
+    .withSuccessHandler(function(data) { _renderEquipInventory_(data, container); })
+    .withFailureHandler(function(err) {
+      container.innerHTML =
+        '<div class="ei-empty">Error loading equipment inventory: ' + esc(err.message || String(err)) + '</div>';
+    })
+    .getEquipmentInventoryPageData();
+}
+
+function _renderEquipInventory_(data, container) {
+  _eiData_   = data;
+  _eiSearch_ = '';
+  var equip  = data.equipment || [];
+
+  // Summary KPIs across all equipment
+  var totalItems   = equip.length;
+  var activeItems  = equip.filter(function(e){ return (e.status || '').toUpperCase() !== 'INACTIVE'; }).length;
+  var openTotal    = equip.reduce(function(s,e){ return s + (e.openTickets || 0); }, 0);
+  var withMtbf     = equip.filter(function(e){ return e.mtbf != null; }).length;
+
+  var deptOpts = '';
+  var depts = [];
+  equip.forEach(function(e){ if (e.dept && depts.indexOf(e.dept) < 0) depts.push(e.dept); });
+  depts.sort().forEach(function(d){ deptOpts += '<option value="' + esc(d) + '">' + esc(d) + '</option>'; });
+
+  container.innerHTML =
+    '<div class="ei-wrap">' +
+    '<div class="ei-toolbar">' +
+      '<span class="ei-title">Equipment Inventory</span>' +
+      '<span class="ei-count" id="ei-cnt">' + activeItems + ' items</span>' +
+      '<input class="ei-search" id="ei-search" placeholder="Search…" oninput="_eiApply_()" />' +
+      '<select class="ei-filter" id="ei-dept-filter" onchange="_eiApply_()">' +
+        '<option value="">All Depts</option>' + deptOpts +
+      '</select>' +
+      '<button onclick="_loadEquipInventory_(document.getElementById(\'page-equipment-inventory\'))" style="height:30px;padding:0 10px;border:1px solid var(--border-default);border-radius:6px;background:#fff;font-size:12px;cursor:pointer;color:var(--text-secondary);" title="Refresh">↻</button>' +
+    '</div>' +
+    '<div class="ei-kpi-bar">' +
+      _eiKpiCard_('Total Equipment', totalItems, 'in inventory') +
+      _eiKpiCard_('Active', activeItems, 'in service') +
+      _eiKpiCard_('Open Tickets', openTotal, 'across all equipment') +
+      _eiKpiCard_('Tracked MTBF', withMtbf, 'equipment with failure history') +
+    '</div>' +
+    '<div id="ei-body"></div>' +
+    '</div>';
+
+  _eiRenderTable_(equip);
+}
+
+function _eiKpiCard_(label, value, foot) {
+  return '<div class="ei-kpi-card">' +
+    '<div class="ei-kpi-label">' + esc(label) + '</div>' +
+    '<div class="ei-kpi-value">' + esc(String(value)) + '</div>' +
+    '<div class="ei-kpi-foot">' + esc(foot) + '</div>' +
+    '</div>';
+}
+
+function _eiApply_() {
+  if (!_eiData_) return;
+  var q  = (document.getElementById('ei-search') || {}).value || '';
+  var dv = (document.getElementById('ei-dept-filter') || {}).value || '';
+  _eiSearch_ = q.toLowerCase();
+  var list = (_eiData_.equipment || []).filter(function(e) {
+    if (dv && e.dept !== dv) return false;
+    if (_eiSearch_) {
+      var hay = (e.code + ' ' + e.specific + ' ' + e.dept + ' ' + e.eType).toLowerCase();
+      if (hay.indexOf(_eiSearch_) < 0) return false;
+    }
+    return true;
+  });
+  _eiRenderTable_(list);
+}
+
+function _eiRenderTable_(list) {
+  var body  = document.getElementById('ei-body');
+  var cntEl = document.getElementById('ei-cnt');
+  if (!body) return;
+  if (cntEl) cntEl.textContent = list.length + ' item' + (list.length !== 1 ? 's' : '');
+
+  if (list.length === 0) {
+    body.innerHTML = '<div class="ei-empty">No equipment found.</div>';
+    return;
+  }
+
+  body.innerHTML =
+    '<div class="ei-table-wrap"><div style="overflow-x:auto;">' +
+    '<table class="ei-table"><thead><tr>' +
+      '<th>Code</th><th>Equipment</th><th>Dept</th><th>Type</th><th>Status</th>' +
+      '<th class="right">Tickets</th><th class="right">Open</th>' +
+      '<th class="right">Avg Close (d)</th><th class="right">MTBF (d)</th><th class="right">MTTR (h)</th>' +
+      '<th>Last Ticket</th>' +
+    '</tr></thead><tbody>' +
+    list.map(function(e) {
+      var isActive = (e.status || '').toUpperCase() !== 'INACTIVE';
+      var openCls  = e.openTickets > 0 ? ' warn' : (e.openTickets === 0 && e.totalTickets > 0 ? ' good' : '');
+      return '<tr onclick="_eiOpenDetail_(\'' + esc(e.code) + '\')">' +
+        '<td class="col-code">' + esc(e.code || '—') + '</td>' +
+        '<td class="col-name" title="' + esc(e.specific) + '">' + esc(e.specific || '—') + '</td>' +
+        '<td>' + esc(e.dept) + '</td>' +
+        '<td>' + esc(e.eType) + '</td>' +
+        '<td><span class="stat-badge ' + (isActive ? 'stat-OPEN' : 'stat-CLOSED') + '" style="font-size:10px;">' + esc(e.status || 'ACTIVE') + '</span></td>' +
+        '<td class="right ei-kpi-num">' + (e.totalTickets > 0 ? e.totalTickets : '—') + '</td>' +
+        '<td class="right ei-kpi-num' + openCls + '">' + (e.totalTickets > 0 ? e.openTickets : '—') + '</td>' +
+        '<td class="right ei-kpi-num">' + (e.avgCloseDays != null ? e.avgCloseDays : '—') + '</td>' +
+        '<td class="right ei-kpi-num">' + (e.mtbf        != null ? e.mtbf         : '—') + '</td>' +
+        '<td class="right ei-kpi-num">' + (e.mttr        != null ? e.mttr + 'h'   : '—') + '</td>' +
+        '<td style="font-size:11.5px;color:var(--text-tertiary);">' + esc(e.lastTicketDate) + '</td>' +
+        '</tr>';
+    }).join('') +
+    '</tbody></table></div></div>';
+}
+
+function _eiOpenDetail_(equipCode) {
+  if (!equipCode || !_eiData_) return;
+  var equip = null;
+  (_eiData_.equipment || []).forEach(function(e) { if (e.code === equipCode) equip = e; });
+  if (!equip) return;
+
+  document.getElementById('ei-detail-code').textContent = equip.code || '—';
+  document.getElementById('ei-detail-name').textContent = equip.specific || '';
+  document.getElementById('ei-detail-dept').textContent = equip.dept || '';
+  document.getElementById('ei-detail-overlay').classList.add('open');
+  document.getElementById('ei-detail-body').innerHTML =
+    '<div class="loading-overlay"><div class="spinner"></div><span>Loading ticket history…</span></div>';
+
+  google.script.run
+    .withSuccessHandler(function(hist) { _eiRenderDetail_(equip, hist || []); })
+    .withFailureHandler(function() { _eiRenderDetail_(equip, []); })
+    .getEquipTicketHistory(equipCode);
+}
+
+function _eiCloseDetail_() {
+  document.getElementById('ei-detail-overlay').classList.remove('open');
+}
+
+function _eiRenderDetail_(e, hist) {
+  var openTickets  = e.openTickets  || 0;
+  var totalTickets = e.totalTickets || 0;
+  var kpis =
+    '<div class="ei-detail-kpi-grid">' +
+      _eiDKpi_('All-time Tickets', totalTickets, 'total work orders')  +
+      _eiDKpi_('Open',             openTickets,  openTickets === 0 && totalTickets > 0 ? 'all resolved' : openTickets > 0 ? 'active tickets' : '—', openTickets > 0 ? 'warn' : 'good') +
+      _eiDKpi_('Avg Close Time',   e.avgCloseDays != null ? e.avgCloseDays + 'd' : '—', 'mean days to close') +
+      _eiDKpi_('MTBF',             e.mtbf         != null ? e.mtbf + 'd'  : '—', 'mean time between failures') +
+      _eiDKpi_('MTTR',             e.mttr         != null ? e.mttr + 'h'  : '—', 'mean actual repair hours') +
+      _eiDKpi_('Last Ticket',      e.lastTicketDate || '—', '') +
+    '</div>';
+
+  var infoSection =
+    '<div class="ei-detail-section">' +
+      '<div class="ei-detail-section-title">Equipment Record</div>' +
+      '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:10px 18px;font-size:12px;">' +
+        _eiInfoField_('Department',  e.dept) +
+        _eiInfoField_('Type',        e.eType) +
+        _eiInfoField_('Code',        e.code) +
+        _eiInfoField_('Status',      e.status || 'ACTIVE') +
+      '</div>' +
+    '</div>';
+
+  var histSection;
+  if (hist.length === 0) {
+    histSection =
+      '<div class="ei-detail-section">' +
+        '<div class="ei-detail-section-title">Ticket History</div>' +
+        '<div style="color:var(--text-tertiary);font-size:12.5px;">No tickets found for this equipment.</div>' +
+      '</div>';
+  } else {
+    histSection =
+      '<div class="ei-detail-section">' +
+        '<div class="ei-detail-section-title">Ticket History <span style="font-weight:400;color:var(--text-tertiary);">(' + hist.length + ')</span></div>' +
+        '<div style="overflow-x:auto;"><table class="ei-hist-table"><thead><tr>' +
+          '<th>Ticket #</th><th>Date</th><th>Priority</th><th>Problem Type</th><th>Status</th><th class="right">Est Hrs</th><th class="right">Act Hrs</th>' +
+        '</tr></thead><tbody>' +
+        hist.map(function(h) {
+          return '<tr onclick="openTicketDetail(\'' + esc(h.ticketNo) + '\')">' +
+            '<td style="font-family:var(--font-mono);font-weight:600;color:var(--brand-navy);font-size:12px;">' + esc(h.ticketNo) + '</td>' +
+            '<td style="font-size:11.5px;color:var(--text-secondary);">' + esc(h.dateOpened) + '</td>' +
+            '<td><span class="pri-badge pri-' + esc(h.priority) + '">' + esc(h.priority || '—') + '</span></td>' +
+            '<td style="font-size:12px;">' + esc(h.problemType || '—') + '</td>' +
+            '<td><span class="stat-badge stat-' + esc((h.status || '').replace(/\s+/g,'-')) + '">' + esc(h.status) + '</span></td>' +
+            '<td class="right" style="font-size:11.5px;color:var(--text-secondary);">' + esc(String(h.estHours || '—')) + '</td>' +
+            '<td class="right" style="font-size:11.5px;color:var(--text-secondary);">' + esc(String(h.actualHours || '—')) + '</td>' +
+          '</tr>';
+        }).join('') +
+        '</tbody></table></div>' +
+      '</div>';
+  }
+
+  document.getElementById('ei-detail-body').innerHTML = kpis + infoSection + histSection;
+}
+
+function _eiDKpi_(label, value, foot, accent) {
+  var valStyle = accent === 'warn' ? 'color:var(--status-warn);' : accent === 'good' ? 'color:var(--status-success);' : '';
+  return '<div class="ei-detail-kpi">' +
+    '<div class="ei-detail-kpi-label">' + esc(label) + '</div>' +
+    '<div class="ei-detail-kpi-value" style="' + valStyle + '">' + esc(String(value)) + '</div>' +
+    (foot ? '<div class="ei-detail-kpi-foot">' + esc(foot) + '</div>' : '') +
+  '</div>';
+}
+
+function _eiInfoField_(label, value) {
+  return '<div><div style="font-size:10.5px;font-weight:600;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:.04em;margin-bottom:2px;">' + esc(label) + '</div>' +
+    '<div style="font-size:13px;color:var(--text-primary);">' + esc(value || '—') + '</div></div>';
+}
+</script>

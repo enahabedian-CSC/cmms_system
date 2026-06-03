@@ -186,7 +186,9 @@ function verifyAndCloseTicket(data) {
       updatedBy:     data.verifiedBy || user.displayName,
       problemType:   String(orig[ML.PROBLEM_TYPE - 1] || ''),
       lineNo:        String(orig[ML.LINE_NO - 1] || ''),
-      notes:         data.notes || ''
+      notes:         data.notes || '',
+      sqfChecklist:  data.sqfChecklist || '',
+      photoUrl:      String(orig[ML.PHOTO_URL - 1] || '')
     });
 
     appendToTicketHistory_(tn, TH_EVENTS.VERIFIED, 'PENDING VERIFICATION', 'CLOSED',
