@@ -1,0 +1,1098 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;overflow:hidden}
+body{font-family:Arial,sans-serif;background:#F2F2F2;color:#2A2A2A;font-size:12px;display:flex;flex-direction:column}
+
+/* ── HEADER ── */
+.hdr{background:#1A237E;padding:0;display:flex;align-items:stretch;flex-shrink:0}
+.hdr-accent{background:#1565C0;width:6px;flex-shrink:0}
+.hdr-body{flex:1;padding:10px 20px;display:flex;align-items:center;gap:14px}
+.hdr-title{font-size:15px;font-weight:bold;color:#90CAF9;letter-spacing:.4px}
+.hdr-sub{font-size:10px;color:#5C6BC0;margin-top:3px}
+.hdr-stats{display:flex;gap:8px;margin-left:auto}
+.hdr-stat{text-align:center;padding:4px 12px;border-radius:4px;background:rgba(255,255,255,.1)}
+.hdr-stat-num{font-size:18px;font-weight:bold;color:#FFD700;line-height:1}
+.hdr-stat-lbl{font-size:9px;color:#90CAF9;text-transform:uppercase;letter-spacing:.5px}
+.hdr-stat.red .hdr-stat-num{color:#EF5350}
+.hdr-stat.orange .hdr-stat-num{color:#FFA726}
+
+/* ── DEPT FILTER ── */
+.dept-strip{background:#E8EAF6;padding:5px 16px;display:flex;align-items:center;gap:6px;flex-wrap:wrap;border-bottom:2px solid #C5CAE9;flex-shrink:0}
+.dept-strip-label{font-size:9px;font-weight:bold;color:#5C6BC0;text-transform:uppercase;letter-spacing:.7px;margin-right:4px;white-space:nowrap}
+.dept-strip-hint{font-size:9px;color:#9E9E9E;margin-right:8px;white-space:nowrap}
+.dept-chip{padding:4px 12px;border-radius:3px;font-size:10px;font-weight:bold;cursor:pointer;border:1.5px solid #C5CAE9;background:#fff;color:#5C6BC0;font-family:Arial;white-space:nowrap;transition:all .13s}
+.dept-chip:hover{border-color:#1A237E;color:#1A237E}
+.dept-chip.active{background:#1A237E;color:#FFD700;border-color:#1A237E}
+
+/* ── QUEUE TABS ── */
+.tab-bar{background:#263238;display:flex;border-bottom:3px solid #1565C0;flex-shrink:0}
+.tab-btn{padding:9px 14px;font-size:11px;font-weight:bold;text-transform:uppercase;letter-spacing:.5px;cursor:pointer;border:none;border-right:1px solid rgba(255,255,255,.08);background:transparent;color:#5C6BC0;border-bottom:3px solid transparent;margin-bottom:-3px;font-family:Arial;display:flex;align-items:center;gap:5px;transition:color .15s,background .15s}
+.tab-btn:hover{color:#90CAF9;background:rgba(255,255,255,.04)}
+.tab-btn.active{color:#90CAF9;border-bottom-color:#90CAF9;background:rgba(144,202,249,.06)}
+.tab-count{background:rgba(255,255,255,.12);color:#90CAF9;font-size:9px;font-weight:bold;padding:1px 6px;border-radius:10px}
+.tab-count.red{background:rgba(239,83,80,.2);color:#EF5350}
+.tab-count.orange{background:rgba(255,167,38,.2);color:#FFA726}
+.tab-count.steel{background:rgba(144,164,174,.15);color:#90A4AE}
+
+/* ── MAIN LAYOUT — left full height, right split ── */
+.main-layout{flex:1;display:flex;overflow:hidden;min-height:0}
+
+/* LEFT PANEL — full height ticket list */
+.left-panel{width:262px;flex-shrink:0;border-right:1px solid #C5CAE9;background:#F0F4F8;display:flex;flex-direction:column;overflow:hidden}
+.left-header{padding:8px 12px;background:#E8EAF6;border-bottom:1px solid #C5CAE9;flex-shrink:0}
+.left-header-title{font-size:10px;font-weight:bold;color:#1A237E;text-transform:uppercase;letter-spacing:.6px}
+.left-header-count{font-size:11px;color:#5C6BC0;margin-top:2px}
+.search-wrap{padding:6px 10px;border-bottom:1px solid #C5CAE9;background:#E8EAF6;flex-shrink:0}
+.search-wrap input{width:100%;padding:6px 10px;border:1.5px solid #C5CAE9;border-radius:4px;font-family:Arial;font-size:11px;color:#263238;background:#fff}
+.search-wrap input:focus{border-color:#1A237E;outline:none}
+.ticket-list{flex:1;overflow-y:auto;min-height:0;padding:8px;display:flex;flex-direction:column;gap:5px}
+.ticket-item{background:#fff;border-radius:5px;border:1px solid #C5CAE9;border-left:4px solid #E0E0E0;padding:8px 10px;cursor:pointer;transition:background .1s,border-color .1s}
+.ticket-item:hover{background:#F5F7FF;border-color:#90CAF9}
+.ticket-item.selected{background:#E3F2FD;border-color:#90CAF9}
+.ticket-item.prio-critical{border-left-color:#B71C1C}
+.ticket-item.prio-high{border-left-color:#E64A19}
+.ticket-item.prio-medium{border-left-color:#F9A825}
+.ticket-item.prio-low{border-left-color:#1565C0}
+.ticket-item.prio-none{border-left-color:#263238}
+.ticket-item.closed-item{border-left-color:#546E7A}
+.ti-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:4px}
+.ti-num-pill{font-family:monospace;font-size:10px;font-weight:bold;padding:2px 6px;border-radius:3px;color:#fff}
+.ti-num-pill.prio-critical{background:#B71C1C}
+.ti-num-pill.prio-high{background:#E64A19}
+.ti-num-pill.prio-medium{background:#F9A825;color:#4a2a00}
+.ti-num-pill.prio-low{background:#1565C0}
+.ti-num-pill.prio-none{background:#263238}
+.ti-num-pill.prio-closed{background:#546E7A}
+.ti-dept{font-size:9px;font-weight:600;padding:2px 6px;border-radius:3px;background:#F0F0F0;color:#757575}
+.ti-desc{font-size:11px;font-weight:600;color:#263238;line-height:1.4;margin-bottom:3px}
+.ti-equip{font-size:10px;color:#90A4AE;margin-bottom:4px}
+.ti-bottom{display:flex;align-items:center;justify-content:space-between}
+.ti-prio-bdg{font-size:9px;font-weight:bold;padding:2px 6px;border-radius:3px}
+.ti-prio-bdg.prio-critical{background:#FFCDD2;color:#B71C1C}
+.ti-prio-bdg.prio-high{background:#FFE0B2;color:#E64A19}
+.ti-prio-bdg.prio-medium{background:#FFF9C4;color:#F57F17}
+.ti-prio-bdg.prio-low{background:#BBDEFB;color:#1565C0}
+.ti-prio-bdg.prio-none{background:#ECEFF1;color:#546E7A}
+.ti-prio-bdg.prio-closed{background:#ECEFF1;color:#546E7A}
+.ti-date{font-size:10px;color:#90A4AE}
+.empty-list{padding:24px 12px;text-align:center;color:#90A4AE;font-size:11px;font-style:italic}
+
+/* RIGHT SECTION — vertical split */
+.right-section{flex:1;display:flex;flex-direction:column;overflow:hidden;min-height:0}
+
+/* TOP 1/3 — identity + equipment & failure details */
+.top-detail{flex:0 0 33%;min-height:0;overflow:hidden;display:flex;flex-direction:column;border-bottom:2px solid #1565C0;background:#fff}
+.no-selection{flex:1;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:10px;color:#90A4AE}
+.no-sel-icon{font-size:32px;opacity:.3}
+.no-sel-text{font-size:13px;font-style:italic;color:#90A4AE}
+.detail-hdr{background:#1A237E;padding:8px 14px;display:flex;align-items:center;gap:10px;flex-shrink:0}
+.detail-ticket-num{font-size:13px;font-weight:bold;color:#FFD700;font-family:monospace}
+.detail-badges{display:flex;gap:6px;flex-wrap:wrap}
+.detail-meta{margin-left:auto;text-align:right;font-size:10px;color:#90CAF9;line-height:1.7}
+.detail-sub-row{background:#152372;padding:6px 14px;display:flex;align-items:center;gap:18px;flex-shrink:0;flex-wrap:wrap;border-bottom:1px solid rgba(144,202,249,.08)}
+.dsri{display:flex;flex-direction:column;gap:1px}
+.dsri-lbl{font-size:9px;font-weight:bold;color:#5C6BC0;text-transform:uppercase;letter-spacing:.6px}
+.dsri-val{font-size:10px;color:#90CAF9}
+
+/* Equipment & Failure Details — light editable section */
+.ef-section{padding:8px 14px;overflow-y:auto;flex:1;background:#fff}
+.ef-label{font-size:9px;font-weight:bold;color:#1A237E;text-transform:uppercase;letter-spacing:.7px;margin-bottom:7px;padding-bottom:4px;border-bottom:1.5px solid #E8EAF6}
+.ef-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:7px}
+.ef-field{display:flex;flex-direction:column;gap:3px}
+.ef-field label{font-size:9px;font-weight:bold;color:#616161;text-transform:uppercase;letter-spacing:.5px}
+.ef-field select,.ef-field input,.ef-field textarea{padding:5px 8px;border:1.5px solid #D0D0D0;border-radius:4px;font-family:Arial;font-size:11px;color:#2A2A2A;background:#fff;width:100%}
+.ef-field select:focus,.ef-field input:focus,.ef-field textarea:focus{border-color:#1A237E;outline:none}
+.ef-field textarea{resize:none;height:38px}
+.ef-field-full{grid-column:span 3}
+
+/* CLOSED VARIANT */
+.closed-banner{background:#546E7A;padding:6px 14px;display:flex;align-items:center;gap:10px;flex-shrink:0;border-bottom:1px solid #455A64}
+.closed-banner-title{font-size:11px;font-weight:bold;color:#fff}
+.closed-banner-sub{font-size:10px;color:#B0BEC5;margin-left:auto}
+
+/* ── BOTTOM 2/3 — edit panel ── */
+.bot-panel{flex:1;display:flex;flex-direction:column;overflow:hidden;min-height:0;background:#F4F6F9}
+.bot-tab-bar{display:flex;background:#263238;border-bottom:1px solid rgba(255,255,255,.08);overflow-x:auto;flex-shrink:0}
+.bot-tab{padding:7px 13px;font-size:10px;font-weight:bold;color:#5C6BC0;border-bottom:2px solid transparent;margin-bottom:-1px;cursor:pointer;white-space:nowrap;font-family:Arial;border-left:none;border-right:none;border-top:none;background:transparent;transition:color .13s}
+.bot-tab:hover{color:#90CAF9}
+.bot-tab.active{color:#FFD700;border-bottom:2px solid #FFD700;background:rgba(255,215,0,.05)}
+.bot-tab.green{color:#80CBC4}
+.bot-tab.green.active{border-bottom-color:#80CBC4;color:#80CBC4;background:rgba(128,203,196,.05)}
+.bot-tab.hist{color:#90CAF9}
+.bot-tab.hist.active{border-bottom-color:#90CAF9;color:#90CAF9;background:rgba(144,202,249,.05)}
+.bot-tab.red{color:#EF9A9A;margin-left:auto}
+.bot-tab.red.active{border-bottom-color:#EF9A9A}
+.bot-content{display:flex;flex:1;overflow:hidden;min-height:0}
+.bot-fields{flex:1;overflow-y:auto;padding:12px 16px;background:#F4F6F9}
+
+/* FIELD STYLES inside bottom panel */
+.bp-grid-3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:9px;margin-bottom:9px}
+.bp-grid-2{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-bottom:9px}
+.bp-field{display:flex;flex-direction:column;gap:3px}
+.bp-field label{font-size:9px;font-weight:bold;color:#616161;text-transform:uppercase;letter-spacing:.5px}
+.bp-field select,.bp-field input{padding:6px 9px;border:1.5px solid #D0D0D0;border-radius:4px;font-family:Arial;font-size:11px;color:#2A2A2A;background:#fff;width:100%}
+.bp-field select:focus,.bp-field input:focus{border-color:#1A237E;outline:none}
+.bp-field textarea{padding:6px 9px;border:1.5px solid #D0D0D0;border-radius:4px;font-family:Arial;font-size:11px;color:#2A2A2A;background:#fff;resize:vertical;min-height:52px;width:100%}
+.bp-field textarea:focus{border-color:#1A237E;outline:none}
+.bp-field-full{grid-column:span 3}
+.bp-field-2{grid-column:span 2}
+.bp-divider{font-size:9px;font-weight:bold;color:#0D47A1;text-transform:uppercase;letter-spacing:.7px;padding:6px 0 5px;border-bottom:1.5px solid #D0D0D0;margin-bottom:9px}
+
+/* FIX TYPE PILLS */
+.fix-pills{display:flex;gap:8px}
+.fix-pill{flex:1;padding:7px 8px;border-radius:4px;border:1.5px solid #D0D0D0;font-size:11px;font-weight:bold;cursor:pointer;text-align:center;background:#F5F5F5;color:#616161;transition:all .13s;font-family:Arial}
+.fix-pill.active-temp{background:#FFF9C4;color:#F57F17;border-color:#F57F17}
+.fix-pill.active-perm{background:#C8E6C9;color:#2E7D32;border-color:#2E7D32}
+
+/* TAG PILLS */
+.tag-pills{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:9px}
+.tag-pill{padding:5px 12px;border-radius:20px;border:1.5px solid #D0D0D0;font-size:10px;font-weight:bold;cursor:pointer;background:#F5F5F5;color:#616161;transition:all .13s;font-family:Arial}
+.tag-pill.t-none{background:#3C3C3C;color:#FFD700;border-color:#3C3C3C}
+.tag-pill.t-green{background:#C8E6C9;color:#2E7D32;border-color:#2E7D32}
+.tag-pill.t-orange{background:#FFE0B2;color:#E64A19;border-color:#E64A19}
+.tag-pill.t-red{background:#FFCDD2;color:#C62828;border-color:#C62828}
+.tag-pill.t-yellow{background:#FFF9C4;color:#F57F17;border-color:#F57F17}
+
+/* VERIFICATION CHECKLIST */
+.chk-wrap{border:1.5px solid #D0D0D0;border-radius:5px;overflow:hidden;margin-bottom:9px}
+.chk-item{display:flex;align-items:center;gap:8px;padding:7px 10px;cursor:pointer;border-bottom:1px solid #F0F0F0;background:#fff;transition:background .1s}
+.chk-item:last-child{border-bottom:none}
+.chk-item.chk-done{background:#E8F5E9}
+.chk-box{width:14px;height:14px;border:1.5px solid #D0D0D0;border-radius:3px;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:11px;color:transparent}
+.chk-box.chk-checked{border-color:#2E7D32;color:#2E7D32}
+.chk-label{font-size:11px;color:#2A2A2A}
+.chk-warn{background:#FFF8E1;border:1px solid #FFB300;border-radius:4px;padding:6px 9px;font-size:10px;color:#E65100;margin-bottom:9px}
+.verify-box{background:#E8F5E9;border:1.5px solid #A5D6A7;border-radius:5px;padding:10px 12px;margin-bottom:9px}
+.verify-box-label{font-size:10px;font-weight:bold;color:#2E7D32;margin-bottom:8px}
+
+/* TRANSFER REASON PILLS */
+.reason-pills{display:flex;gap:5px;flex-wrap:wrap;margin-top:5px}
+.reason-pill{padding:4px 10px;border-radius:20px;border:1.5px solid #D0D0D0;font-size:10px;font-weight:bold;cursor:pointer;background:#fff;color:#616161;transition:all .13s;font-family:Arial}
+.reason-pill:hover{border-color:#0D47A1;color:#0D47A1}
+.reason-pill.active{background:#0D47A1;color:#fff;border-color:#0D47A1}
+
+/* BADGES */
+.badge{display:inline-block;padding:2px 7px;border-radius:3px;font-size:9px;font-weight:bold}
+.b-critical{background:#FFCDD2;color:#C62828}
+.b-high{background:#FFE0B2;color:#E64A19}
+.b-medium{background:#FFF9C4;color:#F57F17}
+.b-low{background:#BBDEFB;color:#1565C0}
+.b-status{background:rgba(255,255,255,.15);color:#90CAF9}
+.b-dept{background:#1565C0;color:#fff}
+.b-closed{background:#ECEFF1;color:#546E7A}
+
+/* HISTORY TAB */
+.tl-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-bottom:10px}
+.tl-card{border-radius:4px;padding:7px 8px;border-left:3px solid #E0E0E0;background:#fff;border:1px solid #E8EAF6;border-left-width:3px}
+.tl-card.ev-created{border-left-color:#1A237E;background:#EEF2FF}
+.tl-card.ev-stage{border-left-color:#1565C0;background:#E3F2FD}
+.tl-card.ev-work{border-left-color:#EF6C00;background:#FFF3E0}
+.tl-card.ev-closed{border-left-color:#546E7A;background:#ECEFF1}
+.tl-card.ev-closedgreen{border-left-color:#2E7D32;background:#E8F5E9}
+.tl-card.ev-tempfix{border-left-color:#E64A19;background:#FBE9E7}
+.tl-num{width:16px;height:16px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:8px;font-weight:bold;flex-shrink:0;margin-bottom:4px}
+.ev-created .tl-num{background:#1A237E;color:#FFD700}
+.ev-stage .tl-num{background:#1565C0;color:#fff}
+.ev-work .tl-num{background:#EF6C00;color:#fff}
+.ev-closed .tl-num{background:#546E7A;color:#fff}
+.ev-closedgreen .tl-num{background:#2E7D32;color:#fff}
+.ev-tempfix .tl-num{background:#E64A19;color:#fff}
+.tl-event{font-size:9px;font-weight:bold;text-transform:uppercase;letter-spacing:.3px;margin-bottom:2px;line-height:1.3}
+.ev-created .tl-event{color:#1A237E}
+.ev-stage .tl-event{color:#1565C0}
+.ev-work .tl-event{color:#E64A19}
+.ev-closed .tl-event{color:#546E7A}
+.ev-closedgreen .tl-event{color:#2E7D32}
+.ev-tempfix .tl-event{color:#E64A19}
+.tl-meta{font-size:8px;color:#9E9E9E;line-height:1.5}
+.tl-pill{display:inline-block;font-size:8px;font-weight:bold;padding:1px 5px;border-radius:3px;margin-top:3px}
+.pill-continue{background:#FFF3E0;color:#E64A19;border:1px solid #FFCC80}
+.pill-perm{background:#E8F5E9;color:#2E7D32;border:1px solid #A5D6A7}
+.tl-legend{display:flex;gap:12px;flex-wrap:wrap;padding-top:8px;border-top:1px solid #E8EAF6}
+.tl-leg{display:flex;align-items:center;gap:4px;font-size:9px;color:#9E9E9E}
+.tl-dot{width:7px;height:7px;border-radius:50%}
+
+/* PARTS TABLE */
+.parts-tbl{width:100%;border-collapse:collapse;font-size:11px;margin-bottom:8px}
+.parts-tbl thead tr{background:#3C3C3C}
+.parts-tbl thead th{padding:5px 8px;color:#FFD700;font-weight:bold;font-size:9px;text-align:left}
+.parts-tbl tbody td{padding:5px 7px;border-bottom:1px solid #F0F0F0}
+.parts-tbl tbody tr:nth-child(even) td{background:#FAFAFA}
+.parts-status-sel{border:1.5px solid #D0D0D0;border-radius:4px;padding:4px 7px;font-size:10px;font-family:Arial;background:#fff;color:#2A2A2A;width:100%;cursor:pointer}
+
+/* CLOSED EDIT FIELDS */
+.closed-field{display:flex;flex-direction:column;gap:3px;margin-bottom:9px}
+.closed-field label{font-size:9px;font-weight:bold;color:#616161;text-transform:uppercase;letter-spacing:.5px}
+.closed-field select,.closed-field input,.closed-field textarea{padding:6px 9px;border:1.5px solid #D0D0D0;border-radius:4px;font-family:Arial;font-size:11px;color:#2A2A2A;background:#fff;width:100%}
+.closed-field textarea{resize:vertical;min-height:50px}
+.closed-note{background:#ECEFF1;border:1px solid #B0BEC5;border-radius:4px;padding:9px 10px;margin-bottom:10px;font-size:10px;color:#546E7A;line-height:1.6}
+
+/* ── ACTION BUTTONS — right column ── */
+.bot-actions{width:175px;flex-shrink:0;border-left:2px solid #D0D0D0;padding:10px;display:flex;flex-direction:column;gap:5px;background:#ECEEF2}
+.ba-label{font-size:9px;font-weight:bold;color:#0D47A1;text-transform:uppercase;letter-spacing:.6px;margin-bottom:2px}
+.btn{padding:7px 10px;border:none;border-radius:4px;font-size:11px;font-weight:bold;cursor:pointer;font-family:Arial;width:100%;text-align:center;transition:opacity .13s}
+.btn:hover{opacity:.88}
+.btn:disabled{opacity:.4;cursor:not-allowed}
+.btn-save{background:#0D47A1;color:#fff}
+.btn-approve{background:#1565C0;color:#fff}
+.btn-close{background:linear-gradient(180deg,#388E3C,#1B5E20);color:#fff}
+.btn-hold{background:#E65100;color:#fff}
+.btn-ghost{background:#fff;border:1.5px solid #D0D0D0;color:#616161}
+.btn-void{background:linear-gradient(180deg,#C62828,#7F0000);color:#fff}
+.btn-steel{background:linear-gradient(180deg,#607D8B,#37474F);color:#fff}
+.btn-divider{height:1px;background:#D0D0D0;margin:2px 0}
+.bot-ticket-info{font-size:9px;color:#9E9E9E;font-style:italic;text-align:center;margin-top:auto;padding-top:8px;word-break:break-all}
+
+/* ASSIGN TO */
+.assign-wrap{position:relative}
+.assign-dropdown{display:none;position:absolute;top:100%;left:0;right:0;background:#fff;border:1.5px solid #1A237E;border-radius:4px;max-height:160px;overflow-y:auto;z-index:200;box-shadow:0 3px 10px rgba(0,0,0,.15)}
+.assign-item{padding:6px 10px;cursor:pointer;font-size:11px;color:#1A237E;border-bottom:1px solid #E8EAF6}
+.assign-item:hover{background:#E3F2FD}
+.assign-item:last-child{border-bottom:none}
+
+/* STATUS BAR */
+.status-bar{flex-shrink:0;padding:7px 20px;font-size:11px;font-weight:bold;text-align:center;display:none}
+.status-bar.success{display:block;background:#C8E6C9;color:#1B5E20;border-top:2px solid #2E7D32}
+.status-bar.error{display:block;background:#FFCDD2;color:#B71C1C;border-top:2px solid #C62828}
+.status-bar.info{display:block;background:#E3F2FD;color:#1565C0;border-top:2px solid #1565C0}
+</style>
+</head>
+<body>
+
+<!-- HEADER -->
+<div class="hdr">
+  <div class="hdr-accent"></div>
+  <div class="hdr-body">
+    <div>
+      <div class="hdr-title">&#128309; MANAGER REVIEW BOARD</div>
+      <div class="hdr-sub" id="hdrSub">Container Supply Co. &#8212; Garden Grove, CA</div>
+    </div>
+    <div class="hdr-stats">
+      <div class="hdr-stat red"><div class="hdr-stat-num" id="statWaiting">0</div><div class="hdr-stat-lbl">Waiting</div></div>
+      <div class="hdr-stat orange"><div class="hdr-stat-num" id="statPending">0</div><div class="hdr-stat-lbl">Pending Verify</div></div>
+      <div class="hdr-stat"><div class="hdr-stat-num" id="statOpen">0</div><div class="hdr-stat-lbl">Open</div></div>
+      <div class="hdr-stat"><div class="hdr-stat-num" id="statParts">0</div><div class="hdr-stat-lbl">Parts</div></div>
+      <div class="hdr-stat"><div class="hdr-stat-num" id="statTags">0</div><div class="hdr-stat-lbl">Tags</div></div>
+    </div>
+  </div>
+</div>
+
+<!-- DEPT FILTER -->
+<div class="dept-strip">
+  <span class="dept-strip-label">Filter by dept</span>
+  <span class="dept-strip-hint">Click to toggle &middot; multiple allowed</span>
+  <button class="dept-chip active" onclick="toggleDept('ALL',this)">All</button>
+  <button class="dept-chip" onclick="toggleDept('ELECTRICAL',this)">Electrical</button>
+  <button class="dept-chip" onclick="toggleDept('MACHINE SHOP',this)">Machine Shop</button>
+  <button class="dept-chip" onclick="toggleDept('FACILITIES',this)">Facilities</button>
+  <button class="dept-chip" onclick="toggleDept('PLASTICS',this)">Plastics</button>
+  <button class="dept-chip" onclick="toggleDept('METALS',this)">Metals</button>
+  <button class="dept-chip" onclick="toggleDept('LITHO',this)">Litho</button>
+</div>
+
+<!-- QUEUE TABS -->
+<div class="tab-bar">
+  <button class="tab-btn active" onclick="switchTab('waiting',this)">&#9203; Waiting <span class="tab-count red" id="tc-waiting">0</span></button>
+  <button class="tab-btn" onclick="switchTab('pending',this)">&#9989; Pending Verify <span class="tab-count orange" id="tc-pending">0</span></button>
+  <button class="tab-btn" onclick="switchTab('open',this)">&#128194; Open <span class="tab-count" id="tc-open">0</span></button>
+  <button class="tab-btn" onclick="switchTab('parts',this)">&#128297; Parts <span class="tab-count" id="tc-parts">0</span></button>
+  <button class="tab-btn" onclick="switchTab('tags',this)">&#127991; Tags <span class="tab-count" id="tc-tags">0</span></button>
+  <button class="tab-btn" onclick="switchTab('reports',this)">&#128221; Reports <span class="tab-count" id="tc-reports">0</span></button>
+  <button class="tab-btn" onclick="switchTab('closed',this)">&#128274; Closed Edits <span class="tab-count steel" id="tc-closed">0</span></button>
+  <div style="margin-left:auto;display:flex;align-items:center;padding-right:12px">
+    <button onclick="loadData()" style="padding:5px 12px;font-size:10px;font-weight:bold;border:1.5px solid #5C6BC0;border-radius:4px;cursor:pointer;background:transparent;color:#90CAF9;font-family:Arial">&#128259; Refresh</button>
+  </div>
+</div>
+
+<!-- MAIN LAYOUT -->
+<div class="main-layout">
+
+  <!-- LEFT — full height -->
+  <div class="left-panel">
+    <div class="left-header">
+      <div class="left-header-title" id="leftTitle">Waiting Queue</div>
+      <div class="left-header-count" id="leftCount">Loading&#8230;</div>
+    </div>
+    <div class="search-wrap">
+      <input type="text" id="searchBox" placeholder="Search tickets, equipment&#8230;" oninput="renderCurrentTab()">
+    </div>
+    <div class="ticket-list" id="ticketList">
+      <div class="empty-list">Loading tickets&#8230;</div>
+    </div>
+  </div>
+
+  <!-- RIGHT — vertical split -->
+  <div class="right-section">
+
+    <!-- TOP 1/3 — identity + equipment & failure details -->
+    <div class="top-detail" id="topDetail">
+      <div class="no-selection">
+        <div class="no-sel-icon">&#8592;</div>
+        <div class="no-sel-text">Select a ticket to view details</div>
+      </div>
+    </div>
+
+    <!-- BOTTOM 2/3 — edit panel -->
+    <div class="bot-panel">
+      <div class="bot-tab-bar" id="botTabBar">
+        <button class="bot-tab active" onclick="switchBotTab('priority',this)">Priority &amp; Assignment</button>
+        <button class="bot-tab" onclick="switchBotTab('work',this)">Work Summary</button>
+        <button class="bot-tab" onclick="switchBotTab('capa',this)">CAPA</button>
+        <button class="bot-tab green" onclick="switchBotTab('clearance',this)">Post-Repair Clearance</button>
+        <button class="bot-tab" onclick="switchBotTab('equipment',this)">Equipment &amp; Parts</button>
+        <button class="bot-tab" onclick="switchBotTab('transfer',this)">Transfer</button>
+        <button class="bot-tab hist" onclick="switchBotTab('history',this)">Ticket History</button>
+        <button class="bot-tab red" onclick="switchBotTab('void',this)">Void</button>
+      </div>
+      <div class="bot-content">
+        <div class="bot-fields" id="botFields">
+          <div style="color:#9E9E9E;font-size:11px;font-style:italic;padding:20px 0;text-align:center">Select a ticket to begin editing</div>
+        </div>
+        <div class="bot-actions">
+          <div class="ba-label">Actions</div>
+          <button class="btn btn-save"    id="btnSave"    onclick="doAction('save')"    disabled>Save Update</button>
+          <button class="btn btn-approve" id="btnApprove" onclick="doAction('approve')" disabled>Approve &#8594; Open</button>
+          <div class="btn-divider"></div>
+          <button class="btn btn-close"   id="btnVerify"  onclick="doAction('verify')"  disabled>Verify &amp; Close</button>
+          <button class="btn btn-ghost"   id="btnBack"    onclick="doAction('back')"    disabled>Send Back to Open</button>
+          <button class="btn btn-hold"    id="btnHold"    onclick="doAction('hold')"    disabled>Put On Hold</button>
+          <div class="btn-divider"></div>
+          <button class="btn btn-void"    id="btnVoid"    onclick="doAction('void')"    disabled>Void Ticket</button>
+          <div class="bot-ticket-info" id="botTicketInfo">No ticket selected</div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<div class="status-bar" id="statusBar"></div>
+
+<script>
+var BD={},DEPT_MAPPING={},currentTab='waiting',selTicket=null,selTagVal='',fixTypeVal='',verChecklist=[false,false,false],activeDepts=[],currentBotTab='priority',newPartRows=[];
+
+window.onload=function(){
+  loadData();
+  document.addEventListener('click',function(e){
+    var list=document.getElementById('assignToList'),input=document.getElementById('assignToInput');
+    if(list&&input&&!input.contains(e.target)&&!list.contains(e.target))list.style.display='none';
+  });
+};
+
+function loadData(){
+  document.getElementById('ticketList').innerHTML='<div class="empty-list">Loading tickets&#8230;</div>';
+  document.getElementById('leftCount').textContent='Loading&#8230;';
+  google.script.run
+    .withSuccessHandler(function(jsonStr){
+      try{if(!jsonStr){showSt('Server returned empty response','error');return;}var d=JSON.parse(jsonStr);initBoard(d);}
+      catch(err){showSt('Parse error: '+err.message,'error');}
+    })
+    .withFailureHandler(function(e){showSt('Server error: '+e.message,'error');})
+    .getManagerReviewBoardDataJson();
+}
+
+function initBoard(d){
+  BD=d;DEPT_MAPPING=d.deptMapping||{};
+  document.getElementById('hdrSub').textContent=(d.companyName||'Container Supply Co.')+' \u2014 '+(d.location||'Garden Grove, CA');
+  updateAllCounts();renderCurrentTab();resetDetail();
+}
+
+function updateAllCounts(){
+  document.getElementById('statWaiting').textContent=(BD.waitingTickets||[]).length;
+  document.getElementById('statPending').textContent=(BD.pendingVerify||[]).length;
+  document.getElementById('statOpen').textContent=(BD.openTickets||[]).length;
+  document.getElementById('statParts').textContent=(BD.partsNeeded||[]).length;
+  document.getElementById('statTags').textContent=(BD.equipmentTags||[]).length;
+  document.getElementById('tc-waiting').textContent=filterTickets(BD.waitingTickets||[]).length;
+  document.getElementById('tc-pending').textContent=filterTickets(BD.pendingVerify||[]).length;
+  document.getElementById('tc-open').textContent=filterTickets(BD.openTickets||[]).length;
+  document.getElementById('tc-parts').textContent=filterTickets(BD.partsNeeded||[]).length;
+  document.getElementById('tc-tags').textContent=filterTickets(BD.equipmentTags||[]).length;
+  document.getElementById('tc-reports').textContent=(BD.serviceReports||[]).length;
+  document.getElementById('tc-closed').textContent=(BD.closedTickets||[]).length;
+}
+
+function toggleDept(dept,btn){
+  var allBtn=document.querySelector('.dept-chip');
+  if(dept==='ALL'){
+    activeDepts=[];
+    document.querySelectorAll('.dept-chip').forEach(function(c){c.classList.remove('active');});
+    btn.classList.add('active');
+  }else{
+    allBtn.classList.remove('active');
+    btn.classList.toggle('active');
+    var nowActive=[];
+    document.querySelectorAll('.dept-chip').forEach(function(c,i){
+      if(i>0&&c.classList.contains('active'))nowActive.push(c.textContent.trim().toUpperCase());
+    });
+    activeDepts=nowActive;
+    if(activeDepts.length===0)allBtn.classList.add('active');
+  }
+  selTicket=null;resetDetail();updateAllCounts();renderCurrentTab();
+}
+
+function filterTickets(tickets){
+  if(!activeDepts.length)return tickets;
+  return tickets.filter(function(t){
+    var tg=(t.deptGroup||'').toUpperCase();
+    if(activeDepts.indexOf(tg)>=0)return true;
+    var raw=(t.dept||'').toUpperCase().trim();
+    return activeDepts.indexOf((DEPT_MAPPING[raw]||raw).toUpperCase())>=0;
+  });
+}
+
+function switchTab(tab,btn){
+  currentTab=tab;selTicket=null;
+  document.querySelectorAll('.tab-btn').forEach(function(b){b.classList.remove('active');});
+  btn.classList.add('active');
+  renderCurrentTab();resetDetail();
+}
+
+function renderCurrentTab(){
+  var titles={waiting:'Waiting Queue',pending:'Pending Verification',open:'Open Tickets',parts:'Parts Tracker',tags:'Equipment Tags',reports:'Service Reports',closed:'Closed Ticket Edits'};
+  document.getElementById('leftTitle').textContent=titles[currentTab]||'';
+  var tickets=getTabTickets();
+  var search=(document.getElementById('searchBox').value||'').toLowerCase();
+  if(search){tickets=tickets.filter(function(t){return(t.ticketNo||'').toLowerCase().indexOf(search)>=0||(t.description||'').toLowerCase().indexOf(search)>=0||(t.specificEquip||'').toLowerCase().indexOf(search)>=0||(t.dept||'').toLowerCase().indexOf(search)>=0||(t.equipCode||'').toLowerCase().indexOf(search)>=0;});}
+  var deptLabel=activeDepts.length?activeDepts.join(', '):'all departments';
+  document.getElementById('leftCount').textContent=tickets.length+' ticket'+(tickets.length!==1?'s':'')+' \u2014 '+deptLabel;
+  var list=document.getElementById('ticketList');list.innerHTML='';
+  if(!tickets.length){var empty=document.createElement('div');empty.className='empty-list';empty.textContent='No tickets'+(activeDepts.length?' for '+activeDepts.join(', '):'')+' in this category.';list.appendChild(empty);return;}
+  tickets.forEach(function(t){
+    var item=document.createElement('div');
+    var p=(t.priority||'').toUpperCase();
+    var prioKey=currentTab==='closed'?'prio-closed':p==='CRITICAL'?'prio-critical':p==='HIGH'?'prio-high':p==='MEDIUM'?'prio-medium':p==='LOW'?'prio-low':'prio-none';
+    item.className='ticket-item '+prioKey+(currentTab==='closed'?' closed-item':'');
+    item.onclick=function(){selectTicket(t,item);};
+    var prioBdgLabel=currentTab==='closed'?'CLOSED':p||'WAITING';
+    item.innerHTML=
+      '<div class="ti-top"><span class="ti-num-pill '+prioKey+'">'+esc(t.ticketNo||t.reportId||'\u2014')+'</span><span class="ti-dept">'+esc(t.dept||'\u2014')+'</span></div>'+
+      '<div class="ti-desc">'+esc((t.description||t.problemDesc||'').substring(0,65))+'</div>'+
+      '<div class="ti-equip">'+esc(t.specificEquip||t.equipType||'\u2014')+(t.equipCode?' \u00b7 '+esc(t.equipCode):'')+'</div>'+
+      '<div class="ti-bottom"><span class="ti-prio-bdg '+prioKey+'">'+esc(prioBdgLabel)+'</span><span class="ti-date">'+esc(t.dateOpened||'')+(t.addedBy?' \u00b7 '+esc(t.addedBy):'')+'</span></div>';
+    list.appendChild(item);
+  });
+}
+
+function getTabTickets(){
+  var raw;
+  if(currentTab==='waiting')raw=BD.waitingTickets||[];
+  else if(currentTab==='pending')raw=BD.pendingVerify||[];
+  else if(currentTab==='open')raw=BD.openTickets||[];
+  else if(currentTab==='parts')raw=BD.partsNeeded||[];
+  else if(currentTab==='tags')raw=BD.equipmentTags||[];
+  else if(currentTab==='reports')raw=BD.serviceReports||[];
+  else if(currentTab==='closed')raw=BD.closedTickets||[];
+  else raw=[];
+  return filterTickets(raw);
+}
+
+function selectTicket(t,item){
+  selTicket=t;selTagVal='';fixTypeVal=t.fixType||'';verChecklist=[false,false,false];newPartRows=[];
+  document.querySelectorAll('.ticket-item').forEach(function(el){el.classList.remove('selected');});
+  item.classList.add('selected');
+  renderTopDetail(t);
+  renderBotTab(currentBotTab);
+  enableBtns(t);
+}
+
+function enableBtns(t){
+  var status=String(t.status||'').toUpperCase();
+  var isClosed=currentTab==='closed';
+  document.getElementById('btnSave').disabled=false;
+  document.getElementById('btnApprove').disabled=status!=='WAITING';
+  document.getElementById('btnVerify').disabled=status!=='COMPLETE'&&!isClosed;
+  document.getElementById('btnBack').disabled=status!=='COMPLETE';
+  document.getElementById('btnHold').disabled=status==='WAITING'||isClosed;
+  document.getElementById('btnVoid').disabled=isClosed;
+  document.getElementById('botTicketInfo').textContent=t.ticketNo||'';
+}
+
+function resetDetail(){
+  document.getElementById('topDetail').innerHTML='<div class="no-selection"><div class="no-sel-icon">\u2190</div><div class="no-sel-text">'+(currentTab==='closed'?'Select a closed ticket to edit':'Select a ticket to view details')+'</div></div>';
+  document.getElementById('botFields').innerHTML='<div style="color:#9E9E9E;font-size:11px;font-style:italic;padding:20px 0;text-align:center">Select a ticket to begin editing</div>';
+  document.getElementById('botTicketInfo').textContent='No ticket selected';
+  ['btnSave','btnApprove','btnVerify','btnBack','btnHold','btnVoid'].forEach(function(id){var el=document.getElementById(id);if(el)el.disabled=true;});
+}
+
+/* ── TOP DETAIL PANEL ── */
+function renderTopDetail(t){
+  if(currentTab==='closed'){renderClosedTop(t);return;}
+  var p=(t.priority||'').toLowerCase();
+  var html=
+    '<div class="detail-hdr">'+
+      '<div class="detail-ticket-num">'+esc(t.ticketNo||'\u2014')+'</div>'+
+      '<div class="detail-badges">'+
+        '<span class="badge b-'+p+'">'+(t.priority||'\u2014')+'</span>'+
+        '<span class="badge b-status">'+esc(t.status||currentTab.toUpperCase())+'</span>'+
+        '<span class="badge b-dept">'+esc(t.dept||'\u2014')+'</span>'+
+      '</div>'+
+      '<div class="detail-meta">Opened: '+esc(t.dateOpened||'\u2014')+' &middot; By: '+esc(t.addedBy||'\u2014')+'</div>'+
+    '</div>'+
+    '<div class="detail-sub-row">'+
+      '<div class="dsri"><span class="dsri-lbl">Equipment</span><span class="dsri-val">'+esc(t.equipType||'\u2014')+'</span></div>'+
+      '<div class="dsri"><span class="dsri-lbl">Code</span><span class="dsri-val" style="font-family:monospace">'+esc(t.equipCode||'\u2014')+'</span></div>'+
+      (t.buildingZone?'<div class="dsri"><span class="dsri-lbl">Zone</span><span class="dsri-val">'+esc(t.buildingZone)+'</span></div>':'')+
+      '<div class="dsri"><span class="dsri-lbl">Assigned</span><span class="dsri-val">'+esc(t.assignedTo||'Unassigned')+'</span></div>'+
+      '<div class="dsri"><span class="dsri-lbl">Added By</span><span class="dsri-val">'+esc(t.addedBy||'\u2014')+'</span></div>'+
+    '</div>'+
+    '<div class="ef-section">'+
+      '<div class="ef-label">Equipment &amp; Failure Details</div>'+
+      '<div class="ef-grid">'+
+        '<div class="ef-field"><label>Problem Type</label>'+
+          '<select id="de_problemType">'+buildOpts(BD.problemTypes||[],t.problemType)+'</select></div>'+
+        '<div class="ef-field"><label>Downtime Type</label>'+
+          '<select id="de_downtimeType">'+
+            '<option value="">\u2014 Keep Current \u2014</option>'+
+            '<option value="PLANNED"'+(t.downtimeType==='PLANNED'?' selected':'')+'>PLANNED</option>'+
+            '<option value="UNPLANNED"'+(t.downtimeType==='UNPLANNED'?' selected':'')+'>UNPLANNED</option>'+
+          '</select></div>'+
+        '<div class="ef-field"><label>Est Hours</label>'+
+          '<input type="number" id="de_estHours" step="0.5" min="0" value="'+esc(t.estHours||'')+'"></div>'+
+      '</div>'+
+      '<div class="ef-field ef-field-full"><label>Failure Description</label>'+
+        '<textarea id="de_description" rows="2">'+esc(t.description||t.problemDesc||'')+'</textarea>'+
+      '</div>'+
+    '</div>';
+  document.getElementById('topDetail').innerHTML=html;
+}
+
+function renderClosedTop(t){
+  var html=
+    '<div class="closed-banner"><span style="font-size:14px">&#128274;</span><span class="closed-banner-title">Editing Closed Ticket &mdash; '+esc(t.ticketNo)+'</span><span class="closed-banner-sub">Status stays closed &middot; all edits are logged</span></div>'+
+    '<div class="detail-hdr" style="background:#263238">'+
+      '<div class="detail-ticket-num">'+esc(t.ticketNo)+'</div>'+
+      '<div class="detail-badges"><span class="badge b-closed">CLOSED</span><span class="badge" style="background:#455A64;color:#B0BEC5">'+esc(t.dept||'\u2014')+'</span></div>'+
+      '<div class="detail-meta">Opened: '+esc(t.dateOpened||'\u2014')+' &middot; By: '+esc(t.addedBy||'\u2014')+'</div>'+
+    '</div>'+
+    '<div class="detail-sub-row" style="background:#1C2B30">'+
+      '<div class="dsri"><span class="dsri-lbl">Equipment</span><span class="dsri-val">'+esc(t.equipType||'\u2014')+'</span></div>'+
+      '<div class="dsri"><span class="dsri-lbl">Code</span><span class="dsri-val" style="font-family:monospace">'+esc(t.equipCode||'\u2014')+'</span></div>'+
+      '<div class="dsri"><span class="dsri-lbl">Opened</span><span class="dsri-val">'+esc(t.dateOpened||'\u2014')+'</span></div>'+
+      '<div class="dsri"><span class="dsri-lbl">Closed By</span><span class="dsri-val">'+esc(t.verifiedBy||'\u2014')+'</span></div>'+
+    '</div>'+
+    '<div class="ef-section">'+
+      '<div class="closed-note">This ticket is closed. You can update information without reopening it. All changes are logged in ticket history.</div>'+
+      '<div class="ef-grid">'+
+        '<div class="ef-field"><label>Updated By</label>'+
+          '<select id="ce_updatedBy"><option value="">\u2014 Select your name \u2014</option>'+
+            (BD.managers||[]).map(function(m){return'<option value="'+esc(m)+'">'+esc(m)+'</option>';}).join('')+
+          '</select></div>'+
+        '<div class="ef-field"><label>Actual Hours</label><input type="number" id="ce_actualHours" step="0.5" min="0" value="'+esc(t.actualHours||'')+'"></div>'+
+        '<div class="ef-field"><label>Fix Type</label>'+
+          '<select id="ce_fixType"><option value="">\u2014 Select \u2014</option>'+
+            '<option value="Permanent"'+(t.fixType==='Permanent'?' selected':'')+'>Permanent</option>'+
+            '<option value="Temporary"'+(t.fixType==='Temporary'?' selected':'')+'>Temporary</option>'+
+          '</select></div>'+
+      '</div>'+
+      '<div class="ef-field ef-field-full" style="margin-top:6px"><label>Corrective Action</label><textarea id="ce_correctiveAction">'+esc(t.correctiveAction||t.workSummary||'')+'</textarea></div>'+
+    '</div>';
+  document.getElementById('topDetail').innerHTML=html;
+}
+
+/* ── BOTTOM TAB RENDERING ── */
+function switchBotTab(tab,btn){
+  currentBotTab=tab;
+  document.querySelectorAll('.bot-tab').forEach(function(b){b.classList.remove('active');});
+  if(btn)btn.classList.add('active');
+  if(selTicket)renderBotTab(tab);
+}
+
+function renderBotTab(tab){
+  if(!selTicket)return;
+  if(currentTab==='closed'){renderClosedBotTab(tab);return;}
+  var t=selTicket,el=document.getElementById('botFields');
+  var status=String(t.status||'').toUpperCase();
+
+  if(tab==='priority'){
+    el.innerHTML=
+      '<div class="bp-grid-3">'+
+        '<div class="bp-field"><label>Set Priority'+(status==='WAITING'?' <span style="color:#C62828">*</span>':'')+'</label>'+
+          '<select id="bp_priority">'+
+            '<option value="">\u2014 Keep Current ['+(t.priority||'?')+'] \u2014</option>'+
+            ['LOW','MEDIUM','HIGH','CRITICAL'].map(function(v){return'<option value="'+v+'"'+(t.priority===v?' selected':'')+'>'+v+'</option>';}).join('')+
+          '</select></div>'+
+        '<div class="bp-field"><label>Assign To</label>'+
+          '<div class="assign-wrap"><input type="text" id="assignToInput" placeholder="Type to search&#8230;" autocomplete="off" oninput="filterAssignTo()" onfocus="openAssignTo()" value="'+esc(t.assignedTo||'')+'">'+
+          '<input type="hidden" id="assignTo" value="'+esc(t.assignedTo||'')+'">'+
+          '<div class="assign-dropdown" id="assignToList"></div></div></div>'+
+        '<div class="bp-field"><label>Est Hours</label><input type="number" id="bp_estHours" step="0.5" min="0" value="'+esc(t.estHours||'')+'"></div>'+
+      '</div>'+
+      '<div class="bp-grid-3">'+
+        '<div class="bp-field"><label>Status</label>'+
+          '<select id="bp_status">'+
+            '<option value="">\u2014 Keep Current \u2014 '+esc(status)+'</option>'+
+            '<option value="OPEN">OPEN</option>'+
+            '<option value="ON HOLD">ON HOLD</option>'+
+            '<option value="IN REVIEW">IN REVIEW</option>'+
+            '<option value="PENDING PARTS">PENDING PARTS</option>'+
+            '<option value="COMPLETE">COMPLETE \u2014 Submit for Review</option>'+
+          '</select></div>'+
+        '<div class="bp-field bp-field-2"><label>Manager Notes for Technician</label>'+
+          '<input type="text" id="bp_mgrNotes" placeholder="Notes for tech&#8230;" value="'+esc(t.notes||'')+'"></div>'+
+      '</div>'+
+      (status==='WAITING'?'<div style="background:#E3F2FD;border:1px solid #BBDEFB;border-radius:4px;padding:8px 10px;font-size:10px;color:#1565C0">&#9432; Set Priority and click <strong>Approve &rarr; Open</strong> to move this ticket to the Open queue.</div>':'');
+  }
+  else if(tab==='work'){
+    el.innerHTML=
+      '<div class="bp-grid-3">'+
+        '<div class="bp-field"><label>Actual Hours</label><input type="number" id="bp_actualHours" step="0.5" min="0" value="'+esc(t.actualHours||'')+'"></div>'+
+        '<div class="bp-field bp-field-2"><label>Fix Type</label>'+
+          '<div class="fix-pills">'+
+            '<div class="fix-pill'+(fixTypeVal==='Permanent'?' active-perm':'')+'" id="fpPerm" onclick="selFix(\'Permanent\')">&#9989; Permanent Fix</div>'+
+            '<div class="fix-pill'+(fixTypeVal==='Temporary'?' active-temp':'')+'" id="fpTemp" onclick="selFix(\'Temporary\')">&#128295; Temporary Fix</div>'+
+          '</div><input type="hidden" id="bp_fixType" value="'+esc(fixTypeVal)+'"></div>'+
+      '</div>'+
+      '<div class="bp-grid-3">'+
+        '<div class="bp-field bp-field-2"><label>Work Summary / Corrective Action</label>'+
+          '<textarea id="bp_correctiveAction" style="min-height:60px">'+esc(t.correctiveAction||t.workSummary||'')+'</textarea></div>'+
+        '<div class="bp-field"><label>Tech Observations</label>'+
+          '<textarea id="bp_observations" style="min-height:60px">'+esc(t.observations||'')+'</textarea></div>'+
+      '</div>'+
+      '<div class="bp-grid-3">'+
+        '<div class="bp-field bp-field-2"><label>Manager Notes</label><input type="text" id="bp_notes" value="'+esc(t.notes||'')+'" placeholder="Notes for record&#8230;"></div>'+
+        '<div class="bp-field"><label>Problem Type</label>'+
+          '<select id="bp_problemType2">'+buildOpts(BD.problemTypes||[],t.problemType)+'</select></div>'+
+      '</div>';
+  }
+  else if(tab==='capa'){
+    el.innerHTML=
+      '<div class="bp-grid-3">'+
+        '<div class="bp-field bp-field-2"><label>Root Cause</label><textarea id="bp_rootCause" style="min-height:60px">'+esc(t.rootCause||'')+'</textarea></div>'+
+        
+      '</div>'+
+      '<div class="bp-field" style="margin-bottom:9px"><label>Corrective Action</label><textarea id="bp_caCorrectiveAction" style="min-height:60px">'+esc(t.correctiveAction||t.workSummary||'')+'</textarea></div>'+
+      '<div class="bp-field"><label>Preventive Action</label><textarea id="bp_preventiveAction" style="min-height:60px">'+esc(t.preventiveAction||'')+'</textarea></div>';
+  }
+  else if(tab==='clearance'){
+    var today=new Date().toISOString().split('T')[0];
+    var mgrOpts=(BD.managers||[]).map(function(m){return'<option value="'+esc(m)+'">'+esc(m)+'</option>';}).join('');
+    var ca=(t.correctiveAction||t.workSummary||'').trim();
+    el.innerHTML=
+      '<div class="bp-divider">Verification Checklist — complete all 3 items</div>'+
+      '<div class="chk-wrap">'+
+        '<div class="chk-item" id="vchk-0" onclick="toggleVChk(0)"><div class="chk-box" id="vchkbox-0"></div><span class="chk-label">Work completed satisfactorily</span></div>'+
+        '<div class="chk-item" id="vchk-1" onclick="toggleVChk(1)"><div class="chk-box" id="vchkbox-1"></div><span class="chk-label">Area cleaned and safe</span></div>'+
+        '<div class="chk-item" id="vchk-2" onclick="toggleVChk(2)"><div class="chk-box" id="vchkbox-2"></div><span class="chk-label">No food safety risk identified</span></div>'+
+      '</div>'+
+      '<div class="chk-warn" id="vchkWarn">Complete all 3 items before closing.</div>'+
+      (!ca?'<div style="background:#FFCDD2;border:1px solid #EF9A9A;border-radius:4px;padding:7px 10px;font-size:10px;color:#C62828;margin-bottom:9px">&#9888; No Corrective Action on record. Add one in the Work Summary tab before closing.</div>':'')+
+      '<div class="verify-box">'+
+        '<div class="verify-box-label">&#9989; Filling Verified By + Date will CLOSE this ticket.</div>'+
+        '<div class="bp-grid-3">'+
+          '<div class="bp-field"><label>Verified By</label><select id="bp_verifiedBy"><option value="">\u2014 Select \u2014</option>'+mgrOpts+'</select></div>'+
+          '<div class="bp-field"><label>Verification Date</label><input type="date" id="bp_verifiedDate" value="'+today+'"></div>'+
+          '<div class="bp-field"><label>Actual Hours</label><input type="number" id="bp_verActualHours" step="0.5" min="0" value="'+esc(t.actualHours||'')+'"></div>'+
+        '</div>'+
+        '<div class="bp-field" style="margin-top:7px"><label>Sign-Off Notes</label><input type="text" id="bp_verNotes" placeholder="Verification comments&#8230;"></div>'+
+      '</div>';
+  }
+  else if(tab==='equipment'){
+    el.innerHTML=
+      '<div class="bp-divider">Equipment Tag</div>'+
+      '<div class="tag-pills">'+
+        '<div class="tag-pill t-none" onclick="selTag(\'\',this)">None</div>'+
+        '<div class="tag-pill" onclick="selTag(\'Red \u2014 Out of Service\',this)">&#128308; Red \u2014 Out of Service</div>'+
+        '<div class="tag-pill" onclick="selTag(\'Yellow \u2014 Use with Caution\',this)">&#127937; Yellow \u2014 Caution</div>'+
+        '<div class="tag-pill" onclick="selTag(\'Green \u2014 Cleared\',this)">&#128994; Green \u2014 Cleared</div>'+
+        '<div class="tag-pill" onclick="selTag(\'Orange \u2014 Temp Fix\',this)">&#129001; Orange \u2014 Temp Fix</div>'+
+      '</div>'+
+      '<div class="bp-grid-3">'+
+        '<div class="bp-field"><label>Parts Status</label>'+
+          '<select id="bp_partsStatus"><option value="">\u2014 No Change \u2014</option>'+
+            ['Requested','Ordered','On Hold for Approval','Received','Backordered'].map(function(s){return'<option>'+s+'</option>';}).join('')+
+          '</select></div>'+
+        '<div class="bp-field"><label>Temp Fix</label>'+
+          '<select id="bp_tempFix"><option value="">No</option><option value="Y">Yes \u2014 flag for monitoring</option></select></div>'+
+      '</div>'+
+      buildPartsSection(t);
+  }
+  else if(tab==='transfer'){
+    var deptOpts=Object.keys(BD.deptCodes||{}).map(function(d){return'<option value="'+esc(d)+'">'+esc(d)+'</option>';}).join('');
+    var rPills=(BD.transferReasons||['Beyond Scope']).map(function(r){return'<div class="reason-pill" onclick="selReason(\''+esc(r)+'\',this)">'+esc(r)+'</div>';}).join('');
+    el.innerHTML=
+      '<div class="bp-field" style="margin-bottom:9px"><label>Transfer Department</label>'+
+        '<select id="bp_transferDept" onchange="onTDeptChange()"><option value="">\u2014 No Transfer \u2014</option>'+deptOpts+'</select></div>'+
+      '<div id="bp_transferReasonWrap" style="display:none">'+
+        '<div class="bp-divider">Transfer Reason</div>'+
+        '<div class="reason-pills" id="bp_reasonPills">'+rPills+'</div>'+
+        '<input type="hidden" id="bp_transferReason" value="">'+
+      '</div>';
+  }
+  else if(tab==='history'){
+    el.innerHTML='<div style="color:#9E9E9E;font-size:11px;font-style:italic;padding:12px 0;text-align:center">Loading ticket history&#8230;</div>';
+    google.script.run
+      .withSuccessHandler(function(h){renderHistory(h,t.ticketNo);})
+      .withFailureHandler(function(){el.innerHTML='<div style="color:#C62828;font-size:11px;padding:12px">Could not load ticket history.</div>';})
+      .getTicketHistory(t.ticketNo);
+  }
+  else if(tab==='void'){
+    el.innerHTML=
+      '<div style="background:#FFCDD2;border:1.5px solid #EF9A9A;border-radius:5px;padding:12px 14px;max-width:500px">'+
+        '<div style="font-size:10px;font-weight:bold;color:#B71C1C;margin-bottom:8px">&#9888; Use only for tickets created in error. This cannot be undone.</div>'+
+        '<div class="bp-field"><label>Void Reason <span style="color:#C62828">*</span></label>'+
+          '<select id="bp_voidReason"><option value="">\u2014 Select Reason \u2014</option>'+
+            (BD.voidReasons||['Duplicate Ticket','Entry Error','Test Ticket','Other']).map(function(r){return'<option value="'+esc(r)+'">'+esc(r)+'</option>';}).join('')+
+          '</select></div>'+
+      '</div>';
+  }
+}
+
+function renderClosedBotTab(tab){
+  var el=document.getElementById('botFields');
+  if(tab==='history'&&selTicket){
+    el.innerHTML='<div style="color:#9E9E9E;font-size:11px;font-style:italic;padding:12px 0;text-align:center">Loading&#8230;</div>';
+    google.script.run
+      .withSuccessHandler(function(h){renderHistory(h,selTicket.ticketNo);})
+      .withFailureHandler(function(){el.innerHTML='<div style="color:#C62828;font-size:11px;padding:12px">Could not load ticket history.</div>';})
+      .getTicketHistory(selTicket.ticketNo);
+  }else{
+    el.innerHTML=
+      '<div class="bp-grid-3">'+
+        '<div class="bp-field"><label>Root Cause</label><textarea id="ce_rootCause" style="min-height:60px">'+esc((selTicket&&selTicket.rootCause)||'')+'</textarea></div>'+
+        '<div class="bp-field bp-field-2"><label>Work Summary</label><textarea id="ce_workSummary" style="min-height:60px">'+esc((selTicket&&(selTicket.workSummary||selTicket.correctiveAction))||'')+'</textarea></div>'+
+      '</div>'+
+      '<div class="bp-grid-3">'+
+        '<div class="bp-field"><label>Additional Notes</label><input type="text" id="ce_notes" value="'+esc((selTicket&&selTicket.notes)||'')+'"></div>'+
+      '</div>';
+  }
+}
+
+function buildPartsSection(t){
+  var pft=(BD.partsNeeded||[]).filter(function(p){return p.ticketNo===t.ticketNo;});
+  var html='<div class="bp-divider">Parts on Record</div>';
+  if(pft.length){
+    html+='<table class="parts-tbl" style="margin-bottom:10px"><thead><tr>'+
+      '<th>Part ID</th><th>Description</th><th>Qty</th><th>UOM</th><th style="width:22%">Status</th><th>Notes</th></tr></thead><tbody>';
+    pft.forEach(function(p){
+      html+='<tr>'+
+        '<td style="font-family:monospace;font-size:10px">'+esc(p.partId||'\u2014')+'</td>'+
+        '<td style="font-weight:bold">'+esc(p.partDesc||'\u2014')+'</td>'+
+        '<td style="text-align:center">'+esc(p.qty||'\u2014')+'</td>'+
+        '<td>'+esc(p.uom||'\u2014')+'</td>'+
+        '<td><select class="parts-status-sel" onchange="savePartStatus(\''+esc(p.partId)+'\',\''+esc(p.ticketNo)+'\',this.value)">'+
+          ['Requested','Ordered','On Hold for Approval','Received','Backordered'].map(function(s){return'<option'+(s===p.status?' selected':'')+'>'+s+'</option>';}).join('')+
+        '</select></td>'+
+        '<td style="font-size:10px;color:#757575">'+esc(p.notes||'')+'</td>'+
+      '</tr>';
+    });
+    html+='</tbody></table>';
+  }else{
+    html+='<div style="font-size:11px;color:#9E9E9E;font-style:italic;margin-bottom:8px">No parts on record for this ticket.</div>';
+  }
+  html+='<div class="bp-divider">Add Parts</div>'+
+    '<table style="width:100%;border-collapse:collapse;font-size:11px;margin-bottom:6px">'+
+    '<thead><tr style="background:#3C3C3C">'+
+      '<th style="padding:4px 7px;color:#FFD700;font-size:9px;text-align:left;width:14%">Part ID</th>'+
+      '<th style="padding:4px 7px;color:#FFD700;font-size:9px;text-align:left">Description</th>'+
+      '<th style="padding:4px 7px;color:#FFD700;font-size:9px;width:7%">Qty</th>'+
+      '<th style="padding:4px 7px;color:#FFD700;font-size:9px;width:10%">UOM</th>'+
+      '<th style="padding:4px 7px;color:#FFD700;font-size:9px">Notes</th>'+
+      '<th style="width:24px"></th>'+
+    '</tr></thead><tbody id="newPartsBody"></tbody></table>'+
+    '<button onclick="addPartRow()" style="padding:5px 12px;background:transparent;border:1.5px dashed #D0D0D0;border-radius:4px;font-size:10px;font-weight:bold;color:#616161;cursor:pointer;font-family:Arial;margin-right:6px">+ Add Part</button>'+
+    '<button onclick="submitParts()" style="padding:5px 12px;background:#2E7D32;border:none;border-radius:4px;font-size:10px;font-weight:bold;color:#fff;cursor:pointer;font-family:Arial">&#10003; Save Parts</button>';
+  return html;
+}
+
+function renderHistory(history,ticketNo){
+  var el=document.getElementById('botFields');
+  if(!history||!history.length){el.innerHTML='<div style="color:#9E9E9E;font-size:11px;font-style:italic;padding:12px 0">No history on record for '+esc(ticketNo)+'.</div>';return;}
+  var skip=['DIRECT EDIT','PARTS REQUESTED','PARTS UPDATED','EQUIPMENT TAGGED','TAG CLEARED'];
+  history=history.filter(function(h){return skip.indexOf((h.eventType||'').toUpperCase())<0;});
+  history.sort(function(a,b){return new Date(a.timestamp)-new Date(b.timestamp);});
+  var inspCount=0;
+  var html='<div class="tl-grid">';
+  history.forEach(function(h,idx){
+    var et=(h.eventType||'').toUpperCase();
+    var isTempFix=et==='TEMP FIX FLAGGED',isInspect=et==='TEMP FIX INSPECTED',isCleared=et==='TEMP FIX CLEARED';
+    var isClosed=et==='CLOSED'||et==='VERIFIED',isCreate=et==='CREATED';
+    if(isInspect)inspCount++;
+    var cardCls='ev-stage';
+    if(isCreate)cardCls='ev-created';
+    else if(isTempFix||isInspect)cardCls='ev-tempfix';
+    else if(isCleared||isClosed)cardCls='ev-closedgreen';
+    else if(et==='COMPLETED'||et==='UPDATED')cardCls='ev-work';
+    var label=isInspect?'Inspection #'+inspCount:lcLabel_(et);
+    var pill='';
+    if(isInspect){var cont=(h.notes||'').indexOf('continuing')>-1;pill='<div class="tl-pill pill-continue">'+(cont?'Continue':'Inspected')+'</div>';}
+    else if(isCleared||isClosed){pill='<div class="tl-pill pill-perm">Permanent fix</div>';}
+    else if(isTempFix){var fr=(h.notes||'').match(/every (\d+) days/i);if(fr)pill='<div class="tl-pill pill-continue">Every '+fr[1]+' days</div>';}
+    html+='<div class="tl-card '+cardCls+'">'+
+      '<div style="display:flex;align-items:center;gap:4px;margin-bottom:3px">'+
+        '<div class="tl-num">'+(idx+1)+'</div>'+
+        '<div class="tl-event">'+esc(label)+'</div>'+
+      '</div>'+
+      '<div class="tl-meta">'+esc(fmtTs(h.timestamp))+(h.performedBy?'<br>&middot; '+esc(h.performedBy):'')+
+      '</div>'+pill+'</div>';
+  });
+  html+='</div><div class="tl-legend">'+
+    '<div class="tl-leg"><div class="tl-dot" style="background:#1A237E"></div>Created</div>'+
+    '<div class="tl-leg"><div class="tl-dot" style="background:#1565C0"></div>Manager action</div>'+
+    '<div class="tl-leg"><div class="tl-dot" style="background:#EF6C00"></div>Tech work</div>'+
+    '<div class="tl-leg"><div class="tl-dot" style="background:#E64A19"></div>Temp fix</div>'+
+    '<div class="tl-leg"><div class="tl-dot" style="background:#2E7D32"></div>Closed</div>'+
+  '</div>';
+  el.innerHTML=html;
+}
+
+/* ── HELPERS ── */
+function buildOpts(arr,selected){
+  return'<option value="">\u2014 Keep Current \u2014</option>'+arr.map(function(v){return'<option value="'+esc(v)+'"'+(v===selected?' selected':'')+'>'+esc(v)+'</option>';}).join('');
+}
+function selFix(type){
+  fixTypeVal=type;
+  var h=document.getElementById('bp_fixType');if(h)h.value=type;
+  var pt=document.getElementById('fpTemp'),pp=document.getElementById('fpPerm');
+  if(pt)pt.className='fix-pill'+(type==='Temporary'?' active-temp':'');
+  if(pp)pp.className='fix-pill'+(type==='Permanent'?' active-perm':'');
+}
+function selTag(val,btn){
+  selTagVal=val;
+  document.querySelectorAll('.tag-pill').forEach(function(p){p.className='tag-pill';});
+  document.querySelectorAll('.tag-pill').forEach(function(p){if(p.textContent.trim().indexOf('None')===0)p.classList.add('t-none');});
+  if(!val)return;
+  if(val.indexOf('Green')>-1)btn.classList.add('t-green');
+  else if(val.indexOf('Orange')>-1)btn.classList.add('t-orange');
+  else if(val.indexOf('Red')>-1)btn.classList.add('t-red');
+  else if(val.indexOf('Yellow')>-1)btn.classList.add('t-yellow');
+}
+function selReason(val,btn){
+  var h=document.getElementById('bp_transferReason');if(h)h.value=val;
+  document.querySelectorAll('.reason-pill').forEach(function(p){p.classList.remove('active');});
+  btn.classList.add('active');
+}
+function onTDeptChange(){
+  var sel=document.getElementById('bp_transferDept'),wrap=document.getElementById('bp_transferReasonWrap');
+  if(!sel||!selTicket)return;
+  wrap.style.display=(sel.value&&sel.value!==selTicket.dept)?'block':'none';
+}
+function openAssignTo(){var i=document.getElementById('assignToInput');if(!i)return;i.select();renderAssignList('');}
+function filterAssignTo(){var i=document.getElementById('assignToInput');if(!i)return;var h=document.getElementById('assignTo');if(h)h.value='';renderAssignList(i.value);}
+function renderAssignList(search){
+  var list=document.getElementById('assignToList');if(!list)return;
+  var techs=BD.technicians||[],s=(search||'').toLowerCase();
+  var filtered=s?techs.filter(function(t){return t.toLowerCase().indexOf(s)>-1;}):techs;
+  var html='<div class="assign-item" style="color:#9E9E9E;font-style:italic" onmousedown="selectAssignTo(\'\')">-- Unassigned --</div>';
+  filtered.forEach(function(tech){html+='<div class="assign-item" onmousedown="selectAssignTo(\''+esc(tech)+'\')">'+esc(tech)+'</div>';});
+  if(!filtered.length&&s)html+='<div class="assign-item" style="color:#9E9E9E;font-style:italic">No match</div>';
+  list.innerHTML=html;list.style.display='block';
+}
+function selectAssignTo(val){
+  var i=document.getElementById('assignToInput'),h=document.getElementById('assignTo'),l=document.getElementById('assignToList');
+  if(i)i.value=val;if(h)h.value=val;if(l)l.style.display='none';
+}
+function toggleVChk(i){
+  verChecklist[i]=!verChecklist[i];
+  var box=document.getElementById('vchkbox-'+i),item=document.getElementById('vchk-'+i);
+  if(verChecklist[i]){box.className='chk-box chk-checked';box.textContent='\u2713';item.className='chk-item chk-done';}
+  else{box.className='chk-box';box.textContent='';item.className='chk-item';}
+  var warn=document.getElementById('vchkWarn');
+  if(warn)warn.style.display=verChecklist.every(Boolean)?'none':'block';
+}
+function addPartRow(){
+  var tbody=document.getElementById('newPartsBody');if(!tbody)return;
+  var idx=newPartRows.length;newPartRows.push({});
+  var uomOpts=['','EA','PCS','SET','FT','IN','M','KG','LB','BOX','PKG','GAL','L','QT','HR'].map(function(u){return'<option>'+u+'</option>';}).join('');
+  var inp='padding:4px 6px;border:1.5px solid #D0D0D0;border-radius:3px;font-family:Arial;font-size:11px;width:100%;color:#2A2A2A;background:#fff';
+  var tr=document.createElement('tr');tr.id='npr-'+idx;
+  tr.innerHTML='<td style="padding:2px 3px"><input style="'+inp+'" type="text" id="npr-id-'+idx+'" placeholder="ID&#8230;"></td>'+
+    '<td style="padding:2px 3px"><input style="'+inp+'" type="text" id="npr-desc-'+idx+'" placeholder="Description&#8230;"></td>'+
+    '<td style="padding:2px 3px"><input style="'+inp+';width:50px;text-align:center" type="number" id="npr-qty-'+idx+'" min="1" value="1"></td>'+
+    '<td style="padding:2px 3px"><select style="'+inp+';width:70px" id="npr-uom-'+idx+'">'+uomOpts+'</select></td>'+
+    '<td style="padding:2px 3px"><input style="'+inp+'" type="text" id="npr-notes-'+idx+'" placeholder="Notes&#8230;"></td>'+
+    '<td style="padding:2px 3px;text-align:center"><button onclick="removePartRow('+idx+')" style="background:none;border:none;color:#9E9E9E;font-size:13px;cursor:pointer">&#10005;</button></td>';
+  tbody.appendChild(tr);
+}
+function removePartRow(idx){var tr=document.getElementById('npr-'+idx);if(tr)tr.remove();}
+function submitParts(){
+  if(!selTicket){showSt('No ticket selected.','error');return;}
+  var tbody=document.getElementById('newPartsBody');if(!tbody)return;
+  var rows=tbody.querySelectorAll('tr'),parts=[];
+  rows.forEach(function(tr){
+    var idx=tr.id.replace('npr-','');
+    var desc=(document.getElementById('npr-desc-'+idx)||{value:''}).value.trim();
+    if(!desc)return;
+    parts.push({partId:(document.getElementById('npr-id-'+idx)||{value:''}).value.trim(),partDesc:desc,qty:(document.getElementById('npr-qty-'+idx)||{value:'1'}).value,uom:(document.getElementById('npr-uom-'+idx)||{value:''}).value,notes:(document.getElementById('npr-notes-'+idx)||{value:''}).value.trim()});
+  });
+  if(!parts.length){showSt('Fill in at least one part description.','error');return;}
+  showSt('Saving parts&#8230;','info');
+  var saved=0;
+  parts.forEach(function(p){
+    p.ticketNo=selTicket.ticketNo;
+    google.script.run
+      .withSuccessHandler(function(r){saved++;if(saved===parts.length){showSt(parts.length+' part(s) saved.','success');setTimeout(function(){renderBotTab('equipment');},1200);}})
+      .withFailureHandler(function(e){showSt('Error: '+e.message,'error');})
+      .addPartToClosedTicket(p);
+  });
+}
+function savePartStatus(partId,ticketNo,newStatus){
+  google.script.run
+    .withSuccessHandler(function(){showSt('Part status updated.','success');})
+    .withFailureHandler(function(e){showSt('Error: '+e.message,'error');})
+    .managerUpdatePartStatus({partId:partId,ticketNo:ticketNo,newStatus:newStatus});
+}
+
+/* ── BUILD DATA ── */
+function buildData(){
+  if(!selTicket)return null;
+  function v(id){var el=document.getElementById(id);return el?el.value:'';}
+  var data={
+    ticketNo:selTicket.ticketNo,dept:selTicket.dept,source:selTicket.source||'INTERNAL',
+    buildingZone:selTicket.buildingZone||'',equipType:selTicket.equipType||'',
+    equipCode:selTicket.equipCode||'',equipDesc:selTicket.specificEquip||'',
+    description:v('de_description')||selTicket.description||'',
+    dateOpened:selTicket.dateOpened||'',addedBy:selTicket.addedBy||'',
+    lineNo:selTicket.line||selTicket.lineNo||'',
+    priority:v('bp_priority')||selTicket.priority||'',
+    assignedTo:v('assignTo')||selTicket.assignedTo||'',
+    estHours:v('bp_estHours')||selTicket.estHours||'',
+    newStatus:v('bp_status')||'',
+    notes:v('bp_mgrNotes')||v('bp_notes')||'',
+    actualHours:v('bp_actualHours')||v('bp_verActualHours')||selTicket.actualHours||'',
+    fixType:v('bp_fixType')||fixTypeVal||selTicket.fixType||'',
+    tempFixFlag:v('bp_tempFix')==='Y',
+    correctiveAction:v('bp_correctiveAction')||v('bp_caCorrectiveAction')||selTicket.correctiveAction||'',
+    workSummary:v('bp_correctiveAction')||v('bp_caCorrectiveAction')||selTicket.workSummary||'',
+    observations:v('bp_observations')||selTicket.observations||'',
+    rootCause:v('bp_rootCause')||selTicket.rootCause||'',
+    preventiveAction:v('bp_preventiveAction')||'',
+    problemType:v('de_problemType')||v('bp_problemType2')||selTicket.problemType||'',
+    downtimeType:v('de_downtimeType')||selTicket.downtimeType||'',
+    equipTagStatus:selTagVal||'',
+    partsStatus:v('bp_partsStatus')||'',
+    verifiedBy:v('bp_verifiedBy')||'',
+    verifiedDate:v('bp_verifiedDate')||'',
+    managerNotes:v('bp_verNotes')||'',
+    updatedBy:'Manager'
+  };
+  var tDept=v('bp_transferDept');
+  if(tDept&&tDept!==selTicket.dept){data.dept=tDept;data.transferReason=v('bp_transferReason')||'';}
+  return data;
+}
+
+/* ── ACTIONS ── */
+function doAction(action){
+  if(!selTicket){showSt('No ticket selected.','error');return;}
+
+  /* CLOSED EDIT */
+  if(currentTab==='closed'){
+    var updBy=document.getElementById('ce_updatedBy');
+    if(!updBy||!updBy.value){showSt('Please select your name before saving.','error');return;}
+    var data={
+      ticketNo:selTicket.ticketNo,updatedBy:updBy.value,
+      correctiveAction:(document.getElementById('ce_correctiveAction')||{value:''}).value,
+      rootCause:(document.getElementById('ce_rootCause')||{value:''}).value,
+      workSummary:(document.getElementById('ce_workSummary')||{value:''}).value,
+      actualHours:(document.getElementById('ce_actualHours')||{value:''}).value,
+      fixType:(document.getElementById('ce_fixType')||{value:''}).value,
+      notes:(document.getElementById('ce_notes')||{value:''}).value
+    };
+    showSt('Saving&#8230;','info');disableAllBtns(true);
+    google.script.run
+      .withSuccessHandler(function(r){disableAllBtns(false);if(r&&r.success===false){showSt('Error: '+(r.error||'Save failed.'),'error');}else{showSt('Closed ticket '+selTicket.ticketNo+' updated.','success');selTicket=null;resetDetail();setTimeout(loadData,1200);}})
+      .withFailureHandler(function(e){disableAllBtns(false);showSt('Error: '+e.message,'error');})
+      .editClosedTicket(data);
+    return;
+  }
+
+  /* VOID */
+  if(action==='void'){
+    var voidReason=document.getElementById('bp_voidReason')?document.getElementById('bp_voidReason').value:'';
+    if(!voidReason){
+      var voidBtn=document.querySelector('.bot-tab.red');
+      switchBotTab('void',voidBtn);
+      showSt('Please select a Void Reason in the Void tab.','error');return;
+    }
+    if(!confirm('Are you sure you want to VOID ticket '+selTicket.ticketNo+'?\n\nReason: '+voidReason+'\n\nThis cannot be undone.'))return;
+    showSt('Voiding ticket&#8230;','info');disableAllBtns(true);
+    google.script.run
+      .withSuccessHandler(function(r){disableAllBtns(false);if(r&&r.success===false){showSt('Error: '+(r.error||'Failed.'),'error');}else{showSt('Ticket '+selTicket.ticketNo+' voided.','success');selTicket=null;resetDetail();setTimeout(loadData,1200);}})
+      .withFailureHandler(function(e){disableAllBtns(false);showSt('Error: '+e.message,'error');})
+      .voidTicket({ticketNo:selTicket.ticketNo,dept:selTicket.dept,voidReason:voidReason,voidedBy:''});
+    return;
+  }
+
+  /* VERIFY & CLOSE */
+  if(action==='verify'){
+    var caVal=(document.getElementById('bp_correctiveAction')?document.getElementById('bp_correctiveAction').value:'').trim()||
+              (selTicket.correctiveAction||selTicket.workSummary||'').trim();
+    if(!caVal){showSt('Corrective Action required. Add one in the Work Summary tab.','error');return;}
+    if(!verChecklist.every(Boolean)){
+      var clearanceBtn=Array.from(document.querySelectorAll('.bot-tab')).find(function(b){return b.classList.contains('green');});
+      switchBotTab('clearance',clearanceBtn);
+      showSt('Complete all 3 verification checklist items before closing.','error');return;
+    }
+    var vBy=document.getElementById('bp_verifiedBy')?document.getElementById('bp_verifiedBy').value:'';
+    if(!vBy){showSt('Please select Verified By before closing.','error');return;}
+    var data=buildData();
+    data.newStatus='CLOSED';
+    data.verificationChecklist=['Work completed satisfactorily','Area cleaned and safe','No food safety risk identified'].filter(function(_,i){return verChecklist[i];}).join(' | ');
+    showSt('Closing ticket&#8230;','info');disableAllBtns(true);
+    google.script.run
+      .withSuccessHandler(handleSuccess)
+      .withFailureHandler(function(e){disableAllBtns(false);showSt('Error: '+e.message,'error');})
+      .managerVerifyTicket(data);
+    return;
+  }
+
+  /* APPROVE */
+  if(action==='approve'){
+    var pri=document.getElementById('bp_priority')?document.getElementById('bp_priority').value:'';
+    if(!pri&&!selTicket.priority){showSt('Priority is required. Set it in the Priority & Assignment tab.','error');return;}
+    var data=buildData();data.newStatus='OPEN';
+    showSt('Approving&#8230;','info');disableAllBtns(true);
+    google.script.run.withSuccessHandler(handleSuccess).withFailureHandler(function(e){disableAllBtns(false);showSt('Error: '+e.message,'error');}).managerApproveTicket(data);
+    return;
+  }
+
+  /* HOLD */
+  if(action==='hold'){
+    var data=buildData();data.newStatus='ON HOLD';
+    showSt('Putting on hold&#8230;','info');disableAllBtns(true);
+    google.script.run.withSuccessHandler(handleSuccess).withFailureHandler(function(e){disableAllBtns(false);showSt('Error: '+e.message,'error');}).managerApproveTicket(data);
+    return;
+  }
+
+  /* SEND BACK */
+  if(action==='back'){
+    var data=buildData();data.newStatus='OPEN';
+    showSt('Sending back to Open&#8230;','info');disableAllBtns(true);
+    google.script.run.withSuccessHandler(handleSuccess).withFailureHandler(function(e){disableAllBtns(false);showSt('Error: '+e.message,'error');}).managerApproveTicket(data);
+    return;
+  }
+
+  /* SAVE UPDATE */
+  var data=buildData();
+  if(!data.newStatus)data.newStatus=selTicket.status||'';
+  showSt('Saving&#8230;','info');disableAllBtns(true);
+  google.script.run.withSuccessHandler(handleSuccess).withFailureHandler(function(e){disableAllBtns(false);showSt('Error: '+e.message,'error');}).managerApproveTicket(data);
+}
+
+function handleSuccess(r){
+  disableAllBtns(false);
+  if(r&&r.success===false){showSt('Error: '+(r.error||'Save failed.'),'error');}
+  else{showSt('Ticket '+selTicket.ticketNo+' updated.','success');selTicket=null;resetDetail();setTimeout(loadData,1200);}
+}
+function disableAllBtns(state){
+  ['btnSave','btnApprove','btnVerify','btnBack','btnHold','btnVoid'].forEach(function(id){var el=document.getElementById(id);if(el)el.disabled=state;});
+}
+function fmtTs(raw){
+  if(!raw)return'';var d=new Date(raw);if(isNaN(d.getTime()))return String(raw);
+  var days=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'],months=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  var h=d.getHours(),m=d.getMinutes(),ampm=h>=12?'PM':'AM';h=h%12;if(h===0)h=12;
+  return days[d.getDay()]+' '+months[d.getMonth()]+' '+d.getDate()+' '+d.getFullYear()+' '+h+':'+(m<10?'0':'')+m+' '+ampm;
+}
+function lcLabel_(et){
+  var m={'CREATED':'Created','MOVED TO OPEN':'Approved for Work','UPDATED':'Tech Work Update','REROUTED':'Re-routed','COMPLETED':'Marked Complete','CLOSED':'Verified & Closed','VERIFIED':'Verified & Closed','TEMP FIX FLAGGED':'Temp Fix Flagged','TEMP FIX CLEARED':'Temp Fix Cleared','ASSIGNED':'Assigned','VOIDED':'Voided','MANAGER ACTION — OPEN':'Approved for Work','MANAGER ACTION — CLOSED':'Verified & Closed','MANAGER VERIFIED — CLOSED':'Verified & Closed'};
+  return m[et]||(et.charAt(0).toUpperCase()+et.slice(1).toLowerCase());
+}
+function showSt(m,t){var el=document.getElementById('statusBar');el.textContent=m;el.className='status-bar '+t;if(t==='success')setTimeout(function(){el.className='status-bar';},4000);}
+function esc(v){return(v||'').toString().replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+</script>
+</body>
+</html>

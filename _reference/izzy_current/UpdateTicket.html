@@ -1,0 +1,1200 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:Arial,sans-serif;background:#F2F2F2;color:#2A2A2A;font-size:13px;height:100vh;display:flex;flex-direction:column;overflow:hidden}
+
+/* HEADER */
+.form-header{background:#2A2A2A;padding:0;display:flex;align-items:stretch;flex-shrink:0}
+.header-accent{background:#EF6C00;width:6px;flex-shrink:0}
+.header-body{flex:1;padding:10px 20px;display:flex;align-items:center;gap:16px}
+.header-title h1{font-size:15px;font-weight:bold;color:#EF6C00;letter-spacing:.4px}
+.header-title p{font-size:10px;color:#9E9E9E;margin-top:2px}
+.header-meta{text-align:right;font-size:10px;color:#9E9E9E;line-height:1.8}
+.header-meta strong{color:#EF6C00}
+.role-badge{padding:4px 12px;border-radius:20px;font-size:10px;font-weight:bold;background:rgba(239,108,0,.15);color:#EF6C00;border:1px solid #EF6C00}
+.role-badge.mgr{background:rgba(21,101,192,.15);color:#90CAF9;border-color:#1565C0}
+
+/* TICKET SELECTOR BAR */
+.ticket-bar{background:#3C3C3C;padding:9px 20px;display:flex;align-items:center;gap:14px;border-bottom:2px solid #EF6C00;flex-shrink:0}
+.ticket-bar label{font-size:13px;font-weight:bold;color:#EF6C00;text-transform:uppercase;letter-spacing:.8px;white-space:nowrap}
+.ticket-search-wrap{flex:1;max-width:600px;position:relative}
+.ticket-search-input{width:100%;padding:7px 10px;background:#4A4A4A;color:#ECEFF1;border:1.5px solid #616161;border-radius:4px;font-family:Arial;font-size:12px}
+.ticket-search-input:focus{outline:none;border-color:#EF6C00}
+.ticket-search-input::placeholder{color:#9E9E9E}
+.ticket-dropdown{display:none;position:absolute;top:calc(100% + 2px);left:0;right:0;background:#3C3C3C;border:1.5px solid #EF6C00;border-radius:4px;max-height:220px;overflow-y:auto;z-index:300;box-shadow:0 4px 16px rgba(0,0,0,.35)}
+.ticket-drop-item{padding:8px 10px;cursor:pointer;border-bottom:1px solid #4A4A4A;font-size:11px;color:#ECEFF1}
+.ticket-drop-item:hover{background:#4A4A4A}
+.ticket-drop-item:last-child{border-bottom:none}
+.tdi-top{display:flex;align-items:center;gap:6px;margin-bottom:3px}
+.tdi-num{font-size:11px;font-weight:bold;font-family:monospace;color:#EF6C00}
+.tdi-badge{font-size:9px;font-weight:bold;padding:1px 5px;border-radius:3px}
+.tdi-sub{font-size:10px;color:#90A4AE;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tdi-empty{padding:10px;font-size:11px;color:#9E9E9E;font-style:italic;text-align:center}
+
+/* TICKET INFO STRIP */
+.ticket-info{background:#1A1A1A;border-bottom:1px solid #3C3C3C;padding:7px 20px;display:none;gap:16px;flex-wrap:wrap;align-items:center;flex-shrink:0}
+.ticket-info.show{display:flex}
+.info-chip{font-size:11px;color:#9E9E9E}
+.info-chip strong{color:#ECEFF1}
+.priority-badge{padding:2px 8px;border-radius:3px;font-size:10px;font-weight:bold}
+.p-critical{background:#FFCDD2;color:#B71C1C}
+.p-high{background:#FFE0B2;color:#E64A19}
+.p-medium{background:#FFF9C4;color:#F57F17}
+.p-low{background:#BBDEFB;color:#1565C0}
+.source-ext{background:#E3F2FD;color:#1565C0;padding:2px 8px;border-radius:3px;font-size:10px;font-weight:bold}
+.source-int{background:#F5F5F5;color:#616161;padding:2px 8px;border-radius:3px;font-size:10px;font-weight:bold}
+
+/* AUTO-COMPLETE BANNER */
+.ac-banner{background:#E3F2FD;border-bottom:2px solid #1565C0;padding:8px 20px;display:none;align-items:center;gap:12px;flex-shrink:0}
+.ac-banner.show{display:flex}
+.ac-banner p{font-size:11px;font-weight:bold;color:#1565C0;flex:1}
+.ac-btn{padding:5px 14px;border:none;border-radius:4px;font-size:11px;font-weight:bold;cursor:pointer;font-family:Arial}
+.ac-yes{background:#1565C0;color:#fff}
+.ac-no{background:#BBDEFB;color:#1565C0;border:1px solid #1565C0}
+
+/* 2-COLUMN LAYOUT */
+.form-2col{display:grid;grid-template-columns:1fr 240px;flex:1;overflow:hidden;min-height:0}
+
+/* LEFT COLUMN — main tech content */
+.col-left{padding:10px 8px 10px 12px;overflow-y:auto;display:flex;flex-direction:column;gap:9px}
+
+/* SECTION CARDS — matches Add Ticket style */
+.section-card{background:#fff;border-radius:6px;overflow:hidden;border:1px solid #D0D0D0;flex-shrink:0}
+.section-head{display:flex;align-items:center;gap:8px;padding:8px 14px;border-left:4px solid #EF6C00;background:#3C3C3C}
+.section-head h2{font-size:10px;font-weight:bold;color:#EF6C00;text-transform:uppercase;letter-spacing:.8px}
+.section-body{padding:11px 14px}
+
+/* FIELDS */
+.field{display:flex;flex-direction:column;gap:3px}
+.field label{font-size:9px;font-weight:bold;color:#616161;text-transform:uppercase;letter-spacing:.6px}
+.field select,.field input,.field textarea{padding:6px 9px;border:1.5px solid #D0D0D0;border-radius:5px;font-family:Arial;font-size:12px;color:#2A2A2A;background:#fff;width:100%;transition:border-color .15s}
+.field select:focus,.field input:focus,.field textarea:focus{border-color:#3C3C3C;outline:none}
+.field textarea{resize:vertical;min-height:62px}
+.field .auto{background:#EBEBEB!important;color:#3C3C3C!important;font-weight:bold}
+.field select.required{border-color:#EF6C00!important}
+
+/* GRID */
+.grid-2{display:grid;grid-template-columns:1fr 1fr;gap:8px 12px}
+.grid-3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px 10px}
+
+/* FIX TYPE PILLS */
+.fix-pills{display:flex;gap:8px}
+.fix-pill{flex:1;padding:7px;border-radius:5px;border:2px solid #D0D0D0;font-size:11px;font-weight:bold;cursor:pointer;text-align:center;background:#F5F5F5;color:#616161;transition:all .13s}
+.fix-pill.active-temp{background:#FFF9C4;color:#F57F17;border-color:#F57F17}
+.fix-pill.active-perm{background:#C8E6C9;color:#2E7D32;border-color:#2E7D32}
+.fix-pill:not(.active-temp):not(.active-perm){opacity:.65}
+
+/* PARTS TABLE */
+.parts-table{width:100%;border-collapse:collapse;font-size:11px;margin-top:6px}
+.parts-table thead tr{background:#3C3C3C}
+.parts-table thead th{padding:6px 7px;color:#FFD700;font-weight:bold;font-size:10px;text-align:left}
+.parts-table tbody td{padding:3px 4px;border-bottom:1px solid #EBEBEB}
+.parts-table tbody tr:nth-child(even) td{background:#F9F9F9}
+.parts-table td input,.parts-table td select{border:1px solid #D0D0D0;border-radius:4px;padding:4px 5px;font-size:11px;width:100%;font-family:Arial;background:#fff}
+.btn-add-row{margin-top:5px;padding:4px 10px;background:transparent;border:1.5px dashed #D0D0D0;border-radius:4px;font-size:10px;font-weight:bold;color:#616161;cursor:pointer;font-family:Arial;transition:all .13s}
+.btn-add-row:hover{border-color:#3C3C3C;color:#3C3C3C;background:#F5F5F5}
+
+/* PHOTO */
+.photo-zone{border:2px dashed #D0D0D0;border-radius:6px;padding:10px;text-align:center;cursor:pointer;background:#FAFAFA}
+.photo-zone p{font-size:10px;color:#9E9E9E;margin-top:4px}
+.upload-btn{padding:5px 14px;background:#3C3C3C;color:#FFD700;border:none;border-radius:4px;font-size:11px;font-weight:bold;cursor:pointer}
+.photo-list{margin-top:6px;font-size:11px}
+.photo-item{display:flex;align-items:center;gap:8px;padding:3px 0;border-bottom:1px solid #EBEBEB}
+.photo-item a{color:#1565C0;text-decoration:none;font-size:11px}
+.upload-progress{font-size:11px;color:#1565C0;margin-top:4px;display:none}
+
+/* RIGHT COLUMN — manager command sidebar */
+.col-right{background:#F4F6F9;border-left:2px solid #0D47A1;display:flex;flex-direction:column;overflow:hidden;position:relative}
+.sb-hdr{background:#0D47A1;padding:9px 14px;flex-shrink:0}
+.sb-hdr-title{font-size:10px;font-weight:bold;color:#fff;text-transform:uppercase;letter-spacing:.8px}
+.sb-body{flex:1;overflow-y:auto;padding:10px 12px;display:flex;flex-direction:column;gap:10px}
+.sb-section{display:flex;flex-direction:column;gap:6px}
+.sb-divider{font-size:8px;font-weight:bold;color:#0D47A1;text-transform:uppercase;letter-spacing:.8px;padding-bottom:5px;border-bottom:1.5px solid #D0D0D0}
+.sb-field{display:flex;flex-direction:column;gap:2px}
+.sb-field label{font-size:9px;font-weight:bold;color:#616161;text-transform:uppercase;letter-spacing:.5px}
+.sb-field select,.sb-field input{padding:5px 8px;border:1.5px solid #D0D0D0;border-radius:4px;font-family:Arial;font-size:11px;background:#fff;color:#2A2A2A;width:100%}
+.sb-field select:focus,.sb-field input:focus{border-color:#0D47A1;outline:none}
+
+/* Transfer reason pills — sidebar */
+.reason-pills{display:flex;gap:5px;flex-wrap:wrap;margin-top:3px}
+.reason-pill{padding:4px 10px;border-radius:20px;border:1.5px solid #D0D0D0;font-size:10px;font-weight:bold;cursor:pointer;background:#fff;color:#616161;transition:all .13s}
+.reason-pill:hover{border-color:#0D47A1;color:#0D47A1}
+.reason-pill.active{background:#0D47A1;color:#fff;border-color:#0D47A1}
+
+/* Tag pills — sidebar */
+.sb-tag-pills{display:flex;gap:5px;flex-wrap:wrap}
+.sb-tag-pill{padding:4px 10px;border-radius:20px;border:1.5px solid #D0D0D0;font-size:10px;font-weight:bold;cursor:pointer;background:#fff;color:#616161;transition:all .13s}
+.sb-tag-pill.t-none{background:#3C3C3C;color:#FFD700;border-color:#3C3C3C}
+.sb-tag-pill.t-green{background:#C8E6C9;color:#2E7D32;border-color:#2E7D32}
+.sb-tag-pill.t-orange{background:#FFE0B2;color:#E64A19;border-color:#E64A19}
+.sb-tag-pill.t-red{background:#FFCDD2;color:#C62828;border-color:#C62828}
+
+/* Approval box */
+.approval-box{background:#E8F5E9;border:1.5px solid #A5D6A7;border-radius:5px;padding:9px 10px;display:flex;flex-direction:column;gap:6px}
+.approval-label{font-size:10px;font-weight:bold;color:#2E7D32;margin-bottom:2px}
+
+/* Verify box */
+.verify-box{background:#E8F5E9;border:1.5px solid #A5D6A7;border-radius:5px;padding:9px 10px;display:flex;flex-direction:column;gap:6px}
+.verify-label{font-size:10px;font-weight:bold;color:#2E7D32;margin-bottom:2px}
+
+/* Locked section */
+.locked-section{background:#F5F5F5;border:1.5px dashed #BDBDBD;border-radius:5px;padding:14px 10px;text-align:center}
+.locked-section p{font-size:11px;font-weight:bold;color:#9E9E9E}
+.locked-section span{font-size:10px;color:#BDBDBD;display:block;margin-top:3px}
+
+/* Tech lock overlay */
+.sb-lock-overlay{display:none;position:absolute;inset:0;background:rgba(244,246,249,.92);z-index:50;align-items:center;justify-content:center;flex-direction:column;gap:0}
+.sb-lock-overlay.show{display:flex}
+.lock-box{background:#fff;border:2px solid #0D47A1;border-radius:8px;padding:20px 24px;text-align:center}
+.lock-icon{font-size:26px;margin-bottom:8px}
+.lock-box h3{font-size:12px;font-weight:bold;color:#0D47A1;margin-bottom:4px}
+.lock-box p{font-size:10px;color:#9E9E9E}
+
+/* Sidebar buttons */
+.sb-btns{flex-shrink:0;padding:10px 12px;border-top:2px solid #D0D0D0;background:#ECEEF2;display:flex;flex-direction:column;gap:5px}
+.sb-btn{width:100%;padding:7px;border:none;border-radius:5px;font-size:11px;font-weight:bold;cursor:pointer;font-family:Arial;text-align:center}
+.sb-btn-close{background:#2E7D32;color:#fff}
+.sb-btn-back{background:#fff;color:#0D47A1;border:1.5px solid #0D47A1}
+.sb-btn-approve{background:#0D47A1;color:#fff}
+.sb-btn-void{background:#B71C1C;color:#fff}
+.sb-btn-void:hover{background:#C62828}
+
+/* FOOTER */
+.form-footer{background:#fff;border-top:2px solid #D0D0D0;padding:9px 20px;display:flex;align-items:center;justify-content:flex-end;gap:10px;flex-shrink:0}
+.status-msg{padding:5px 12px;border-radius:5px;font-size:11px;font-weight:bold;display:none;margin-right:auto}
+.status-msg.success{display:block;background:#C8E6C9;color:#2E7D32}
+.status-msg.error{display:block;background:#FFCDD2;color:#C62828}
+.status-msg.loading{display:block;background:#E3F2FD;color:#1565C0}
+.btn{padding:8px 20px;border:none;border-radius:5px;font-size:12px;font-weight:bold;cursor:pointer;font-family:Arial}
+.btn-primary{background:#3C3C3C;color:#FFD700}
+.btn-primary:hover{background:#2A2A2A}
+.btn-primary:disabled{background:#B0B0B0;color:#fff;cursor:not-allowed}
+.btn-ghost{background:transparent;border:1.5px solid #D0D0D0;color:#616161}
+.btn-ghost:hover{border-color:#3C3C3C;color:#3C3C3C}
+
+/* OVERLAY */
+.overlay{display:none;position:fixed;inset:0;background:rgba(255,255,255,.75);z-index:9999;align-items:center;justify-content:center;flex-direction:column;gap:10px}
+.overlay.show{display:flex}
+.spinner{width:34px;height:34px;border:4px solid #D0D0D0;border-top-color:#3C3C3C;border-radius:50%;animation:spin .7s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+</style>
+</head>
+<body>
+
+<div class="overlay show" id="overlay">
+  <div class="spinner"></div>
+  <div style="font-size:12px;font-weight:bold;color:#3C3C3C">Loading tickets&#8230;</div>
+</div>
+
+<!-- HEADER -->
+<div class="form-header">
+  <div class="header-accent"></div>
+  <div class="header-body">
+    <div class="header-title" style="flex:1">
+      <h1>&#9999;&#65039; UPDATE MAINTENANCE TICKET</h1>
+      <p id="companyInfo">Container Supply Co. &#8212; Garden Grove, CA</p>
+    </div>
+    <div class="role-badge" id="roleBadge">Tech View</div>
+    <div class="header-meta">
+      <div><strong id="docNo">FRM-040-001</strong></div>
+      <div id="formDate"></div>
+    </div>
+  </div>
+</div>
+
+<!-- TICKET SELECTOR -->
+<div class="ticket-bar">
+  <label>Select Ticket:</label>
+  <div class="ticket-search-wrap">
+    <input type="text" id="ticketSearch" class="ticket-search-input"
+      placeholder="Type ticket #, equipment, description, dept&#8230;"
+      autocomplete="off" oninput="onTicketSearch()" onfocus="onTicketSearch(true)">
+    <input type="hidden" id="ticketSel" value="">
+    <div class="ticket-dropdown" id="ticketDropdown"></div>
+  </div>
+</div>
+
+<!-- INFO STRIP -->
+<div class="ticket-info" id="ticketInfo">
+  <span class="info-chip">Ticket: <strong id="infoTicket">&#8212;</strong></span>
+  <span id="infoPriBadge" class="priority-badge"></span>
+  <span id="infoSourceBadge"></span>
+  <span class="info-chip">Dept: <strong id="infoDept">&#8212;</strong></span>
+  <span class="info-chip">Equipment: <strong id="infoEquip">&#8212;</strong></span>
+  <span class="info-chip">Line: <strong id="infoLine">&#8212;</strong></span>
+  <span class="info-chip">Status: <strong id="infoStatus">&#8212;</strong></span>
+  <span class="info-chip">Opened: <strong id="infoOpened">&#8212;</strong></span>
+  <span class="info-chip">Assigned: <strong id="infoAssigned">&#8212;</strong></span>
+</div>
+
+<!-- AUTO-COMPLETE BANNER -->
+<div class="ac-banner" id="autoCompleteBanner">
+  <span style="font-size:16px">&#128295;</span>
+  <p>Work summary detected &#8212; should the status be set to COMPLETE for manager review?</p>
+  <button class="ac-btn ac-yes" onclick="acceptAutoComplete()">Yes &#8212; Set COMPLETE</button>
+  <button class="ac-btn ac-no" onclick="dismissAutoComplete()">No, I'll choose</button>
+</div>
+
+<!-- 2-COLUMN FORM -->
+<div class="form-2col" id="mainForm" style="display:none">
+
+  <!-- LEFT: Tech content -->
+  <div class="col-left">
+
+    <div class="section-card">
+      <div class="section-head"><h2>&#128203; Original Problem Description</h2></div>
+      <div class="section-body">
+        <div style="background:#F5F5F5;border-radius:5px;padding:9px 12px;font-size:12px;color:#3C3C3C;line-height:1.6" id="origDesc">&#8212;</div>
+      </div>
+    </div>
+
+    <div class="section-card">
+      <div class="section-head"><h2>&#128260; 1 &#8212; Status Update</h2></div>
+      <div class="section-body">
+        <div class="grid-3">
+          <div class="field">
+            <label>New Status</label>
+            <select id="newStatus" onchange="onStatusChange()">
+              <option value="">&#8212; Keep Current &#8212;</option>
+              <option value="PENDING PARTS">PENDING PARTS</option>
+              <option value="ON HOLD">ON HOLD</option>
+              <option value="COMPLETE">COMPLETE &#8212; Submit for Review</option>
+            </select>
+          </div>
+          <div class="field">
+            <label>Problem Type</label>
+            <select id="problemType">
+              <option value="">&#8212; Keep Current &#8212;</option>
+            </select>
+          </div>
+          <div class="field">
+            <label>Actual Hours</label>
+            <input type="number" id="actualHours" step="0.5" min="0" placeholder="0.0">
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="section-card">
+      <div class="section-head"><h2>&#128269; 2 &#8212; Observations &amp; Symptoms</h2></div>
+      <div class="section-body">
+        <div class="field">
+          <label>Tech Observations</label>
+          <textarea id="observations" rows="3" placeholder="What did you observe? Sounds, smells, visible damage, error codes, symptoms."></textarea>
+        </div>
+      </div>
+    </div>
+
+    <div class="section-card">
+      <div class="section-head"><h2>&#128295; 3 &#8212; Work Summary</h2></div>
+      <div class="section-body" style="display:flex;flex-direction:column;gap:9px">
+        <div class="field">
+          <label>Corrective Action / Fix Performed</label>
+          <textarea id="correctiveAction" rows="3" placeholder="What was done to fix the problem?" oninput="onWorkInput()"></textarea>
+        </div>
+        <div>
+          <div class="field" style="margin-bottom:5px"><label>Fix Type</label></div>
+          <div class="fix-pills">
+            <div class="fix-pill" id="pillTemp" onclick="selectFixType('Temporary',this)">
+              &#128295; Temporary Fix<br><span style="font-size:10px;font-weight:normal">Short-term &#8212; monitoring required</span>
+            </div>
+            <div class="fix-pill" id="pillPerm" onclick="selectFixType('Permanent',this)">
+              &#9989; Permanent Fix<br><span style="font-size:10px;font-weight:normal">Root issue fully resolved</span>
+            </div>
+          </div>
+          <input type="hidden" id="fixType" value="">
+        </div>
+      </div>
+    </div>
+
+    <div class="section-card">
+      <div class="section-head"><h2>&#128297; 4 &#8212; Parts Used</h2></div>
+      <div class="section-body">
+        <table class="parts-table">
+          <thead><tr>
+            <th style="width:16%">Part ID / #</th>
+            <th style="width:32%">Part Description</th>
+            <th style="width:10%">Qty</th>
+            <th style="width:12%">UOM</th>
+            <th>Notes</th>
+          </tr></thead>
+          <tbody id="partsUsedBody"></tbody>
+        </table>
+        <button type="button" class="btn-add-row" onclick="addPartsUsedRow()">&#65291; Add Part Used</button>
+      </div>
+    </div>
+
+    <div class="section-card">
+      <div class="section-head"><h2>&#128248; 5 &#8212; Photos</h2></div>
+      <div class="section-body">
+        <div class="photo-zone" onclick="document.getElementById('photoInput').click()">
+          <input type="file" id="photoInput" accept="image/*" multiple style="display:none" onchange="handlePhotos(this)">
+          <button type="button" class="upload-btn">&#128206; Attach Photos</button>
+          <p>Click to browse or drag photos of the repair or damage</p>
+        </div>
+        <div class="upload-progress" id="uploadProgress">Uploading photos&#8230;</div>
+        <div class="photo-list" id="photoList"></div>
+        <input type="hidden" id="photoLinks" value="">
+      </div>
+    </div>
+
+    <div class="section-card">
+      <div class="section-head"><h2>&#128221; Notes</h2></div>
+      <div class="section-body">
+        <div class="field">
+          <label>Additional Notes</label>
+          <input type="text" id="notes" placeholder="Any other notes&#8230;">
+        </div>
+      </div>
+    </div>
+
+  </div><!-- /col-left -->
+
+  <!-- RIGHT: Manager command sidebar -->
+  <div class="col-right" id="colRight">
+
+    <!-- Lock overlay for techs -->
+    <div class="sb-lock-overlay" id="sbLockOverlay">
+      <div class="lock-box">
+        <div class="lock-icon">&#128274;</div>
+        <h3>Manager Actions Only</h3>
+        <p>Not available in Tech view</p>
+      </div>
+    </div>
+
+    <div class="sb-hdr">
+      <div class="sb-hdr-title">&#128084; Manager Actions</div>
+    </div>
+
+    <div class="sb-body" id="sbBody">
+
+      <!-- Open Approval — WAITING only -->
+      <div class="sb-section" id="sbApproval" style="display:none">
+        <div class="sb-divider">Approve for Open Work</div>
+        <div class="approval-box">
+          <div class="approval-label">&#9989; Set priority to approve this ticket for open work.</div>
+          <div class="sb-field">
+            <label>Priority <span style="color:#C62828">*</span> &#8212; Required</label>
+            <select id="openApprovalPriority">
+              <option value="">&mdash; Select Priority &mdash;</option>
+              <option value="LOW">LOW</option>
+              <option value="MEDIUM">MEDIUM</option>
+              <option value="HIGH">HIGH</option>
+              <option value="CRITICAL">CRITICAL</option>
+            </select>
+          </div>
+          <div class="sb-field">
+            <label>Assign To</label>
+            <select id="openApprovalAssign">
+              <option value="">&mdash; Keep Unassigned &mdash;</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <!-- Priority & Assignment -->
+      <div class="sb-section" id="sbPriorityAssign">
+        <div class="sb-divider">Priority &amp; Assignment</div>
+        <div class="sb-field">
+          <label id="mgrPriLabel">Set Priority</label>
+          <select id="mgrPriority">
+            <option value="">&#8212; Keep Current &#8212;</option>
+            <option value="LOW">LOW</option>
+            <option value="MEDIUM">MEDIUM</option>
+            <option value="HIGH">HIGH</option>
+            <option value="CRITICAL">CRITICAL</option>
+          </select>
+        </div>
+        <div class="sb-field">
+          <label>Assign To</label>
+          <select id="mgrAssigned">
+            <option value="">&#8212; Keep Current &#8212;</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- Transfer -->
+      <div class="sb-section">
+        <div class="sb-divider">Transfer</div>
+        <div class="sb-field">
+          <label>Transfer Department</label>
+          <select id="mgrTransferDept" onchange="onTransferDeptChange()">
+            <option value="">&#8212; No Transfer &#8212;</option>
+          </select>
+        </div>
+        <div id="transferReasonWrap" style="display:none">
+          <div class="sb-field" style="margin-bottom:4px">
+            <label>Transfer Reason</label>
+          </div>
+          <div class="reason-pills" id="transferReasonPills"></div>
+          <input type="hidden" id="transferReason" value="">
+        </div>
+      </div>
+
+      <!-- Equipment Tag -->
+      <div class="sb-section">
+        <div class="sb-divider">Equipment Tag</div>
+        <div class="sb-tag-pills">
+          <div class="sb-tag-pill t-none" id="mgrTagNone" onclick="selectMgrTag('',this)">None</div>
+          <div class="sb-tag-pill" id="mgrTagGreen" onclick="selectMgrTag('Green \u2014 Cleared',this)">Green</div>
+          <div class="sb-tag-pill" id="mgrTagOrange" onclick="selectMgrTag('Orange \u2014 Temp Fix',this)">Orange</div>
+          <div class="sb-tag-pill" id="mgrTagRed" onclick="selectMgrTag('Red \u2014 Out of Service',this)">Red</div>
+        </div>
+        <input type="hidden" id="mgrTagStatus" value="">
+      </div>
+
+      <!-- Verification — COMPLETE only -->
+      <div class="sb-section" id="sbVerify" style="display:none">
+        <div class="sb-divider">Verify &amp; Close</div>
+        <div class="verify-box">
+          <div class="verify-label">&#9989; Filling this closes the ticket.</div>
+          <div class="sb-field">
+            <label>Verified By</label>
+            <select id="verifiedBy">
+              <option value="">&#8212; Select &#8212;</option>
+            </select>
+          </div>
+          <div class="sb-field">
+            <label>Verification Date</label>
+            <input type="date" id="verifiedDate">
+          </div>
+          <div class="sb-field">
+            <label>Verification Notes</label>
+            <input type="text" id="verifyNotes" placeholder="Closure comments&#8230;">
+          </div>
+        </div>
+      </div>
+
+<!-- Void Ticket — manager/admin only -->
+      <div class="sb-section" id="sbVoidSection">
+        <div class="sb-divider" style="color:#B71C1C;border-bottom-color:#FFCDD2">Void Ticket</div>
+        <div style="background:#FFCDD2;border:1.5px solid #EF9A9A;border-radius:5px;padding:9px 10px;">
+          <div style="font-size:10px;font-weight:bold;color:#B71C1C;margin-bottom:6px;">
+            &#9888;&#65039; Use only for ticket errors. This cannot be undone.
+          </div>
+          <div class="sb-field">
+            <label>Void Reason</label>
+            <select id="voidReason">
+              <option value="">&#8212; Select Reason &#8212;</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+
+      <!-- Verification locked -->
+      <div class="sb-section" id="sbVerifyLocked">
+        <div class="sb-divider">Verify &amp; Close</div>
+        <div class="locked-section">
+          <p id="verifyLockedMsg">&#128274; Locked</p>
+          <span id="verifyLockedSub">Ticket must be COMPLETE first</span>
+        </div>
+      </div>
+
+    </div><!-- /sb-body -->
+
+    <div class="sb-btns" id="sbBtns" style="display:none">
+      <button class="sb-btn sb-btn-approve" id="sbBtnApprove" style="display:none" onclick="approveForOpen()">&#9989; Approve &#8594; Open for Work</button>
+      <button class="sb-btn sb-btn-close" id="sbBtnClose" style="display:none" onclick="submitVerify()">&#9989; Verify &amp; Close</button>
+      <button class="sb-btn sb-btn-back" id="sbBtnBack" style="display:none" onclick="sendBackToOpen()">&#8629; Send Back to Open</button>
+      <button class="sb-btn sb-btn-void" id="sbBtnVoid" style="display:none" onclick="submitVoid()">&#128683; Void Ticket</button>
+    </div>
+
+  </div><!-- /col-right -->
+
+</div><!-- /form-2col -->
+
+<!-- FOOTER -->
+<div class="form-footer">
+  <div class="status-msg" id="statusMsg"></div>
+  <button class="btn btn-ghost" onclick="google.script.host.close()">Cancel</button>
+  <button class="btn btn-primary" id="submitBtn" onclick="submitUpdate()" disabled>&#9999;&#65039; Save Update</button>
+</div>
+
+<input type="hidden" id="userRole" value="tech">
+<input type="hidden" id="userEmail" value="">
+
+<script>
+var FD = {};
+var selTicket = null;
+var allTickets = [];
+var uploadedPhotoLinks = [];
+var fixTypeVal = '';
+var mgrTagVal  = '';
+var acBannerDismissed = false;
+var UOM_OPTIONS = ['EA','PCS','FT','IN','LB','KG','GAL','QT','BOX','SET','PAIR','YD','M','L'];
+
+window.onload = function() {
+  document.getElementById('formDate').textContent =
+    new Date().toLocaleDateString('en-US',{weekday:'short',year:'numeric',month:'short',day:'numeric'});
+
+  google.script.run.withSuccessHandler(function(info) {
+    var role = '', email = '';
+    if (typeof info === 'object' && info !== null) {
+      role  = info.isAdmin ? 'admin' : info.isManager ? 'manager' : 'tech';
+      email = info.email || '';
+    } else {
+      role = String(info || 'tech');
+    }
+    document.getElementById('userRole').value  = role;
+    document.getElementById('userEmail').value = email;
+    var isManager = role === 'manager' || role === 'admin';
+    var badge = document.getElementById('roleBadge');
+    badge.textContent  = isManager ? '\ud83d\udc54 Manager View' : '\ud83d\udc77 Tech View';
+    badge.className    = 'role-badge' + (isManager ? ' mgr' : '');
+    loadFormData();
+  }).withFailureHandler(function() {
+    document.getElementById('userRole').value = 'tech';
+    loadFormData();
+  }).getCurrentUserInfo();
+
+  document.addEventListener('click', function(e) {
+    var wrap = document.querySelector('.ticket-search-wrap');
+    if (wrap && !wrap.contains(e.target)) {
+      document.getElementById('ticketDropdown').style.display = 'none';
+    }
+  });
+};
+
+function loadFormData() {
+  google.script.run
+    .withSuccessHandler(function(d) {
+      FD = d;
+      document.getElementById('overlay').classList.remove('show');
+      document.getElementById('companyInfo').textContent =
+        (d.companyName || '') + (d.location ? ' \u2014 ' + d.location : '');
+      document.getElementById('docNo').textContent = d.docNo || 'FRM-040-001';
+
+      allTickets = d.openTickets || [];
+
+      populateSelect('problemType', d.problemTypes || []);
+      populateSelect('mgrAssigned', d.technicians || []);
+
+      var oaAssign = document.getElementById('openApprovalAssign');
+      (d.technicians || []).forEach(function(t) {
+        var o = document.createElement('option'); o.value = t; o.textContent = t;
+        oaAssign.appendChild(o);
+      });
+
+      // Verified By — managers only
+      var managerNames = (d.peopleList || [])
+        .filter(function(p){ return p.indexOf(' (Manager)') > -1; })
+        .map(function(p){ return p.replace(' (Manager)', '').trim(); });
+      populateSelect('verifiedBy', managerNames.length ? managerNames : d.technicians || []);
+
+      // Transfer dept
+      var transferSel = document.getElementById('mgrTransferDept');
+      Object.keys(d.deptCodes || {}).forEach(function(dept) {
+        var o = document.createElement('option');
+        o.value = dept; o.textContent = dept;
+        transferSel.appendChild(o);
+      });
+
+      // Transfer reason pills
+      var reasons = d.transferReasons || ['Beyond Scope'];
+      var pillsWrap = document.getElementById('transferReasonPills');
+      pillsWrap.innerHTML = '';
+      reasons.forEach(function(r) {
+        var pill = document.createElement('div');
+        pill.className = 'reason-pill';
+        pill.textContent = r;
+        pill.onclick = function() { selectTransferReason(r, pill); };
+        pillsWrap.appendChild(pill);
+      });
+
+      // Add OPEN option for managers
+      var role = document.getElementById('userRole').value;
+      if (role === 'manager' || role === 'admin') {
+        var ns = document.getElementById('newStatus');
+        var openOpt = document.createElement('option');
+        openOpt.value = 'OPEN'; openOpt.textContent = 'OPEN';
+        ns.insertBefore(openOpt, ns.options[1]);
+      }
+
+// Void reasons
+      var voidReasons = d.voidReasons || ['Duplicate Ticket','Entry Error','Test Ticket','Other'];
+      populateSelect('voidReason', voidReasons);
+
+      addPartsUsedRow();
+      addPartsUsedRow();
+    })
+    .withFailureHandler(function(e) {
+      document.getElementById('overlay').classList.remove('show');
+      setMsg('Error loading data: ' + e.message, 'error');
+    })
+    .getUpdateTicketFormData();
+}
+
+function populateSelect(id, items) {
+  var s = document.getElementById(id); if (!s) return;
+  items.forEach(function(v) {
+    var o = document.createElement('option');
+    o.value = v; o.textContent = v; s.appendChild(o);
+  });
+}
+
+// ── TYPE-AHEAD SEARCH ──────────────────────────────────────────────────────
+var PRIORITY_COLORS = {
+  CRITICAL:'#FFCDD2|#B71C1C', HIGH:'#FFE0B2|#E64A19',
+  MEDIUM:'#FFF9C4|#F57F17',   LOW:'#BBDEFB|#1565C0'
+};
+
+function onTicketSearch(forceOpen) {
+  var q    = (document.getElementById('ticketSearch').value || '').toLowerCase().trim();
+  var drop = document.getElementById('ticketDropdown');
+  var filtered = !q ? allTickets : allTickets.filter(function(t) {
+    return (t.ticketNo      || '').toLowerCase().indexOf(q) >= 0 ||
+           (t.description   || '').toLowerCase().indexOf(q) >= 0 ||
+           (t.specificEquip || '').toLowerCase().indexOf(q) >= 0 ||
+           (t.equipType     || '').toLowerCase().indexOf(q) >= 0 ||
+           (t.equipCode     || '').toLowerCase().indexOf(q) >= 0 ||
+           (t.dept          || '').toLowerCase().indexOf(q) >= 0 ||
+           (t.assignedTo    || '').toLowerCase().indexOf(q) >= 0 ||
+           (t.status        || '').toLowerCase().indexOf(q) >= 0;
+  });
+
+  if (!filtered.length) {
+    drop.innerHTML = '<div class="tdi-empty">No matching tickets</div>';
+    drop.style.display = 'block'; return;
+  }
+
+  var html = '';
+  filtered.slice(0, 50).forEach(function(t, idx) {
+    var p = (t.priority || '').toUpperCase();
+    var colors = (PRIORITY_COLORS[p] || '#E0E0E0|#616161').split('|');
+    var pbadge = '<span class="tdi-badge" style="background:'+colors[0]+';color:'+colors[1]+'">'+esc(p||'?')+'</span>';
+    var equip  = (t.specificEquip || t.equipType || '').substring(0, 36);
+    var desc   = (t.description || '').substring(0, 44);
+    html += '<div class="ticket-drop-item" onclick="selectTicketFromDrop('+idx+')">'+
+      '<div class="tdi-top"><span class="tdi-num">'+esc(t.ticketNo)+'</span>'+pbadge+
+      '<span style="font-size:9px;color:#90A4AE">'+esc(t.status||'')+'</span>'+
+      '<span style="font-size:9px;color:#78909C;margin-left:auto">'+esc(t.dept||'')+'</span></div>'+
+      '<div class="tdi-sub">'+esc(equip)+(equip&&desc?' \u00b7 ':'')+esc(desc)+'</div></div>';
+  });
+  if (filtered.length > 50) html += '<div class="tdi-empty">'+filtered.length+' matches \u2014 type more to narrow</div>';
+  drop.innerHTML = html;
+  drop.style.display = 'block';
+  drop._filtered = filtered;
+}
+
+function selectTicketFromDrop(idx) {
+  var drop = document.getElementById('ticketDropdown');
+  var t = (drop._filtered || allTickets)[idx]; if (!t) return;
+  document.getElementById('ticketSearch').value = t.ticketNo + ' \u2014 ' + (t.specificEquip || t.equipType || '');
+  drop.style.display = 'none';
+  document.getElementById('ticketSel').value = JSON.stringify(t);
+  onTicketSelect();
+}
+
+// ── ON TICKET SELECT ───────────────────────────────────────────────────────
+function onTicketSelect() {
+  var val = document.getElementById('ticketSel').value;
+  if (!val) {
+    selTicket = null;
+    document.getElementById('ticketInfo').classList.remove('show');
+    document.getElementById('mainForm').style.display = 'none';
+    document.getElementById('autoCompleteBanner').classList.remove('show');
+    document.getElementById('submitBtn').disabled = true;
+    return;
+  }
+  try { selTicket = JSON.parse(val); } catch(e) { return; }
+
+  // Info strip
+  document.getElementById('ticketInfo').classList.add('show');
+  document.getElementById('infoTicket').textContent   = selTicket.ticketNo;
+  document.getElementById('infoDept').textContent     = selTicket.dept || '\u2014';
+  document.getElementById('infoEquip').textContent    = selTicket.specificEquip || selTicket.equipType || '\u2014';
+  document.getElementById('infoLine').textContent     = selTicket.line || '\u2014';
+  document.getElementById('infoStatus').textContent   = selTicket.status || '\u2014';
+  document.getElementById('infoOpened').textContent   = selTicket.dateOpened || '\u2014';
+  document.getElementById('infoAssigned').textContent = selTicket.assignedTo || 'Unassigned';
+
+  var p = selTicket.priority || '';
+  var badge = document.getElementById('infoPriBadge');
+  badge.textContent = p;
+  badge.className = 'priority-badge p-' + p.toLowerCase();
+
+  var srcBadge = document.getElementById('infoSourceBadge');
+  srcBadge.textContent = selTicket.source === 'EXTERNAL' ? 'External' : 'Internal';
+  srcBadge.className   = selTicket.source === 'EXTERNAL' ? 'source-ext' : 'source-int';
+
+  document.getElementById('origDesc').textContent = selTicket.description || '\u2014';
+  if (selTicket.problemType) document.getElementById('problemType').value = selTicket.problemType;
+
+  var ns = document.getElementById('newStatus');
+  ns.options[0].textContent = '\u2014 Keep Current ' + (selTicket.status || '') + ' Status \u2014';
+  ns.selectedIndex = 0;
+
+  if (selTicket.priority)   document.getElementById('mgrPriority').value = selTicket.priority;
+  if (selTicket.assignedTo) document.getElementById('mgrAssigned').value = selTicket.assignedTo;
+
+  document.getElementById('mgrTransferDept').selectedIndex = 0;
+  document.getElementById('transferReasonWrap').style.display = 'none';
+  document.getElementById('transferReason').value = '';
+  document.querySelectorAll('.reason-pill').forEach(function(p){ p.classList.remove('active'); });
+
+  // Pre-fill work fields
+  document.getElementById('correctiveAction').value = selTicket.correctiveAction || selTicket.workSummary || '';
+  document.getElementById('actualHours').value  = selTicket.actualHours  || '';
+  document.getElementById('observations').value = selTicket.observations || '';
+
+  var ft = selTicket.fixType || '';
+  fixTypeVal = ft;
+  document.getElementById('fixType').value = ft;
+  document.getElementById('pillTemp').className = 'fix-pill' + (ft === 'Temporary' ? ' active-temp' : '');
+  document.getElementById('pillPerm').className = 'fix-pill' + (ft === 'Permanent' ? ' active-perm' : '');
+
+  mgrTagVal = '';
+  document.getElementById('mgrTagStatus').value = '';
+  document.querySelectorAll('.sb-tag-pill').forEach(function(p){ p.className = 'sb-tag-pill'; });
+  document.getElementById('mgrTagNone').classList.add('t-none');
+
+  uploadedPhotoLinks = [];
+  document.getElementById('photoList').innerHTML = '';
+  document.getElementById('photoLinks').value = '';
+
+  acBannerDismissed = false;
+  document.getElementById('autoCompleteBanner').classList.remove('show');
+
+  document.getElementById('mainForm').style.display = 'grid';
+  document.getElementById('submitBtn').disabled = false;
+
+  renderFormState();
+}
+
+// ── RENDER FORM STATE ──────────────────────────────────────────────────────
+function renderFormState() {
+  if (!selTicket) return;
+  var role      = document.getElementById('userRole').value;
+  var isManager = role === 'manager' || role === 'admin';
+  var status    = String(selTicket.status || '').toUpperCase();
+
+  // Tech lock overlay
+  document.getElementById('sbLockOverlay').classList.toggle('show', !isManager);
+  document.getElementById('sbBtns').style.display = isManager ? 'flex' : 'none';
+
+  if (!isManager) return;
+
+  // Approval section (WAITING only)
+  var showApproval = status === 'WAITING';
+  document.getElementById('sbApproval').style.display = showApproval ? 'flex' : 'none';
+  document.getElementById('sbBtnApprove').style.display = showApproval ? 'block' : 'none';
+  document.getElementById('sbPriorityAssign').style.display = showApproval ? 'none' : 'flex';
+  
+  if (document.getElementById('openApprovalPriority')) document.getElementById('openApprovalPriority').selectedIndex = 0;
+
+  // Verify section (COMPLETE only)
+  var showVerify = status === 'COMPLETE';
+  document.getElementById('sbVerify').style.display       = showVerify ? 'flex' : 'none';
+  document.getElementById('sbVerifyLocked').style.display = showVerify ? 'none' : 'flex';
+  document.getElementById('sbBtnClose').style.display     = showVerify ? 'block' : 'none';
+  document.getElementById('sbBtnBack').style.display      = showVerify ? 'block' : 'none';
+  document.getElementById('sbBtnVoid').style.display  = isManager ? 'block' : 'none';
+
+  if (!showVerify) {
+    var msg = document.getElementById('verifyLockedMsg');
+    var sub = document.getElementById('verifyLockedSub');
+    if (status === 'WAITING') {
+      msg.textContent = '\ud83d\udd12 Locked \u2014 ticket is WAITING';
+      sub.textContent = 'Approve for Open work first';
+    } else {
+      msg.textContent = '\ud83d\udd12 Locked \u2014 not yet COMPLETE';
+      sub.textContent = 'Tech must add work summary and mark COMPLETE';
+    }
+  }
+
+  // Priority required when OPEN
+  var mgrPriLabel = document.getElementById('mgrPriLabel');
+  var mgrPriority = document.getElementById('mgrPriority');
+  if (status === 'OPEN') {
+    mgrPriLabel.innerHTML = 'Set Priority <span style="color:#C62828">*</span>';
+    mgrPriority.classList.add('required');
+  } else {
+    mgrPriLabel.textContent = 'Set Priority';
+    mgrPriority.classList.remove('required');
+  }
+}
+
+// ── AUTO-COMPLETE ──────────────────────────────────────────────────────────
+function onWorkInput() {
+  if (acBannerDismissed || !selTicket) return;
+  var ws        = document.getElementById('correctiveAction').value.trim();
+  var statusSel = document.getElementById('newStatus').value;
+  var curStatus = String(selTicket.status || '').toUpperCase();
+  var show = ws.length > 5 && curStatus !== 'COMPLETE' && statusSel.toUpperCase().indexOf('COMPLETE') < 0;
+  document.getElementById('autoCompleteBanner').classList.toggle('show', show);
+}
+function acceptAutoComplete() {
+  var ns = document.getElementById('newStatus');
+  for (var i = 0; i < ns.options.length; i++) {
+    if (ns.options[i].value.toUpperCase().indexOf('COMPLETE') >= 0 ||
+        ns.options[i].textContent.toUpperCase().indexOf('COMPLETE') >= 0) {
+      ns.selectedIndex = i; break;
+    }
+  }
+  document.getElementById('autoCompleteBanner').classList.remove('show');
+  acBannerDismissed = true;
+}
+function dismissAutoComplete() {
+  document.getElementById('autoCompleteBanner').classList.remove('show');
+  acBannerDismissed = true;
+}
+
+function onStatusChange() {
+  var statusSel = document.getElementById('newStatus').value;
+  if (statusSel.toUpperCase().indexOf('COMPLETE') >= 0) {
+    document.getElementById('autoCompleteBanner').classList.remove('show');
+    acBannerDismissed = true;
+  }
+}
+
+// ── TRANSFER ───────────────────────────────────────────────────────────────
+function onTransferDeptChange() {
+  var newDept = document.getElementById('mgrTransferDept').value;
+  var wrap    = document.getElementById('transferReasonWrap');
+  var show    = !!(newDept && selTicket && newDept !== selTicket.dept);
+  wrap.style.display = show ? 'block' : 'none';
+  if (!show) {
+    document.getElementById('transferReason').value = '';
+    document.querySelectorAll('.reason-pill').forEach(function(p){ p.classList.remove('active'); });
+  }
+}
+function selectTransferReason(val, pill) {
+  document.getElementById('transferReason').value = val;
+  document.querySelectorAll('.reason-pill').forEach(function(p){ p.classList.remove('active'); });
+  pill.classList.add('active');
+}
+
+// ── FIX TYPE PILLS ─────────────────────────────────────────────────────────
+function selectFixType(type, btn) {
+  fixTypeVal = type;
+  document.getElementById('fixType').value = type;
+  document.getElementById('pillTemp').className = 'fix-pill' + (type === 'Temporary' ? ' active-temp' : '');
+  document.getElementById('pillPerm').className = 'fix-pill' + (type === 'Permanent' ? ' active-perm' : '');
+}
+
+// ── MANAGER TAG PILLS ──────────────────────────────────────────────────────
+function selectMgrTag(val, btn) {
+  mgrTagVal = val;
+  document.getElementById('mgrTagStatus').value = val;
+  document.querySelectorAll('.sb-tag-pill').forEach(function(p){ p.className = 'sb-tag-pill'; });
+  document.getElementById('mgrTagNone').classList.add('t-none');
+  if (val.indexOf('Green')  > -1) btn.classList.add('t-green');
+  if (val.indexOf('Orange') > -1) btn.classList.add('t-orange');
+  if (val.indexOf('Red')    > -1) btn.classList.add('t-red');
+}
+
+// ── PARTS TABLE ────────────────────────────────────────────────────────────
+function addPartsUsedRow() {
+  var tbody = document.getElementById('partsUsedBody');
+  var tr = document.createElement('tr');
+  var uomOpts = UOM_OPTIONS.map(function(u){ return '<option value="'+u+'">'+u+'</option>'; }).join('');
+  tr.innerHTML =
+    '<td><input type="text" placeholder="Part ID\u2026"></td>'+
+    '<td><input type="text" placeholder="Description\u2026"></td>'+
+    '<td><input type="number" min="0" step="1" placeholder="1" style="text-align:center"></td>'+
+    '<td><select><option value="">&#8212;</option>'+uomOpts+'</select></td>'+
+    '<td><input type="text" placeholder="Notes\u2026"></td>';
+  tbody.appendChild(tr);
+}
+function getPartsUsed() {
+  var parts = [];
+  document.querySelectorAll('#partsUsedBody tr').forEach(function(row) {
+    var cells = row.querySelectorAll('input, select');
+    var partId = cells[0] ? cells[0].value.trim() : '';
+    var partDesc = cells[1] ? cells[1].value.trim() : '';
+    if (partId || partDesc) parts.push({
+      partId: partId, partDesc: partDesc,
+      qty: cells[2] ? cells[2].value.trim() : '',
+      uom: cells[3] ? cells[3].value.trim() : '',
+      notes: cells[4] ? cells[4].value.trim() : ''
+    });
+  });
+  return parts;
+}
+
+// ── PHOTOS ─────────────────────────────────────────────────────────────────
+function handlePhotos(input) {
+  var files = Array.from(input.files); if (!files.length) return;
+  var progress = document.getElementById('uploadProgress');
+  progress.style.display = 'block';
+  progress.textContent = 'Uploading ' + files.length + ' photo(s)\u2026';
+  var ticketNo = selTicket ? selTicket.ticketNo : 'UNKNOWN';
+  var uploaded = 0;
+  files.forEach(function(file) {
+    var reader = new FileReader();
+    reader.onload = function(ev) {
+      var base64 = ev.target.result.split(',')[1];
+      google.script.run
+        .withSuccessHandler(function(result) {
+          uploaded++;
+          if (result.success) {
+            uploadedPhotoLinks.push(result.url);
+            var item = document.createElement('div');
+            item.className = 'photo-item';
+            item.innerHTML = '&#128206; <a href="'+result.url+'" target="_blank">'+result.name+'</a>';
+            document.getElementById('photoList').appendChild(item);
+            document.getElementById('photoLinks').value = uploadedPhotoLinks.join(', ');
+          }
+          if (uploaded === files.length) {
+            progress.textContent = '\u2705 '+uploadedPhotoLinks.length+' photo(s) uploaded.';
+            setTimeout(function(){ progress.style.display = 'none'; }, 3000);
+          }
+        })
+        .withFailureHandler(function(e) {
+          uploaded++;
+          progress.textContent = '\u26a0\ufe0f Upload error: ' + e.message;
+        })
+        .uploadPhotoToDrive(base64, file.name, ticketNo, file.type);
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
+// ── APPROVE FOR OPEN ───────────────────────────────────────────────────────
+function approveForOpen() {
+  if (!selTicket) { setMsg('Please select a ticket.', 'error'); return; }
+  var priority = document.getElementById('openApprovalPriority').value;
+  if (!priority) {
+    setMsg('Priority is required to approve.', 'error');
+    document.getElementById('openApprovalPriority').focus();
+    return;
+  }
+  var data = {
+    ticketNo: selTicket.ticketNo, dept: selTicket.dept,
+    buildingZone: selTicket.buildingZone, equipType: selTicket.equipType,
+    equipCode: selTicket.equipCode, equipDesc: selTicket.specificEquip || selTicket.equipDesc,
+    description: selTicket.description, problemDesc: selTicket.description,
+    problemType: selTicket.problemType, dateOpened: selTicket.dateOpened,
+    addedBy: selTicket.addedBy, source: selTicket.source, lineNo: selTicket.line,
+    newStatus: 'OPEN', priority: priority,
+    assignedTo: document.getElementById('openApprovalAssign').value,
+    updatedBy: document.getElementById('userEmail').value || 'Manager',
+    notes: document.getElementById('notes').value
+  };
+  setMsg('Approving ticket\u2026', 'loading');
+  document.getElementById('submitBtn').disabled = true;
+  google.script.run
+    .withSuccessHandler(function(r) {
+      document.getElementById('submitBtn').disabled = false;
+      if (r.success) {
+        setMsg('\u2705 Ticket ' + selTicket.ticketNo + ' approved \u2192 Open for Work', 'success');
+        setTimeout(function(){ google.script.host.close(); }, 2500);
+      } else { setMsg('\u274C Error: ' + r.error, 'error'); }
+    })
+    .withFailureHandler(function(e) {
+      document.getElementById('submitBtn').disabled = false;
+      setMsg('\u274C Error: ' + e.message, 'error');
+    })
+    .updateTicket(data);
+}
+
+// ── SEND BACK TO OPEN ──────────────────────────────────────────────────────
+function sendBackToOpen() {
+  if (!selTicket) { setMsg('Please select a ticket.', 'error'); return; }
+  var userEmail = document.getElementById('userEmail').value;
+  var data = {
+    ticketNo: selTicket.ticketNo, dept: selTicket.dept,
+    buildingZone: selTicket.buildingZone, equipType: selTicket.equipType,
+    equipCode: selTicket.equipCode, equipDesc: selTicket.specificEquip,
+    description: selTicket.description, dateOpened: selTicket.dateOpened,
+    addedBy: selTicket.addedBy, source: selTicket.source, lineNo: selTicket.line,
+    newStatus: 'OPEN', priority: selTicket.priority,
+    updatedBy: userEmail || 'Manager',
+    notes: document.getElementById('notes').value
+  };
+  setMsg('Sending back to Open\u2026', 'loading');
+  document.getElementById('submitBtn').disabled = true;
+  google.script.run
+    .withSuccessHandler(function(r) {
+      document.getElementById('submitBtn').disabled = false;
+      if (r.success) {
+        setMsg('\u2705 Ticket sent back to Open', 'success');
+        setTimeout(function(){ google.script.host.close(); }, 2500);
+      } else { setMsg('\u274C Error: ' + r.error, 'error'); }
+    })
+    .withFailureHandler(function(e) {
+      document.getElementById('submitBtn').disabled = false;
+      setMsg('\u274C Error: ' + e.message, 'error');
+    })
+    .updateTicket(data);
+}
+
+function submitVoid() {
+  if (!selTicket) { setMsg('Please select a ticket.', 'error'); return; }
+  var reason = document.getElementById('voidReason').value;
+  if (!reason) {
+    setMsg('\u274c Please select a Void Reason.', 'error');
+    document.getElementById('voidReason').focus();
+    return;
+  }
+  var confirmed = confirm(
+    'Are you sure you want to VOID ticket ' + selTicket.ticketNo + '?\n\n' +
+    'Reason: ' + reason + '\n\n' +
+    'This cannot be undone.'
+  );
+  if (!confirmed) return;
+  var userEmail = document.getElementById('userEmail').value;
+  setMsg('Voiding ticket\u2026', 'loading');
+  document.getElementById('submitBtn').disabled = true;
+  google.script.run
+    .withSuccessHandler(function(r) {
+      document.getElementById('submitBtn').disabled = false;
+      if (r.success) {
+        setMsg('\u2705 Ticket ' + r.ticketNo + ' has been voided.', 'success');
+        setTimeout(function(){ google.script.host.close(); }, 2500);
+      } else { setMsg('\u274c Error: ' + r.error, 'error'); }
+    })
+    .withFailureHandler(function(e) {
+      document.getElementById('submitBtn').disabled = false;
+      setMsg('\u274c Error: ' + e.message, 'error');
+    })
+    .voidTicket({ ticketNo: selTicket.ticketNo, dept: selTicket.dept, voidReason: reason, voidedBy: userEmail || 'Manager' });
+}
+
+
+// ── VERIFY & CLOSE ─────────────────────────────────────────────────────────
+function submitVerify() {
+  if (!selTicket) { setMsg('Please select a ticket.', 'error'); return; }
+  var ca = (document.getElementById('correctiveAction').value || selTicket.correctiveAction || selTicket.workSummary || '').trim();
+  if (!ca) {
+    setMsg('\u274c Corrective Action required before closing.', 'error');
+    document.getElementById('correctiveAction').focus();
+    return;
+  }
+  var verifiedBy = document.getElementById('verifiedBy').value;
+  if (!verifiedBy) {
+    setMsg('\u274c Please select Verified By before closing.', 'error');
+    return;
+  }
+  var userEmail = document.getElementById('userEmail').value;
+  var data = buildSubmitData();
+  data.newStatus   = 'CLOSED';
+  data.verifiedBy  = verifiedBy;
+  data.verifiedDate= document.getElementById('verifiedDate').value;
+  data.verifyNotes = document.getElementById('verifyNotes').value;
+  data.updatedBy   = userEmail || verifiedBy || 'Manager';
+  setMsg('Closing ticket\u2026', 'loading');
+  document.getElementById('submitBtn').disabled = true;
+  google.script.run
+    .withSuccessHandler(function(r) {
+      document.getElementById('submitBtn').disabled = false;
+      if (r.success) {
+        setMsg('\u2705 Ticket ' + r.ticketNo + ' closed', 'success');
+        setTimeout(function(){ google.script.host.close(); }, 2500);
+      } else { setMsg('\u274c Error: ' + r.error, 'error'); }
+    })
+    .withFailureHandler(function(e) {
+      document.getElementById('submitBtn').disabled = false;
+      setMsg('\u274c Error: ' + e.message, 'error');
+    })
+    .updateTicket(data);
+}
+
+// ── SUBMIT UPDATE ──────────────────────────────────────────────────────────
+function buildSubmitData() {
+  var role      = document.getElementById('userRole').value;
+  var userEmail = document.getElementById('userEmail').value;
+  var newStatus = document.getElementById('newStatus').value;
+  var isManager = role === 'manager' || role === 'admin';
+  var resolvedUpdatedBy = userEmail || (isManager ? 'Manager' : (selTicket.assignedTo || 'Tech'));
+
+  var data = {
+    ticketNo:    selTicket.ticketNo,
+    dept:        selTicket.dept,
+    buildingZone:selTicket.buildingZone,
+    equipType:   selTicket.equipType,
+    equipCode:   selTicket.equipCode,
+    equipDesc:   selTicket.specificEquip,
+    description: selTicket.description,
+    dateOpened:  selTicket.dateOpened,
+    addedBy:     selTicket.addedBy,
+    source:      selTicket.source,
+    lineNo:      selTicket.line,
+    newStatus:   newStatus || selTicket.status,
+    problemType: document.getElementById('problemType').value || selTicket.problemType,
+    actualHours: document.getElementById('actualHours').value  || selTicket.actualHours  || '',
+    observations:document.getElementById('observations').value || selTicket.observations || '',
+    correctiveAction: document.getElementById('correctiveAction').value || selTicket.correctiveAction || selTicket.workSummary || '',
+    fixType:     fixTypeVal                                    || selTicket.fixType       || '',
+    tempFixFlag: (fixTypeVal || selTicket.fixType || '') === 'Temporary',
+    partsUsed:   getPartsUsed(),
+    photoLinks:  document.getElementById('photoLinks').value,
+    notes:       document.getElementById('notes').value,
+    updatedBy:   resolvedUpdatedBy
+  };
+
+  if (isManager) {
+    var newDept = document.getElementById('mgrTransferDept').value;
+    data.priority       = document.getElementById('mgrPriority').value || selTicket.priority;
+    data.assignedTo     = document.getElementById('mgrAssigned').value;
+    data.equipTagStatus = mgrTagVal;
+    data.updatedBy      = userEmail || 'Manager';
+    if (newDept && newDept !== selTicket.dept) {
+      data.dept           = newDept;
+      data.transferReason = document.getElementById('transferReason').value;
+    }
+  }
+  return data;
+}
+
+function submitUpdate() {
+  if (!selTicket) { setMsg('Please select a ticket.', 'error'); return; }
+
+  var role      = document.getElementById('userRole').value;
+  var isManager = role === 'manager' || role === 'admin';
+  var data      = buildSubmitData();
+
+  // Priority required when OPEN for managers
+  if (isManager && String(selTicket.status || '').toUpperCase() === 'OPEN' && !data.priority) {
+    setMsg('\u274c Priority is required when updating an OPEN ticket.', 'error');
+    document.getElementById('mgrPriority').focus();
+    document.getElementById('mgrPriority').style.borderColor = '#C62828';
+    setTimeout(function(){ document.getElementById('mgrPriority').style.borderColor = ''; }, 3000);
+    return;
+  }
+
+  // Corrective Action required for COMPLETE/CLOSED
+  var isClosing = ['COMPLETE','CLOSED'].indexOf((data.newStatus||'').toUpperCase()) > -1;
+  if (isClosing && !(data.correctiveAction||'').trim()) {
+    setMsg('\u274c Corrective Action is required before completing this ticket.', 'error');
+    var ca = document.getElementById('correctiveAction');
+    ca.focus();
+    ca.style.borderColor = '#C62828';
+    setTimeout(function(){ ca.style.borderColor = ''; }, 3000);
+    return;
+  }
+
+  setMsg('Saving update\u2026', 'loading');
+  document.getElementById('submitBtn').disabled = true;
+
+  google.script.run
+    .withSuccessHandler(function(r) {
+      document.getElementById('submitBtn').disabled = false;
+      if (r.success) {
+        var msg = '\u2705 Ticket ' + r.ticketNo + ' updated \u2192 ' + r.status;
+        if (r.rerouted) msg += ' (rerouted)';
+        setMsg(msg, 'success');
+        setTimeout(function(){ google.script.host.close(); }, 2500);
+      } else {
+        setMsg('\u274c Error: ' + r.error, 'error');
+      }
+    })
+    .withFailureHandler(function(e) {
+      document.getElementById('submitBtn').disabled = false;
+      setMsg('\u274c Error: ' + e.message, 'error');
+    })
+    .updateTicket(data);
+}
+
+function setMsg(t, type) {
+  var el = document.getElementById('statusMsg');
+  el.textContent = t; el.className = 'status-msg ' + type;
+}
+function esc(v){ return(v||'').toString().replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/"/g,'&quot;'); }
+</script>
+</body>
+</html>
