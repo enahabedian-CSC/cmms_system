@@ -698,7 +698,37 @@ function _moveTicketToClosed_(ss, ticketNo, data, now) {
   // Ensure we never write into the frozen header rows.
   var nextRow = Math.max(closedSh.getLastRow() + 1, QUEUE_FROZEN + 1);
   closedSh.getRange(nextRow, TK_DATA_COL, 1, TK_COLS).setValues([tkRow]);
+  // Write EMRL columns immediately after TK data (cols 28–37).
+  populateEMRL_(closedSh, nextRow, data, now);
   removeTicketFromSheet_(ss, SH.OPEN, ticketNo);
+}
+
+// Writes the 10 EMRL columns for a newly closed row.
+// closedSh  — the ✅ Closed Tickets sheet
+// rowNum    — the 1-based sheet row just written by _moveTicketToClosed_
+// data      — ticket data object (same as passed to _moveTicketToClosed_)
+// now       — Date used as repair date / CA date default
+function populateEMRL_(closedSh, rowNum, data, now) {
+  var repairDate   = data.dateCompleted ? data.dateCompleted : formatDateStr_(now);
+  var partsUsed    = String(data.workSummary || '').indexOf('Parts:') === 0
+                     ? data.workSummary
+                     : (data.partsUsed || '');
+  var rootCause    = String(data.rootCause    || '');
+  var correctiveAct= String(data.correctiveAct|| '');
+  var preventiveAct= String(data.preventiveAct|| '');
+  var caDate       = data.caDate || repairDate;
+  var capaRequired = rootCause || correctiveAct ? 'YES' : 'NO';
+  var clearanceChk = 'PENDING';
+  var hadTempFix   = (data.tempFixFlag === true || String(data.tempFixFlag || '') === 'Y') ? 'Y' : 'N';
+  var tfResolvedDate = String(data.tfResolvedDate || '');
+
+  var emrlRow = [
+    repairDate, partsUsed, rootCause, correctiveAct,
+    preventiveAct, caDate, capaRequired, clearanceChk,
+    hadTempFix, tfResolvedDate
+  ];
+  // EMRL columns start at sheet column TK_DATA_COL + TK_COLS = 28
+  closedSh.getRange(rowNum, TK_DATA_COL + TK_COLS, 1, EMRL_COLS).setValues([emrlRow]);
 }
 
 // Appends a row to the Temp Fix Monitor sheet.

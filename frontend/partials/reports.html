@@ -50,6 +50,29 @@
 .rpt-pt-count{font-size:11px;font-weight:600;color:var(--text-primary);width:28px;text-align:right;flex-shrink:0;}
 .rpt-analytics-loading{padding:20px;text-align:center;color:var(--text-secondary);font-size:12px;}
 
+/* EMRL search section */
+.emrl-section{margin-top:24px;}
+.emrl-section-hdr{font-size:12px;font-weight:700;color:var(--brand-navy);text-transform:uppercase;letter-spacing:.06em;padding:10px 14px;background:var(--bg-subtle);border:1px solid var(--border-default);border-radius:8px 8px 0 0;border-bottom:none;display:flex;align-items:center;justify-content:space-between;}
+.emrl-section-hdr .emrl-badge{font-size:10px;background:var(--brand-navy);color:#fff;padding:2px 7px;border-radius:10px;font-weight:600;letter-spacing:.04em;}
+.emrl-filters{display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap;padding:12px 14px;background:var(--bg-surface);border:1px solid var(--border-default);border-bottom:none;}
+.emrl-filter-group{display:flex;flex-direction:column;gap:3px;}
+.emrl-filter-label{font-size:10px;font-weight:600;color:var(--text-secondary);text-transform:uppercase;letter-spacing:.04em;}
+.emrl-filter-input{height:28px;padding:0 8px;border:1px solid var(--border-default);border-radius:5px;font-size:12px;background:#fff;color:var(--text-primary);outline:none;}
+.emrl-filter-input:focus{border-color:var(--brand-navy);}
+.emrl-search-btn{height:28px;padding:0 14px;background:var(--brand-navy);color:#fff;border:none;border-radius:5px;font-size:12px;font-weight:600;cursor:pointer;}
+.emrl-search-btn:hover{background:var(--brand-navy-soft);}
+.emrl-table-wrap{background:var(--bg-surface);border:1px solid var(--border-default);border-radius:0 0 8px 8px;overflow-x:auto;box-shadow:var(--shadow-sm);}
+.emrl-table{width:100%;border-collapse:collapse;font-size:12px;}
+.emrl-table th{background:var(--bg-subtle);padding:7px 10px;text-align:left;font-size:10.5px;font-weight:600;color:var(--text-secondary);text-transform:uppercase;letter-spacing:.04em;border-bottom:1px solid var(--border-default);white-space:nowrap;}
+.emrl-table td{padding:8px 10px;border-bottom:1px solid var(--border-default);vertical-align:top;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.emrl-table tr:last-child td{border-bottom:0;}
+.emrl-table .col-tn{font-family:var(--font-mono);font-weight:600;color:var(--brand-navy);white-space:nowrap;}
+.emrl-table .col-capa-yes{color:var(--status-critical);font-weight:700;}
+.emrl-table .col-capa-no{color:var(--status-success);}
+.emrl-table .col-chk-done{color:var(--status-success);font-weight:600;}
+.emrl-table .col-chk-pend{color:var(--status-warn);font-weight:600;}
+.emrl-status{padding:14px;text-align:center;font-size:12px;color:var(--text-secondary);}
+
 /* Print styles */
 @media print {
   .rpt-toolbar,.rpt-btn,#sidebar,.topbar{display:none!important;}
@@ -134,6 +157,34 @@ function _renderReport_(data, container) {
         '<tbody id="rpt-tbody"></tbody>' +
       '</table>' +
     '</div>' +
+
+    // EMRL search panel
+    '<div class="emrl-section">' +
+      '<div class="emrl-section-hdr">SQF 13.2.8 — Equipment Maintenance Repair Log ' +
+        '<span class="emrl-badge">FRM-030-002</span>' +
+      '</div>' +
+      '<div class="emrl-filters">' +
+        '<div class="emrl-filter-group"><label class="emrl-filter-label">Ticket #</label>' +
+          '<input class="emrl-filter-input" id="emrl-f-ticket" placeholder="MT-EL-..." style="width:130px"/></div>' +
+        '<div class="emrl-filter-group"><label class="emrl-filter-label">Department</label>' +
+          '<select class="emrl-filter-input" id="emrl-f-dept" style="width:140px">' +
+            '<option value="">All</option>' +
+            ['ELECTRICAL','MACHINE SHOP','FACILITIES','PLASTICS','METALS','LITHO'].map(function(d){
+              return '<option value="' + d + '">' + d + '</option>';
+            }).join('') +
+          '</select></div>' +
+        '<div class="emrl-filter-group"><label class="emrl-filter-label">From</label>' +
+          '<input class="emrl-filter-input" id="emrl-f-from" type="date" style="width:130px"/></div>' +
+        '<div class="emrl-filter-group"><label class="emrl-filter-label">To</label>' +
+          '<input class="emrl-filter-input" id="emrl-f-to" type="date" style="width:130px"/></div>' +
+        '<button class="emrl-search-btn" onclick="_emrlSearch_()">Search EMRL</button>' +
+      '</div>' +
+      '<div class="emrl-table-wrap">' +
+        '<div id="emrl-status" class="emrl-status">Enter filters and click Search EMRL to load records.</div>' +
+        '<div id="emrl-results"></div>' +
+      '</div>' +
+    '</div>' +
+
     '</div>';
 
   _rptRenderRows_(data.tickets);
@@ -292,5 +343,76 @@ function _rptChangeDays_() {
   if (!el) return;
   var container = document.getElementById('page-reports');
   if (container) _loadReportPage_(container, parseInt(el.value, 10));
+}
+
+// ── EMRL search ───────────────────────────────────────────────────────────────
+
+function _emrlSearch_() {
+  var statusEl  = document.getElementById('emrl-status');
+  var resultsEl = document.getElementById('emrl-results');
+  if (!statusEl || !resultsEl) return;
+
+  var params = {
+    ticketNo:  (document.getElementById('emrl-f-ticket') || {}).value || '',
+    dept:      (document.getElementById('emrl-f-dept')   || {}).value || '',
+    dateFrom:  (document.getElementById('emrl-f-from')   || {}).value || '',
+    dateTo:    (document.getElementById('emrl-f-to')     || {}).value || ''
+  };
+
+  statusEl.textContent  = 'Loading…';
+  resultsEl.innerHTML   = '';
+
+  google.script.run
+    .withSuccessHandler(function(res) { _emrlRender_(res, statusEl, resultsEl); })
+    .withFailureHandler(function(err) {
+      statusEl.textContent = 'Error: ' + (err.message || String(err));
+    })
+    .getEMRLData(params);
+}
+
+function _emrlRender_(res, statusEl, resultsEl) {
+  var recs = (res && res.records) ? res.records : [];
+  if (recs.length === 0) {
+    statusEl.textContent = 'No EMRL records found for those filters.';
+    resultsEl.innerHTML  = '';
+    return;
+  }
+  statusEl.textContent = '';
+  var rows = recs.map(function(r) {
+    var capaClass = r.capaRequired === 'YES' ? 'col-capa-yes' : 'col-capa-no';
+    var chkClass  = r.clearanceChk === 'DONE' ? 'col-chk-done' : 'col-chk-pend';
+    return '<tr>' +
+      '<td class="col-tn">'  + esc(r.ticketNo)      + '</td>' +
+      '<td>' + esc(r.dept)                           + '</td>' +
+      '<td>' + esc(r.equipType)                      + '</td>' +
+      '<td>' + esc(r.specificEquip)                  + '</td>' +
+      '<td>' + esc(r.repairDate)                     + '</td>' +
+      '<td>' + esc(r.assignedTo)                     + '</td>' +
+      '<td title="' + esc(r.rootCause) + '">'        + esc(_truncate_(r.rootCause, 40))     + '</td>' +
+      '<td title="' + esc(r.correctiveAct) + '">'    + esc(_truncate_(r.correctiveAct, 40)) + '</td>' +
+      '<td title="' + esc(r.preventiveAct) + '">'    + esc(_truncate_(r.preventiveAct, 40)) + '</td>' +
+      '<td title="' + esc(r.partsUsed) + '">'        + esc(_truncate_(r.partsUsed, 30))     + '</td>' +
+      '<td class="' + capaClass + '">'               + esc(r.capaRequired)  + '</td>' +
+      '<td class="' + chkClass  + '">'               + esc(r.clearanceChk)  + '</td>' +
+      '<td>' + esc(r.hadTempFix)                     + '</td>' +
+      '<td>' + esc(r.verifiedBy)                     + '</td>' +
+    '</tr>';
+  }).join('');
+
+  resultsEl.innerHTML =
+    '<table class="emrl-table">' +
+      '<thead><tr>' +
+        '<th>Ticket #</th><th>Dept</th><th>Equip Type</th><th>Equipment</th>' +
+        '<th>Repair Date</th><th>Assigned To</th><th>Root Cause</th>' +
+        '<th>Corrective Action</th><th>Preventive Action</th><th>Parts Used</th>' +
+        '<th>CAPA</th><th>Clearance</th><th>Temp Fix</th><th>Verified By</th>' +
+      '</tr></thead>' +
+      '<tbody>' + rows + '</tbody>' +
+    '</table>';
+}
+
+function _truncate_(s, n) {
+  if (!s) return '';
+  return s.length > n ? s.substring(0, n) + '…' : s;
 }
 </script>
