@@ -164,6 +164,7 @@ function _renderDetail_(result) {
       if (!t.tempFixFlag) {
         actions += '<button class="btn-action btn-tempfix" onclick="_tdFlagTF_()">Flag Temp Fix</button>';
       }
+      actions += '<button class="btn-action btn-void" onclick="_tdIssueTag_()">🏷 Issue Hold Tag</button>';
     }
     if (t.status === 'PENDING VERIFICATION') {
       actions += '<button class="btn-action btn-verify" onclick="_tdVerifyClose_()">✓ Verify &amp; Close</button>';
@@ -522,6 +523,33 @@ function _tdUpdate_() {
       }
       _tdRunAction_(updateTicket, data, 'Updated');
     });
+}
+
+function _tdIssueTag_() {
+  var t = _tdTicket;
+  if (!t) return;
+  var tagTypes = ['Red — Out of Service','Yellow — Use with Caution','Orange — Temp Fix'];
+  _showModal_('Issue Equipment Hold Tag',
+    '<div class="form-group"><label>Tag Type</label>' +
+    '<select id="tag-type">' + tagTypes.map(function(tt) {
+      return '<option value="' + esc(tt) + '">' + esc(tt) + '</option>';
+    }).join('') + '</select></div>' +
+    '<div class="form-group"><label>Reason</label><textarea id="tag-reason" placeholder="Why is this equipment being tagged?"></textarea></div>',
+    function() {
+      var tagType = document.getElementById('tag-type').value;
+      if (!tagType) { alert('Select a tag type.'); return; }
+      var data = {
+        ticketNo:      t.ticketNo,
+        equipCode:     t.equipCode     || '',
+        specificEquip: t.specificEquip || '',
+        dept:          t.dept,
+        buildingZone:  t.buildingZone  || '',
+        tagType:       tagType,
+        reason:        document.getElementById('tag-reason').value,
+        taggedBy:      USER.displayName
+      };
+      _tdRunAction_(issueEquipHoldTag, data, 'Hold Tag Issued');
+    }, 'Issue Tag');
 }
 
 function _tdServiceReport_() {
