@@ -204,6 +204,15 @@ function _buildSubmitHTML_() {
           '</div>' +
         '</div>' +
         '<div id="sf-equip-msg" style="display:none;margin-top:-4px;margin-bottom:8px;padding:8px 12px;background:var(--status-info-bg);border:1px solid var(--status-info);border-radius:6px;font-size:12px;color:var(--status-info);line-height:1.4;"></div>' +
+        // Manual input for ELECTRICAL / FACILITIES when equipment cache is empty for that dept.
+        // The user types a free-text description; it is submitted as equipType.
+        '<div id="sf-etype-manual-wrapper" style="display:none;margin-top:-4px;margin-bottom:8px;">' +
+          '<div class="form-group">' +
+            '<label class="form-label">Equipment / Area Description <span class="req">*</span></label>' +
+            '<input type="text" class="form-input" id="sf-etype-manual" placeholder="e.g. Panel B circuit 12, Roof HVAC unit, Building A lighting…" oninput="_sfUpdatePreview_()" />' +
+            '<span class="form-hint" style="display:block;margin-top:3px;">No equipment found in the registry for this department. Describe the equipment or area being worked on.</span>' +
+          '</div>' +
+        '</div>' +
         '<div class="form-row cols-2">' +
           '<div class="form-group">' +
             '<label class="form-label">Building / Zone</label>' +
@@ -400,17 +409,35 @@ function _sfCascadeDept_() {
   eqSel.disabled  = true;
   _sfEquipCode = ''; _sfEquipSpec = '';
   if (msg) msg.style.display = 'none';
+  var manualWrapper = document.getElementById('sf-etype-manual-wrapper');
+  var manualInput   = document.getElementById('sf-etype-manual');
+  if (manualWrapper) { manualWrapper.style.display = 'none'; }
+  if (manualInput)   { manualInput.value = ''; }
 
   if (!dv) { eSel.disabled = true; _sfUpdatePreview_(); return; }
 
-  if (!hier || !hier[dv] || Object.keys(hier[dv]).length === 0) {
+  var noEquipData = !hier || !hier[dv] || Object.keys(hier[dv]).length === 0;
+  if (noEquipData) {
     eSel.disabled = true;
-    if (msg) {
-      msg.innerHTML =
-        '<strong>No equipment data for ' + esc(dv) + '.</strong> ' +
-        'Ask your administrator to run <em>Refresh Equipment Cache</em> in Settings, ' +
-        'or verify that the equipment register contains entries for this department.';
-      msg.style.display = '';
+    // ELECTRICAL and FACILITIES often work on infrastructure with no equipment register entries.
+    // Show a free-text fallback input instead of blocking ticket creation for these depts.
+    var isNoEquipDept = (dv === 'ELECTRICAL' || dv === 'FACILITIES');
+    if (isNoEquipDept && manualWrapper) {
+      if (msg) {
+        msg.innerHTML =
+          '<strong>' + esc(dv) + '</strong> has no equipment in the registry. ' +
+          'Enter a description of the equipment or area below to continue.';
+        msg.style.display = '';
+      }
+      manualWrapper.style.display = '';
+    } else {
+      if (msg) {
+        msg.innerHTML =
+          '<strong>No equipment data for ' + esc(dv) + '.</strong> ' +
+          'Ask your administrator to run <em>Refresh Equipment Cache</em> in Settings, ' +
+          'or verify that the equipment register contains entries for this department.';
+        msg.style.display = '';
+      }
     }
     _sfUpdatePreview_(); return;
   }
@@ -585,9 +612,20 @@ function submitGoStep(n) {
 function submitStep1Next() {
   var dept  = (document.getElementById('sf-dept')  || {}).value || '';
   var eType = (document.getElementById('sf-etype') || {}).value || '';
+  // For ELECTRICAL / FACILITIES with no cache: read free-text fallback
+  var manualWrapper = document.getElementById('sf-etype-manual-wrapper');
+  var manualInput   = document.getElementById('sf-etype-manual');
+  var usingManual   = manualWrapper && manualWrapper.style.display !== 'none';
+  if (usingManual) {
+    eType = (manualInput && manualInput.value.trim()) || '';
+  }
   if (!dept)  { showToast('Please select a department', 'error'); return; }
-  if (!eType) { showToast('Please select an equipment type', 'error'); return; }
-  // Final sync of equip module vars from whatever is currently entered
+  if (!eType) {
+    showToast(usingManual
+      ? 'Please enter an equipment or area description'
+      : 'Please select an equipment type', 'error');
+    return;
+  }
   _sfCascadeEquip_();
   submitGoStep(2);
 }
@@ -605,8 +643,12 @@ function submitStep2Next() {
 
 function renderReview() {
   function val(id) { return ((document.getElementById(id) || {}).value || ''); }
-  var dept     = val('sf-dept');
-  var eType    = val('sf-etype');
+  var dept  = val('sf-dept');
+  var mw    = document.getElementById('sf-etype-manual-wrapper');
+  var mi    = document.getElementById('sf-etype-manual');
+  var eType = (mw && mw.style.display !== 'none' && mi && mi.value.trim())
+    ? mi.value.trim()
+    : val('sf-etype');
   var zone     = val('sf-zone');
   var line     = val('sf-line').trim();
   var probType = val('sf-probtype');
@@ -662,12 +704,19 @@ function submitTicket() {
 
   function val(id) { return ((document.getElementById(id) || {}).value || ''); }
 
+  // Resolve equipment type: manual free-text takes priority for EL/FAC fallback
+  var mw = document.getElementById('sf-etype-manual-wrapper');
+  var mi = document.getElementById('sf-etype-manual');
+  var resolvedEtype = (mw && mw.style.display !== 'none' && mi && mi.value.trim())
+    ? mi.value.trim()
+    : val('sf-etype');
+
   var payload = {
     dept:          val('sf-dept'),
-    equipType:     val('sf-etype'),
+    equipType:     resolvedEtype,
     equipCode:     _sfEquipCode,
-    specificEquip: _sfEquipSpec,
-    equipDesc:     _sfEquipSpec,
+    specificEquip: _sfEquipSpec || resolvedEtype,
+    equipDesc:     _sfEquipSpec || resolvedEtype,
     buildingZone:  val('sf-zone'),
     lineNo:        val('sf-line').trim(),
     priority:      _sfPriority,

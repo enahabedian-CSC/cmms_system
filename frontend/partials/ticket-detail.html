@@ -46,6 +46,13 @@
 .btn-action:hover{filter:brightness(.93);}
 .btn-action:disabled{opacity:.45;cursor:default;}
 
+/* Photo link */
+.photo-link{display:inline-flex;align-items:center;gap:5px;padding:5px 12px;border-radius:6px;
+  background:var(--status-info-bg);border:1px solid var(--status-info);color:var(--status-info);
+  font-size:12px;font-weight:600;text-decoration:none;cursor:pointer;margin-right:6px;}
+.photo-link:hover{background:#DBEAFE;text-decoration:none;}
+.photo-link svg{flex-shrink:0;}
+
 /* History timeline */
 .th-list{list-style:none;margin:0;padding:0;}
 .th-item{display:flex;gap:10px;padding:8px 0;border-bottom:1px solid var(--border-default);}
@@ -213,7 +220,7 @@ function _renderDetail_(result) {
       '<div class="td-grid" style="grid-template-columns:1fr;">' +
         field('Problem Type',  t.problemType) +
         '<div class="td-field"><label>Description</label><div class="val desc">' + esc(t.description || '—') + '</div></div>' +
-        (t.notes ? '<div class="td-field"><label>Notes / Observations</label><div class="val desc">' + esc(t.notes) + '</div></div>' : '') +
+        _renderNotes_(t.notes) +
       '</div>' +
     '</div>' +
 
@@ -607,6 +614,46 @@ _renderDetail_ = function(result) {
   if (result && result.techs) window._tdTechs_ = result.techs;
   _tdRenderOrig_(result);
 };
+
+// ── Photo helpers ─────────────────────────────────────────────────────────────
+// Photo URLs arrive in t.notes as "Photos: url1, url2" (set by ExternalSync).
+// Single config point: the prefix string and Drive folder are documented here.
+// DRIVE FOLDER: https://drive.google.com/drive/folders/1gGGBggOwhc90HNTOXIpApbE24xieMq0l
+var PHOTO_NOTES_PREFIX = 'Photos: ';
+
+function _parsePhotoLinks_(raw) {
+  if (!raw) return { text: '', urls: [] };
+  if (raw.indexOf(PHOTO_NOTES_PREFIX) === 0) {
+    var urls = raw.substring(PHOTO_NOTES_PREFIX.length)
+      .split(',')
+      .map(function(u) { return u.trim(); })
+      .filter(Boolean);
+    return { text: '', urls: urls };
+  }
+  return { text: raw, urls: [] };
+}
+
+function _renderNotes_(raw) {
+  var parsed = _parsePhotoLinks_(raw);
+  var out = '';
+  if (parsed.urls.length > 0) {
+    var cameraIcon =
+      '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">' +
+      '<path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z"/>' +
+      '<circle cx="12" cy="13" r="4"/></svg>';
+    var links = parsed.urls.map(function(url, i) {
+      var label = parsed.urls.length > 1 ? 'Photo ' + (i + 1) : 'View Photo';
+      return '<a href="' + url + '" target="_blank" rel="noopener" class="photo-link">' +
+        cameraIcon + label + '</a>';
+    }).join('');
+    out += '<div class="td-field"><label>Photos</label><div class="val">' + links + '</div></div>';
+  }
+  if (parsed.text) {
+    out += '<div class="td-field"><label>Notes / Observations</label>' +
+      '<div class="val desc">' + esc(parsed.text) + '</div></div>';
+  }
+  return out;
+}
 
 // ── Backend function proxies (called via _tdRunAction_) ───────────────────────
 // These are defined here as stubs so _tdRunAction_ can call fn.name on them.

@@ -48,6 +48,10 @@ function addNewTicket(data) {
   var user = getCurrentUserInfo();
   if (user.role === ROLES.NOACCESS) throw new Error('UNAUTHORIZED');
 
+  if (!String(data.equipType || '').trim()) {
+    return { success: false, error: 'Equipment type or description is required.' };
+  }
+
   try {
     var now        = new Date();
     var dept       = normalizeDept(data.dept || '');

@@ -343,6 +343,107 @@ function sendPartsNeededEmail_(ticketNo, data) {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
+//  sendTransferNotification_ — HTML email to both from-dept and to-dept managers
+//  when a ticket is transferred between departments.
+//  Called from transferTicket() in TicketLifecycle.gs.
+// ═══════════════════════════════════════════════════════════════════════════════
+
+function sendTransferNotification_(ticketNo, data) {
+  try {
+    var fromDept    = String(data.fromDept    || '');
+    var toDept      = String(data.toDept      || '');
+    var updatedBy   = String(data.updatedBy   || '');
+    var reason      = String(data.reason      || '');
+    var equip       = String(data.specificEquip || data.equip || '');
+    var equipCode   = String(data.equipCode   || '');
+    var equipType   = String(data.equipType   || '');
+    var description = String(data.description || '');
+
+    // Recipients: union of both dept manager lists (deduplicated)
+    var fromRecips = getManagersForDept_(fromDept);
+    var toRecips   = getManagersForDept_(toDept);
+    var allEmails  = {};
+    fromRecips.concat(toRecips).forEach(function(e) { if (e) allEmails[e.toLowerCase().trim()] = true; });
+    var recipients = Object.keys(allEmails).join(', ');
+
+    // Fallback: all managers → admins
+    if (!recipients) {
+      var all = [];
+      try { getManagerConfig().forEach(function(m) { if (m.managerEmail) all.push(m.managerEmail.trim()); }); } catch(e2) {}
+      recipients = all.length > 0 ? all.join(', ') : getAdminEmails().join(', ');
+    }
+    if (!recipients) { Logger.log('sendTransferNotification_: no recipients for ' + ticketNo); return; }
+
+    var tz    = Session.getScriptTimeZone();
+    var tsStr = Utilities.formatDate(new Date(), tz, 'MM/dd/yyyy · hh:mm a');
+
+    var subject = '🔀 Ticket Transferred | ' + ticketNo + ' | ' + fromDept + ' → ' + toDept;
+
+    var htmlBody =
+      '<div style="font-family:Arial,sans-serif;max-width:620px;margin:0 auto;border:1px solid #E0E0E0;border-radius:8px;overflow:hidden;">' +
+      '<div style="background:#2A2A2A;padding:14px 20px;display:flex;align-items:center;gap:10px;">' +
+        '<div style="background:#EF6C00;width:5px;height:40px;border-radius:3px;flex-shrink:0;"></div>' +
+        '<div style="flex:1;">' +
+          '<div style="font-size:15px;font-weight:bold;color:#FFD700;letter-spacing:.4px;">⚡ MAINTENANCE TRACKER</div>' +
+          '<div style="font-size:10px;color:#9E9E9E;margin-top:2px;">Container Supply Co. — Garden Grove, CA</div>' +
+        '</div>' +
+        '<div style="text-align:right;">' +
+          '<div style="font-size:10px;color:#9E9E9E;">Transfer Notification</div>' +
+          '<div style="font-size:10px;color:#9E9E9E;margin-top:2px;">' + tsStr + '</div>' +
+        '</div>' +
+      '</div>' +
+      '<div style="background:#1565C0;padding:12px 20px;display:flex;align-items:center;gap:12px;">' +
+        '<div style="font-size:20px;">🔀</div>' +
+        '<div>' +
+          '<div style="font-size:13px;font-weight:bold;color:#fff;">Ticket Transferred Between Departments</div>' +
+          '<div style="font-size:11px;color:#90CAF9;margin-top:2px;">This ticket has been reassigned and will appear in the new department\'s tracker</div>' +
+        '</div>' +
+      '</div>' +
+      '<div style="background:#1B2A3C;padding:10px 20px;display:flex;gap:24px;flex-wrap:wrap;">' +
+        '<div><div style="font-size:9px;color:#5C6BC0;text-transform:uppercase;letter-spacing:.6px;">Ticket #</div>' +
+          '<div style="font-size:18px;font-weight:bold;color:#FFD700;font-family:monospace;">' + esc_(ticketNo) + '</div></div>' +
+        '<div><div style="font-size:9px;color:#5C6BC0;text-transform:uppercase;letter-spacing:.6px;">From</div>' +
+          '<div style="font-size:13px;font-weight:bold;color:#FFCDD2;">' + esc_(fromDept) + '</div></div>' +
+        '<div><div style="font-size:9px;color:#5C6BC0;text-transform:uppercase;letter-spacing:.6px;">To</div>' +
+          '<div style="font-size:13px;font-weight:bold;color:#C8E6C9;">' + esc_(toDept) + '</div></div>' +
+        '<div><div style="font-size:9px;color:#5C6BC0;text-transform:uppercase;letter-spacing:.6px;">By</div>' +
+          '<div style="font-size:13px;font-weight:bold;color:#ECEFF1;">' + esc_(updatedBy) + '</div></div>' +
+      '</div>' +
+      '<div style="padding:18px 20px;background:#fff;">' +
+      '<table style="width:100%;border-collapse:collapse;font-size:12px;margin-bottom:16px;">' +
+        '<tr><td colspan="2" style="padding:0 0 8px 0;"><div style="font-size:10px;font-weight:bold;color:#616161;text-transform:uppercase;letter-spacing:.6px;border-bottom:1.5px solid #F0F0F0;padding-bottom:5px;">Equipment</div></td></tr>' +
+        '<tr><td style="padding:5px 0;color:#9E9E9E;width:140px;">Equipment Type</td><td style="padding:5px 0;color:#2A2A2A;">' + esc_(equipType) + '</td></tr>' +
+        '<tr style="background:#FAFAFA;"><td style="padding:5px 0;color:#9E9E9E;">Equipment</td><td style="padding:5px 0;color:#2A2A2A;font-weight:bold;">' + esc_(equip || '—') + '</td></tr>' +
+        '<tr><td style="padding:5px 0;color:#9E9E9E;">Equipment Code</td><td style="padding:5px 0;font-family:monospace;font-weight:bold;color:#2A2A2A;">' + esc_(equipCode || '—') + '</td></tr>' +
+      '</table>' +
+      '<table style="width:100%;border-collapse:collapse;font-size:12px;margin-bottom:16px;">' +
+        '<tr><td colspan="2" style="padding:0 0 8px 0;"><div style="font-size:10px;font-weight:bold;color:#616161;text-transform:uppercase;letter-spacing:.6px;border-bottom:1.5px solid #F0F0F0;padding-bottom:5px;">Problem</div></td></tr>' +
+        '<tr><td style="padding:5px 0;color:#9E9E9E;width:140px;vertical-align:top;">Description</td><td style="padding:5px 0;color:#2A2A2A;">' + esc_(description) + '</td></tr>' +
+      '</table>' +
+      (reason ?
+        '<table style="width:100%;border-collapse:collapse;font-size:12px;margin-bottom:16px;">' +
+        '<tr><td colspan="2" style="padding:0 0 8px 0;"><div style="font-size:10px;font-weight:bold;color:#616161;text-transform:uppercase;letter-spacing:.6px;border-bottom:1.5px solid #F0F0F0;padding-bottom:5px;">Transfer Reason</div></td></tr>' +
+        '<tr><td style="padding:5px 0;color:#2A2A2A;" colspan="2">' + esc_(reason) + '</td></tr>' +
+        '</table>' : '') +
+      '<div style="background:#E3F2FD;border:1px solid #90CAF9;border-radius:5px;padding:12px 14px;">' +
+        '<div style="font-size:11px;font-weight:bold;color:#0D47A1;margin-bottom:6px;">Action for ' + esc_(toDept) + ' Manager</div>' +
+        '<div style="font-size:11px;color:#1565C0;line-height:1.7;">This ticket is now in your department\'s tracker. Please review it, assign a technician, and set a priority.</div>' +
+      '</div>' +
+      '</div>' +
+      '<div style="background:#F5F5F5;border-top:1px solid #E0E0E0;padding:10px 20px;text-align:center;">' +
+        '<div style="font-size:10px;color:#9E9E9E;">Container Supply Co. — Maintenance Tracker v5.0 · Garden Grove, CA</div>' +
+        '<div style="font-size:10px;color:#B0B0B0;margin-top:3px;">This is an automated notification. Do not reply to this email.</div>' +
+      '</div>' +
+      '</div>';
+
+    MailApp.sendEmail({ to: recipients, name: 'CSC Maintenance Tracker', subject: subject, htmlBody: htmlBody });
+    Logger.log('sendTransferNotification_: sent for ' + ticketNo + ' (' + fromDept + '→' + toDept + ') to ' + recipients);
+  } catch (e) {
+    Logger.log('sendTransferNotification_ error: ' + e.message);
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
 //  runDailyEmailAlerts — time-trigger entry point (daily)
 // ═══════════════════════════════════════════════════════════════════════════════
 

@@ -601,6 +601,24 @@ function transferTicket(data) {
       writeTicketToSheet_(ss, newTracker, tn, td, status, toDept, now, data.updatedBy || user.displayName);
     }
 
+    // Notify both dept managers; track send status in Transfer Log
+    var emailSent = 'N';
+    try {
+      sendTransferNotification_(tn, {
+        fromDept:      fromDept,
+        toDept:        toDept,
+        updatedBy:     data.updatedBy || user.displayName,
+        reason:        data.reason || '',
+        specificEquip: String(orig[ML.SPECIFIC_EQUIP - 1] || ''),
+        equipCode:     String(orig[ML.EQUIP_CODE     - 1] || ''),
+        equipType:     String(orig[ML.EQUIP_TYPE     - 1] || ''),
+        description:   String(orig[ML.DESCRIPTION    - 1] || '')
+      });
+      emailSent = 'Y';
+    } catch (eEmail) {
+      Logger.log('transferTicket/sendTransferNotification_ error: ' + eEmail.message);
+    }
+
     var tlSh = ss.getSheetByName(SH.TRANSFER_LOG);
     if (tlSh) {
       tlSh.appendRow([
@@ -611,7 +629,7 @@ function transferTicket(data) {
         toDept,
         data.updatedBy || user.displayName,
         data.reason || '',
-        'N'
+        emailSent
       ]);
     }
 
