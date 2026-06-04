@@ -141,7 +141,8 @@ function _renderReport_(data, container) {
         + '</div>'
       : '<div style="padding:12px 0;font-size:12.5px;color:var(--text-secondary);">No dept data for this window.</div>') +
 
-    // Analytics placeholders (populated after render)
+    // KPI cards + analytics (populated after render)
+    '<div id="rpt-kpi-bar"></div>' +
     '<div id="rpt-analytics"></div>' +
     '<div id="rpt-trend"></div>' +
 
@@ -188,7 +189,8 @@ function _renderReport_(data, container) {
     '</div>';
 
   _rptRenderRows_(data.tickets);
-  _rptAnalytics_(data.tickets);
+  _rptRenderKpiBar_(data);
+  _rptAnalytics_(data);
 }
 
 function _rptStatRow_(label, val, cls) {
@@ -238,63 +240,255 @@ function _rptRenderRows_(list) {
   }).join('');
 }
 
-function _rptAnalytics_(tickets) {
+// ── KPI bar (8.1 Operations Health) ──────────────────────────────────────────
+function _rptRenderKpiBar_(data) {
+  var el = document.getElementById('rpt-kpi-bar');
+  if (!el) return;
+  var k = data.kpis || {};
+  el.innerHTML =
+    '<div class="kpi-band" style="margin-bottom:14px;">' +
+      _rptKpi_(k.totalOpen       || 0,  'Active Tickets',    k.totalOpen > 0 ? 'info' : '',   '') +
+      _rptKpi_(k.critical        || 0,  'Critical',          k.critical  > 0 ? 'critical' : '', '') +
+      _rptKpi_(k.closedThisPeriod|| 0,  'Closed (Period)',   'success', '') +
+      _rptKpi_(k.tempFix         || 0,  'Temp Fixes Active', k.tempFix   > 0 ? 'warn' : '',   '') +
+      _rptKpi_(k.partsPending    || 0,  'Parts Pending',     k.partsPending > 0 ? 'warn' : '', '') +
+      _rptKpi_(k.avgTimeToClose  !== null ? k.avgTimeToClose + 'h' : '—',
+               'Avg Time to Close', '', '') +
+    '</div>';
+}
+
+// ── Full analytics render (replaces old function) ─────────────────────────────
+function _rptAnalytics_(data) {
+  var tickets = data.tickets || [];
   var ptEl    = document.getElementById('rpt-analytics');
   var trendEl = document.getElementById('rpt-trend');
 
-  // ── Problem type breakdown ──────────────────────────────────────────────
   if (ptEl) {
-    var ptMap = {};
-    tickets.forEach(function(t) {
-      var pt = (t.problemType && t.problemType.trim()) || 'Unspecified';
-      ptMap[pt] = (ptMap[pt] || 0) + 1;
-    });
-    var ptList = Object.keys(ptMap).map(function(k) { return { type: k, count: ptMap[k] }; });
-    ptList.sort(function(a, b) { return b.count - a.count; });
-    var ptMax = ptList.length > 0 ? ptList[0].count : 1;
+    var html = '';
 
-    // Compute summary KPIs from tickets
-    var closed   = tickets.filter(function(t) { return t.status === 'CLOSED'; }).length;
-    var open     = tickets.filter(function(t) { return !['CLOSED','VOIDED'].includes(t.status); }).length;
-    var critical = tickets.filter(function(t) { return t.priority === 'CRITICAL'; }).length;
-    var tfActive = tickets.filter(function(t) { return !!t.tempFixFlag; }).length;
-    var totHrs   = tickets.reduce(function(s, t) { return s + (parseFloat(t.actualHours) || 0); }, 0);
+    // Status funnel
+    var f = data.statusFunnel || {};
+    html +=
+      '<div class="rpt-analytics-card" style="margin-bottom:14px;">' +
+        '<div class="rpt-analytics-hdr">Status Distribution</div>' +
+        '<div style="display:flex;gap:8px;flex-wrap:wrap;padding-top:4px;">' +
+          _rptFunnelChip_('Waiting',     f.waiting     || 0, 'var(--status-warn)') +
+          _rptFunnelChip_('Open',        f.open        || 0, 'var(--status-info)') +
+          _rptFunnelChip_('Pend. Verify',f.pendingVerify||0, '#7C3AED') +
+          _rptFunnelChip_('Pend. Parts', f.pendingParts|| 0, '#D97706') +
+          _rptFunnelChip_('Closed',      f.closed      || 0, 'var(--status-success)') +
+        '</div>' +
+      '</div>';
 
-    ptEl.innerHTML =
-      // Ops health KPI band
-      '<div class="kpi-band" style="grid-template-columns:repeat(5,1fr);margin-bottom:14px;">' +
-        _rptKpi_(tickets.length, 'Total Tickets',    '', '') +
-        _rptKpi_(closed,  'Closed',     'success', closed  > 0 ? 'in period'          : '') +
-        _rptKpi_(open,    'Active',     open > 0 ? 'info' : '', '') +
-        _rptKpi_(critical,'Critical',   critical > 0 ? 'critical' : '', '') +
-        _rptKpi_(totHrs.toFixed(1), 'Labor Hours', '', 'total across period') +
-      '</div>' +
-      // Problem type bar chart
-      (ptList.length > 0
-        ? '<div class="rpt-analytics-card" style="margin-bottom:14px;">' +
-            '<div class="rpt-analytics-hdr">Problem Type Breakdown' +
-              '<span class="rpt-legend">top ' + Math.min(ptList.length, 8) + ' of ' + ptList.length + ' types</span>' +
-            '</div>' +
-            ptList.slice(0, 8).map(function(pt) {
-              var pct = Math.round((pt.count / ptMax) * 100);
-              return '<div class="rpt-pt-row">' +
-                '<div class="rpt-pt-label" title="' + esc(pt.type) + '">' + esc(pt.type) + '</div>' +
-                '<div class="rpt-pt-bar-wrap"><div class="rpt-pt-bar" style="width:' + pct + '%"></div></div>' +
-                '<div class="rpt-pt-count">' + pt.count + '</div>' +
-              '</div>';
+    // Equipment hotspots
+    var hs = data.equipHotspots || [];
+    if (hs.length > 0) {
+      var hsMax = hs[0].count || 1;
+      html +=
+        '<div class="rpt-analytics-card" style="margin-bottom:14px;">' +
+          '<div class="rpt-analytics-hdr">8.3 Top Recurring Equipment' +
+            '<span class="rpt-legend">by ticket count</span>' +
+          '</div>' +
+          hs.slice(0, 8).map(function(h) {
+            var lbl = (h.specificEquip || h.equipCode || '—') + (h.dept ? ' · ' + h.dept : '');
+            var pct = Math.round(h.count / hsMax * 100);
+            return '<div class="rpt-pt-row">' +
+              '<div class="rpt-pt-label" title="' + esc(lbl) + '">' + esc(lbl) + '</div>' +
+              '<div class="rpt-pt-bar-wrap"><div class="rpt-pt-bar" style="width:' + pct + '%"></div></div>' +
+              '<div class="rpt-pt-count">' + h.count + '</div>' +
+            '</div>';
+          }).join('') +
+        '</div>';
+    }
+
+    // Equipment heatmap (dept × type)
+    var eh = data.equipHeatmap || { depts:[], types:[], matrix:{} };
+    if (eh.depts.length > 0 && eh.types.length > 0) {
+      var ehTypes = eh.types.slice(0, 8);
+      html +=
+        '<div class="rpt-analytics-card" style="margin-bottom:14px;overflow-x:auto;">' +
+          '<div class="rpt-analytics-hdr">8.3 Equipment Risk Heatmap <span class="rpt-legend">dept × equip type</span></div>' +
+          '<table style="width:100%;border-collapse:collapse;font-size:11px;margin-top:6px;">' +
+            '<thead><tr><th style="text-align:left;padding:4px 8px;color:var(--text-secondary);font-weight:600;"></th>' +
+            ehTypes.map(function(t) {
+              return '<th style="text-align:center;padding:4px 6px;color:var(--text-secondary);font-weight:600;font-size:10px;max-width:80px;word-break:break-word;">' + esc(t) + '</th>';
+            }).join('') + '</tr></thead><tbody>' +
+            eh.depts.map(function(d) {
+              return '<tr><td style="padding:4px 8px;font-weight:600;font-size:11px;white-space:nowrap;color:var(--brand-navy);">' + esc(d) + '</td>' +
+                ehTypes.map(function(t) {
+                  var v = eh.matrix[d + '||' + t] || 0;
+                  var opacity = v === 0 ? '.05' : Math.min(0.15 + v * 0.12, 0.95).toFixed(2);
+                  return '<td style="text-align:center;padding:4px 6px;background:rgba(21,101,192,' + opacity + ');border-radius:3px;">' +
+                    (v > 0 ? '<strong>' + v + '</strong>' : '') + '</td>';
+                }).join('') + '</tr>';
             }).join('') +
-          '</div>'
-        : '');
+          '</tbody></table>' +
+        '</div>';
+    }
+
+    // Building heatmap
+    var bh = data.buildingHeatmap || { buildings:[], zones:[], matrix:{} };
+    if (bh.buildings.length > 0) {
+      var bzones = bh.zones.slice(0, 6);
+      html +=
+        '<div class="rpt-analytics-card" style="margin-bottom:14px;overflow-x:auto;">' +
+          '<div class="rpt-analytics-hdr">8.4 Building & Zone Hotspots <span class="rpt-legend">ticket density</span></div>' +
+          '<table style="width:100%;border-collapse:collapse;font-size:11px;margin-top:6px;">' +
+            '<thead><tr><th style="text-align:left;padding:4px 8px;color:var(--text-secondary);font-weight:600;"></th>' +
+            bzones.map(function(z) {
+              return '<th style="text-align:center;padding:4px 8px;color:var(--text-secondary);font-weight:600;font-size:10px;">' + esc(z) + '</th>';
+            }).join('') + '</tr></thead><tbody>' +
+            bh.buildings.map(function(b) {
+              return '<tr><td style="padding:4px 8px;font-weight:600;font-size:11px;white-space:nowrap;color:var(--brand-navy);">' + esc(b) + '</td>' +
+                bzones.map(function(z) {
+                  var v = bh.matrix[b + '||' + z] || 0;
+                  var opacity = v === 0 ? '.05' : Math.min(0.15 + v * 0.14, 0.9).toFixed(2);
+                  return '<td style="text-align:center;padding:4px 8px;background:rgba(21,101,192,' + opacity + ');border-radius:3px;">' +
+                    (v > 0 ? '<strong>' + v + '</strong>' : '') + '</td>';
+                }).join('') + '</tr>';
+            }).join('') +
+          '</tbody></table>' +
+        '</div>';
+    }
+
+    // Problem type bars (8.5)
+    var pts = data.problemTypes || [];
+    if (pts.length > 0) {
+      var ptMax = pts[0].count || 1;
+      html +=
+        '<div class="rpt-analytics-card" style="margin-bottom:14px;">' +
+          '<div class="rpt-analytics-hdr">8.5 Problem Type Frequency' +
+            '<span class="rpt-legend">top ' + Math.min(pts.length, 8) + ' types</span>' +
+          '</div>' +
+          pts.slice(0, 8).map(function(pt) {
+            var pct = Math.round(pt.count / ptMax * 100);
+            return '<div class="rpt-pt-row">' +
+              '<div class="rpt-pt-label" title="' + esc(pt.type) + '">' + esc(pt.type) + '</div>' +
+              '<div class="rpt-pt-bar-wrap"><div class="rpt-pt-bar" style="width:' + pct + '%"></div></div>' +
+              '<div class="rpt-pt-count">' + pt.count + '</div>' +
+            '</div>';
+          }).join('') +
+        '</div>';
+    }
+
+    // Team workload (8.7)
+    var tw = data.teamWorkload || [];
+    if (tw.length > 0) {
+      html +=
+        '<div class="rpt-analytics-card" style="margin-bottom:14px;">' +
+          '<div class="rpt-analytics-hdr">8.7 Team Workload</div>' +
+          '<table style="width:100%;border-collapse:collapse;font-size:12px;">' +
+            '<thead><tr>' +
+              '<th style="text-align:left;padding:5px 8px;color:var(--text-secondary);font-size:10.5px;font-weight:600;text-transform:uppercase;border-bottom:1px solid var(--border-default);">Tech</th>' +
+              '<th style="text-align:center;padding:5px 8px;color:var(--text-secondary);font-size:10.5px;font-weight:600;text-transform:uppercase;border-bottom:1px solid var(--border-default);">Open</th>' +
+              '<th style="text-align:center;padding:5px 8px;color:var(--text-secondary);font-size:10.5px;font-weight:600;text-transform:uppercase;border-bottom:1px solid var(--border-default);">Closed</th>' +
+              '<th style="text-align:center;padding:5px 8px;color:var(--text-secondary);font-size:10.5px;font-weight:600;text-transform:uppercase;border-bottom:1px solid var(--border-default);">Labor Hrs</th>' +
+              '<th style="text-align:center;padding:5px 8px;color:var(--text-secondary);font-size:10.5px;font-weight:600;text-transform:uppercase;border-bottom:1px solid var(--border-default);">Avg Close</th>' +
+            '</tr></thead><tbody>' +
+            tw.map(function(t) {
+              return '<tr>' +
+                '<td style="padding:5px 8px;font-weight:600;">' + esc(t.name) + '</td>' +
+                '<td style="text-align:center;padding:5px 8px;' + (t.open > 5 ? 'color:var(--status-warn);font-weight:700;' : '') + '">' + t.open + '</td>' +
+                '<td style="text-align:center;padding:5px 8px;color:var(--status-success);font-weight:600;">' + t.closed + '</td>' +
+                '<td style="text-align:center;padding:5px 8px;">' + (t.totalHrs || 0) + '</td>' +
+                '<td style="text-align:center;padding:5px 8px;color:var(--text-secondary);">' + (t.avgCloseHrs !== null ? t.avgCloseHrs + 'h' : '—') + '</td>' +
+              '</tr>';
+            }).join('') +
+          '</tbody></table>' +
+        '</div>';
+    }
+
+    // SQF Compliance Pack (8.9)
+    var sqf = data.sqfPack || {};
+    html +=
+      '<div class="rpt-analytics-card" style="margin-bottom:14px;">' +
+        '<div class="rpt-analytics-hdr">8.9 SQF 13.2.8 Compliance Pack</div>' +
+        '<div class="kpi-band" style="grid-template-columns:repeat(4,1fr);margin-top:8px;">' +
+          _rptKpi_(sqf.verifiedCount  || 0,  'Verified Closed',   'success',  'in period') +
+          _rptKpi_(sqf.totalClosed    || 0,  'Total Closed',      '',          'in period') +
+          _rptKpi_(sqf.openCritical   || 0,  'Open Critical',     sqf.openCritical > 0 ? 'critical' : '', '') +
+          _rptKpi_(sqf.avgCaDays !== null ? sqf.avgCaDays + 'd' : '—', 'Avg Days to Close', '', '') +
+        '</div>' +
+      '</div>';
+
+    // Predictive Insights (8.10)
+    var insights = _rptBuildInsights_(data);
+    if (insights.length > 0) {
+      html +=
+        '<div class="rpt-analytics-card" style="margin-bottom:14px;">' +
+          '<div class="rpt-analytics-hdr">8.10 Predictive Insights</div>' +
+          insights.map(function(ins) {
+            return '<div style="display:flex;align-items:flex-start;gap:10px;padding:6px 0;border-bottom:1px solid var(--border-default);">' +
+              '<span style="font-size:16px;flex-shrink:0;">' + ins.icon + '</span>' +
+              '<div><div style="font-size:12px;font-weight:600;color:var(--text-primary);">' + esc(ins.title) + '</div>' +
+                '<div style="font-size:11.5px;color:var(--text-secondary);margin-top:2px;">' + esc(ins.body) + '</div></div>' +
+            '</div>';
+          }).join('') +
+        '</div>';
+    }
+
+    ptEl.innerHTML = html;
   }
 
-  // ── Activity trend chart (async) ────────────────────────────────────────
-  if (trendEl) {
-    trendEl.innerHTML = '<div class="rpt-analytics-card"><div class="rpt-analytics-loading">Loading trend…</div></div>';
-    google.script.run
-      .withSuccessHandler(function(d) { _rptRenderTrend_(d, trendEl); })
-      .withFailureHandler(function()  { trendEl.innerHTML = ''; })
-      .getDashboardTrend(6);
+  // ── Activity trend chart (from returned data) ──────────────────────────
+  if (trendEl && data.trend && data.trend.labels && data.trend.labels.length > 0) {
+    _rptRenderTrend_(data.trend, trendEl);
+  } else if (trendEl) {
+    trendEl.innerHTML = '';
   }
+}
+
+function _rptFunnelChip_(label, count, color) {
+  return '<div style="display:flex;flex-direction:column;align-items:center;background:var(--bg-subtle);' +
+    'border:1px solid var(--border-default);border-radius:8px;padding:10px 16px;min-width:80px;">' +
+    '<div style="font-size:20px;font-weight:700;color:' + color + ';">' + count + '</div>' +
+    '<div style="font-size:10px;color:var(--text-secondary);text-transform:uppercase;letter-spacing:.04em;margin-top:2px;">' + esc(label) + '</div>' +
+  '</div>';
+}
+
+function _rptBuildInsights_(data) {
+  var insights = [];
+  var hs = data.equipHotspots || [];
+  var kpis = data.kpis || {};
+  var tw = data.teamWorkload || [];
+
+  if (hs.length > 0 && hs[0].count >= 3) {
+    insights.push({
+      icon: '🔁',
+      title: 'Recurring Equipment: ' + (hs[0].specificEquip || hs[0].equipCode),
+      body: hs[0].count + ' tickets on this equipment in the selected period. Consider scheduled PM inspection.'
+    });
+  }
+  if (kpis.tempFix >= 3) {
+    insights.push({
+      icon: '⚠️',
+      title: kpis.tempFix + ' active temp fixes',
+      body: 'Multiple temporary repairs are outstanding. Each should be inspected and resolved with a permanent fix.'
+    });
+  }
+  if (kpis.critical >= 2) {
+    insights.push({
+      icon: '🚨',
+      title: kpis.critical + ' critical tickets open',
+      body: 'Immediate escalation recommended. Critical tickets indicate potential line-down or safety risk.'
+    });
+  }
+  if (kpis.partsPending >= 5) {
+    insights.push({
+      icon: '🔩',
+      title: kpis.partsPending + ' tickets waiting on parts',
+      body: 'High parts backlog may indicate inventory gaps. Review recurring part requests for stocking decisions.'
+    });
+  }
+  var overloaded = tw.filter(function(t) { return t.open >= 5; });
+  if (overloaded.length > 0) {
+    insights.push({
+      icon: '👥',
+      title: 'Workload imbalance: ' + overloaded[0].name,
+      body: overloaded[0].name + ' has ' + overloaded[0].open + ' open tickets. Consider rebalancing assignments.'
+    });
+  }
+  return insights;
 }
 
 function _rptKpi_(val, label, accent, foot) {
