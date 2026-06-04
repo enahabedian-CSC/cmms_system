@@ -61,7 +61,7 @@ function installTriggers_() {
   var existing = ScriptApp.getProjectTriggers();
 
   // Remove any existing triggers for our managed functions to avoid duplicates.
-  var managed = ['runHourlySync', 'runDailyEmailAlerts'];
+  var managed = ['runHourlySync', 'runDailyEmailAlerts', 'runMonthlyBackup'];
   existing.forEach(function(t) {
     if (managed.indexOf(t.getHandlerFunction()) >= 0) {
       ScriptApp.deleteTrigger(t);
@@ -81,7 +81,14 @@ function installTriggers_() {
     .atHour(7)
     .create();
 
-  Logger.log('installTriggers_: installed runHourlySync (hourly) + runDailyEmailAlerts (daily 07:00)');
+  // Monthly at 02:00 on the 1st: Drive backup export
+  ScriptApp.newTrigger('runMonthlyBackup')
+    .timeBased()
+    .onMonthDay(1)
+    .atHour(2)
+    .create();
+
+  Logger.log('installTriggers_: installed runHourlySync + runDailyEmailAlerts + runMonthlyBackup');
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
