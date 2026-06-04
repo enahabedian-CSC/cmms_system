@@ -143,8 +143,10 @@ function appendToMasterLog_(params) {
   row[ML.UPDATED_BY     - 1] = params.updatedBy     || '';
   row[ML.NOTES          - 1] = buildNotesField_(params.observations, params.notes);
   row[ML.PROBLEM_TYPE   - 1] = params.problemType   || '';
-  row[ML.TRACKER_GROUP  - 1] = normalizeDept(params.dept || '');
-  row[ML.LINE_NO        - 1] = params.lineNo        || '';
+  row[ML.TRACKER_GROUP          - 1] = normalizeDept(params.dept || '');
+  row[ML.LINE_NO                - 1] = params.lineNo        || '';
+  row[ML.VERIFICATION_CHECKLIST - 1] = params.sqfChecklist  || '';
+  row[ML.PHOTO_URL              - 1] = params.photoUrl      || '';
   sh.appendRow(row);
 }
 

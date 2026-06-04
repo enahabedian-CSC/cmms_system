@@ -114,7 +114,9 @@ function getTicketDetail(ticketNo) {
       updatedBy:     String(best[ML.UPDATED_BY      - 1] || ''),
       notes:         String(best[ML.NOTES           - 1] || ''),
       problemType:   String(best[ML.PROBLEM_TYPE    - 1] || ''),
-      lineNo:        String(best[ML.LINE_NO         - 1] || '')
+      lineNo:        String(best[ML.LINE_NO         - 1] || ''),
+      sqfChecklist:  String(best[ML.VERIFICATION_CHECKLIST - 1] || ''),
+      photoUrl:      String(best[ML.PHOTO_URL       - 1] || '')
     };
 
     // ── Ticket History ─────────────────────────────────────────────────────────
@@ -139,6 +141,66 @@ function getTicketDetail(ticketNo) {
   } catch (e) {
     Logger.log('getTicketDetail error: ' + e.message);
     throw e;
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+//  getEquipTicketHistory
+//  Returns a summary list of all tickets for a given equipment code from ML.
+//  Used by the Equipment Inventory detail view.
+// ═══════════════════════════════════════════════════════════════════════════════
+
+function getEquipTicketHistory(equipCode) {
+  requireRole_(ROLES.TECH);
+  if (!equipCode) return [];
+  try {
+    var sh = getBoundSS_().getSheetByName(SH.MASTER_LOG);
+    if (!sh || sh.getLastRow() < 2) return [];
+    var tz   = Session.getScriptTimeZone();
+    var data = sh.getRange(2, 1, sh.getLastRow() - 1, ML_COLS).getValues();
+
+    function fmtDate(v) {
+      if (!v) return '';
+      if (v instanceof Date && !isNaN(v)) return Utilities.formatDate(v, tz, 'MM/dd/yyyy');
+      return String(v);
+    }
+
+    // Collect per-ticket latest row
+    var perTicket = {};
+    data.forEach(function(row) {
+      var tn   = String(row[ML.TICKET_NO  - 1] || '').trim();
+      var code = String(row[ML.EQUIP_CODE - 1] || '').trim();
+      if (!tn || tn === 'SYSTEM' || code !== equipCode) return;
+      if (!perTicket[tn]) perTicket[tn] = row.slice();
+      else {
+        // last-write-wins for non-empty cells
+        for (var c = 0; c < row.length; c++) {
+          if (row[c] !== '' && row[c] !== null && row[c] !== undefined) perTicket[tn][c] = row[c];
+        }
+      }
+    });
+
+    var result = [];
+    Object.keys(perTicket).forEach(function(tn) {
+      var r = perTicket[tn];
+      result.push({
+        ticketNo:    tn,
+        dateOpened:  fmtDate(r[ML.DATE_OPENED  - 1]),
+        status:      String(r[ML.STATUS         - 1] || '').toUpperCase(),
+        priority:    String(r[ML.PRIORITY       - 1] || '').toUpperCase(),
+        problemType: String(r[ML.PROBLEM_TYPE   - 1] || ''),
+        estHours:    r[ML.EST_HOURS             - 1] || '',
+        actualHours: r[ML.ACTUAL_HOURS          - 1] || ''
+      });
+    });
+
+    result.sort(function(a,b) {
+      return (b.dateOpened || '').localeCompare(a.dateOpened || '');
+    });
+    return result;
+  } catch (e) {
+    Logger.log('getEquipTicketHistory error: ' + e.message);
+    return [];
   }
 }
 

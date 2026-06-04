@@ -21,6 +21,15 @@ function getAddTicketFormData() {
   // a ticket for another dept (e.g. reporting a problem in a different area).
   var departments = DEPT_TRACKERS.map(function(dt) { return dt.dept; });
 
+  var routingRules = [];
+  try { routingRules = JSON.parse(getConfigValue('Routing Override Rules') || '[]'); } catch (e) { routingRules = []; }
+  if (!routingRules.length) {
+    routingRules = [
+      { keyword: 'ELECTRICAL', matchOn: 'PROBLEM_TYPE', routeTo: 'ELECTRICAL' },
+      { keyword: 'FACILITY',   matchOn: 'EQUIP_DESC',   routeTo: 'FACILITIES' }
+    ];
+  }
+
   return {
     companyName:    String(cfg['Company Name']          || 'Container Supply Co.'),
     docNo:          String(cfg['Doc No (Ticket Form)']  || 'FRM-040-001'),
@@ -33,7 +42,10 @@ function getAddTicketFormData() {
     downtimeTypes:  lists['Downtime Types']  || ['PLANNED', 'UNPLANNED'],
     peopleList:     getPeopleList_(),
     userDisplayName: user.displayName,
-    userOwnedDepts:  user.ownedDepts   // pre-select user's first dept
+    userOwnedDepts:  user.ownedDepts,
+    userIsManager:   !!(user.isManager || user.role === ROLES.ADMIN),
+    routingRules:    routingRules,
+    deptMapping:     getDeptMapping_()
   };
 }
 
@@ -81,7 +93,8 @@ function addNewTicket(data) {
       addedBy:       addedBy,
       updatedBy:     addedBy,
       partsNeeded:   data.partsNeeded   || false,
-      dateOpened:    isCritical ? formatDateStr_(now) : ''
+      dateOpened:    isCritical ? formatDateStr_(now) : '',
+      photoUrl:      data.photoUrl      || ''
     });
 
     // ── MANDATORY: Ticket History write ──────────────────────────────────

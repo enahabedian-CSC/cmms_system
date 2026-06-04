@@ -452,9 +452,9 @@ function _ehlKpiBar_(items) {
   var orange = items.filter(function(t) { return tagMatch(t, 'orange'); }).length;
   return '<div class="kpi-band" style="grid-template-columns:repeat(4,1fr);">' +
     _monKpiCard_(total,  'Active Tags',         total  > 0 ? 'critical' : '', 'across all depts') +
-    _monKpiCard_(red,    '🟥 Out of Service',   red    > 0 ? 'critical' : '', 'Red tag — production blocked') +
-    _monKpiCard_(yellow, '🟨 Use with Caution', yellow > 0 ? 'warn'     : '', 'Yellow tag — limited operation') +
-    _monKpiCard_(orange, '🟧 Temp Fix Tagged',  orange > 0 ? 'warn'     : '', 'Orange tag — temp fix in place') +
+    _monKpiCard_(red,    'Out of Service',   red    > 0 ? 'critical' : '', 'Red tag — production blocked') +
+    _monKpiCard_(yellow, 'Use with Caution', yellow > 0 ? 'warn'     : '', 'Yellow tag — limited operation') +
+    _monKpiCard_(orange, 'Temp Fix Tagged',  orange > 0 ? 'warn'     : '', 'Orange tag — temp fix in place') +
   '</div>';
 }
 

@@ -96,7 +96,7 @@ var LEGACY_DEPT_CODES = {
   'S/R': '009', 'SALES': '030', 'G&A': '031'
 };
 
-// ─── MASTER LOG — 35 columns ──────────────────────────────────────────────────
+// ─── MASTER LOG — 37 columns ──────────────────────────────────────────────────
 var ML = {
   ROW_ID:1,         TICKET_NO:2,      TIMESTAMP:3,       ACTION:4,
   STATUS:5,         DEPT:6,           BUILDING_ZONE:7,   EQUIP_TYPE:8,
@@ -106,9 +106,10 @@ var ML = {
   ROOT_CAUSE:21,    WORK_SUMMARY:22,  FIX_TYPE:23,       TEMP_FIX_FLAG:24,
   PARTS_NEEDED:25,  PARTS_STATUS:26,  EQUIP_TAG_STATUS:27, VERIFIED_BY:28,
   VERIFIED_DATE:29, ADDED_BY:30,      UPDATED_BY:31,     NOTES:32,
-  PROBLEM_TYPE:33,  TRACKER_GROUP:34, LINE_NO:35
+  PROBLEM_TYPE:33,  TRACKER_GROUP:34, LINE_NO:35,
+  VERIFICATION_CHECKLIST:36, PHOTO_URL:37
 };
-var ML_COLS = 35;
+var ML_COLS = 37;
 var ML_HEADERS = [
   'Row ID','Ticket #','Timestamp','Action','Status','Department',
   'Building / Zone','Equipment Type','Equipment Code','Equipment Description',
@@ -116,7 +117,8 @@ var ML_HEADERS = [
   'Actual Hours','Date Opened','Date Completed','Date Closed','Corrective Action',
   'Root Cause','Work Summary','Fix Type','Temp Fix Flag','Parts Needed Flag',
   'Parts Status','Equip Tag Status','Verified By','Verified Date','Added By',
-  'Updated By','Notes','Problem Type','Tracker Group','Line #'
+  'Updated By','Notes','Problem Type','Tracker Group','Line #',
+  'Verification Checklist','Photo URL'
 ];
 
 // ─── EMRL — 10 columns appended to Closed Tickets after TK_COLS ─────────────
