@@ -12,7 +12,8 @@
 // are NEVER read from, written to, or referenced anywhere in new code.
 var EXT_SHEET_IDS = {
   EQUIP_REGISTER:   '1dlqp8jEMxxNYkIhr30tWK1yuC6FFlYTFU8Eq6EXeIps', // read-only
-  EXTERNAL_TICKETS: '1F4-nPI4pkZZ933RKb2g6WBVR3JDZNgBRz8hQKGr0_4w'  // read-only
+  EXTERNAL_TICKETS: '1F4-nPI4pkZZ933RKb2g6WBVR3JDZNgBRz8hQKGr0_4w', // read-only
+  IZZY_TRACKER:     '1yyqt0HiHejtjP3cVccL9r2YCGsMM6kjKdxt3t9Omxj4'  // read-only — Izzy's live tracker
 };
 
 // ─── SHEET TAB NAME CONSTANTS ─────────────────────────────────────────────────
@@ -219,7 +220,8 @@ var ML_ACTIONS = {
   EQUIP_CACHE_REFRESH:  'EQUIP CACHE REFRESHED',
   MONTH_ROLLOVER:       'MONTH ROLLOVER',
   MONTHLY_BACKUP:       'MONTHLY BACKUP COMPLETED',
-  DEPT_TRANSFER:        'DEPT TRANSFER'
+  DEPT_TRANSFER:        'DEPT TRANSFER',
+  IZZY_IMPORT:          'IZZY IMPORT'
 };
 
 // ─── TEMP FIX MONITOR — 17 columns ───────────────────────────────────────────

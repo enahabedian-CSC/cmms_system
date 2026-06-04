@@ -105,7 +105,8 @@ function ensureConfigRows_() {
     { key: 'System Admins',          default: '' },
     { key: 'Backup Drive Folder ID', default: '' },
     { key: 'Monitoring Frequency',   default: '7' },
-    { key: 'System Version',         default: '5.0' }
+    { key: 'System Version',         default: '5.0' },
+    { key: 'Izzy Sync Enabled',      default: 'Y'   }
   ];
 
   // Read existing keys from col C rows 2–30

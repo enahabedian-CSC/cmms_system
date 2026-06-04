@@ -536,4 +536,5 @@ function runHourlySync() {
   try { refreshEquipCache();         } catch (e) { Logger.log('runHourlySync/equip:     ' + e.message); }
   try { syncExternalTickets();       } catch (e) { Logger.log('runHourlySync/extSync:   ' + e.message); }
   try { syncPartsFromExternal_();    } catch (e) { Logger.log('runHourlySync/partsSync: ' + e.message); }
+  try { syncFromIzzySheet_();        } catch (e) { Logger.log('runHourlySync/izzySync:  ' + e.message); }
 }
