@@ -172,6 +172,9 @@ function _renderDetail_(result) {
       actions += '<button class="btn-action btn-transfer" onclick="_tdTransfer_()">Transfer Dept</button>';
       actions += '<button class="btn-action btn-void" onclick="_tdVoid_()">Void Ticket</button>';
     }
+    if (t.status === 'CLOSED') {
+      actions += '<button class="btn-action btn-update" onclick="_tdServiceReport_()">📝 Service Report</button>';
+    }
   }
   // Parts request + Update: all roles, any non-terminal status
   if (t.status !== 'CLOSED' && t.status !== 'VOIDED') {
@@ -519,6 +522,67 @@ function _tdUpdate_() {
       }
       _tdRunAction_(updateTicket, data, 'Updated');
     });
+}
+
+function _tdServiceReport_() {
+  var t = _tdTicket;
+  if (!t) return;
+  var modal = document.getElementById('td-modal-container');
+  if (!modal) return;
+
+  modal.innerHTML =
+    '<div class="td-modal-backdrop" id="td-modal-backdrop" onclick="if(event.target===this)_closeModal_()">' +
+    '<div class="td-modal" style="width:560px;max-width:96vw;">' +
+      '<h3>📝 Service Report — ' + esc(t.ticketNo) + ' <span style="font-size:11px;color:var(--text-tertiary);font-weight:400;">FRM-040-002</span></h3>' +
+      '<div class="form-group"><label>Completed By</label>' +
+        '<input id="sr-completed-by" value="' + esc(t.assignedTo || '') + '" placeholder="Technician name"/></div>' +
+      '<div class="form-group"><label>Labor Hours</label>' +
+        '<input id="sr-hours" type="number" step="0.5" min="0" value="' + esc(String(t.actualHours || '')) + '" placeholder="0.0" style="width:120px"/></div>' +
+      '<div class="form-group"><label>Work Summary</label>' +
+        '<textarea id="sr-work-summary">' + esc(t.workSummary || '') + '</textarea></div>' +
+      '<div class="form-group"><label>Root Cause</label>' +
+        '<textarea id="sr-root-cause">' + esc(t.rootCause || '') + '</textarea></div>' +
+      '<div class="form-group"><label>Corrective Action</label>' +
+        '<textarea id="sr-corrective-act">' + esc(t.correctiveAct || '') + '</textarea></div>' +
+      '<div class="form-group"><label>Preventive Action</label>' +
+        '<textarea id="sr-preventive-act" placeholder="Steps taken to prevent recurrence…"></textarea></div>' +
+      '<div class="form-group"><label>Parts Used (describe)</label>' +
+        '<input id="sr-parts-used" placeholder="e.g. 2× bearing #6205, 1× V-belt"/></div>' +
+      '<div class="form-group"><label>Notes</label>' +
+        '<input id="sr-notes" placeholder="Any additional notes…"/></div>' +
+      '<div class="modal-actions">' +
+        '<button class="btn-cancel" onclick="_closeModal_()">Cancel</button>' +
+        '<button class="btn-confirm" onclick="_tdSaveServiceReport_()">Save Service Report</button>' +
+      '</div>' +
+    '</div></div>';
+}
+
+function _tdSaveServiceReport_() {
+  var t = _tdTicket;
+  if (!t) return;
+  var data = {
+    ticketNo:      t.ticketNo,
+    dept:          t.dept,
+    buildingZone:  t.buildingZone  || '',
+    equipType:     t.equipType     || '',
+    equipCode:     t.equipCode     || '',
+    specificEquip: t.specificEquip || '',
+    description:   t.description   || '',
+    rootCause:     (document.getElementById('sr-root-cause')     || {}).value || '',
+    correctiveAct: (document.getElementById('sr-corrective-act') || {}).value || '',
+    preventiveAct: (document.getElementById('sr-preventive-act') || {}).value || '',
+    workSummary:   (document.getElementById('sr-work-summary')   || {}).value || '',
+    partsUsed:     (document.getElementById('sr-parts-used')     || {}).value || '',
+    completedBy:   (document.getElementById('sr-completed-by')   || {}).value || '',
+    laborHours:    parseFloat((document.getElementById('sr-hours') || {}).value) || '',
+    priority:      t.priority      || '',
+    downtimeType:  t.downtimeType  || '',
+    fixType:       t.fixType       || '',
+    tempFixFlag:   t.tempFixFlag   || false,
+    addedBy:       USER.displayName,
+    notes:         (document.getElementById('sr-notes') || {}).value || ''
+  };
+  _tdRunAction_(saveServiceReport, data, 'Service Report saved');
 }
 
 function _tdTransfer_() {

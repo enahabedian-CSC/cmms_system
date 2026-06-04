@@ -17,6 +17,7 @@ function runSetup() {
   try { installTriggers_();      results.push('Triggers: OK');        } catch (e) { results.push('Triggers: ERROR — ' + e.message); }
   try { ensureConfigRows_();     results.push('Config rows: OK');     } catch (e) { results.push('Config rows: ERROR — ' + e.message); }
   try { setupEmrlHeaders_();     results.push('EMRL headers: OK');    } catch (e) { results.push('EMRL headers: ERROR — ' + e.message); }
+  try { ensureRptDbSheet_();    results.push('Report DB sheet: OK'); } catch (e) { results.push('Report DB sheet: ERROR — ' + e.message); }
 
   Logger.log('runSetup results:\n' + results.join('\n'));
   return { success: true, results: results };
