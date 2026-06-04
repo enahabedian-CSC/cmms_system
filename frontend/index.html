@@ -254,6 +254,7 @@ var COMPANY = <?!= JSON.stringify(companyName) ?>;
 <?!= include_('frontend/partials/monitoring') ?>
 <?!= include_('frontend/partials/reports') ?>
 <?!= include_('frontend/partials/tech-work-board') ?>
+<?!= include_('frontend/partials/equipment-inventory') ?>
 <?!= include_('frontend/partials/admin') ?>
 
 <div id="toast-container"></div>
@@ -326,9 +327,10 @@ function getNavDef() {
   nav.push({
     section: 'Monitoring', icon: 'tempfix',
     items: [
-      { id: 'tempfix',        label: 'Temp Fix Monitor', icon: 'tempfix', badgeId: 'badge-tempfix' },
-      { id: 'equipment-hold', label: 'Equipment Hold',   icon: 'equip'   },
-      { id: 'parts',          label: 'Parts Needed',     icon: 'parts'   }
+      { id: 'tempfix',              label: 'Temp Fix Monitor',   icon: 'tempfix', badgeId: 'badge-tempfix' },
+      { id: 'equipment-hold',       label: 'Equipment Hold',     icon: 'equip'   },
+      { id: 'parts',                label: 'Parts Needed',       icon: 'parts'   },
+      { id: 'equipment-inventory',  label: 'Equipment Inventory',icon: 'equip'   }
     ]
   });
 
@@ -474,6 +476,7 @@ var PAGE_TITLES = {
   'tempfix':               'Temp Fix Monitor',
   'equipment-hold':        'Equipment Hold',
   'parts':                 'Parts & Inventory',
+  'equipment-inventory':   'Equipment Inventory',
   'reports':               'Reports',
   'admin-config':          'Configuration',
   'admin-access':          'Access & Roles',

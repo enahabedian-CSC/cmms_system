@@ -408,11 +408,132 @@ function getEquipmentFlatList() {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
+//  getEquipmentInventoryPageData
+//  Returns equipment list with per-equipment KPIs computed from Master Log.
+//  KPIs: totalTickets, openTickets, avgCloseDays, MTBF (days), MTTR (actual hrs).
+// ═══════════════════════════════════════════════════════════════════════════════
+
+function getEquipmentInventoryPageData() {
+  var user = getCurrentUserInfo();
+  if (user.role === ROLES.NOACCESS) throw new Error('UNAUTHORIZED');
+
+  var equip  = getEquipmentFromInventory();
+  var sh     = getBoundSS_().getSheetByName(SH.MASTER_LOG);
+  var tz     = Session.getScriptTimeZone();
+  var stats  = {};  // equipCode → aggregated stats
+
+  if (sh && sh.getLastRow() > 1) {
+    var mlData = sh.getRange(2, 1, sh.getLastRow() - 1, ML_COLS).getValues();
+
+    // First pass — build per-ticket summary (last-write-wins for mutable fields)
+    var perTicket = {};
+    mlData.forEach(function(row) {
+      var tn     = String(row[ML.TICKET_NO   - 1] || '').trim();
+      var code   = String(row[ML.EQUIP_CODE  - 1] || '').trim();
+      var status = String(row[ML.STATUS      - 1] || '').trim().toUpperCase();
+      if (!tn || tn === 'SYSTEM' || !code) return;
+
+      if (!perTicket[tn]) {
+        perTicket[tn] = {
+          code:        code,
+          latestStatus: status,
+          dateOpened:  row[ML.DATE_OPENED    - 1],
+          dateClosed:  row[ML.DATE_CLOSED    - 1],
+          actualHours: parseFloat(row[ML.ACTUAL_HOURS - 1]) || 0
+        };
+      } else {
+        if (code)   perTicket[tn].code         = code;
+        if (status) perTicket[tn].latestStatus  = status;
+        if (row[ML.DATE_CLOSED   - 1]) perTicket[tn].dateClosed  = row[ML.DATE_CLOSED  - 1];
+        var ah = parseFloat(row[ML.ACTUAL_HOURS - 1]) || 0;
+        if (ah > perTicket[tn].actualHours) perTicket[tn].actualHours = ah;
+      }
+    });
+
+    // Second pass — aggregate per equipment code
+    Object.keys(perTicket).forEach(function(tn) {
+      var t    = perTicket[tn];
+      var code = t.code;
+      if (!stats[code]) stats[code] = {
+        total: 0, open: 0, closedCount: 0,
+        totalCloseDays: 0, closedDates: [], closedActualHrs: [], lastOpenedMs: 0
+      };
+      var s  = stats[code];
+      var st = t.latestStatus;
+      s.total++;
+      if (st === 'OPEN' || st === 'WAITING' || st === 'PENDING VERIFICATION' || st === 'PENDING PARTS') s.open++;
+
+      var dOpen   = t.dateOpened instanceof Date ? t.dateOpened : (t.dateOpened ? new Date(t.dateOpened) : null);
+      var dClosed = t.dateClosed instanceof Date ? t.dateClosed : (t.dateClosed ? new Date(t.dateClosed) : null);
+
+      if (dOpen && !isNaN(dOpen) && dOpen.getTime() > s.lastOpenedMs) s.lastOpenedMs = dOpen.getTime();
+
+      if (dOpen && dClosed && !isNaN(dOpen) && !isNaN(dClosed) && dClosed > dOpen) {
+        var days = (dClosed.getTime() - dOpen.getTime()) / 86400000;
+        s.totalCloseDays += days;
+        s.closedCount++;
+        s.closedDates.push(dClosed.getTime());
+        if (t.actualHours > 0) s.closedActualHrs.push(t.actualHours);
+      }
+    });
+  }
+
+  // Compute derived KPIs
+  Object.keys(stats).forEach(function(code) {
+    var s     = stats[code];
+    var dates = s.closedDates.slice().sort(function(a,b) { return a - b; });
+
+    if (dates.length >= 2) {
+      var gap = 0;
+      for (var i = 1; i < dates.length; i++) gap += (dates[i] - dates[i-1]) / 86400000;
+      s.mtbf = Math.round(gap / (dates.length - 1));
+    } else {
+      s.mtbf = null;
+    }
+
+    s.mttr = s.closedActualHrs.length > 0
+      ? Math.round((s.closedActualHrs.reduce(function(a,b){return a+b;},0) / s.closedActualHrs.length) * 10) / 10
+      : null;
+
+    s.avgCloseDays = s.closedCount > 0
+      ? Math.round((s.totalCloseDays / s.closedCount) * 10) / 10
+      : null;
+
+    s.lastTicketDate = s.lastOpenedMs
+      ? Utilities.formatDate(new Date(s.lastOpenedMs), tz, 'MM/dd/yyyy')
+      : '—';
+  });
+
+  var equipList = equip.map(function(e) {
+    var s = stats[e.code] || {};
+    return {
+      dept:          e.dept,
+      eType:         e.eType,
+      code:          e.code,
+      specific:      e.specific,
+      status:        e.status || 'ACTIVE',
+      totalTickets:  s.total        || 0,
+      openTickets:   s.open         || 0,
+      avgCloseDays:  s.avgCloseDays  != null ? s.avgCloseDays  : null,
+      mtbf:          s.mtbf          != null ? s.mtbf          : null,
+      mttr:          s.mttr          != null ? s.mttr          : null,
+      lastTicketDate: s.lastTicketDate || '—'
+    };
+  });
+
+  return {
+    equipment:    equipList,
+    userIsManager: !!(user.isManager || user.role === ROLES.ADMIN)
+  };
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
 //  runHourlySync
 //  Time-driven trigger handler.  Step 5 adds syncExternalTickets() here.
 // ═══════════════════════════════════════════════════════════════════════════════
 
 function runHourlySync() {
-  try { refreshEquipCache();   } catch (e) { Logger.log('runHourlySync/equip:   ' + e.message); }
-  try { syncExternalTickets(); } catch (e) { Logger.log('runHourlySync/extSync: ' + e.message); }
+  try { refreshEquipCache();         } catch (e) { Logger.log('runHourlySync/equip:     ' + e.message); }
+  try { syncExternalTickets();       } catch (e) { Logger.log('runHourlySync/extSync:   ' + e.message); }
+  try { syncPartsFromExternal_();    } catch (e) { Logger.log('runHourlySync/partsSync: ' + e.message); }
 }

@@ -96,7 +96,7 @@ var LEGACY_DEPT_CODES = {
   'S/R': '009', 'SALES': '030', 'G&A': '031'
 };
 
-// ─── MASTER LOG — 35 columns ──────────────────────────────────────────────────
+// ─── MASTER LOG — 37 columns ──────────────────────────────────────────────────
 var ML = {
   ROW_ID:1,         TICKET_NO:2,      TIMESTAMP:3,       ACTION:4,
   STATUS:5,         DEPT:6,           BUILDING_ZONE:7,   EQUIP_TYPE:8,
@@ -106,9 +106,10 @@ var ML = {
   ROOT_CAUSE:21,    WORK_SUMMARY:22,  FIX_TYPE:23,       TEMP_FIX_FLAG:24,
   PARTS_NEEDED:25,  PARTS_STATUS:26,  EQUIP_TAG_STATUS:27, VERIFIED_BY:28,
   VERIFIED_DATE:29, ADDED_BY:30,      UPDATED_BY:31,     NOTES:32,
-  PROBLEM_TYPE:33,  TRACKER_GROUP:34, LINE_NO:35
+  PROBLEM_TYPE:33,  TRACKER_GROUP:34, LINE_NO:35,
+  VERIFICATION_CHECKLIST:36, PHOTO_URL:37
 };
-var ML_COLS = 35;
+var ML_COLS = 37;
 var ML_HEADERS = [
   'Row ID','Ticket #','Timestamp','Action','Status','Department',
   'Building / Zone','Equipment Type','Equipment Code','Equipment Description',
@@ -116,7 +117,23 @@ var ML_HEADERS = [
   'Actual Hours','Date Opened','Date Completed','Date Closed','Corrective Action',
   'Root Cause','Work Summary','Fix Type','Temp Fix Flag','Parts Needed Flag',
   'Parts Status','Equip Tag Status','Verified By','Verified Date','Added By',
-  'Updated By','Notes','Problem Type','Tracker Group','Line #'
+  'Updated By','Notes','Problem Type','Tracker Group','Line #',
+  'Verification Checklist','Photo URL'
+];
+
+// ─── EMRL — 10 columns appended to Closed Tickets after TK_COLS ─────────────
+// Absolute sheet columns: TK_DATA_COL + TK_COLS + (1..10)
+// = col 2 + 26 + offset = cols 28–37
+var EMRL = {
+  REPAIR_DATE:28,    PARTS_USED:29,       ROOT_CAUSE:30,    CORRECTIVE_ACT:31,
+  PREVENTIVE_ACT:32, CA_DATE:33,          CAPA_REQUIRED:34, CLEARANCE_CHK:35,
+  HAD_TEMP_FIX:36,   TF_RESOLVED_DATE:37
+};
+var EMRL_COLS = 10;
+var EMRL_HEADERS = [
+  'Repair Date','Parts Used','Root Cause','Corrective Action',
+  'Preventive Action','CA Date','CAPA Required','Clearance Checklist',
+  'Had Temp Fix','Temp Fix Resolved Date'
 ];
 
 // ─── TRACKER / QUEUE — 26 columns (physical col B = index 1 in TK object) ────

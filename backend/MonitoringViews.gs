@@ -222,6 +222,82 @@ function getEquipHoldItems(opts) {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
+//  issueEquipHoldTag
+//  Issues a new equipment hold tag, writes a row to 🏷️ Equipment Hold Log,
+//  updates ML EQUIP_TAG_STATUS, and appends Ticket History.
+//  Params: ticketNo, equipCode, specificEquip, dept, buildingZone,
+//          tagType ('Red — Out of Service' | 'Yellow — Use with Caution' | 'Orange — Temp Fix'),
+//          reason, taggedBy
+// ═══════════════════════════════════════════════════════════════════════════════
+
+function issueEquipHoldTag(data) {
+  requireManager_();
+  var user = getCurrentUserInfo();
+  var now  = new Date();
+  data = data || {};
+
+  var ticketNo = String(data.ticketNo || '').trim();
+  var tagType  = String(data.tagType  || '').trim();
+  if (!ticketNo) return { success: false, error: 'ticketNo required' };
+  if (!tagType)  return { success: false, error: 'tagType required' };
+
+  try {
+    var ss = getBoundSS_();
+    var sh = ss.getSheetByName(SH.EQUIP_HOLD_LOG);
+    if (!sh) return { success: false, error: 'Equipment Hold Log sheet not found. Run Setup.' };
+
+    var tagId = 'TAG-' + Utilities.formatDate(now, Session.getScriptTimeZone(), 'yyyyMMddHHmmss');
+    var dept  = normalizeDept(String(data.dept || ''));
+
+    var row = new Array(EHL_COLS).fill('');
+    row[EHL.TAG_ID        - 1] = tagId;
+    row[EHL.TICKET_NO     - 1] = ticketNo;
+    row[EHL.EQUIP_CODE    - 1] = String(data.equipCode    || '');
+    row[EHL.SPECIFIC_EQUIP- 1] = String(data.specificEquip|| '');
+    row[EHL.DEPT          - 1] = dept;
+    row[EHL.BUILDING_ZONE - 1] = String(data.buildingZone || '');
+    row[EHL.TAG_TYPE      - 1] = tagType;
+    row[EHL.DATE_TAGGED   - 1] = formatDateStr_(now);
+    row[EHL.TAGGED_BY     - 1] = data.taggedBy || user.displayName;
+    row[EHL.REASON        - 1] = String(data.reason || '');
+    row[EHL.EQUIP_STATUS  - 1] = 'TAGGED';
+    row[EHL.CLEARED_BY    - 1] = '';
+    row[EHL.CLEARED_DATE  - 1] = '';
+    row[EHL.NOTES         - 1] = String(data.notes || '');
+
+    sh.appendRow(row);
+
+    appendToMasterLog_({
+      ticketNo:      ticketNo,
+      now:           now,
+      action:        ML_ACTIONS.EQUIP_TAGGED,
+      status:        '',
+      dept:          dept,
+      equipCode:     String(data.equipCode    || ''),
+      specificEquip: String(data.specificEquip|| ''),
+      updatedBy:     data.taggedBy || user.displayName,
+      notes:         tagType + (data.reason ? ' — ' + data.reason : '')
+    });
+
+    appendToTicketHistory_(ticketNo, TH_EVENTS.TAGGED, '', '',
+      data.taggedBy || user.displayName,
+      tagType + (data.reason ? ' — ' + data.reason : ''));
+
+    // Update EQUIP_TAG_STATUS in Master Log latest row (best effort).
+    try {
+      _updateTicketInSheets_(ss, ticketNo, { equipTagStatus: tagType }, now);
+    } catch (e2) {
+      Logger.log('issueEquipHoldTag/_updateTicketInSheets_ warn: ' + e2.message);
+    }
+
+    return { success: true, tagId: tagId };
+  } catch (e) {
+    Logger.log('issueEquipHoldTag error: ' + e.message);
+    return { success: false, error: e.message };
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
 //  clearEquipTag
 //  Clears an equipment hold tag (sets EQUIP_STATUS = CLEARED).
 // ═══════════════════════════════════════════════════════════════════════════════

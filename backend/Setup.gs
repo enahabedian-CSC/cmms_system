@@ -16,6 +16,8 @@ function runSetup() {
   try { createPmSheets_();       results.push('PM sheets: OK');       } catch (e) { results.push('PM sheets: ERROR — ' + e.message); }
   try { installTriggers_();      results.push('Triggers: OK');        } catch (e) { results.push('Triggers: ERROR — ' + e.message); }
   try { ensureConfigRows_();     results.push('Config rows: OK');     } catch (e) { results.push('Config rows: ERROR — ' + e.message); }
+  try { setupEmrlHeaders_();     results.push('EMRL headers: OK');    } catch (e) { results.push('EMRL headers: ERROR — ' + e.message); }
+  try { ensureRptDbSheet_();    results.push('Report DB sheet: OK'); } catch (e) { results.push('Report DB sheet: ERROR — ' + e.message); }
 
   Logger.log('runSetup results:\n' + results.join('\n'));
   return { success: true, results: results };
@@ -59,7 +61,7 @@ function installTriggers_() {
   var existing = ScriptApp.getProjectTriggers();
 
   // Remove any existing triggers for our managed functions to avoid duplicates.
-  var managed = ['runHourlySync', 'runDailyEmailAlerts'];
+  var managed = ['runHourlySync', 'runDailyEmailAlerts', 'runMonthlyBackup'];
   existing.forEach(function(t) {
     if (managed.indexOf(t.getHandlerFunction()) >= 0) {
       ScriptApp.deleteTrigger(t);
@@ -79,7 +81,14 @@ function installTriggers_() {
     .atHour(7)
     .create();
 
-  Logger.log('installTriggers_: installed runHourlySync (hourly) + runDailyEmailAlerts (daily 07:00)');
+  // Monthly at 02:00 on the 1st: Drive backup export
+  ScriptApp.newTrigger('runMonthlyBackup')
+    .timeBased()
+    .onMonthDay(1)
+    .atHour(2)
+    .create();
+
+  Logger.log('installTriggers_: installed runHourlySync + runDailyEmailAlerts + runMonthlyBackup');
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════

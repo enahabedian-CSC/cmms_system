@@ -46,6 +46,13 @@
 .btn-action:hover{filter:brightness(.93);}
 .btn-action:disabled{opacity:.45;cursor:default;}
 
+/* Photo link */
+.photo-link{display:inline-flex;align-items:center;gap:5px;padding:5px 12px;border-radius:6px;
+  background:var(--status-info-bg);border:1px solid var(--status-info);color:var(--status-info);
+  font-size:12px;font-weight:600;text-decoration:none;cursor:pointer;margin-right:6px;}
+.photo-link:hover{background:#DBEAFE;text-decoration:none;}
+.photo-link svg{flex-shrink:0;}
+
 /* History timeline */
 .th-list{list-style:none;margin:0;padding:0;}
 .th-item{display:flex;gap:10px;padding:8px 0;border-bottom:1px solid var(--border-default);}
@@ -153,10 +160,10 @@ function _renderDetail_(result) {
     }
     if (t.status === 'OPEN' || t.status === 'PENDING PARTS') {
       actions += '<button class="btn-action btn-complete" onclick="_tdComplete_()">✓ Mark Work Complete</button>';
-      actions += '<button class="btn-action btn-assign" onclick="_tdAssign_(\'' + esc(JSON.stringify(techs).replace(/'/g,"\\'")) + '\')">Assign Tech</button>';
       if (!t.tempFixFlag) {
         actions += '<button class="btn-action btn-tempfix" onclick="_tdFlagTF_()">Flag Temp Fix</button>';
       }
+      actions += '<button class="btn-action btn-void" onclick="_tdIssueTag_()">🏷 Issue Hold Tag</button>';
     }
     if (t.status === 'PENDING VERIFICATION') {
       actions += '<button class="btn-action btn-verify" onclick="_tdVerifyClose_()">✓ Verify &amp; Close</button>';
@@ -164,6 +171,9 @@ function _renderDetail_(result) {
     if (t.status !== 'CLOSED' && t.status !== 'VOIDED') {
       actions += '<button class="btn-action btn-transfer" onclick="_tdTransfer_()">Transfer Dept</button>';
       actions += '<button class="btn-action btn-void" onclick="_tdVoid_()">Void Ticket</button>';
+    }
+    if (t.status === 'CLOSED') {
+      actions += '<button class="btn-action btn-update" onclick="_tdServiceReport_()">📝 Service Report</button>';
     }
   }
   // Parts request + Update: all roles, any non-terminal status
@@ -213,9 +223,33 @@ function _renderDetail_(result) {
       '<div class="td-grid" style="grid-template-columns:1fr;">' +
         field('Problem Type',  t.problemType) +
         '<div class="td-field"><label>Description</label><div class="val desc">' + esc(t.description || '—') + '</div></div>' +
-        (t.notes ? '<div class="td-field"><label>Notes / Observations</label><div class="val desc">' + esc(t.notes) + '</div></div>' : '') +
+        _renderNotes_(t.notes) +
       '</div>' +
     '</div>' +
+
+    (t.photoUrl ? (
+    '<div class="td-section">' +
+      '<div class="td-section-title">Photo</div>' +
+      '<div style="display:flex;align-items:center;gap:10px;">' +
+        '<a href="' + esc(t.photoUrl) + '" target="_blank" rel="noopener" style="display:inline-flex;align-items:center;gap:7px;padding:7px 14px;background:var(--bg-subtle);border:1px solid var(--border-default);border-radius:6px;font-size:12.5px;font-weight:600;color:var(--brand-navy);text-decoration:none;" title="View attached photo">' +
+          '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>' +
+          'View Photo' +
+        '</a>' +
+        '<span style="font-size:11.5px;color:var(--text-tertiary);word-break:break-all;">' + esc(t.photoUrl) + '</span>' +
+      '</div>' +
+    '</div>') : '') +
+
+    (t.sqfChecklist ? (
+    '<div class="td-section">' +
+      '<div class="td-section-title">SQF Verification Checklist</div>' +
+      '<div style="font-size:12.5px;color:var(--text-primary);">' +
+        t.sqfChecklist.split(' | ').map(function(item) {
+          return '<div style="display:flex;align-items:center;gap:6px;margin-bottom:4px;">' +
+            '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--status-success)" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>' +
+            esc(item) + '</div>';
+        }).join('') +
+      '</div>' +
+    '</div>') : '') +
 
     (t.workSummary || t.correctiveAct || t.rootCause ? (
     '<div class="td-section">' +
@@ -343,13 +377,30 @@ function _tdVerifyClose_() {
     '<div style="background:var(--status-info-bg);border:1px solid var(--status-info);border-radius:6px;padding:9px 12px;margin-bottom:12px;font-size:12px;color:var(--status-info);">Closing this ticket is permanent. Confirm the repair has been completed and verified before proceeding.</div>' +
     '<div class="form-group"><label>Verified By</label><input id="vc-verifier" value="' + esc(USER.displayName) + '" /></div>' +
     '<div class="form-group"><label>Closing Notes (optional)</label><textarea id="vc-notes"></textarea></div>' +
+    '<div class="form-group" style="margin-top:10px;">' +
+      '<label style="font-size:11.5px;font-weight:700;color:var(--text-primary);margin-bottom:6px;display:block;">SQF Verification Checklist</label>' +
+      '<label style="display:flex;align-items:center;gap:8px;margin-bottom:7px;cursor:pointer;font-size:12.5px;">' +
+        '<input type="checkbox" id="sqf-check-1" style="width:14px;height:14px;"> Work summary documented' +
+      '</label>' +
+      '<label style="display:flex;align-items:center;gap:8px;margin-bottom:7px;cursor:pointer;font-size:12.5px;">' +
+        '<input type="checkbox" id="sqf-check-2" style="width:14px;height:14px;"> Root cause identified' +
+      '</label>' +
+      '<label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:12.5px;">' +
+        '<input type="checkbox" id="sqf-check-3" style="width:14px;height:14px;"> Corrective action verified' +
+      '</label>' +
+    '</div>' +
     tempFixSection,
     function() {
+      var sqfItems = [];
+      if ((document.getElementById('sqf-check-1') || {}).checked) sqfItems.push('Work summary documented');
+      if ((document.getElementById('sqf-check-2') || {}).checked) sqfItems.push('Root cause identified');
+      if ((document.getElementById('sqf-check-3') || {}).checked) sqfItems.push('Corrective action verified');
       var data = {
-        ticketNo:   t.ticketNo,
-        verifiedBy: document.getElementById('vc-verifier').value.trim() || USER.displayName,
-        notes:      document.getElementById('vc-notes').value,
-        updatedBy:  USER.displayName
+        ticketNo:     t.ticketNo,
+        verifiedBy:   document.getElementById('vc-verifier').value.trim() || USER.displayName,
+        notes:        document.getElementById('vc-notes').value,
+        updatedBy:    USER.displayName,
+        sqfChecklist: sqfItems.join(' | ')
       };
       var clearEl = document.getElementById('vc-cleartf');
       if (clearEl) {
@@ -514,6 +565,94 @@ function _tdUpdate_() {
     });
 }
 
+function _tdIssueTag_() {
+  var t = _tdTicket;
+  if (!t) return;
+  var tagTypes = ['Red — Out of Service','Yellow — Use with Caution','Orange — Temp Fix'];
+  _showModal_('Issue Equipment Hold Tag',
+    '<div class="form-group"><label>Tag Type</label>' +
+    '<select id="tag-type">' + tagTypes.map(function(tt) {
+      return '<option value="' + esc(tt) + '">' + esc(tt) + '</option>';
+    }).join('') + '</select></div>' +
+    '<div class="form-group"><label>Reason</label><textarea id="tag-reason" placeholder="Why is this equipment being tagged?"></textarea></div>',
+    function() {
+      var tagType = document.getElementById('tag-type').value;
+      if (!tagType) { alert('Select a tag type.'); return; }
+      var data = {
+        ticketNo:      t.ticketNo,
+        equipCode:     t.equipCode     || '',
+        specificEquip: t.specificEquip || '',
+        dept:          t.dept,
+        buildingZone:  t.buildingZone  || '',
+        tagType:       tagType,
+        reason:        document.getElementById('tag-reason').value,
+        taggedBy:      USER.displayName
+      };
+      _tdRunAction_(issueEquipHoldTag, data, 'Hold Tag Issued');
+    }, 'Issue Tag');
+}
+
+function _tdServiceReport_() {
+  var t = _tdTicket;
+  if (!t) return;
+  var modal = document.getElementById('td-modal-container');
+  if (!modal) return;
+
+  modal.innerHTML =
+    '<div class="td-modal-backdrop" id="td-modal-backdrop" onclick="if(event.target===this)_closeModal_()">' +
+    '<div class="td-modal" style="width:560px;max-width:96vw;">' +
+      '<h3>📝 Service Report — ' + esc(t.ticketNo) + ' <span style="font-size:11px;color:var(--text-tertiary);font-weight:400;">FRM-040-002</span></h3>' +
+      '<div class="form-group"><label>Completed By</label>' +
+        '<input id="sr-completed-by" value="' + esc(t.assignedTo || '') + '" placeholder="Technician name"/></div>' +
+      '<div class="form-group"><label>Labor Hours</label>' +
+        '<input id="sr-hours" type="number" step="0.5" min="0" value="' + esc(String(t.actualHours || '')) + '" placeholder="0.0" style="width:120px"/></div>' +
+      '<div class="form-group"><label>Work Summary</label>' +
+        '<textarea id="sr-work-summary">' + esc(t.workSummary || '') + '</textarea></div>' +
+      '<div class="form-group"><label>Root Cause</label>' +
+        '<textarea id="sr-root-cause">' + esc(t.rootCause || '') + '</textarea></div>' +
+      '<div class="form-group"><label>Corrective Action</label>' +
+        '<textarea id="sr-corrective-act">' + esc(t.correctiveAct || '') + '</textarea></div>' +
+      '<div class="form-group"><label>Preventive Action</label>' +
+        '<textarea id="sr-preventive-act" placeholder="Steps taken to prevent recurrence…"></textarea></div>' +
+      '<div class="form-group"><label>Parts Used (describe)</label>' +
+        '<input id="sr-parts-used" placeholder="e.g. 2× bearing #6205, 1× V-belt"/></div>' +
+      '<div class="form-group"><label>Notes</label>' +
+        '<input id="sr-notes" placeholder="Any additional notes…"/></div>' +
+      '<div class="modal-actions">' +
+        '<button class="btn-cancel" onclick="_closeModal_()">Cancel</button>' +
+        '<button class="btn-confirm" onclick="_tdSaveServiceReport_()">Save Service Report</button>' +
+      '</div>' +
+    '</div></div>';
+}
+
+function _tdSaveServiceReport_() {
+  var t = _tdTicket;
+  if (!t) return;
+  var data = {
+    ticketNo:      t.ticketNo,
+    dept:          t.dept,
+    buildingZone:  t.buildingZone  || '',
+    equipType:     t.equipType     || '',
+    equipCode:     t.equipCode     || '',
+    specificEquip: t.specificEquip || '',
+    description:   t.description   || '',
+    rootCause:     (document.getElementById('sr-root-cause')     || {}).value || '',
+    correctiveAct: (document.getElementById('sr-corrective-act') || {}).value || '',
+    preventiveAct: (document.getElementById('sr-preventive-act') || {}).value || '',
+    workSummary:   (document.getElementById('sr-work-summary')   || {}).value || '',
+    partsUsed:     (document.getElementById('sr-parts-used')     || {}).value || '',
+    completedBy:   (document.getElementById('sr-completed-by')   || {}).value || '',
+    laborHours:    parseFloat((document.getElementById('sr-hours') || {}).value) || '',
+    priority:      t.priority      || '',
+    downtimeType:  t.downtimeType  || '',
+    fixType:       t.fixType       || '',
+    tempFixFlag:   t.tempFixFlag   || false,
+    addedBy:       USER.displayName,
+    notes:         (document.getElementById('sr-notes') || {}).value || ''
+  };
+  _tdRunAction_(saveServiceReport, data, 'Service Report saved');
+}
+
 function _tdTransfer_() {
   var t = _tdTicket;
   if (!t) return;
@@ -607,6 +746,46 @@ _renderDetail_ = function(result) {
   if (result && result.techs) window._tdTechs_ = result.techs;
   _tdRenderOrig_(result);
 };
+
+// ── Photo helpers ─────────────────────────────────────────────────────────────
+// Photo URLs arrive in t.notes as "Photos: url1, url2" (set by ExternalSync).
+// Single config point: the prefix string and Drive folder are documented here.
+// DRIVE FOLDER: https://drive.google.com/drive/folders/1gGGBggOwhc90HNTOXIpApbE24xieMq0l
+var PHOTO_NOTES_PREFIX = 'Photos: ';
+
+function _parsePhotoLinks_(raw) {
+  if (!raw) return { text: '', urls: [] };
+  if (raw.indexOf(PHOTO_NOTES_PREFIX) === 0) {
+    var urls = raw.substring(PHOTO_NOTES_PREFIX.length)
+      .split(',')
+      .map(function(u) { return u.trim(); })
+      .filter(Boolean);
+    return { text: '', urls: urls };
+  }
+  return { text: raw, urls: [] };
+}
+
+function _renderNotes_(raw) {
+  var parsed = _parsePhotoLinks_(raw);
+  var out = '';
+  if (parsed.urls.length > 0) {
+    var cameraIcon =
+      '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">' +
+      '<path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z"/>' +
+      '<circle cx="12" cy="13" r="4"/></svg>';
+    var links = parsed.urls.map(function(url, i) {
+      var label = parsed.urls.length > 1 ? 'Photo ' + (i + 1) : 'View Photo';
+      return '<a href="' + url + '" target="_blank" rel="noopener" class="photo-link">' +
+        cameraIcon + label + '</a>';
+    }).join('');
+    out += '<div class="td-field"><label>Photos</label><div class="val">' + links + '</div></div>';
+  }
+  if (parsed.text) {
+    out += '<div class="td-field"><label>Notes / Observations</label>' +
+      '<div class="val desc">' + esc(parsed.text) + '</div></div>';
+  }
+  return out;
+}
 
 // ── Backend function proxies (called via _tdRunAction_) ───────────────────────
 // These are defined here as stubs so _tdRunAction_ can call fn.name on them.
