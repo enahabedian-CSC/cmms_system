@@ -47,7 +47,8 @@ function getServiceReportFormData(ticketNo) {
         description:   String(mlRow[ML.DESCRIPTION   - 1] || ''),
         rootCause:     String(mlRow[ML.ROOT_CAUSE     - 1] || ''),
         correctiveAct: String(mlRow[ML.CORRECTIVE_ACT - 1] || ''),
-        workSummary:   String(mlRow[ML.WORK_SUMMARY   - 1] || ''),
+        preventiveAct: String(mlRow[ML.PREVENTIVE_ACT  - 1] || ''),
+        workSummary:   String(mlRow[ML.PREVENTIVE_ACT  - 1] || ''),  // legacy alias
         fixType:       String(mlRow[ML.FIX_TYPE       - 1] || ''),
         tempFixFlag:   String(mlRow[ML.TEMP_FIX_FLAG  - 1] || ''),
         priority:      String(mlRow[ML.PRIORITY       - 1] || ''),
