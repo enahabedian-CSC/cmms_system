@@ -97,44 +97,77 @@ var LEGACY_DEPT_CODES = {
   'S/R': '009', 'SALES': '030', 'G&A': '031'
 };
 
-// ─── MASTER LOG — 37 columns ──────────────────────────────────────────────────
+// ─── MASTER LOG — 42 columns ──────────────────────────────────────────────────
+// Cols 1–36: identical to Izzy's schema.  Col 37: PHOTO_URL (copy-app addition).
+// Cols 38–42: Round 7 additions (Izzy has no equivalent — documented in FIELD_MAPPING.md).
 var ML = {
   ROW_ID:1,         TICKET_NO:2,      TIMESTAMP:3,       ACTION:4,
   STATUS:5,         DEPT:6,           BUILDING_ZONE:7,   EQUIP_TYPE:8,
   EQUIP_CODE:9,     SPECIFIC_EQUIP:10, DOWNTIME_TYPE:11, PRIORITY:12,
   DESCRIPTION:13,   ASSIGNED_TO:14,   EST_HOURS:15,      ACTUAL_HOURS:16,
   DATE_OPENED:17,   DATE_COMPLETED:18, DATE_CLOSED:19,   CORRECTIVE_ACT:20,
-  ROOT_CAUSE:21,    WORK_SUMMARY:22,  FIX_TYPE:23,       TEMP_FIX_FLAG:24,
+  ROOT_CAUSE:21,    PREVENTIVE_ACT:22, FIX_TYPE:23,      TEMP_FIX_FLAG:24,
   PARTS_NEEDED:25,  PARTS_STATUS:26,  EQUIP_TAG_STATUS:27, VERIFIED_BY:28,
   VERIFIED_DATE:29, ADDED_BY:30,      UPDATED_BY:31,     NOTES:32,
   PROBLEM_TYPE:33,  TRACKER_GROUP:34, LINE_NO:35,
-  VERIFICATION_CHECKLIST:36, PHOTO_URL:37
+  VERIFICATION_CHECKLIST:36, PHOTO_URL:37,
+  // Round 7 additions — NEW (Izzy lacks these; see FIELD_MAPPING.md)
+  JOINT_DEPTS:38,       // comma-separated attached departments (Change 1)
+  JOINT_SIGNOFFS:39,    // JSON: per-dept sign-off actor + timestamp (Change 1)
+  PERM_FIX_PLAN:40,     // permanent-fix description when temp fix is flagged (Change 8)
+  PERM_FIX_DATE:41,     // target date for permanent fix (Change 8)
+  DOWNTIME_DURATION:42  // minutes of unplanned downtime (Change 16 — data only)
 };
-var ML_COLS = 37;
+var ML_COLS = 42;
 var ML_HEADERS = [
   'Row ID','Ticket #','Timestamp','Action','Status','Department',
   'Building / Zone','Equipment Type','Equipment Code','Equipment Description',
   'Downtime Type','Priority','Description','Assigned To','Est Hours',
   'Actual Hours','Date Opened','Date Completed','Date Closed','Corrective Action',
-  'Root Cause','Work Summary','Fix Type','Temp Fix Flag','Parts Needed Flag',
+  'Root Cause','Preventive Action','Fix Type','Temp Fix Flag','Parts Needed Flag',
   'Parts Status','Equip Tag Status','Verified By','Verified Date','Added By',
   'Updated By','Notes','Problem Type','Tracker Group','Line #',
-  'Verification Checklist','Photo URL'
+  'Verification Checklist','Photo URL',
+  'Joint Departments','Joint Sign-Offs','Perm Fix Plan','Perm Fix Date','Downtime Duration (min)'
 ];
 
-// ─── EMRL — 10 columns appended to Closed Tickets after TK_COLS ─────────────
-// Absolute sheet columns: TK_DATA_COL + TK_COLS + (1..10)
-// = col 2 + 26 + offset = cols 28–37
-var EMRL = {
+// ─── EMRL_LEGACY — OLD 37-col Closed Tickets layout (read-only after migration) ─
+// Kept so migrateClosedTab_() can read legacy rows.  Do NOT write new rows with
+// these offsets — all new writes use CS_ below.
+// Absolute sheet columns: TK_DATA_COL + TK_COLS + (1..10) = cols 28–37.
+var EMRL_LEGACY = {
   REPAIR_DATE:28,    PARTS_USED:29,       ROOT_CAUSE:30,    CORRECTIVE_ACT:31,
   PREVENTIVE_ACT:32, CA_DATE:33,          CAPA_REQUIRED:34, CLEARANCE_CHK:35,
   HAD_TEMP_FIX:36,   TF_RESOLVED_DATE:37
 };
-var EMRL_COLS = 10;
-var EMRL_HEADERS = [
+var EMRL_LEGACY_COLS = 10;
+var EMRL_LEGACY_HEADERS = [
   'Repair Date','Parts Used','Root Cause','Corrective Action',
   'Preventive Action','CA Date','CAPA Required','Clearance Checklist',
   'Had Temp Fix','Temp Fix Resolved Date'
+];
+
+// ─── CS_ — 29-col Closed Tickets layout (matches Izzy's CS_ schema) ──────────
+// All Round 7+ Closed rows are written here starting at sheet col 1.
+var CS = {
+  ROW_MARKER:1,      TICKET_NO:2,      STATUS:3,         PRIORITY:4,
+  DEPT:5,            BUILDING_ZONE:6,  EQUIP_TYPE:7,     EQUIP_CODE:8,
+  SPECIFIC_EQUIP:9,  DOWNTIME_TYPE:10, ADDED_BY:11,      DATE_OPENED:12,
+  PROBLEM_TYPE:13,   DESCRIPTION:14,   LINE_NO:15,       EST_HOURS:16,
+  ACTUAL_HOURS:17,   REPAIR_COMPLETE:18, COMPLETED_BY:19, REPAIR_DATE:20,
+  PARTS_USED:21,     CORRECTIVE:22,    CAPA_REQ:23,      ROOT_CAUSE:24,
+  PREVENTIVE:25,     CHECKLIST:26,     VERIFIED_BY:27,   VERIFIED_DATE:28,
+  NOTES:29
+};
+var CS_COLS = 29;
+var CS_HEADERS = [
+  '#','Ticket #','Ticket Status','Priority','Department','Building / Zone',
+  'Equipment Type','Equip Code','Equipment Description','Downtime Type',
+  'Added By','Date Opened','Problem Type','Problem Description','Line #',
+  'Est Hrs','Act Hrs','Repair Complete','Completed By','Repair Date',
+  'Parts Used','Corrective Action','CAPA Required','Root Cause',
+  'Preventive Action','Verification Checklist','Verified By','Verified Date',
+  'Notes'
 ];
 
 // ─── TRACKER / QUEUE — 26 columns (physical col B = index 1 in TK object) ────
@@ -192,7 +225,11 @@ var TH_EVENTS = {
   REROUTED:         'REROUTED',
   DIRECT_EDIT:      'DIRECT EDIT',
   SERVICE_REPORT:   'Service Report',
-  PENDING_VERIFY:   'PENDING VERIFICATION'
+  PENDING_VERIFY:   'PENDING VERIFICATION',
+  // Round 7 additions (Change 1 + Change 3)
+  MAKE_JOINT:         'MAKE JOINT',
+  DEPT_SIGNOFF:       'DEPT SIGNED OFF',
+  TRANSFER_CONFIRMED: 'TRANSFER CONFIRMED'
 };
 
 // Canonical ML action vocabulary.
@@ -221,7 +258,11 @@ var ML_ACTIONS = {
   MONTH_ROLLOVER:       'MONTH ROLLOVER',
   MONTHLY_BACKUP:       'MONTHLY BACKUP COMPLETED',
   DEPT_TRANSFER:        'DEPT TRANSFER',
-  IZZY_IMPORT:          'IZZY IMPORT'
+  IZZY_IMPORT:          'IZZY IMPORT',
+  // Round 7 additions (Change 1 + Change 3)
+  MAKE_JOINT:           'MAKE JOINT TICKET',
+  DEPT_SIGNOFF:         'DEPT SIGNED OFF',
+  TRANSFER_CONFIRMED:   'TRANSFER CONFIRMED'
 };
 
 // ─── TEMP FIX MONITOR — 17 columns ───────────────────────────────────────────

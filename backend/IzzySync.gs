@@ -16,7 +16,7 @@ var IZ_COL = {
   EQUIP_CODE:9,     SPECIFIC_EQUIP:10, DOWNTIME_TYPE:11, PRIORITY:12,
   DESCRIPTION:13,   ASSIGNED_TO:14,   EST_HOURS:15,      ACTUAL_HOURS:16,
   DATE_OPENED:17,   DATE_COMPLETED:18, DATE_CLOSED:19,   CORRECTIVE_ACT:20,
-  ROOT_CAUSE:21,    WORK_SUMMARY:22,  FIX_TYPE:23,       TEMP_FIX_FLAG:24,
+  ROOT_CAUSE:21,    PREVENTIVE_ACT:22, FIX_TYPE:23,      TEMP_FIX_FLAG:24,
   PARTS_NEEDED:25,  PARTS_STATUS:26,  EQUIP_TAG_STATUS:27, VERIFIED_BY:28,
   VERIFIED_DATE:29, ADDED_BY:30,      UPDATED_BY:31,     NOTES:32,
   PROBLEM_TYPE:33,  TRACKER_GROUP:34, LINE_NO:35
@@ -116,7 +116,7 @@ function syncFromIzzySheet_() {
       var dateClosed   = row[IZ_COL.DATE_CLOSED   - 1];
       var correctiveAct= String(row[IZ_COL.CORRECTIVE_ACT - 1] || '').trim();
       var rootCause    = String(row[IZ_COL.ROOT_CAUSE   - 1] || '').trim();
-      var workSummary  = String(row[IZ_COL.WORK_SUMMARY - 1] || '').trim();
+      var preventiveAct = String(row[IZ_COL.PREVENTIVE_ACT - 1] || '').trim();
       var fixType      = String(row[IZ_COL.FIX_TYPE     - 1] || '').trim();
       var tempFixFlag  = String(row[IZ_COL.TEMP_FIX_FLAG - 1] || '').trim();
       var partsNeeded  = String(row[IZ_COL.PARTS_NEEDED - 1] || '').trim();
@@ -157,14 +157,18 @@ function syncFromIzzySheet_() {
         if (resolved) equipCode = resolved;
       }
 
-      // ── Resolve import status — preserve Izzy's status ────────────────────
-      // Map to valid statuses in our system.
+      // ── Resolve import status — translate Izzy statuses to our vocabulary ───
       var importStatus;
       if (status === 'CLOSED' || status === 'VERIFIED') {
         importStatus = 'CLOSED';
       } else if (status === 'VOIDED') {
         importStatus = 'VOIDED';
-      } else if (status === 'OPEN' || status === 'PENDING VERIFICATION' || status === 'PENDING PARTS') {
+      } else if (status === 'COMPLETE') {
+        importStatus = 'PENDING VERIFICATION';  // Izzy COMPLETE = our post-work pre-close state
+      } else if (status === 'IN PROGRESS' || status === 'IN REVIEW') {
+        importStatus = 'OPEN';  // Izzy sub-states that map to our OPEN
+      } else if (status === 'OPEN' || status === 'PENDING VERIFICATION' || status === 'PENDING PARTS'
+                 || status === 'WAITING' || status === 'ON HOLD') {
         importStatus = status;
       } else {
         importStatus = 'WAITING';
@@ -192,7 +196,7 @@ function syncFromIzzySheet_() {
         dateClosed:    dateClosed    instanceof Date ? Utilities.formatDate(dateClosed,    tz, 'MM/dd/yyyy') : (dateClosed    || ''),
         correctiveAct: correctiveAct,
         rootCause:     rootCause,
-        workSummary:   workSummary,
+        preventiveAct: preventiveAct,
         fixType:       fixType,
         tempFixFlag:   tempFixFlag,
         partsNeeded:   partsNeeded === 'YES' || partsNeeded === 'TRUE' || partsNeeded === '1',

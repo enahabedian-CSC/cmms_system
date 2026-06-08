@@ -391,4 +391,69 @@ All config read from `⚙️ Configuration` tab cols C (key) and D (value), rows
 
 ---
 
+## Round 7 Step 0 Findings
+**Discovery date:** 2026-06-08
+**Commits compared:** `c5d262b` (Izzy old) → `6494fdc` (Izzy new, current disk)
+**Branch:** `claude/steady-marrujo-RND7`
+**Copy app version:** CMMS v5.0
+
+### New Documents Produced This Round
+- [`docs/GAP_REPORT.md`](GAP_REPORT.md) — Three-axis gap analysis (Axis A: Izzy old→new; Axis B: Izzy new vs copy; Axis C: 16-item checklist)
+- [`docs/REVIEW_GATE_FINDING.md`](REVIEW_GATE_FINDING.md) — Full manager review gate logic, state machine, and enforcement contract
+- [`docs/SCHEMA_DIFF.md`](SCHEMA_DIFF.md) — Column-by-column comparison across all tables
+- [`docs/FIELD_MAPPING.md`](FIELD_MAPPING.md) — Adapter contract for every field at every boundary
+
+### Priority Strings (verbatim)
+`'CRITICAL'` / `'HIGH'` / `'MEDIUM'` / `'LOW'`
+All four are uppercase, exact. These are the only valid values in both Izzy's and the copy app's `PRIORITY_CONFIG`. LOW priority color is **blue (#1565C0)**, not green — changed per "ITEM 7B" comment in Izzy's `Code.js`.
+
+### Predictive-Insights Threshold
+**Current value: 3** (already at 3 in Izzy, not 6).
+**Location:** `_reference/izzy_current/Dashboard.js` — `if(tix.length >= 3)` inside the chronic-equipment detection block.
+Change 9 (lower 6→3) is already Izzy's value. The copy app has **no server-side chronic equipment detection** — must implement at 3.
+
+### Logo Embedding (Maintenance Repair Record)
+Izzy embeds the logo as a base64 PNG string in `_reference/izzy_current/MaintenanceRepairRecord.html` line ~158:
+```javascript
+var LOGO_B64 = 'iVBOR...';  // hardcoded base64 string
+```
+Used via `'<img src="data:image/png;base64,' + LOGO_B64 + '">'` at line ~262.
+Change 10 says NOT to use base64 (unreliable). This creates a conformance vs. brief conflict — **FLAG-2 in GAP_REPORT.md; Michael must decide which takes precedence.**
+
+### Closed Tickets vs. Reports Closed-Set Logic
+- **Izzy Reports:** queries ML for rows where `STATUS === 'CLOSED'`
+- **Izzy Closed Tickets tab:** populated by `moveTicketToClosed_()` which is called from `managerVerifyTicket()` — only tickets that complete Gate 2 verification land here
+- **Copy app divergence:** copy app uses `'PENDING VERIFICATION'` as its post-work state (Izzy uses `'COMPLETE'`); `Reports.gs` treats `'PENDING VERIFICATION'` as an active status. The mismatch reported by the user (Change 15) is likely the status string divergence — tickets the copy app considers "active" are the same ones Izzy would consider "awaiting verification." Validate this before fixing.
+
+### Unplanned Downtime Duration
+**Not captured in either system.** `DOWNTIME_TYPE` distinguishes planned/unplanned but there is no duration (minutes/hours down) column in Izzy's ML or the copy app's ML. Change 16 requires a new column `DOWNTIME_DURATION` — documented as NEW in `FIELD_MAPPING.md`.
+
+### FRM-003-003 Flag
+⚠️ The Maintenance Repair Record carries form number `FRM-003-003`, which breaks the `FRM-030-xxx` series used by all other forms. This number is used verbatim in the code and must **not** be changed without Izzy's confirmation. Michael should verify with Izzy whether this is intentional.
+**Location:** search `backend/` for `FRM-003-003` or `MaintenanceRepairRecord` to find the exact line.
+
+### Manager Access Scope — This Round
+All managers can **view** all tickets across all departments. Managers can only **act** (approve, complete, verify, CAPA, sign-off) on tickets within their own department.
+**Permission narrowing** (restricting which managers can act on which tickets beyond dept scope) is **deferred to a later round.** Every action writes to both audit logs attributed to the acting manager — this is the audit safeguard that makes the scoped-view defensible.
+
+### Breaking Changes in Izzy's Latest Commit (Axis A)
+1. **ML col 22 renamed** `WORK_SUMMARY` → `PREVENTIVE_ACT`. WORK_SUMMARY removed from ML object entirely. Copy app still uses WORK_SUMMARY at col 22 — semantic collision.
+2. **Closed Tickets tab restructured** from 37-col EMRL layout to 31-col CS_ layout with completely different column ordering. Copy app uses old EMRL layout.
+3. **New functions** added: `migrateClosedTab_()`, `runMigrateClosedTab()`, `runRebuildClosedTab()`.
+4. **New email notifications:** `sendTicketCompleteEmail_()` (fires when tech marks COMPLETE) and `sendPartsNeededEmail_()` (fires on PENDING PARTS). Neither exists in the copy app.
+5. **AddTicket.html** gained client-side `validateForm()` guard with field-level error display.
+
+### Flags Requiring Michael's Decision Before Build
+| Flag | Question |
+|------|---------|
+| FLAG-1 | Verification checklist: Izzy has 3 items (food-safety SQF language); brief specifies 4 different items. Which set? |
+| FLAG-2 | Logo: Izzy uses base64; brief says don't. Which takes precedence? |
+| FLAG-3 | Green hold tag: Izzy has only Red/Yellow/Orange. Is Green new this round? |
+| FLAG-4 | FRM-003-003 form number: confirm with Izzy before any doc change. |
+| FLAG-5 | Status string: adopt Izzy's `'COMPLETE'` or keep `'PENDING VERIFICATION'` and translate at IzzySync boundary? |
+| FLAG-6 | ML col 22: add `PREVENTIVE_ACT` as new column (preferred) or another option? See FIELD_MAPPING.md Note A. |
+| FLAG-7 | Closed Tickets tab layout: stay on old 37-col EMRL layout (copy app current) or migrate to Izzy new 31-col CS_ layout? |
+
+---
+
 *End of system-map.md*

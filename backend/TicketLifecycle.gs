@@ -104,7 +104,7 @@ function completeTicket(data) {
       dateCompleted: formatDateStr_(now),
       addedBy:       String(orig[ML.ADDED_BY - 1] || ''),
       updatedBy:     data.updatedBy || user.displayName,
-      workSummary:   data.workSummary || '',
+      preventiveAct: data.preventiveAct || data.workSummary || '',
       correctiveAct: data.correctiveAct || '',
       rootCause:     data.rootCause || '',
       fixType:       data.fixType || '',
@@ -174,8 +174,8 @@ function verifyAndCloseTicket(data) {
       dateOpened:    String(orig[ML.DATE_OPENED    - 1] || ''),
       dateCompleted: String(latest[ML.DATE_COMPLETED - 1] || ''),
       dateClosed:    formatDateStr_(now),
-      workSummary:   String(latest[ML.WORK_SUMMARY   - 1] || ''),
-      correctiveAct: String(latest[ML.CORRECTIVE_ACT - 1] || ''),
+      preventiveAct: String(latest[ML.PREVENTIVE_ACT  - 1] || ''),
+      correctiveAct: String(latest[ML.CORRECTIVE_ACT  - 1] || ''),
       rootCause:     String(latest[ML.ROOT_CAUSE     - 1] || ''),
       fixType:       String(latest[ML.FIX_TYPE       - 1] || ''),
       tempFixFlag:   String(latest[ML.TEMP_FIX_FLAG  - 1] || '') === 'Y',
@@ -687,50 +687,52 @@ function _updateTicketInSheets_(ss, ticketNo, updates, now) {
   });
 }
 
-// Appends a row to the Closed Tickets sheet and removes it from Open queue.
+// Appends a CS_ row to Closed Tickets and removes the ticket from Open queue.
+// Uses the new 29-col CS_ layout (see Config.gs CS / CS_COLS).
 function _moveTicketToClosed_(ss, ticketNo, data, now) {
   var closedSh = ss.getSheetByName(SH.CLOSED);
   if (!closedSh) return;
-  var tkRow = buildTkRow_(ticketNo, data, 'CLOSED', data.dept || '', now, data.updatedBy || '');
-  tkRow[TK.STATUS       - 1] = 'CLOSED';
-  tkRow[TK.VERIFIED_BY  - 1] = data.verifiedBy  || '';
-  tkRow[TK.VERIFIED_DATE- 1] = data.verifiedBy  ? formatDateStr_(now) : '';
-  tkRow[TK.ACTUAL_HOURS - 1] = data.actualHours || '';
-  tkRow[TK.UPDATED_BY   - 1] = data.updatedBy   || data.verifiedBy || '';
-  // Ensure we never write into the frozen header rows.
   var nextRow = Math.max(closedSh.getLastRow() + 1, QUEUE_FROZEN + 1);
-  closedSh.getRange(nextRow, TK_DATA_COL, 1, TK_COLS).setValues([tkRow]);
-  // Write EMRL columns immediately after TK data (cols 28–37).
-  populateEMRL_(closedSh, nextRow, data, now);
+  var csRow = buildCsRow_(ticketNo, data, now);
+  csRow[CS.ROW_MARKER - 1] = nextRow - QUEUE_FROZEN;  // sequential row number
+  closedSh.getRange(nextRow, 1, 1, CS_COLS).setValues([csRow]);
   removeTicketFromSheet_(ss, SH.OPEN, ticketNo);
 }
 
-// Writes the 10 EMRL columns for a newly closed row.
-// closedSh  — the ✅ Closed Tickets sheet
-// rowNum    — the 1-based sheet row just written by _moveTicketToClosed_
-// data      — ticket data object (same as passed to _moveTicketToClosed_)
-// now       — Date used as repair date / CA date default
-function populateEMRL_(closedSh, rowNum, data, now) {
-  var repairDate   = data.dateCompleted ? data.dateCompleted : formatDateStr_(now);
-  var partsUsed    = String(data.workSummary || '').indexOf('Parts:') === 0
-                     ? data.workSummary
-                     : (data.partsUsed || '');
-  var rootCause    = String(data.rootCause    || '');
-  var correctiveAct= String(data.correctiveAct|| '');
-  var preventiveAct= String(data.preventiveAct|| '');
-  var caDate       = data.caDate || repairDate;
-  var capaRequired = rootCause || correctiveAct ? 'YES' : 'NO';
-  var clearanceChk = 'PENDING';
-  var hadTempFix   = (data.tempFixFlag === true || String(data.tempFixFlag || '') === 'Y') ? 'Y' : 'N';
-  var tfResolvedDate = String(data.tfResolvedDate || '');
-
-  var emrlRow = [
-    repairDate, partsUsed, rootCause, correctiveAct,
-    preventiveAct, caDate, capaRequired, clearanceChk,
-    hadTempFix, tfResolvedDate
-  ];
-  // EMRL columns start at sheet column TK_DATA_COL + TK_COLS = 28
-  closedSh.getRange(rowNum, TK_DATA_COL + TK_COLS, 1, EMRL_COLS).setValues([emrlRow]);
+// Builds a fully populated CS_ array (length = CS_COLS) for a closed ticket.
+function buildCsRow_(ticketNo, data, now) {
+  var repairDate = data.dateCompleted || formatDateStr_(now);
+  var csRow = new Array(CS_COLS).fill('');
+  csRow[CS.ROW_MARKER    - 1] = '';  // filled by caller
+  csRow[CS.TICKET_NO     - 1] = ticketNo                   || '';
+  csRow[CS.STATUS        - 1] = 'CLOSED';
+  csRow[CS.PRIORITY      - 1] = data.priority              || '';
+  csRow[CS.DEPT          - 1] = data.dept                  || '';
+  csRow[CS.BUILDING_ZONE - 1] = data.buildingZone          || '';
+  csRow[CS.EQUIP_TYPE    - 1] = data.equipType             || '';
+  csRow[CS.EQUIP_CODE    - 1] = data.equipCode             || '';
+  csRow[CS.SPECIFIC_EQUIP- 1] = data.specificEquip         || '';
+  csRow[CS.DOWNTIME_TYPE - 1] = data.downtimeType          || '';
+  csRow[CS.ADDED_BY      - 1] = data.addedBy               || '';
+  csRow[CS.DATE_OPENED   - 1] = data.dateOpened            || '';
+  csRow[CS.PROBLEM_TYPE  - 1] = data.problemType           || '';
+  csRow[CS.DESCRIPTION   - 1] = data.description           || '';
+  csRow[CS.LINE_NO       - 1] = data.lineNo                || '';
+  csRow[CS.EST_HOURS     - 1] = data.estHours              || '';
+  csRow[CS.ACTUAL_HOURS  - 1] = data.actualHours           || '';
+  csRow[CS.REPAIR_COMPLETE-1] = 'Y';
+  csRow[CS.COMPLETED_BY  - 1] = data.updatedBy || data.verifiedBy || '';
+  csRow[CS.REPAIR_DATE   - 1] = repairDate;
+  csRow[CS.PARTS_USED    - 1] = data.partsUsed             || '';
+  csRow[CS.CORRECTIVE    - 1] = data.correctiveAct         || '';
+  csRow[CS.CAPA_REQ      - 1] = (data.rootCause || data.correctiveAct) ? 'YES' : 'NO';
+  csRow[CS.ROOT_CAUSE    - 1] = data.rootCause             || '';
+  csRow[CS.PREVENTIVE    - 1] = data.preventiveAct         || '';
+  csRow[CS.CHECKLIST     - 1] = data.sqfChecklist || data.verificationChecklist || 'PENDING';
+  csRow[CS.VERIFIED_BY   - 1] = data.verifiedBy            || '';
+  csRow[CS.VERIFIED_DATE - 1] = data.verifiedBy            ? formatDateStr_(now) : '';
+  csRow[CS.NOTES         - 1] = data.notes                 || '';
+  return csRow;
 }
 
 // Appends a row to the Temp Fix Monitor sheet.
@@ -749,7 +751,7 @@ function _logTempFix_(ss, ticketNo, data, orig, now) {
     String(orig ? orig[ML.BUILDING_ZONE  - 1] : data.buildingZone  || ''),
     formatDateStr_(now),
     String(orig ? orig[ML.DESCRIPTION    - 1] : data.description   || ''),
-    data.tempFixDesc || data.workSummary || '',
+    data.tempFixDesc || data.notes || '',
     freq,
     '',
     formatDateStr_(nextDue),
@@ -779,7 +781,7 @@ function _buildTicketDataFromMl_(mlRow, overrides) {
     estHours:      overrides.estHours  !== undefined ? overrides.estHours : (mlRow[ML.EST_HOURS  - 1] || ''),
     actualHours:   overrides.actualHours !== undefined ? overrides.actualHours : (mlRow[ML.ACTUAL_HOURS - 1] || ''),
     dateOpened:    overrides.dateOpened   || mlRow[ML.DATE_OPENED    - 1] || '',
-    workSummary:   overrides.workSummary  || String(mlRow[ML.WORK_SUMMARY   - 1] || ''),
+    preventiveAct: overrides.preventiveAct || overrides.workSummary || String(mlRow[ML.PREVENTIVE_ACT - 1] || ''),
     correctiveAct: overrides.correctiveAct|| String(mlRow[ML.CORRECTIVE_ACT - 1] || ''),
     fixType:       overrides.fixType      || String(mlRow[ML.FIX_TYPE       - 1] || ''),
     tempFixFlag:   overrides.tempFixFlag  !== undefined ? overrides.tempFixFlag : (String(mlRow[ML.TEMP_FIX_FLAG - 1] || '') === 'Y'),

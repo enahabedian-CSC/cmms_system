@@ -131,7 +131,7 @@ function appendToMasterLog_(params) {
   row[ML.DATE_CLOSED    - 1] = params.dateClosed    || '';
   row[ML.CORRECTIVE_ACT - 1] = params.correctiveAct || '';
   row[ML.ROOT_CAUSE     - 1] = params.rootCause     || '';
-  row[ML.WORK_SUMMARY   - 1] = params.workSummary   || '';
+  row[ML.PREVENTIVE_ACT - 1] = params.preventiveAct || params.workSummary || '';
   row[ML.FIX_TYPE       - 1] = params.fixType       || '';
   row[ML.TEMP_FIX_FLAG  - 1] = params.tempFixFlag   ? 'Y' : 'N';
   row[ML.PARTS_NEEDED   - 1] = params.partsNeeded   ? 'Y' : 'N';
@@ -147,6 +147,12 @@ function appendToMasterLog_(params) {
   row[ML.LINE_NO                - 1] = params.lineNo        || '';
   row[ML.VERIFICATION_CHECKLIST - 1] = params.sqfChecklist  || '';
   row[ML.PHOTO_URL              - 1] = params.photoUrl      || '';
+  // Round 7 columns (38–42)
+  row[ML.JOINT_DEPTS       - 1] = params.jointDepts       || '';
+  row[ML.JOINT_SIGNOFFS    - 1] = params.jointSignoffs    || '';
+  row[ML.PERM_FIX_PLAN     - 1] = params.permFixPlan      || '';
+  row[ML.PERM_FIX_DATE     - 1] = params.permFixDate      || '';
+  row[ML.DOWNTIME_DURATION - 1] = params.downtimeDuration || '';
   sh.appendRow(row);
 }
 

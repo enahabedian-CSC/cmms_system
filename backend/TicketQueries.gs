@@ -102,7 +102,8 @@ function getTicketDetail(ticketNo) {
       dateClosed:    fmtDate(best[ML.DATE_CLOSED    - 1]),
       correctiveAct: String(best[ML.CORRECTIVE_ACT  - 1] || ''),
       rootCause:     String(best[ML.ROOT_CAUSE      - 1] || ''),
-      workSummary:   String(best[ML.WORK_SUMMARY    - 1] || ''),
+      preventiveAct: String(best[ML.PREVENTIVE_ACT  - 1] || ''),
+      workSummary:   String(best[ML.PREVENTIVE_ACT  - 1] || ''),  // legacy alias for existing UI
       fixType:       String(best[ML.FIX_TYPE        - 1] || ''),
       tempFixFlag:   String(best[ML.TEMP_FIX_FLAG   - 1] || '') === 'Y',
       partsNeeded:   String(best[ML.PARTS_NEEDED    - 1] || '') === 'Y',
