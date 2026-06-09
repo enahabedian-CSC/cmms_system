@@ -25,7 +25,7 @@ $vFile = "backend\Version.gs"
 
 Write-Host ""
 Write-Host "CSC CMMS Deploy" -ForegroundColor Cyan
-Write-Host "───────────────────────────────────────" -ForegroundColor DarkGray
+Write-Host "---------------------------------------" -ForegroundColor DarkGray
 
 # ── 1. Verify Version.gs exists ───────────────────────────────────────────────
 if (-not (Test-Path $vFile)) {
@@ -52,14 +52,14 @@ if ($content -match 'var APP_VERSION\s*=\s*(\d+);') {
 }
 
 # ── 3. Stage and commit ───────────────────────────────────────────────────────
-Write-Host "Committing version bump…" -ForegroundColor DarkGray
+Write-Host "Committing version bump..." -ForegroundColor DarkGray
 git add $vFile
 git commit -m "chore: deploy v$next"
 
 # ── 4. Push to Google Apps Script ────────────────────────────────────────────
-Write-Host "Pushing to Google Apps Script…" -ForegroundColor DarkGray
+Write-Host "Pushing to Google Apps Script..." -ForegroundColor DarkGray
 clasp push --force
 
 Write-Host ""
-Write-Host "Deploy complete — v$next" -ForegroundColor Green
+Write-Host "Deploy complete - v$next" -ForegroundColor Green
 Write-Host ""
