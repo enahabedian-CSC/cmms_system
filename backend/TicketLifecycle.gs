@@ -79,39 +79,53 @@ function completeTicket(data) {
   var tn   = String(data.ticketNo || '').trim();
   if (!tn) return { success: false, error: 'ticketNo required' };
 
+  // C05 — CAPA required on ALL tickets (SQF 13.2.8).
+  // No priority exception: unplanned tickets always require root cause + CAPA.
+  var correctiveAct = String(data.correctiveAct || '').trim();
+  var rootCause     = String(data.rootCause     || '').trim();
+  var preventiveAct = String(data.preventiveAct || data.workSummary || '').trim();
+  if (!correctiveAct)
+    return { success: false, error: 'Corrective Action is required on all tickets (SQF 13.2.8).' };
+  if (!rootCause)
+    return { success: false, error: 'Root Cause is required on all tickets (SQF 13.2.8).' };
+  if (!preventiveAct)
+    return { success: false, error: 'Preventive Action is required on all tickets (SQF 13.2.8).' };
+
   try {
     var orig   = getOriginalMlRow_(tn) || {};
     var latest = getLatestMlRow_(tn)   || orig;
     var dept = normalizeDept(String(orig[ML.DEPT - 1] || data.dept || ''));
 
     appendToMasterLog_({
-      ticketNo:      tn,
-      now:           now,
-      action:        ML_ACTIONS.MANAGER_ACTION + ' — WORK COMPLETE',
-      status:        'PENDING VERIFICATION',
-      dept:          dept,
-      buildingZone:  String(orig[ML.BUILDING_ZONE  - 1] || ''),
-      equipType:     String(orig[ML.EQUIP_TYPE     - 1] || ''),
-      equipCode:     String(orig[ML.EQUIP_CODE     - 1] || ''),
-      specificEquip: String(orig[ML.SPECIFIC_EQUIP - 1] || ''),
-      downtimeType:  String(orig[ML.DOWNTIME_TYPE  - 1] || ''),
-      priority:      String(latest[ML.PRIORITY     - 1] || orig[ML.PRIORITY - 1] || ''),
-      description:   String(orig[ML.DESCRIPTION    - 1] || ''),
-      assignedTo:    String(data.assignedTo || latest[ML.ASSIGNED_TO - 1] || ''),
-      estHours:      latest[ML.EST_HOURS - 1] || '',
-      actualHours:   data.actualHours || '',
-      dateOpened:    String(orig[ML.DATE_OPENED - 1] || ''),
-      dateCompleted: formatDateStr_(now),
-      addedBy:       String(orig[ML.ADDED_BY - 1] || ''),
-      updatedBy:     data.updatedBy || user.displayName,
-      preventiveAct: data.preventiveAct || data.workSummary || '',
-      correctiveAct: data.correctiveAct || '',
-      rootCause:     data.rootCause || '',
-      fixType:       data.fixType || '',
-      tempFixFlag:   !!data.tempFixFlag,
-      problemType:   String(orig[ML.PROBLEM_TYPE - 1] || ''),
-      lineNo:        String(orig[ML.LINE_NO - 1] || ''),
-      notes:         data.notes || ''
+      ticketNo:          tn,
+      now:               now,
+      action:            ML_ACTIONS.MANAGER_ACTION + ' — WORK COMPLETE',
+      status:            'PENDING VERIFICATION',
+      dept:              dept,
+      buildingZone:      String(orig[ML.BUILDING_ZONE  - 1] || ''),
+      equipType:         String(orig[ML.EQUIP_TYPE     - 1] || ''),
+      equipCode:         String(orig[ML.EQUIP_CODE     - 1] || ''),
+      specificEquip:     String(orig[ML.SPECIFIC_EQUIP - 1] || ''),
+      downtimeType:      String(orig[ML.DOWNTIME_TYPE  - 1] || ''),
+      priority:          String(latest[ML.PRIORITY     - 1] || orig[ML.PRIORITY - 1] || ''),
+      description:       String(orig[ML.DESCRIPTION    - 1] || ''),
+      assignedTo:        String(data.assignedTo || latest[ML.ASSIGNED_TO - 1] || ''),
+      estHours:          latest[ML.EST_HOURS - 1] || '',
+      actualHours:       data.actualHours || '',
+      dateOpened:        String(orig[ML.DATE_OPENED - 1] || ''),
+      dateCompleted:     formatDateStr_(now),
+      addedBy:           String(orig[ML.ADDED_BY - 1] || ''),
+      updatedBy:         data.updatedBy || user.displayName,
+      preventiveAct:     preventiveAct,
+      correctiveAct:     correctiveAct,
+      rootCause:         rootCause,
+      fixType:           data.fixType || '',
+      tempFixFlag:       !!data.tempFixFlag,
+      problemType:       String(orig[ML.PROBLEM_TYPE - 1] || ''),
+      lineNo:            String(orig[ML.LINE_NO - 1] || ''),
+      // C16 — unplanned downtime duration in minutes (data layer only; no dashboard surface this round)
+      downtimeDuration:  data.downtimeDuration || '',
+      notes:             data.notes || ''
     });
 
     appendToTicketHistory_(tn, TH_EVENTS.PENDING_VERIFY, 'OPEN', 'PENDING VERIFICATION',
@@ -155,6 +169,17 @@ function verifyAndCloseTicket(data) {
     var orig   = getOriginalMlRow_(tn) || {};
     var latest = getLatestMlRow_(tn)   || orig;
     var dept = normalizeDept(String(orig[ML.DEPT - 1] || data.dept || ''));
+
+    // C08: block close if an active (uncleared) temp fix is present and the caller
+    // has not indicated they are clearing it as part of this verify-close action.
+    var hasTempFix = String(latest[ML.TEMP_FIX_FLAG - 1] || '') === 'Y';
+    if (hasTempFix && !data.clearTempFix) {
+      return {
+        success: false,
+        error:   'This ticket has an active temp fix. Confirm the permanent repair is complete ' +
+                 'and check "Clear temp fix — permanent repair confirmed" before closing.'
+      };
+    }
 
     // Joint-ticket sign-off guard — all attached depts must have signed off first
     var jtDeptsStr = String(latest[ML.JOINT_DEPTS - 1] || '').trim();
@@ -532,6 +557,14 @@ function flagTempFix(data) {
   var tn   = String(data.ticketNo || '').trim();
   if (!tn) return { success: false, error: 'ticketNo required' };
 
+  // C08 — permanent fix plan + target date are required when flagging a temp fix.
+  var permFixPlan = String(data.permFixPlan || '').trim();
+  var permFixDate = String(data.permFixDate || '').trim();
+  if (!permFixPlan)
+    return { success: false, error: 'Permanent Fix Plan is required when flagging a temp fix (C08).' };
+  if (!permFixDate)
+    return { success: false, error: 'Target Permanent Fix Date is required when flagging a temp fix (C08).' };
+
   try {
     var orig = getOriginalMlRow_(tn) || {};
     var prev = getLatestMlRow_(tn)   || orig;
@@ -539,24 +572,29 @@ function flagTempFix(data) {
     var dept   = normalizeDept(String(orig[ML.DEPT - 1] || ''));
 
     appendToMasterLog_({
-      ticketNo:    tn,
-      now:         now,
-      action:      ML_ACTIONS.MANAGER_ACTION + ' — TEMP FIX FLAGGED',
-      status:      status,
-      dept:        dept,
-      equipCode:   String(orig[ML.EQUIP_CODE     - 1] || ''),
-      specificEquip:String(orig[ML.SPECIFIC_EQUIP- 1] || ''),
-      description: String(orig[ML.DESCRIPTION    - 1] || ''),
-      tempFixFlag: true,
-      updatedBy:   data.updatedBy || user.displayName,
-      notes:       data.tempFixDesc || data.notes || ''
+      ticketNo:     tn,
+      now:          now,
+      action:       ML_ACTIONS.MANAGER_ACTION + ' — TEMP FIX FLAGGED',
+      status:       status,
+      dept:         dept,
+      equipCode:    String(orig[ML.EQUIP_CODE     - 1] || ''),
+      specificEquip:String(orig[ML.SPECIFIC_EQUIP - 1] || ''),
+      description:  String(orig[ML.DESCRIPTION    - 1] || ''),
+      tempFixFlag:  true,
+      permFixPlan:  permFixPlan,
+      permFixDate:  permFixDate,
+      updatedBy:    data.updatedBy || user.displayName,
+      notes:        data.tempFixDesc || data.notes || ''
     });
 
     appendToTicketHistory_(tn, TH_EVENTS.TEMP_FIX, status, status,
       data.updatedBy || user.displayName,
-      'Temp fix flagged — ' + (data.tempFixDesc || ''));
+      'Temp fix flagged — ' + (data.tempFixDesc || '') +
+        ' | Perm fix plan: ' + permFixPlan + ' | Target: ' + permFixDate);
 
     var ss = getBoundSS_();
+    // Store permFixPlan/permFixDate in TF notes for quick reference in monitor
+    data._permFixNote_ = 'Perm fix: ' + permFixPlan + ' | By: ' + permFixDate;
     _logTempFix_(ss, tn, data, orig, now);
     _updateTicketInSheets_(ss, tn, { tempFixFlag: 'Y', updatedBy: data.updatedBy || user.displayName }, now);
 
@@ -1043,7 +1081,7 @@ function _logTempFix_(ss, ticketNo, data, orig, now) {
     formatDateStr_(nextDue),
     'ACTIVE',
     data.updatedBy || data.addedBy || '',
-    '', '', data.notes || ''
+    '', '', data._permFixNote_ || data.notes || ''
   ]);
 }
 

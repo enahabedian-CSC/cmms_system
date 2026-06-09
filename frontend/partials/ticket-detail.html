@@ -297,15 +297,18 @@ function _renderDetail_(result) {
       '</div>' +
     '</div>') : '') +
 
-    (t.workSummary || t.correctiveAct || t.rootCause ? (
+    (t.workSummary || t.correctiveAct || t.rootCause || t.preventiveAct ? (
     '<div class="td-section">' +
-      '<div class="td-section-title">Work Summary</div>' +
+      '<div class="td-section-title">CAPA / Work Summary</div>' +
       '<div class="td-grid" style="grid-template-columns:1fr;">' +
-        (t.workSummary  ? '<div class="td-field"><label>Work Summary</label><div class="val desc">'    + esc(t.workSummary)  + '</div></div>' : '') +
-        (t.correctiveAct? '<div class="td-field"><label>Corrective Action</label><div class="val desc">'+ esc(t.correctiveAct)+ '</div></div>' : '') +
-        (t.rootCause    ? '<div class="td-field"><label>Root Cause</label><div class="val desc">'       + esc(t.rootCause)    + '</div></div>' : '') +
-        field('Fix Type',      t.fixType) +
-        field('Temp Fix Flag', t.tempFixFlag ? 'YES' : 'NO') +
+        (t.correctiveAct ? '<div class="td-field"><label>Corrective Action</label><div class="val desc">' + esc(t.correctiveAct) + '</div></div>' : '') +
+        (t.rootCause     ? '<div class="td-field"><label>Root Cause</label><div class="val desc">'        + esc(t.rootCause)     + '</div></div>' : '') +
+        (t.preventiveAct || t.workSummary ? '<div class="td-field"><label>Preventive Action</label><div class="val desc">' + esc(t.preventiveAct || t.workSummary) + '</div></div>' : '') +
+        field('Fix Type',           t.fixType) +
+        field('Temp Fix Flag',      t.tempFixFlag ? 'YES' : 'NO') +
+        (t.permFixPlan  ? '<div class="td-field"><label>Permanent Fix Plan</label><div class="val desc">' + esc(t.permFixPlan) + '</div></div>' : '') +
+        (t.permFixDate  ? field('Target Fix Date', t.permFixDate) : '') +
+        (t.downtimeDuration ? field('Downtime Duration', t.downtimeDuration + ' min') : '') +
       '</div>' +
     '</div>') : '') +
 
@@ -372,27 +375,38 @@ function _tdApprove_() {
 function _tdComplete_() {
   var t = _tdTicket;
   if (!t) return;
+  // C05: all three CAPA fields are required on every ticket (SQF 13.2.8)
+  // C16: downtime duration captured for monthly reporting (data only this round)
   _showModal_('Mark Work Complete — ' + esc(t.ticketNo),
-    '<div class="form-group"><label>Preventive Action *</label><textarea id="mc-summary" required></textarea></div>' +
-    '<div class="form-group"><label>Corrective Action</label><textarea id="mc-corrective"></textarea></div>' +
-    '<div class="form-group"><label>Root Cause</label><input id="mc-root" /></div>' +
+    '<div style="background:#FFF3E0;border:1px solid #FFB74D;border-radius:6px;padding:9px 12px;margin-bottom:12px;font-size:12px;color:#E65100;">' +
+      '<strong>SQF 13.2.8:</strong> All three CAPA fields below are required on every ticket.' +
+    '</div>' +
+    '<div class="form-group"><label>Corrective Action *</label><textarea id="mc-corrective" placeholder="What action was taken to fix the immediate problem?"></textarea></div>' +
+    '<div class="form-group"><label>Root Cause *</label><input id="mc-root" placeholder="Why did the problem occur?" /></div>' +
+    '<div class="form-group"><label>Preventive Action *</label><textarea id="mc-summary" placeholder="What will prevent this from recurring?"></textarea></div>' +
     '<div class="form-group"><label>Fix Type</label>' +
     '<select id="mc-fix"><option value="">—</option><option>Permanent</option><option>Temporary</option></select></div>' +
     '<div class="form-group"><label>Actual Hours</label><input id="mc-hours" type="number" min="0" step="0.5" /></div>' +
+    '<div class="form-group"><label>Downtime Duration (minutes)</label><input id="mc-downtime" type="number" min="0" step="1" placeholder="How long was the equipment down?" /></div>' +
     '<div class="form-group" style="display:flex;align-items:center;gap:8px;">' +
     '<input type="checkbox" id="mc-tf" style="width:auto;" /><label for="mc-tf" style="margin:0;cursor:pointer;">Flag as Temp Fix (requires follow-up inspection)</label></div>',
     function() {
-      var summary = document.getElementById('mc-summary').value.trim();
-      if (!summary) { alert('Work summary is required.'); return; }
+      var correctiveAct = document.getElementById('mc-corrective').value.trim();
+      var rootCause     = document.getElementById('mc-root').value.trim();
+      var preventiveAct = document.getElementById('mc-summary').value.trim();
+      if (!correctiveAct) { alert('Corrective Action is required (SQF 13.2.8).'); return; }
+      if (!rootCause)     { alert('Root Cause is required (SQF 13.2.8).'); return; }
+      if (!preventiveAct) { alert('Preventive Action is required (SQF 13.2.8).'); return; }
       var data = {
-        ticketNo:     t.ticketNo,
-        preventiveAct:summary,
-        correctiveAct:document.getElementById('mc-corrective').value,
-        rootCause:    document.getElementById('mc-root').value,
-        fixType:      document.getElementById('mc-fix').value,
-        actualHours:  document.getElementById('mc-hours').value,
-        tempFixFlag:  document.getElementById('mc-tf').checked,
-        updatedBy:    USER.displayName
+        ticketNo:         t.ticketNo,
+        correctiveAct:    correctiveAct,
+        rootCause:        rootCause,
+        preventiveAct:    preventiveAct,
+        fixType:          document.getElementById('mc-fix').value,
+        actualHours:      document.getElementById('mc-hours').value,
+        downtimeDuration: document.getElementById('mc-downtime').value,
+        tempFixFlag:      document.getElementById('mc-tf').checked,
+        updatedBy:        USER.displayName
       };
       _tdRunAction_(completeTicket, data, 'Marked Work Complete');
     });
@@ -492,12 +506,29 @@ function _tdAssign_(techsJson) {
 function _tdFlagTF_() {
   var t = _tdTicket;
   if (!t) return;
+  // C08: permanent fix plan + target date are required alongside the temp fix description
   _showModal_('Flag Temp Fix — ' + esc(t.ticketNo),
-    '<div class="form-group"><label>Temp Fix Description *</label><textarea id="tf-desc"></textarea></div>',
+    '<div style="background:#FFF3E0;border:1px solid #FFB74D;border-radius:6px;padding:9px 12px;margin-bottom:12px;font-size:12px;color:#E65100;">' +
+      'Flagging a temp fix requires a documented plan for the permanent repair and a target completion date. ' +
+      'This ticket <strong>cannot be closed</strong> until the permanent fix is confirmed.' +
+    '</div>' +
+    '<div class="form-group"><label>Temp Fix Description *</label><textarea id="tf-desc" placeholder="Describe the temporary fix applied…"></textarea></div>' +
+    '<div class="form-group"><label>Permanent Fix Plan *</label><textarea id="tf-perm-plan" placeholder="What permanent corrective action is planned?"></textarea></div>' +
+    '<div class="form-group"><label>Target Permanent Fix Date *</label><input id="tf-perm-date" type="date" /></div>',
     function() {
-      var desc = document.getElementById('tf-desc').value.trim();
-      if (!desc) { alert('Temp fix description is required.'); return; }
-      var data = { ticketNo: t.ticketNo, tempFixDesc: desc, updatedBy: USER.displayName };
+      var desc     = document.getElementById('tf-desc').value.trim();
+      var permPlan = document.getElementById('tf-perm-plan').value.trim();
+      var permDate = document.getElementById('tf-perm-date').value.trim();
+      if (!desc)     { alert('Temp fix description is required.'); return; }
+      if (!permPlan) { alert('Permanent Fix Plan is required (C08).'); return; }
+      if (!permDate) { alert('Target Permanent Fix Date is required (C08).'); return; }
+      var data = {
+        ticketNo:    t.ticketNo,
+        tempFixDesc: desc,
+        permFixPlan: permPlan,
+        permFixDate: permDate,
+        updatedBy:   USER.displayName
+      };
       _tdRunAction_(flagTempFix, data, 'Temp Fix Flagged');
     });
 }

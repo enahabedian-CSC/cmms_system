@@ -119,7 +119,11 @@ function getTicketDetail(ticketNo) {
       photoUrl:      String(best[ML.PHOTO_URL       - 1] || ''),
       jointDepts:        String(best[ML.JOINT_DEPTS          - 1] || ''),
       jointSignoffs:     String(best[ML.JOINT_SIGNOFFS       - 1] || ''),
-      pendingJointDepts: String(best[ML.PENDING_JOINT_DEPTS  - 1] || '')
+      pendingJointDepts: String(best[ML.PENDING_JOINT_DEPTS  - 1] || ''),
+      // Round 7 — C08 + C16
+      permFixPlan:       String(best[ML.PERM_FIX_PLAN        - 1] || ''),
+      permFixDate:       fmtDate(best[ML.PERM_FIX_DATE       - 1]),
+      downtimeDuration:  String(best[ML.DOWNTIME_DURATION    - 1] || '')
     };
 
     // ── Ticket History ─────────────────────────────────────────────────────────
