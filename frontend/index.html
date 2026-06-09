@@ -738,7 +738,9 @@ function _homeRenderPanels_(panels) {
     var verify   = attn.filter(function(i) { return i.kind === 'complete'; });
     var tempFix  = attn.filter(function(i) { return i.kind === 'temp'; });
 
-    function _attnSection_(icon, label, accentColor, items, emptyMsg, fallbackNav) {
+    // clickExpr: optional onclick expression; use '__TN__' as placeholder for ticketNo.
+    // When omitted, defaults to navigate(item.pageTarget || fallbackNav).
+    function _attnSection_(icon, label, accentColor, items, emptyMsg, fallbackNav, clickExpr) {
       var count = items.length;
       var hdr =
         '<div style="display:flex;align-items:center;gap:6px;padding:9px 0 5px;border-bottom:1px solid var(--border-default);margin-bottom:2px;">' +
@@ -749,6 +751,9 @@ function _homeRenderPanels_(panels) {
       var rows = count === 0
         ? '<div style="padding:5px 0 9px;font-size:11.5px;color:var(--text-tertiary);">' + esc(emptyMsg) + '</div>'
         : items.map(function(item) {
+            var onclickVal = clickExpr
+              ? clickExpr.replace('__TN__', esc(item.ticketNo))
+              : 'navigate(\'' + esc(item.pageTarget || fallbackNav) + '\')';
             return '<div style="display:flex;align-items:flex-start;gap:10px;padding:7px 0;border-bottom:1px solid var(--border-default);">' +
               '<div style="flex:1;min-width:0;">' +
                 '<div style="font-size:12px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' +
@@ -757,7 +762,7 @@ function _homeRenderPanels_(panels) {
                 '</div>' +
                 '<div style="font-size:11px;color:var(--text-secondary);margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + esc(item.sub) + '</div>' +
               '</div>' +
-              '<button onclick="navigate(\'' + esc(item.pageTarget || fallbackNav) + '\')" ' +
+              '<button onclick="' + onclickVal + '" ' +
                 'style="height:24px;padding:0 9px;border:1px solid var(--border-default);border-radius:4px;font-size:11px;background:#fff;color:var(--text-secondary);cursor:pointer;white-space:nowrap;flex-shrink:0;">' +
                 esc(item.action) +
               '</button>' +
@@ -766,10 +771,13 @@ function _homeRenderPanels_(panels) {
       return '<div style="margin-bottom:2px;">' + hdr + rows + '</div>';
     }
 
+    var pendingJoint = (panels.pendingJointRequests || []);
     attnEl.innerHTML =
-      _attnSection_('📋', 'Awaiting Approval',    'var(--status-info)',    approval, 'None — all clear.',        'waiting') +
-      _attnSection_('✅', 'Awaiting Verification', 'var(--status-success)', verify,   'None — all clear.',        'open')    +
-      _attnSection_('🔧', 'Temp Fix Alerts',       'var(--status-high)',    tempFix,  'No past-due temp fixes.',  'tempfix');
+      _attnSection_('📋', 'Awaiting Approval',    'var(--status-info)',    approval,    'None — all clear.',              'waiting') +
+      _attnSection_('✅', 'Awaiting Verification', 'var(--status-success)', verify,      'None — all clear.',              'open')    +
+      _attnSection_('🔧', 'Temp Fix Alerts',       'var(--status-high)',    tempFix,     'No past-due temp fixes.',        'tempfix') +
+      _attnSection_('🔗', 'Pending Joint Requests','#7B1FA2',               pendingJoint,'No pending joint requests.',     'open',
+                    'openTicketDetail(\'__TN__\')');
   }
 
   // Open tickets table

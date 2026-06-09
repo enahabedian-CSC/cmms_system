@@ -568,14 +568,11 @@ function flagTempFix(data) {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
-//  transferTicket — reroutes ticket to a different dept tracker
-// ═══════════════════════════════════════════════════════════════════════════════
-
-// ═══════════════════════════════════════════════════════════════════════════════
-//  transferTicket — attaches a dept to make ticket JOINT
+//  transferTicket — requests joint attachment (Change 3: confirmation handshake)
 //  Primary ownership (ML.DEPT) stays with the originating dept.
-//  toDept is added to ML.JOINT_DEPTS (comma-sep, deduped).
-//  Joint dept manager sees the ticket in their tracker under "Joint Tickets".
+//  toDept is added to ML.PENDING_JOINT_DEPTS (awaiting receiving mgr's accept).
+//  On accept → confirmJointRequest() moves it to ML.JOINT_DEPTS.
+//  On reject → rejectJointRequest() removes it from PENDING_JOINT_DEPTS.
 // ═══════════════════════════════════════════════════════════════════════════════
 
 function transferTicket(data) {
@@ -591,60 +588,70 @@ function transferTicket(data) {
     var fromDept = normalizeDept(String(prev[ML.DEPT - 1] || data.fromDept || ''));
     var toDept   = normalizeDept(String(data.toDept   || ''));
     var status   = String(prev[ML.STATUS - 1] || 'OPEN').toUpperCase();
-    if (!toDept)            return { success: false, error: 'toDept required' };
+    if (!toDept)             return { success: false, error: 'toDept required' };
     if (toDept === fromDept) return { success: false, error: 'Cannot attach the same department' };
 
-    // Build updated JOINT_DEPTS — preserve existing, add new dept (deduped)
-    var existingJoint = String(prev[ML.JOINT_DEPTS - 1] || '').trim();
+    // Guard: toDept must not already be confirmed-joint or pending
+    var existingJoint = String(prev[ML.JOINT_DEPTS         - 1] || '').trim();
+    var existingPend  = String(prev[ML.PENDING_JOINT_DEPTS - 1] || '').trim();
     var jointList = existingJoint
-      ? existingJoint.split(',').map(function(d) { return d.trim(); }).filter(Boolean)
-      : [];
-    if (jointList.indexOf(toDept) < 0) jointList.push(toDept);
-    var jointDeptsStr = jointList.join(', ');
+      ? existingJoint.split(',').map(function(d) { return d.trim(); }).filter(Boolean) : [];
+    var pendList = existingPend
+      ? existingPend.split(',').map(function(d) { return d.trim(); }).filter(Boolean) : [];
+    if (jointList.indexOf(toDept) >= 0)
+      return { success: false, error: toDept + ' is already attached to this ticket' };
+    if (pendList.indexOf(toDept) >= 0)
+      return { success: false, error: 'A joint request for ' + toDept + ' is already pending' };
+
+    // Add toDept to the pending list
+    pendList.push(toDept);
+    var pendingStr = pendList.join(', ');
 
     appendToMasterLog_({
-      ticketNo:   tn,
-      now:        now,
-      action:     ML_ACTIONS.MAKE_JOINT,
-      status:     status,
-      dept:       fromDept,          // primary owner unchanged
-      jointDepts: jointDeptsStr,
-      buildingZone:  String(orig[ML.BUILDING_ZONE  - 1] || ''),
-      equipType:     String(orig[ML.EQUIP_TYPE     - 1] || ''),
-      equipCode:     String(orig[ML.EQUIP_CODE     - 1] || ''),
-      specificEquip: String(orig[ML.SPECIFIC_EQUIP - 1] || ''),
-      description:   String(orig[ML.DESCRIPTION    - 1] || ''),
-      assignedTo:    String(prev[ML.ASSIGNED_TO    - 1] || ''),
-      updatedBy:     data.updatedBy || user.displayName,
-      problemType:   String(orig[ML.PROBLEM_TYPE   - 1] || ''),
-      lineNo:        String(orig[ML.LINE_NO        - 1] || ''),
-      notes:         data.reason || ''
+      ticketNo:          tn,
+      now:               now,
+      action:            ML_ACTIONS.JOINT_REQUEST,
+      status:            status,
+      dept:              fromDept,
+      jointDepts:        existingJoint,        // confirmed joint unchanged
+      pendingJointDepts: pendingStr,
+      buildingZone:      String(orig[ML.BUILDING_ZONE  - 1] || ''),
+      equipType:         String(orig[ML.EQUIP_TYPE     - 1] || ''),
+      equipCode:         String(orig[ML.EQUIP_CODE     - 1] || ''),
+      specificEquip:     String(orig[ML.SPECIFIC_EQUIP - 1] || ''),
+      description:       String(orig[ML.DESCRIPTION    - 1] || ''),
+      assignedTo:        String(prev[ML.ASSIGNED_TO    - 1] || ''),
+      updatedBy:         data.updatedBy || user.displayName,
+      problemType:       String(orig[ML.PROBLEM_TYPE   - 1] || ''),
+      lineNo:            String(orig[ML.LINE_NO        - 1] || ''),
+      notes:             'Joint request sent to ' + toDept + (data.reason ? ' | ' + data.reason : '')
     });
 
-    appendToTicketHistory_(tn, TH_EVENTS.MAKE_JOINT, fromDept, toDept,
+    appendToTicketHistory_(tn, TH_EVENTS.JOINT_REQUEST, fromDept, toDept,
       data.updatedBy || user.displayName,
-      'Attached dept: ' + toDept + (data.reason ? ' | ' + data.reason : ''));
+      'Joint attachment requested for: ' + toDept + (data.reason ? ' | ' + data.reason : ''));
 
     var ss = getBoundSS_();
 
-    // Notify both dept managers; track in Transfer Log for audit trail
+    // Email the receiving dept manager with the request
     var emailSent = 'N';
     try {
-      sendTransferNotification_(tn, {
+      sendJointRequestEmail_(tn, {
         fromDept:      fromDept,
         toDept:        toDept,
-        updatedBy:     data.updatedBy || user.displayName,
+        requestedBy:   data.updatedBy || user.displayName,
         reason:        data.reason || '',
         specificEquip: String(orig[ML.SPECIFIC_EQUIP - 1] || ''),
         equipCode:     String(orig[ML.EQUIP_CODE     - 1] || ''),
-        equipType:     String(orig[ML.EQUIP_TYPE     - 1] || ''),
-        description:   String(orig[ML.DESCRIPTION    - 1] || '')
+        description:   String(orig[ML.DESCRIPTION    - 1] || ''),
+        status:        status
       });
       emailSent = 'Y';
     } catch (eEmail) {
-      Logger.log('transferTicket/sendTransferNotification_ error: ' + eEmail.message);
+      Logger.log('transferTicket/sendJointRequestEmail_ error: ' + eEmail.message);
     }
 
+    // Audit trail in Transfer Log
     var tlSh = ss.getSheetByName(SH.TRANSFER_LOG);
     if (tlSh) {
       tlSh.appendRow([
@@ -654,14 +661,193 @@ function transferTicket(data) {
         fromDept,
         toDept,
         data.updatedBy || user.displayName,
-        data.reason || '',
+        (data.reason || '') + ' [JOINT REQUEST — pending confirmation]',
         emailSent
       ]);
     }
 
-    return { success: true, ticketNo: tn, fromDept: fromDept, toDept: toDept, jointDepts: jointDeptsStr };
+    return { success: true, ticketNo: tn, fromDept: fromDept, toDept: toDept, pendingDepts: pendingStr };
   } catch (e) {
     Logger.log('transferTicket error: ' + e.message);
+    return { success: false, error: e.message };
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+//  confirmJointRequest — receiving dept manager accepts a joint attachment request
+//  Moves dept from ML.PENDING_JOINT_DEPTS → ML.JOINT_DEPTS.
+//  Notifies the primary dept manager by email.
+// ═══════════════════════════════════════════════════════════════════════════════
+
+function confirmJointRequest(data) {
+  requireManager_();
+  var user = getCurrentUserInfo();
+  var now  = new Date();
+  var tn   = String(data.ticketNo || '').trim();
+  if (!tn) return { success: false, error: 'ticketNo required' };
+
+  try {
+    var latest = getLatestMlRow_(tn);
+    if (!latest) return { success: false, error: 'Ticket not found: ' + tn };
+
+    var pendingStr = String(latest[ML.PENDING_JOINT_DEPTS - 1] || '').trim();
+    if (!pendingStr) return { success: false, error: 'No pending joint request for this ticket' };
+    var pendList = pendingStr.split(',').map(function(d) { return d.trim(); }).filter(Boolean);
+
+    // Determine which dept the caller is confirming
+    var confirmingDept = '';
+    if (!user.isAdmin) {
+      for (var i = 0; i < pendList.length; i++) {
+        if ((user.ownedDepts || []).indexOf(pendList[i]) >= 0) {
+          confirmingDept = pendList[i];
+          break;
+        }
+      }
+      if (!confirmingDept)
+        return { success: false, error: 'Your department does not have a pending joint request for this ticket' };
+    } else {
+      confirmingDept = normalizeDept(String(data.dept || pendList[0] || ''));
+      if (!confirmingDept) return { success: false, error: 'dept required for admin confirmation' };
+    }
+
+    // Remove from pending; add to confirmed joint
+    var newPend = pendList.filter(function(d) { return d !== confirmingDept; });
+    var newPendStr = newPend.join(', ');
+
+    var existingJoint = String(latest[ML.JOINT_DEPTS - 1] || '').trim();
+    var jointList = existingJoint
+      ? existingJoint.split(',').map(function(d) { return d.trim(); }).filter(Boolean) : [];
+    if (jointList.indexOf(confirmingDept) < 0) jointList.push(confirmingDept);
+    var newJointStr = jointList.join(', ');
+
+    var primaryDept = normalizeDept(String(latest[ML.DEPT - 1] || ''));
+    var status      = String(latest[ML.STATUS - 1] || '').trim().toUpperCase();
+    var orig        = getOriginalMlRow_(tn) || {};
+
+    appendToMasterLog_({
+      ticketNo:          tn,
+      now:               now,
+      action:            ML_ACTIONS.TRANSFER_CONFIRMED,
+      status:            status,
+      dept:              primaryDept,
+      jointDepts:        newJointStr,
+      pendingJointDepts: newPendStr,
+      buildingZone:      String(orig[ML.BUILDING_ZONE  - 1] || ''),
+      equipType:         String(orig[ML.EQUIP_TYPE     - 1] || ''),
+      equipCode:         String(orig[ML.EQUIP_CODE     - 1] || ''),
+      specificEquip:     String(orig[ML.SPECIFIC_EQUIP - 1] || ''),
+      description:       String(orig[ML.DESCRIPTION    - 1] || ''),
+      updatedBy:         data.updatedBy || user.displayName,
+      notes:             confirmingDept + ' confirmed joint attachment'
+    });
+
+    appendToTicketHistory_(tn, TH_EVENTS.TRANSFER_CONFIRMED, status, status,
+      data.updatedBy || user.displayName,
+      confirmingDept + ' confirmed joint attachment');
+
+    // Notify primary dept manager
+    try {
+      sendJointResponseEmail_(tn, {
+        fromDept:       primaryDept,
+        confirmingDept: confirmingDept,
+        accepted:       true,
+        respondedBy:    data.updatedBy || user.displayName,
+        specificEquip:  String(orig[ML.SPECIFIC_EQUIP - 1] || ''),
+        description:    String(orig[ML.DESCRIPTION    - 1] || '')
+      });
+    } catch (eEmail) {
+      Logger.log('confirmJointRequest/email error: ' + eEmail.message);
+    }
+
+    return { success: true, ticketNo: tn, confirmedDept: confirmingDept, jointDepts: newJointStr };
+  } catch (e) {
+    Logger.log('confirmJointRequest error: ' + e.message);
+    return { success: false, error: e.message };
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+//  rejectJointRequest — receiving dept manager rejects a joint attachment request
+//  Removes dept from ML.PENDING_JOINT_DEPTS.  Does NOT add to JOINT_DEPTS.
+//  Notifies the primary dept manager by email.
+// ═══════════════════════════════════════════════════════════════════════════════
+
+function rejectJointRequest(data) {
+  requireManager_();
+  var user = getCurrentUserInfo();
+  var now  = new Date();
+  var tn   = String(data.ticketNo || '').trim();
+  if (!tn) return { success: false, error: 'ticketNo required' };
+
+  try {
+    var latest = getLatestMlRow_(tn);
+    if (!latest) return { success: false, error: 'Ticket not found: ' + tn };
+
+    var pendingStr = String(latest[ML.PENDING_JOINT_DEPTS - 1] || '').trim();
+    if (!pendingStr) return { success: false, error: 'No pending joint request for this ticket' };
+    var pendList = pendingStr.split(',').map(function(d) { return d.trim(); }).filter(Boolean);
+
+    var rejectingDept = '';
+    if (!user.isAdmin) {
+      for (var i = 0; i < pendList.length; i++) {
+        if ((user.ownedDepts || []).indexOf(pendList[i]) >= 0) {
+          rejectingDept = pendList[i];
+          break;
+        }
+      }
+      if (!rejectingDept)
+        return { success: false, error: 'Your department does not have a pending joint request for this ticket' };
+    } else {
+      rejectingDept = normalizeDept(String(data.dept || pendList[0] || ''));
+      if (!rejectingDept) return { success: false, error: 'dept required for admin rejection' };
+    }
+
+    var newPend = pendList.filter(function(d) { return d !== rejectingDept; });
+    var newPendStr = newPend.join(', ');
+
+    var primaryDept = normalizeDept(String(latest[ML.DEPT - 1] || ''));
+    var status      = String(latest[ML.STATUS - 1] || '').trim().toUpperCase();
+    var orig        = getOriginalMlRow_(tn) || {};
+
+    appendToMasterLog_({
+      ticketNo:          tn,
+      now:               now,
+      action:            ML_ACTIONS.JOINT_REQUEST_REJECTED,
+      status:            status,
+      dept:              primaryDept,
+      jointDepts:        String(latest[ML.JOINT_DEPTS - 1] || ''),  // unchanged
+      pendingJointDepts: newPendStr,
+      buildingZone:      String(orig[ML.BUILDING_ZONE  - 1] || ''),
+      equipType:         String(orig[ML.EQUIP_TYPE     - 1] || ''),
+      equipCode:         String(orig[ML.EQUIP_CODE     - 1] || ''),
+      specificEquip:     String(orig[ML.SPECIFIC_EQUIP - 1] || ''),
+      description:       String(orig[ML.DESCRIPTION    - 1] || ''),
+      updatedBy:         data.updatedBy || user.displayName,
+      notes:             rejectingDept + ' rejected joint attachment' + (data.reason ? ' — ' + data.reason : '')
+    });
+
+    appendToTicketHistory_(tn, TH_EVENTS.JOINT_REQUEST_REJECTED, status, status,
+      data.updatedBy || user.displayName,
+      rejectingDept + ' rejected joint attachment' + (data.reason ? ' — ' + data.reason : ''));
+
+    // Notify primary dept manager
+    try {
+      sendJointResponseEmail_(tn, {
+        fromDept:       primaryDept,
+        confirmingDept: rejectingDept,
+        accepted:       false,
+        reason:         data.reason || '',
+        respondedBy:    data.updatedBy || user.displayName,
+        specificEquip:  String(orig[ML.SPECIFIC_EQUIP - 1] || ''),
+        description:    String(orig[ML.DESCRIPTION    - 1] || '')
+      });
+    } catch (eEmail) {
+      Logger.log('rejectJointRequest/email error: ' + eEmail.message);
+    }
+
+    return { success: true, ticketNo: tn, rejectedDept: rejectingDept };
+  } catch (e) {
+    Logger.log('rejectJointRequest error: ' + e.message);
     return { success: false, error: e.message };
   }
 }

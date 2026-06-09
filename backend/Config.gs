@@ -112,13 +112,14 @@ var ML = {
   PROBLEM_TYPE:33,  TRACKER_GROUP:34, LINE_NO:35,
   VERIFICATION_CHECKLIST:36, PHOTO_URL:37,
   // Round 7 additions — NEW (Izzy lacks these; see FIELD_MAPPING.md)
-  JOINT_DEPTS:38,       // comma-separated attached departments (Change 1)
-  JOINT_SIGNOFFS:39,    // JSON: per-dept sign-off actor + timestamp (Change 1)
-  PERM_FIX_PLAN:40,     // permanent-fix description when temp fix is flagged (Change 8)
-  PERM_FIX_DATE:41,     // target date for permanent fix (Change 8)
-  DOWNTIME_DURATION:42  // minutes of unplanned downtime (Change 16 — data only)
+  JOINT_DEPTS:38,            // comma-separated confirmed attached departments (Change 1)
+  JOINT_SIGNOFFS:39,         // JSON: per-dept sign-off actor + timestamp (Change 1)
+  PERM_FIX_PLAN:40,          // permanent-fix description when temp fix is flagged (Change 8)
+  PERM_FIX_DATE:41,          // target date for permanent fix (Change 8)
+  DOWNTIME_DURATION:42,      // minutes of unplanned downtime (Change 16 — data only)
+  PENDING_JOINT_DEPTS:43     // comma-separated depts with a pending attachment request (Change 3)
 };
-var ML_COLS = 42;
+var ML_COLS = 43;
 var ML_HEADERS = [
   'Row ID','Ticket #','Timestamp','Action','Status','Department',
   'Building / Zone','Equipment Type','Equipment Code','Equipment Description',
@@ -128,7 +129,8 @@ var ML_HEADERS = [
   'Parts Status','Equip Tag Status','Verified By','Verified Date','Added By',
   'Updated By','Notes','Problem Type','Tracker Group','Line #',
   'Verification Checklist','Photo URL',
-  'Joint Departments','Joint Sign-Offs','Perm Fix Plan','Perm Fix Date','Downtime Duration (min)'
+  'Joint Departments','Joint Sign-Offs','Perm Fix Plan','Perm Fix Date','Downtime Duration (min)',
+  'Pending Joint Depts'
 ];
 
 // ─── EMRL_LEGACY — OLD 37-col Closed Tickets layout (read-only after migration) ─
@@ -227,9 +229,11 @@ var TH_EVENTS = {
   SERVICE_REPORT:   'Service Report',
   PENDING_VERIFY:   'PENDING VERIFICATION',
   // Round 7 additions (Change 1 + Change 3)
-  MAKE_JOINT:         'MAKE JOINT',
-  DEPT_SIGNOFF:       'DEPT SIGNED OFF',
-  TRANSFER_CONFIRMED: 'TRANSFER CONFIRMED'
+  MAKE_JOINT:               'MAKE JOINT',
+  DEPT_SIGNOFF:             'DEPT SIGNED OFF',
+  TRANSFER_CONFIRMED:       'TRANSFER CONFIRMED',
+  JOINT_REQUEST:            'JOINT REQUEST',
+  JOINT_REQUEST_REJECTED:   'JOINT REQUEST REJECTED'
 };
 
 // Canonical ML action vocabulary.
@@ -260,9 +264,11 @@ var ML_ACTIONS = {
   DEPT_TRANSFER:        'DEPT TRANSFER',
   IZZY_IMPORT:          'IZZY IMPORT',
   // Round 7 additions (Change 1 + Change 3)
-  MAKE_JOINT:           'MAKE JOINT TICKET',
-  DEPT_SIGNOFF:         'DEPT SIGNED OFF',
-  TRANSFER_CONFIRMED:   'TRANSFER CONFIRMED'
+  MAKE_JOINT:               'MAKE JOINT TICKET',
+  DEPT_SIGNOFF:             'DEPT SIGNED OFF',
+  TRANSFER_CONFIRMED:       'TRANSFER CONFIRMED',
+  JOINT_REQUEST:            'JOINT REQUEST',
+  JOINT_REQUEST_REJECTED:   'JOINT REQUEST REJECTED'
 };
 
 // ─── TEMP FIX MONITOR — 17 columns ───────────────────────────────────────────

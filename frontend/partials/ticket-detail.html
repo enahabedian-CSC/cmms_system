@@ -207,6 +207,20 @@ function _renderDetail_(result) {
       }
     }
   }
+  // Pending joint request: receiving dept manager can Accept or Reject
+  if (isManager && t.pendingJointDepts) {
+    var pjList  = t.pendingJointDepts.split(',').map(function(d) { return d.trim(); }).filter(Boolean);
+    var myDepts = USER.ownedDepts || [];
+    var inPend  = false;
+    for (var pji = 0; pji < pjList.length; pji++) {
+      if (myDepts.indexOf(pjList[pji]) >= 0) { inPend = true; break; }
+    }
+    if (inPend) {
+      actions +=
+        '<button class="btn-action btn-verify" onclick="_tdAcceptJoint_()">🔗 Accept Joint Request</button>' +
+        '<button class="btn-action btn-void"   onclick="_tdRejectJoint_()">✗ Reject Joint Request</button>';
+    }
+  }
   // Parts request + Update: all roles, any non-terminal status
   if (t.status !== 'CLOSED' && t.status !== 'VOIDED') {
     actions += '<button class="btn-action btn-parts" onclick="_tdRequestParts_()">🔩 Request Parts</button>';
@@ -235,7 +249,7 @@ function _renderDetail_(result) {
         field('Est Hours',     t.estHours) +
         field('Actual Hours',  t.actualHours) +
         field('Downtime Type', t.downtimeType) +
-        (t.jointDepts ? _renderJointStatus_(t) : '') +
+        (t.jointDepts || t.pendingJointDepts ? _renderJointStatus_(t) : '') +
       '</div>' +
     '</div>' +
 
@@ -844,10 +858,11 @@ function _tdDeptSignOff_() {
     }, 'Sign Off');
 }
 
-// Renders joint department sign-off chips inside the Ticket Overview section.
+// Renders joint department sign-off chips + pending request chips in the overview.
 function _renderJointStatus_(t) {
   var jd = (t.jointDepts || '').split(',').map(function(d) { return d.trim(); }).filter(Boolean);
-  if (!jd.length) return '';
+  var pd = (t.pendingJointDepts || '').split(',').map(function(d) { return d.trim(); }).filter(Boolean);
+  if (!jd.length && !pd.length) return '';
   var signs = {};
   if (t.jointSignoffs) { try { signs = JSON.parse(t.jointSignoffs); } catch(e) {} }
   var chips = jd.map(function(d) {
@@ -860,11 +875,45 @@ function _renderJointStatus_(t) {
       : '<span style="display:inline-flex;align-items:center;gap:4px;padding:3px 9px;border-radius:4px;background:#FEF3C7;color:#92400E;font-size:11.5px;font-weight:600;margin:2px 4px 2px 0;">' +
           esc(d) + ' · Pending sign-off' +
         '</span>';
-  }).join('');
+  });
+  // Pending attachment requests shown as purple "awaiting" chips
+  pd.forEach(function(d) {
+    chips.push(
+      '<span style="display:inline-flex;align-items:center;gap:4px;padding:3px 9px;border-radius:4px;background:#F3E5F5;color:#6A1B9A;font-size:11.5px;font-weight:600;margin:2px 4px 2px 0;" title="Joint attachment request pending — awaiting response from ' + esc(d) + '">' +
+        '📩 ' + esc(d) + ' · Pending acceptance' +
+      '</span>'
+    );
+  });
   return '<div class="td-field" style="grid-column:1/-1;margin-top:8px;">' +
     '<label>Joint Departments</label>' +
-    '<div class="val" style="margin-top:4px;">' + chips + '</div>' +
+    '<div class="val" style="margin-top:4px;">' + chips.join('') + '</div>' +
   '</div>';
+}
+
+function _tdAcceptJoint_() {
+  var t = _tdTicket;
+  if (!t) return;
+  if (!confirm('Accept the joint attachment request for ticket ' + esc(t.ticketNo) + '?\n\nYour department will be added to this ticket and required to sign off before it closes.')) return;
+  _tdRunAction_(confirmJointRequest, { ticketNo: t.ticketNo, updatedBy: USER.displayName }, 'Joint Request Accepted');
+}
+
+function _tdRejectJoint_() {
+  var t = _tdTicket;
+  if (!t) return;
+  _showModal_('Reject Joint Request — ' + esc(t.ticketNo),
+    '<div style="background:#FFEBEE;border:1px solid #FFCDD2;border-radius:6px;padding:9px 12px;margin-bottom:12px;font-size:12px;color:#C62828;">' +
+      'Rejecting this request will remove the joint request from the ticket. The primary dept manager will be notified.' +
+    '</div>' +
+    '<div class="form-group"><label>Reason (optional)</label>' +
+    '<textarea id="jr-reason"></textarea></div>',
+    function() {
+      var data = {
+        ticketNo:  t.ticketNo,
+        reason:    (document.getElementById('jr-reason').value || '').trim(),
+        updatedBy: USER.displayName
+      };
+      _tdRunAction_(rejectJointRequest, data, 'Joint Request Rejected');
+    }, 'Reject');
 }
 
 // ── Backend function proxies (called via _tdRunAction_) ───────────────────────
@@ -879,5 +928,7 @@ function updateTicket(d)         { /* server */ }
 function assignTicket(d)         { /* server */ }
 function flagTempFix(d)          { /* server */ }
 function transferTicket(d)       { /* server */ }
-function deptSignOff(d)          { /* server */ }
+function deptSignOff(d)           { /* server */ }
+function confirmJointRequest(d)   { /* server */ }
+function rejectJointRequest(d)    { /* server */ }
 </script>

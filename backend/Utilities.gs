@@ -147,12 +147,13 @@ function appendToMasterLog_(params) {
   row[ML.LINE_NO                - 1] = params.lineNo        || '';
   row[ML.VERIFICATION_CHECKLIST - 1] = params.sqfChecklist  || '';
   row[ML.PHOTO_URL              - 1] = params.photoUrl      || '';
-  // Round 7 columns (38–42)
-  row[ML.JOINT_DEPTS       - 1] = params.jointDepts       || '';
-  row[ML.JOINT_SIGNOFFS    - 1] = params.jointSignoffs    || '';
-  row[ML.PERM_FIX_PLAN     - 1] = params.permFixPlan      || '';
-  row[ML.PERM_FIX_DATE     - 1] = params.permFixDate      || '';
-  row[ML.DOWNTIME_DURATION - 1] = params.downtimeDuration || '';
+  // Round 7 columns (38–43)
+  row[ML.JOINT_DEPTS          - 1] = params.jointDepts          || '';
+  row[ML.JOINT_SIGNOFFS       - 1] = params.jointSignoffs       || '';
+  row[ML.PERM_FIX_PLAN        - 1] = params.permFixPlan         || '';
+  row[ML.PERM_FIX_DATE        - 1] = params.permFixDate         || '';
+  row[ML.DOWNTIME_DURATION    - 1] = params.downtimeDuration    || '';
+  row[ML.PENDING_JOINT_DEPTS  - 1] = params.pendingJointDepts   || '';
   sh.appendRow(row);
 }
 

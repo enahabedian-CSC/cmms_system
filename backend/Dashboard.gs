@@ -248,7 +248,48 @@ function getDashboardPanels() {
       });
     }
 
-    return { attentionItems: attentionItems, openTickets: openTickets, holdTags: holdTags };
+    // Pending joint attachment requests for user's depts
+    // (separate scan — primary-dept filter above would exclude these tickets)
+    var pendingJointMap = {};
+    data.forEach(function(r) {
+      var tn = String(r[ML.TICKET_NO - 1] || '').trim();
+      if (!tn) return;
+      var pendStr = String(r[ML.PENDING_JOINT_DEPTS - 1] || '').trim();
+      if (!pendStr) return;
+      var pendList = pendStr.split(',').map(function(d) { return d.trim(); }).filter(Boolean);
+      var myPend = user.isAdmin
+        ? pendList
+        : pendList.filter(function(d) { return (user.ownedDepts || []).indexOf(d) >= 0; });
+      if (myPend.length === 0) return;
+      if (!pendingJointMap[tn]) {
+        pendingJointMap[tn] = { row: r.slice(), myDepts: myPend };
+      } else {
+        var cur = pendingJointMap[tn];
+        for (var c = 0; c < r.length; c++) {
+          if (r[c] !== '' && r[c] !== null && r[c] !== undefined) cur.row[c] = r[c];
+        }
+        cur.myDepts = myPend;  // refresh from latest row
+      }
+    });
+
+    var pendingJointRequests = Object.keys(pendingJointMap).map(function(tn) {
+      var entry = pendingJointMap[tn];
+      var r = entry.row;
+      var equip = String(r[ML.SPECIFIC_EQUIP - 1] || '').trim();
+      var code  = String(r[ML.EQUIP_CODE     - 1] || '').trim();
+      var desc  = String(r[ML.DESCRIPTION    - 1] || '').trim();
+      var fromDept = String(r[ML.DEPT        - 1] || '').trim();
+      var deptStr  = entry.myDepts.join(', ');
+      return {
+        kind: 'joint-request', ticketNo: tn,
+        title: equip || desc || tn,
+        sub:   fromDept + (code ? ' · ' + code : '') + ' — requesting your dept: ' + deptStr,
+        action: 'Review'
+      };
+    });
+
+    return { attentionItems: attentionItems, openTickets: openTickets, holdTags: holdTags,
+             pendingJointRequests: pendingJointRequests };
   } catch (e) {
     Logger.log('getDashboardPanels error: ' + e.message);
     return _emptyPanels_();
@@ -256,7 +297,7 @@ function getDashboardPanels() {
 }
 
 function _emptyPanels_() {
-  return { attentionItems: [], openTickets: [], holdTags: [] };
+  return { attentionItems: [], openTickets: [], holdTags: [], pendingJointRequests: [] };
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════

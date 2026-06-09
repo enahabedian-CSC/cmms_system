@@ -444,6 +444,189 @@ function sendTransferNotification_(ticketNo, data) {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
+//  sendJointRequestEmail_ — notifies receiving dept manager of a joint request
+//  Called from transferTicket() when a primary manager clicks "Attach Dept".
+// ═══════════════════════════════════════════════════════════════════════════════
+
+function sendJointRequestEmail_(ticketNo, data) {
+  try {
+    var fromDept    = String(data.fromDept    || '');
+    var toDept      = String(data.toDept      || '');
+    var requestedBy = String(data.requestedBy || '');
+    var reason      = String(data.reason      || '');
+    var equip       = String(data.specificEquip || '');
+    var equipCode   = String(data.equipCode   || '');
+    var description = String(data.description || '');
+    var status      = String(data.status      || '');
+
+    // Receive: to-dept managers get the request
+    var toMgrs = getManagersForDept_(toDept);
+    // Also cc from-dept managers so they know it was sent
+    var fromMgrs = getManagersForDept_(fromDept);
+    var toRecip  = toMgrs.join(', ');
+    var allRecip = toMgrs.concat(fromMgrs).filter(function(e, i, a) { return a.indexOf(e) === i; }).join(', ');
+    if (!toRecip) {
+      Logger.log('sendJointRequestEmail_: no to-dept recipients for ' + ticketNo);
+      return;
+    }
+
+    var tz    = Session.getScriptTimeZone();
+    var tsStr = Utilities.formatDate(new Date(), tz, 'MM/dd/yyyy · hh:mm a');
+
+    var subject = '🔗 Joint Ticket Request | ' + ticketNo + ' | Action Required by ' + toDept;
+
+    var htmlBody =
+      '<div style="font-family:Arial,sans-serif;max-width:620px;margin:0 auto;border:1px solid #E0E0E0;border-radius:8px;overflow:hidden;">' +
+      '<div style="background:#2A2A2A;padding:14px 20px;display:flex;align-items:center;gap:10px;">' +
+        '<div style="background:#7B1FA2;width:5px;height:40px;border-radius:3px;flex-shrink:0;"></div>' +
+        '<div style="flex:1;">' +
+          '<div style="font-size:15px;font-weight:bold;color:#FFD700;letter-spacing:.4px;">⚡ MAINTENANCE TRACKER</div>' +
+          '<div style="font-size:10px;color:#9E9E9E;margin-top:2px;">Container Supply Co. — Garden Grove, CA</div>' +
+        '</div>' +
+        '<div style="text-align:right;">' +
+          '<div style="font-size:10px;color:#9E9E9E;">Joint Request Notification</div>' +
+          '<div style="font-size:10px;color:#9E9E9E;margin-top:2px;">' + tsStr + '</div>' +
+        '</div>' +
+      '</div>' +
+      '<div style="background:#4A148C;padding:12px 20px;display:flex;align-items:center;gap:12px;">' +
+        '<div style="font-size:20px;">🔗</div>' +
+        '<div>' +
+          '<div style="font-size:13px;font-weight:bold;color:#fff;">Joint Ticket Request — Action Required</div>' +
+          '<div style="font-size:11px;color:#CE93D8;margin-top:2px;">' + esc_(fromDept) + ' is requesting your department (' + esc_(toDept) + ') to join a ticket</div>' +
+        '</div>' +
+      '</div>' +
+      '<div style="background:#1B2A3C;padding:10px 20px;display:flex;gap:24px;flex-wrap:wrap;">' +
+        '<div><div style="font-size:9px;color:#5C6BC0;text-transform:uppercase;letter-spacing:.6px;">Ticket #</div>' +
+             '<div style="font-size:18px;font-weight:bold;color:#FFD700;font-family:monospace;">' + esc_(ticketNo) + '</div></div>' +
+        '<div><div style="font-size:9px;color:#5C6BC0;text-transform:uppercase;letter-spacing:.6px;">From Dept</div>' +
+             '<div style="font-size:13px;font-weight:bold;color:#ECEFF1;">' + esc_(fromDept) + '</div></div>' +
+        '<div><div style="font-size:9px;color:#5C6BC0;text-transform:uppercase;letter-spacing:.6px;">Requesting Dept</div>' +
+             '<div style="font-size:13px;font-weight:bold;color:#CE93D8;">' + esc_(toDept) + '</div></div>' +
+        '<div><div style="font-size:9px;color:#5C6BC0;text-transform:uppercase;letter-spacing:.6px;">Status</div>' +
+             '<div style="font-size:13px;font-weight:bold;color:#F9A825;">' + esc_(status) + '</div></div>' +
+      '</div>' +
+      '<div style="padding:16px 20px;background:#fff;">' +
+        '<table style="width:100%;border-collapse:collapse;font-size:12.5px;">' +
+          '<tr><td style="padding:5px 0;color:#616161;width:130px;">Equipment</td>' +
+              '<td style="padding:5px 0;font-weight:600;">' + esc_(equip || '—') + (equipCode ? ' <span style="color:#9E9E9E;">(' + esc_(equipCode) + ')</span>' : '') + '</td></tr>' +
+          '<tr><td style="padding:5px 0;color:#616161;">Problem</td>' +
+              '<td style="padding:5px 0;">' + esc_(description || '—') + '</td></tr>' +
+          (reason ? '<tr><td style="padding:5px 0;color:#616161;">Reason</td>' +
+              '<td style="padding:5px 0;font-style:italic;">' + esc_(reason) + '</td></tr>' : '') +
+          '<tr><td style="padding:5px 0;color:#616161;">Requested By</td>' +
+              '<td style="padding:5px 0;">' + esc_(requestedBy) + '</td></tr>' +
+        '</table>' +
+        '<div style="margin-top:14px;padding:12px 14px;background:#F3E5F5;border-left:4px solid #7B1FA2;border-radius:4px;">' +
+          '<div style="font-size:12px;font-weight:bold;color:#4A148C;margin-bottom:4px;">Action Required</div>' +
+          '<div style="font-size:11.5px;color:#616161;">Log into the Maintenance Tracker, find ticket <strong>' + esc_(ticketNo) + '</strong>, and click <strong>Accept</strong> or <strong>Reject</strong> to respond to this request. Accepting will add your department to this ticket and it will appear in your Joint Tickets view.</div>' +
+        '</div>' +
+      '</div>' +
+      '<div style="background:#F5F5F5;padding:10px 20px;border-top:1px solid #E0E0E0;">' +
+        '<div style="font-size:10px;color:#B0B0B0;">This is an automated notification. Do not reply to this email.</div>' +
+      '</div>' +
+      '</div>';
+
+    MailApp.sendEmail({ to: allRecip, name: 'CSC Maintenance Tracker', subject: subject, htmlBody: htmlBody });
+    Logger.log('sendJointRequestEmail_: sent for ' + ticketNo + ' (' + fromDept + '→' + toDept + ')');
+  } catch (e) {
+    Logger.log('sendJointRequestEmail_ error: ' + e.message);
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+//  sendJointResponseEmail_ — notifies primary dept manager of accept/reject
+//  Called from confirmJointRequest() and rejectJointRequest().
+// ═══════════════════════════════════════════════════════════════════════════════
+
+function sendJointResponseEmail_(ticketNo, data) {
+  try {
+    var fromDept       = String(data.fromDept       || '');
+    var confirmingDept = String(data.confirmingDept || '');
+    var accepted       = !!data.accepted;
+    var reason         = String(data.reason         || '');
+    var respondedBy    = String(data.respondedBy    || '');
+    var equip          = String(data.specificEquip  || '');
+    var description    = String(data.description    || '');
+
+    // Notify the primary dept managers
+    var recipients = _emailRecipients_(fromDept);
+    if (!recipients) {
+      Logger.log('sendJointResponseEmail_: no recipients for primary dept ' + fromDept);
+      return;
+    }
+
+    var tz      = Session.getScriptTimeZone();
+    var tsStr   = Utilities.formatDate(new Date(), tz, 'MM/dd/yyyy · hh:mm a');
+    var outcome = accepted ? 'Accepted ✅' : 'Rejected ❌';
+    var accentColor = accepted ? '#2E7D32' : '#C62828';
+    var accentLight = accepted ? '#E8F5E9' : '#FFEBEE';
+    var accentBorder= accepted ? '#2E7D32' : '#C62828';
+
+    var subject = (accepted ? '✅' : '❌') + ' Joint Request ' + (accepted ? 'Accepted' : 'Rejected') +
+                  ' | ' + ticketNo + ' | ' + confirmingDept;
+
+    var htmlBody =
+      '<div style="font-family:Arial,sans-serif;max-width:620px;margin:0 auto;border:1px solid #E0E0E0;border-radius:8px;overflow:hidden;">' +
+      '<div style="background:#2A2A2A;padding:14px 20px;display:flex;align-items:center;gap:10px;">' +
+        '<div style="background:' + accentColor + ';width:5px;height:40px;border-radius:3px;flex-shrink:0;"></div>' +
+        '<div style="flex:1;">' +
+          '<div style="font-size:15px;font-weight:bold;color:#FFD700;letter-spacing:.4px;">⚡ MAINTENANCE TRACKER</div>' +
+          '<div style="font-size:10px;color:#9E9E9E;margin-top:2px;">Container Supply Co. — Garden Grove, CA</div>' +
+        '</div>' +
+        '<div style="text-align:right;">' +
+          '<div style="font-size:10px;color:#9E9E9E;">Joint Request Response</div>' +
+          '<div style="font-size:10px;color:#9E9E9E;margin-top:2px;">' + tsStr + '</div>' +
+        '</div>' +
+      '</div>' +
+      '<div style="background:' + accentColor + ';padding:12px 20px;display:flex;align-items:center;gap:12px;">' +
+        '<div style="font-size:20px;">' + (accepted ? '✅' : '❌') + '</div>' +
+        '<div>' +
+          '<div style="font-size:13px;font-weight:bold;color:#fff;">Joint Request ' + (accepted ? 'Accepted' : 'Rejected') + '</div>' +
+          '<div style="font-size:11px;color:rgba(255,255,255,.8);margin-top:2px;">' + esc_(confirmingDept) + ' has ' + (accepted ? 'accepted' : 'rejected') + ' the joint attachment request</div>' +
+        '</div>' +
+      '</div>' +
+      '<div style="background:#1B2A3C;padding:10px 20px;display:flex;gap:24px;flex-wrap:wrap;">' +
+        '<div><div style="font-size:9px;color:#5C6BC0;text-transform:uppercase;letter-spacing:.6px;">Ticket #</div>' +
+             '<div style="font-size:18px;font-weight:bold;color:#FFD700;font-family:monospace;">' + esc_(ticketNo) + '</div></div>' +
+        '<div><div style="font-size:9px;color:#5C6BC0;text-transform:uppercase;letter-spacing:.6px;">Your Dept</div>' +
+             '<div style="font-size:13px;font-weight:bold;color:#ECEFF1;">' + esc_(fromDept) + '</div></div>' +
+        '<div><div style="font-size:9px;color:#5C6BC0;text-transform:uppercase;letter-spacing:.6px;">Response From</div>' +
+             '<div style="font-size:13px;font-weight:bold;color:#ECEFF1;">' + esc_(confirmingDept) + '</div></div>' +
+        '<div><div style="font-size:9px;color:#5C6BC0;text-transform:uppercase;letter-spacing:.6px;">Outcome</div>' +
+             '<div style="font-size:13px;font-weight:bold;color:' + (accepted ? '#A5D6A7' : '#EF9A9A') + ';">' + outcome + '</div></div>' +
+      '</div>' +
+      '<div style="padding:16px 20px;background:#fff;">' +
+        '<table style="width:100%;border-collapse:collapse;font-size:12.5px;">' +
+          '<tr><td style="padding:5px 0;color:#616161;width:130px;">Equipment</td>' +
+              '<td style="padding:5px 0;font-weight:600;">' + esc_(equip || '—') + '</td></tr>' +
+          '<tr><td style="padding:5px 0;color:#616161;">Problem</td>' +
+              '<td style="padding:5px 0;">' + esc_(description || '—') + '</td></tr>' +
+          '<tr><td style="padding:5px 0;color:#616161;">Responded By</td>' +
+              '<td style="padding:5px 0;">' + esc_(respondedBy) + '</td></tr>' +
+          (!accepted && reason ? '<tr><td style="padding:5px 0;color:#616161;">Reason</td>' +
+              '<td style="padding:5px 0;font-style:italic;">' + esc_(reason) + '</td></tr>' : '') +
+        '</table>' +
+        '<div style="margin-top:14px;padding:12px 14px;background:' + accentLight + ';border-left:4px solid ' + accentBorder + ';border-radius:4px;">' +
+          '<div style="font-size:11.5px;color:#333;">' +
+            (accepted
+              ? confirmingDept + ' is now attached to ticket ' + ticketNo + '. They will appear in the Joint Tickets view and will be required to sign off before the ticket can be closed.'
+              : confirmingDept + ' declined to join ticket ' + ticketNo + (reason ? ': "' + esc_(reason) + '"' : '.') + ' You may try attaching a different department if needed.') +
+          '</div>' +
+        '</div>' +
+      '</div>' +
+      '<div style="background:#F5F5F5;padding:10px 20px;border-top:1px solid #E0E0E0;">' +
+        '<div style="font-size:10px;color:#B0B0B0;">This is an automated notification. Do not reply to this email.</div>' +
+      '</div>' +
+      '</div>';
+
+    MailApp.sendEmail({ to: recipients, name: 'CSC Maintenance Tracker', subject: subject, htmlBody: htmlBody });
+    Logger.log('sendJointResponseEmail_: sent for ' + ticketNo + ' (' + confirmingDept + ' → ' + (accepted ? 'accepted' : 'rejected') + ')');
+  } catch (e) {
+    Logger.log('sendJointResponseEmail_ error: ' + e.message);
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
 //  runDailyEmailAlerts — time-trigger entry point (daily)
 // ═══════════════════════════════════════════════════════════════════════════════
 

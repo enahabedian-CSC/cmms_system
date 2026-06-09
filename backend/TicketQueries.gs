@@ -117,8 +117,9 @@ function getTicketDetail(ticketNo) {
       lineNo:        String(best[ML.LINE_NO         - 1] || ''),
       sqfChecklist:  String(best[ML.VERIFICATION_CHECKLIST - 1] || ''),
       photoUrl:      String(best[ML.PHOTO_URL       - 1] || ''),
-      jointDepts:    String(best[ML.JOINT_DEPTS     - 1] || ''),
-      jointSignoffs: String(best[ML.JOINT_SIGNOFFS  - 1] || '')
+      jointDepts:        String(best[ML.JOINT_DEPTS          - 1] || ''),
+      jointSignoffs:     String(best[ML.JOINT_SIGNOFFS       - 1] || ''),
+      pendingJointDepts: String(best[ML.PENDING_JOINT_DEPTS  - 1] || '')
     };
 
     // ── Ticket History ─────────────────────────────────────────────────────────
@@ -308,13 +309,18 @@ function _mergeAndFilter_(data, statusFilter, deptFilter, limit) {
     var jointDeptsList = jointDeptsStr
       ? jointDeptsStr.split(',').map(function(d) { return d.trim(); }).filter(Boolean)
       : [];
+    var pendingJointDeptsStr = String(best[ML.PENDING_JOINT_DEPTS - 1] || '').trim();
+    var pendingJointList = pendingJointDeptsStr
+      ? pendingJointDeptsStr.split(',').map(function(d) { return d.trim(); }).filter(Boolean)
+      : [];
     var isJoint = false;
+    var isPendingJoint = false;
     if (deptFilter) {
       var primaryMatch = Array.isArray(deptFilter)
         ? deptFilter.indexOf(dept) >= 0
         : dept === deptFilter;
       if (!primaryMatch) {
-        // Also match tickets where deptFilter appears in JOINT_DEPTS
+        // Check confirmed joint depts
         if (Array.isArray(deptFilter)) {
           for (var fi = 0; fi < deptFilter.length; fi++) {
             if (jointDeptsList.indexOf(deptFilter[fi]) >= 0) { isJoint = true; break; }
@@ -322,7 +328,17 @@ function _mergeAndFilter_(data, statusFilter, deptFilter, limit) {
         } else {
           isJoint = jointDeptsList.indexOf(deptFilter) >= 0;
         }
-        if (!isJoint) continue;
+        if (!isJoint) {
+          // Check pending joint depts (so receiving mgr sees the request in their tracker)
+          if (Array.isArray(deptFilter)) {
+            for (var pi = 0; pi < deptFilter.length; pi++) {
+              if (pendingJointList.indexOf(deptFilter[pi]) >= 0) { isPendingJoint = true; break; }
+            }
+          } else {
+            isPendingJoint = pendingJointList.indexOf(deptFilter) >= 0;
+          }
+          if (!isPendingJoint) continue;
+        }
       }
     }
 
@@ -356,8 +372,10 @@ function _mergeAndFilter_(data, statusFilter, deptFilter, limit) {
       actualHours:  best[ML.ACTUAL_HOURS         - 1] || '',
       fixType:      String(best[ML.FIX_TYPE      - 1] || ''),
       verifiedBy:   String(best[ML.VERIFIED_BY   - 1] || ''),
-      jointDepts:   jointDeptsStr,
-      isJoint:      isJoint
+      jointDepts:         jointDeptsStr,
+      isJoint:            isJoint,
+      pendingJointDepts:  pendingJointDeptsStr,
+      isPendingJoint:     isPendingJoint
     });
   }
 
