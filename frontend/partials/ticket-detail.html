@@ -103,6 +103,12 @@ window.PAGES = window.PAGES || {};
 var _tdTicketNo = null;
 var _tdTicket   = null;
 
+// Returns true if the current user can take action on this ticket.
+// Managers from other depts can VIEW but not act (unless the ticket is joint and they own a joint dept).
+function _canActOnTicket_(t) {
+  return USER.isAdmin || ((USER.ownedDepts || []).indexOf(t.dept) >= 0);
+}
+
 // ── Public API ────────────────────────────────────────────────────────────────
 
 function openTicketDetail(ticketNo) {
@@ -154,7 +160,9 @@ function _renderDetail_(result) {
 
   // ── Action buttons ─────────────────────────────────────────────────────────
   var actions = '';
-  if (isManager) {
+  var canAct  = isManager && _canActOnTicket_(t);
+
+  if (canAct) {
     if (t.status === 'WAITING') {
       actions += '<button class="btn-action btn-approve" onclick="_tdApprove_()">✓ Approve → Open</button>';
     }
@@ -169,11 +177,34 @@ function _renderDetail_(result) {
       actions += '<button class="btn-action btn-verify" onclick="_tdVerifyClose_()">✓ Verify &amp; Close</button>';
     }
     if (t.status !== 'CLOSED' && t.status !== 'VOIDED') {
-      actions += '<button class="btn-action btn-transfer" onclick="_tdTransfer_()">Transfer Dept</button>';
+      actions += '<button class="btn-action btn-transfer" onclick="_tdTransfer_()">Attach Dept</button>';
       actions += '<button class="btn-action btn-void" onclick="_tdVoid_()">Void Ticket</button>';
     }
     if (t.status === 'CLOSED') {
       actions += '<button class="btn-action btn-update" onclick="_tdServiceReport_()">📝 Service Report</button>';
+    }
+  }
+
+  // Dept sign-off: joint dept manager can sign off when ticket is PENDING VERIFICATION
+  if (isManager && !canAct && t.status === 'PENDING VERIFICATION' && t.jointDepts) {
+    var jdList   = t.jointDepts.split(',').map(function(d) { return d.trim(); }).filter(Boolean);
+    var myDepts  = USER.ownedDepts || [];
+    var inJoint  = false;
+    for (var ji = 0; ji < jdList.length; ji++) {
+      if (myDepts.indexOf(jdList[ji]) >= 0) { inJoint = true; break; }
+    }
+    if (inJoint) {
+      var jSigns = {};
+      if (t.jointSignoffs) { try { jSigns = JSON.parse(t.jointSignoffs); } catch(e) {} }
+      var alreadySigned = false;
+      for (var ui = 0; ui < myDepts.length; ui++) {
+        if (jSigns[myDepts[ui]]) { alreadySigned = true; break; }
+      }
+      if (!alreadySigned) {
+        actions += '<button class="btn-action btn-verify" onclick="_tdDeptSignOff_()">✓ Dept Sign Off</button>';
+      } else {
+        actions += '<span style="display:inline-flex;align-items:center;gap:6px;height:34px;padding:0 14px;border-radius:6px;font-size:12.5px;font-weight:600;background:#D1FAE5;color:#065F46;">✓ Your dept signed off</span>';
+      }
     }
   }
   // Parts request + Update: all roles, any non-terminal status
@@ -204,6 +235,7 @@ function _renderDetail_(result) {
         field('Est Hours',     t.estHours) +
         field('Actual Hours',  t.actualHours) +
         field('Downtime Type', t.downtimeType) +
+        (t.jointDepts ? _renderJointStatus_(t) : '') +
       '</div>' +
     '</div>' +
 
@@ -327,7 +359,7 @@ function _tdComplete_() {
   var t = _tdTicket;
   if (!t) return;
   _showModal_('Mark Work Complete — ' + esc(t.ticketNo),
-    '<div class="form-group"><label>Work Summary *</label><textarea id="mc-summary" required></textarea></div>' +
+    '<div class="form-group"><label>Preventive Action *</label><textarea id="mc-summary" required></textarea></div>' +
     '<div class="form-group"><label>Corrective Action</label><textarea id="mc-corrective"></textarea></div>' +
     '<div class="form-group"><label>Root Cause</label><input id="mc-root" /></div>' +
     '<div class="form-group"><label>Fix Type</label>' +
@@ -340,7 +372,7 @@ function _tdComplete_() {
       if (!summary) { alert('Work summary is required.'); return; }
       var data = {
         ticketNo:     t.ticketNo,
-        workSummary:  summary,
+        preventiveAct:summary,
         correctiveAct:document.getElementById('mc-corrective').value,
         rootCause:    document.getElementById('mc-root').value,
         fixType:      document.getElementById('mc-fix').value,
@@ -657,8 +689,12 @@ function _tdTransfer_() {
   var t = _tdTicket;
   if (!t) return;
   var depts = ['ELECTRICAL','MACHINE SHOP','FACILITIES','PLASTICS','METALS','LITHO'];
-  _showModal_('Transfer Ticket — ' + esc(t.ticketNo),
-    '<div class="form-group"><label>Transfer To Department</label>' +
+  _showModal_('Attach Department — ' + esc(t.ticketNo),
+    '<div style="background:var(--status-info-bg);border:1px solid var(--status-info);border-radius:6px;padding:9px 12px;margin-bottom:12px;font-size:12px;color:var(--status-info);">' +
+      'This makes the ticket <strong>joint</strong> — primary ownership stays with ' + esc(t.dept) + '. ' +
+      'The attached department will see it in their Joint Tickets tracker and must sign off before the ticket can close.' +
+    '</div>' +
+    '<div class="form-group"><label>Attach Department</label>' +
     '<select id="tr-dept">' + depts.map(function(d) {
       return '<option' + (d === t.dept ? ' disabled' : '') + ' value="' + esc(d) + '">' + esc(d) + '</option>';
     }).join('') + '</select></div>' +
@@ -668,8 +704,8 @@ function _tdTransfer_() {
       if (!toDept || toDept === t.dept) { alert('Select a different department.'); return; }
       var data = { ticketNo: t.ticketNo, fromDept: t.dept, toDept: toDept,
                    reason: document.getElementById('tr-reason').value, updatedBy: USER.displayName };
-      _tdRunAction_(transferTicket, data, 'Transferred');
-    });
+      _tdRunAction_(transferTicket, data, 'Department Attached');
+    }, 'Attach');
 }
 
 // ── Action runner ─────────────────────────────────────────────────────────────
@@ -787,6 +823,50 @@ function _renderNotes_(raw) {
   return out;
 }
 
+function _tdDeptSignOff_() {
+  var t = _tdTicket;
+  if (!t) return;
+  _showModal_('Dept Sign Off — ' + esc(t.ticketNo),
+    '<div style="background:var(--status-info-bg);border:1px solid var(--status-info);border-radius:6px;padding:9px 12px;margin-bottom:12px;font-size:12px;color:var(--status-info);">' +
+      'Sign off confirms your department\'s portion of this joint ticket is complete and verified.' +
+    '</div>' +
+    '<div class="form-group"><label>Signed Off By</label>' +
+    '<input id="dso-by" value="' + esc(USER.displayName) + '" /></div>' +
+    '<div class="form-group"><label>Notes (optional)</label>' +
+    '<textarea id="dso-notes"></textarea></div>',
+    function() {
+      var data = {
+        ticketNo:  t.ticketNo,
+        updatedBy: (document.getElementById('dso-by').value || '').trim() || USER.displayName,
+        notes:     (document.getElementById('dso-notes').value || '').trim()
+      };
+      _tdRunAction_(deptSignOff, data, 'Dept Signed Off');
+    }, 'Sign Off');
+}
+
+// Renders joint department sign-off chips inside the Ticket Overview section.
+function _renderJointStatus_(t) {
+  var jd = (t.jointDepts || '').split(',').map(function(d) { return d.trim(); }).filter(Boolean);
+  if (!jd.length) return '';
+  var signs = {};
+  if (t.jointSignoffs) { try { signs = JSON.parse(t.jointSignoffs); } catch(e) {} }
+  var chips = jd.map(function(d) {
+    var s = signs[d];
+    return s
+      ? '<span style="display:inline-flex;align-items:center;gap:4px;padding:3px 9px;border-radius:4px;background:#D1FAE5;color:#065F46;font-size:11.5px;font-weight:600;margin:2px 4px 2px 0;">' +
+          '<svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>' +
+          esc(d) + ' ✓ <span style="font-weight:400;font-size:10.5px;">' + esc(s.by) + '</span>' +
+        '</span>'
+      : '<span style="display:inline-flex;align-items:center;gap:4px;padding:3px 9px;border-radius:4px;background:#FEF3C7;color:#92400E;font-size:11.5px;font-weight:600;margin:2px 4px 2px 0;">' +
+          esc(d) + ' · Pending sign-off' +
+        '</span>';
+  }).join('');
+  return '<div class="td-field" style="grid-column:1/-1;margin-top:8px;">' +
+    '<label>Joint Departments</label>' +
+    '<div class="val" style="margin-top:4px;">' + chips + '</div>' +
+  '</div>';
+}
+
 // ── Backend function proxies (called via _tdRunAction_) ───────────────────────
 // These are defined here as stubs so _tdRunAction_ can call fn.name on them.
 // The actual work is done by google.script.run.[name](data) on the server.
@@ -799,4 +879,5 @@ function updateTicket(d)         { /* server */ }
 function assignTicket(d)         { /* server */ }
 function flagTempFix(d)          { /* server */ }
 function transferTicket(d)       { /* server */ }
+function deptSignOff(d)          { /* server */ }
 </script>

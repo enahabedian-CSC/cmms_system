@@ -156,6 +156,21 @@ function verifyAndCloseTicket(data) {
     var latest = getLatestMlRow_(tn)   || orig;
     var dept = normalizeDept(String(orig[ML.DEPT - 1] || data.dept || ''));
 
+    // Joint-ticket sign-off guard — all attached depts must have signed off first
+    var jtDeptsStr = String(latest[ML.JOINT_DEPTS - 1] || '').trim();
+    if (jtDeptsStr) {
+      var jtDepts = jtDeptsStr.split(',').map(function(d) { return d.trim(); }).filter(Boolean);
+      if (jtDepts.length > 0) {
+        var jtSignsStr = String(latest[ML.JOINT_SIGNOFFS - 1] || '').trim();
+        var jtSigns = {};
+        if (jtSignsStr) { try { jtSigns = JSON.parse(jtSignsStr); } catch(e2) { jtSigns = {}; } }
+        var unsigned = jtDepts.filter(function(d) { return !jtSigns[d]; });
+        if (unsigned.length > 0) {
+          return { success: false, error: 'Awaiting dept sign-off from: ' + unsigned.join(', ') };
+        }
+      }
+    }
+
     appendToMasterLog_({
       ticketNo:      tn,
       now:           now,
@@ -556,6 +571,13 @@ function flagTempFix(data) {
 //  transferTicket — reroutes ticket to a different dept tracker
 // ═══════════════════════════════════════════════════════════════════════════════
 
+// ═══════════════════════════════════════════════════════════════════════════════
+//  transferTicket — attaches a dept to make ticket JOINT
+//  Primary ownership (ML.DEPT) stays with the originating dept.
+//  toDept is added to ML.JOINT_DEPTS (comma-sep, deduped).
+//  Joint dept manager sees the ticket in their tracker under "Joint Tickets".
+// ═══════════════════════════════════════════════════════════════════════════════
+
 function transferTicket(data) {
   requireManager_();
   var user = getCurrentUserInfo();
@@ -569,14 +591,24 @@ function transferTicket(data) {
     var fromDept = normalizeDept(String(prev[ML.DEPT - 1] || data.fromDept || ''));
     var toDept   = normalizeDept(String(data.toDept   || ''));
     var status   = String(prev[ML.STATUS - 1] || 'OPEN').toUpperCase();
-    if (!toDept)   return { success: false, error: 'toDept required' };
+    if (!toDept)            return { success: false, error: 'toDept required' };
+    if (toDept === fromDept) return { success: false, error: 'Cannot attach the same department' };
+
+    // Build updated JOINT_DEPTS — preserve existing, add new dept (deduped)
+    var existingJoint = String(prev[ML.JOINT_DEPTS - 1] || '').trim();
+    var jointList = existingJoint
+      ? existingJoint.split(',').map(function(d) { return d.trim(); }).filter(Boolean)
+      : [];
+    if (jointList.indexOf(toDept) < 0) jointList.push(toDept);
+    var jointDeptsStr = jointList.join(', ');
 
     appendToMasterLog_({
-      ticketNo:  tn,
-      now:       now,
-      action:    ML_ACTIONS.DEPT_TRANSFER,
-      status:    status,
-      dept:      toDept,
+      ticketNo:   tn,
+      now:        now,
+      action:     ML_ACTIONS.MAKE_JOINT,
+      status:     status,
+      dept:       fromDept,          // primary owner unchanged
+      jointDepts: jointDeptsStr,
       buildingZone:  String(orig[ML.BUILDING_ZONE  - 1] || ''),
       equipType:     String(orig[ML.EQUIP_TYPE     - 1] || ''),
       equipCode:     String(orig[ML.EQUIP_CODE     - 1] || ''),
@@ -589,21 +621,13 @@ function transferTicket(data) {
       notes:         data.reason || ''
     });
 
-    appendToTicketHistory_(tn, TH_EVENTS.TRANSFERRED, fromDept, toDept,
+    appendToTicketHistory_(tn, TH_EVENTS.MAKE_JOINT, fromDept, toDept,
       data.updatedBy || user.displayName,
-      'Transferred: ' + fromDept + ' → ' + toDept + (data.reason ? ' | ' + data.reason : ''));
+      'Attached dept: ' + toDept + (data.reason ? ' | ' + data.reason : ''));
 
-    var ss         = getBoundSS_();
-    var oldTracker = getTrackerForDept(fromDept, '', '');
-    var newTracker = getTrackerForDept(toDept,   '', '');
-    if (oldTracker !== newTracker) {
-      removeTicketFromSheet_(ss, oldTracker, tn);
-      var td = _buildTicketDataFromMl_(orig, { dept: toDept, updatedBy: data.updatedBy || user.displayName });
-      td.dept = toDept;
-      writeTicketToSheet_(ss, newTracker, tn, td, status, toDept, now, data.updatedBy || user.displayName);
-    }
+    var ss = getBoundSS_();
 
-    // Notify both dept managers; track send status in Transfer Log
+    // Notify both dept managers; track in Transfer Log for audit trail
     var emailSent = 'N';
     try {
       sendTransferNotification_(tn, {
@@ -635,9 +659,85 @@ function transferTicket(data) {
       ]);
     }
 
-    return { success: true, ticketNo: tn, fromDept: fromDept, toDept: toDept };
+    return { success: true, ticketNo: tn, fromDept: fromDept, toDept: toDept, jointDepts: jointDeptsStr };
   } catch (e) {
     Logger.log('transferTicket error: ' + e.message);
+    return { success: false, error: e.message };
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+//  deptSignOff — joint dept manager signs off when ticket is PENDING VERIFICATION
+//  Caller must own one of the JOINT_DEPTS on this ticket.
+//  When all joint depts have signed off, verifyAndCloseTicket() will proceed.
+// ═══════════════════════════════════════════════════════════════════════════════
+
+function deptSignOff(data) {
+  requireManager_();
+  var user = getCurrentUserInfo();
+  var now  = new Date();
+  var tn   = String(data.ticketNo || '').trim();
+  if (!tn) return { success: false, error: 'ticketNo required' };
+
+  try {
+    var latest = getLatestMlRow_(tn);
+    if (!latest) return { success: false, error: 'Ticket not found: ' + tn };
+
+    var status = String(latest[ML.STATUS - 1] || '').trim().toUpperCase();
+    if (status !== 'PENDING VERIFICATION') {
+      return { success: false, error: 'Dept sign-off is only available when ticket is PENDING VERIFICATION' };
+    }
+
+    var jointDeptsStr = String(latest[ML.JOINT_DEPTS - 1] || '').trim();
+    if (!jointDeptsStr) return { success: false, error: 'This ticket is not a joint ticket' };
+    var jointDepts = jointDeptsStr.split(',').map(function(d) { return d.trim(); }).filter(Boolean);
+
+    // Caller must own one of the joint depts
+    var signingDept = '';
+    if (!user.isAdmin) {
+      for (var i = 0; i < jointDepts.length; i++) {
+        if ((user.ownedDepts || []).indexOf(jointDepts[i]) >= 0) {
+          signingDept = jointDepts[i];
+          break;
+        }
+      }
+      if (!signingDept) return { success: false, error: 'You do not manage a department attached to this ticket' };
+    } else {
+      signingDept = data.dept || jointDepts[0] || '';
+    }
+
+    // Parse existing sign-offs and add this dept
+    var signsStr = String(latest[ML.JOINT_SIGNOFFS - 1] || '').trim();
+    var signs = {};
+    if (signsStr) { try { signs = JSON.parse(signsStr); } catch(e2) { signs = {}; } }
+    if (signs[signingDept]) return { success: false, error: signingDept + ' has already signed off' };
+    signs[signingDept] = { by: data.updatedBy || user.displayName, ts: formatTimestamp_(now) };
+    var newSignsStr = JSON.stringify(signs);
+
+    var primaryDept = normalizeDept(String(latest[ML.DEPT - 1] || ''));
+
+    appendToMasterLog_({
+      ticketNo:      tn,
+      now:           now,
+      action:        ML_ACTIONS.DEPT_SIGNOFF,
+      status:        status,
+      dept:          primaryDept,
+      jointDepts:    jointDeptsStr,
+      jointSignoffs: newSignsStr,
+      updatedBy:     data.updatedBy || user.displayName,
+      notes:         signingDept + ' signed off'
+    });
+
+    appendToTicketHistory_(tn, TH_EVENTS.DEPT_SIGNOFF, status, status,
+      data.updatedBy || user.displayName,
+      signingDept + ' signed off');
+
+    // Check if all joint depts have now signed off
+    var allSigned = jointDepts.every(function(d) { return !!signs[d]; });
+
+    return { success: true, ticketNo: tn, signedDept: signingDept, allSigned: allSigned };
+  } catch (e) {
+    Logger.log('deptSignOff error: ' + e.message);
     return { success: false, error: e.message };
   }
 }

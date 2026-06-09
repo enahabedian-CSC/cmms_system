@@ -23,12 +23,11 @@ function getQueueTickets(queueType, opts) {
     default:        statusFilter = ['WAITING', 'OPEN']; break;
   }
 
-  // Dept scoping: tracker view uses explicit dept; waiting/open scope to owned depts for managers
+  // Dept scoping: tracker always uses explicit dept (opts.dept).
+  // Waiting / open: managers now see all depts (manager view-all).
   var deptFilter = null;
   if (opts.dept) {
     deptFilter = normalizeDept(opts.dept);
-  } else if (!user.isAdmin && user.isManager && user.ownedDepts && user.ownedDepts.length > 0) {
-    deptFilter = user.ownedDepts; // array — any match passes
   }
 
   try {
@@ -117,7 +116,9 @@ function getTicketDetail(ticketNo) {
       problemType:   String(best[ML.PROBLEM_TYPE    - 1] || ''),
       lineNo:        String(best[ML.LINE_NO         - 1] || ''),
       sqfChecklist:  String(best[ML.VERIFICATION_CHECKLIST - 1] || ''),
-      photoUrl:      String(best[ML.PHOTO_URL       - 1] || '')
+      photoUrl:      String(best[ML.PHOTO_URL       - 1] || ''),
+      jointDepts:    String(best[ML.JOINT_DEPTS     - 1] || ''),
+      jointSignoffs: String(best[ML.JOINT_SIGNOFFS  - 1] || '')
     };
 
     // ── Ticket History ─────────────────────────────────────────────────────────
@@ -213,7 +214,7 @@ function getEquipTicketHistory(equipCode) {
 function getClosedTickets(opts) {
   requireManager_();
   opts = opts || {};
-  var user = getCurrentUserInfo();
+  // Managers see all closed tickets (manager view-all — same as queue views)
 
   try {
     var ss       = getBoundSS_();
@@ -223,7 +224,8 @@ function getClosedTickets(opts) {
     var startRow = QUEUE_FROZEN + 1;
     if (closedSh.getLastRow() < startRow) return [];
     var numRows  = closedSh.getLastRow() - startRow + 1;
-    var data     = closedSh.getRange(startRow, TK_DATA_COL, numRows, TK_COLS).getValues();
+    // Read from col 1 using CS_ 29-col layout (post-migration format)
+    var data     = closedSh.getRange(startRow, 1, numRows, CS_COLS).getValues();
     var tz       = Session.getScriptTimeZone();
 
     function fmtDate(v) {
@@ -234,37 +236,33 @@ function getClosedTickets(opts) {
 
     var tickets = [];
     data.forEach(function(r) {
-      var tn   = String(r[TK.TICKET_NO - 1] || '').trim();
+      var tn   = String(r[CS.TICKET_NO - 1] || '').trim();
       if (!tn) return;
-      var dept = String(r[TK.DEPT - 1] || '').trim();
-      if (!user.isAdmin && user.ownedDepts && user.ownedDepts.length > 0) {
-        if (user.ownedDepts.indexOf(dept) < 0) return;
-      }
-      // Optional text search
+      var dept = String(r[CS.DEPT      - 1] || '').trim();
       if (opts.search) {
         var q = opts.search.toLowerCase();
         var haystack = (tn + ' ' + dept + ' ' +
-          String(r[TK.SPECIFIC_EQUIP - 1] || '') + ' ' +
-          String(r[TK.DESCRIPTION - 1]    || '') + ' ' +
-          String(r[TK.ASSIGNED_TO  - 1]   || '')).toLowerCase();
+          String(r[CS.SPECIFIC_EQUIP - 1] || '') + ' ' +
+          String(r[CS.DESCRIPTION    - 1] || '') + ' ' +
+          String(r[CS.COMPLETED_BY   - 1] || '')).toLowerCase();
         if (haystack.indexOf(q) < 0) return;
       }
       tickets.push({
         ticketNo:     tn,
-        status:       String(r[TK.STATUS         - 1] || '').trim(),
-        priority:     String(r[TK.PRIORITY        - 1] || '').trim().toUpperCase(),
+        status:       String(r[CS.STATUS        - 1] || '').trim(),
+        priority:     String(r[CS.PRIORITY      - 1] || '').trim().toUpperCase(),
         dept:         dept,
-        equipCode:    String(r[TK.EQUIP_CODE      - 1] || ''),
-        specificEquip:String(r[TK.SPECIFIC_EQUIP  - 1] || ''),
-        description:  String(r[TK.DESCRIPTION     - 1] || ''),
-        assignedTo:   String(r[TK.ASSIGNED_TO     - 1] || ''),
-        actualHours:  r[TK.ACTUAL_HOURS           - 1] || '',
-        dateOpened:   fmtDate(r[TK.DATE_OPENED    - 1]),
-        lastUpdated:  fmtDate(r[TK.LAST_UPDATED   - 1]),
-        verifiedBy:   String(r[TK.VERIFIED_BY     - 1] || ''),
-        verifiedDate: fmtDate(r[TK.VERIFIED_DATE  - 1]),
-        addedBy:      String(r[TK.ADDED_BY        - 1] || ''),
-        lineNo:       String(r[TK.LINE_NO         - 1] || '')
+        equipCode:    String(r[CS.EQUIP_CODE    - 1] || ''),
+        specificEquip:String(r[CS.SPECIFIC_EQUIP- 1] || ''),
+        description:  String(r[CS.DESCRIPTION   - 1] || ''),
+        assignedTo:   String(r[CS.COMPLETED_BY  - 1] || ''),
+        actualHours:  r[CS.ACTUAL_HOURS         - 1] || '',
+        dateOpened:   fmtDate(r[CS.DATE_OPENED  - 1]),
+        lastUpdated:  fmtDate(r[CS.VERIFIED_DATE- 1]),
+        verifiedBy:   String(r[CS.VERIFIED_BY   - 1] || ''),
+        verifiedDate: fmtDate(r[CS.VERIFIED_DATE- 1]),
+        addedBy:      String(r[CS.ADDED_BY      - 1] || ''),
+        lineNo:       String(r[CS.LINE_NO       - 1] || '')
       });
     });
 
@@ -306,11 +304,25 @@ function _mergeAndFilter_(data, statusFilter, deptFilter, limit) {
     if (statusFilter && statusFilter.indexOf(status) < 0) continue;
 
     var dept = String(best[ML.DEPT - 1] || '').trim();
+    var jointDeptsStr = String(best[ML.JOINT_DEPTS - 1] || '').trim();
+    var jointDeptsList = jointDeptsStr
+      ? jointDeptsStr.split(',').map(function(d) { return d.trim(); }).filter(Boolean)
+      : [];
+    var isJoint = false;
     if (deptFilter) {
-      if (Array.isArray(deptFilter)) {
-        if (deptFilter.indexOf(dept) < 0) continue;
-      } else if (dept !== deptFilter) {
-        continue;
+      var primaryMatch = Array.isArray(deptFilter)
+        ? deptFilter.indexOf(dept) >= 0
+        : dept === deptFilter;
+      if (!primaryMatch) {
+        // Also match tickets where deptFilter appears in JOINT_DEPTS
+        if (Array.isArray(deptFilter)) {
+          for (var fi = 0; fi < deptFilter.length; fi++) {
+            if (jointDeptsList.indexOf(deptFilter[fi]) >= 0) { isJoint = true; break; }
+          }
+        } else {
+          isJoint = jointDeptsList.indexOf(deptFilter) >= 0;
+        }
+        if (!isJoint) continue;
       }
     }
 
@@ -343,7 +355,9 @@ function _mergeAndFilter_(data, statusFilter, deptFilter, limit) {
       estHours:     best[ML.EST_HOURS            - 1] || '',
       actualHours:  best[ML.ACTUAL_HOURS         - 1] || '',
       fixType:      String(best[ML.FIX_TYPE      - 1] || ''),
-      verifiedBy:   String(best[ML.VERIFIED_BY   - 1] || '')
+      verifiedBy:   String(best[ML.VERIFIED_BY   - 1] || ''),
+      jointDepts:   jointDeptsStr,
+      isJoint:      isJoint
     });
   }
 

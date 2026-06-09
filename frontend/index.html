@@ -730,36 +730,46 @@ function _homeRenderKpis_(counts) {
 function _homeRenderPanels_(panels) {
   if (!panels) return;
 
-  // Attention items
+  // Attention items — three named subsections
   var attnEl = document.getElementById('home-attn-list');
   if (attnEl) {
-    if (!panels.attentionItems || panels.attentionItems.length === 0) {
-      attnEl.innerHTML =
-        '<div style="padding:16px 0;text-align:center;color:var(--status-success);font-size:13px;">' +
-        '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:middle;margin-right:6px;"><polyline points="20 6 9 17 4 12"/></svg>' +
-        'All clear — no action required.</div>';
-    } else {
-      var kindIcon = { review: '📋', parts: '📦', temp: '🔧', complete: '✅' };
-      var kindColor = { review: 'var(--status-info)', parts: 'var(--status-warn)', temp: 'var(--status-high)', complete: 'var(--status-success)' };
-      attnEl.innerHTML = panels.attentionItems.map(function(item) {
-        var col = kindColor[item.kind] || 'var(--text-secondary)';
-        return '<div style="display:flex;align-items:flex-start;gap:10px;padding:9px 0;border-bottom:1px solid var(--border-default);">' +
-          '<div style="width:28px;height:28px;border-radius:6px;background:var(--bg-subtle);display:grid;place-items:center;flex-shrink:0;font-size:13px;">' + (kindIcon[item.kind] || '📌') + '</div>' +
-          '<div style="flex:1;min-width:0;">' +
-            '<div style="font-size:12.5px;font-weight:600;color:var(--text-primary);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' +
-              '<span style="font-family:var(--font-mono);font-size:11px;color:var(--brand-navy);margin-right:6px;">' + esc(item.ticketNo) + '</span>' +
-              esc(item.title) +
-            '</div>' +
-            '<div style="font-size:11.5px;color:var(--text-secondary);margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + esc(item.sub) + '</div>' +
-          '</div>' +
-          '<button onclick="navigate(\'' + esc(item.pageTarget || 'waiting') + '\')" ' +
-            'style="height:26px;padding:0 10px;border:1px solid var(--border-default);border-radius:4px;font-size:11.5px;background:#fff;color:var(--text-secondary);cursor:pointer;white-space:nowrap;flex-shrink:0;">' +
-            esc(item.action) +
-          '</button>' +
+    var attn     = panels.attentionItems || [];
+    var approval = attn.filter(function(i) { return i.kind === 'review'; });
+    var verify   = attn.filter(function(i) { return i.kind === 'complete'; });
+    var tempFix  = attn.filter(function(i) { return i.kind === 'temp'; });
+
+    function _attnSection_(icon, label, accentColor, items, emptyMsg, fallbackNav) {
+      var count = items.length;
+      var hdr =
+        '<div style="display:flex;align-items:center;gap:6px;padding:9px 0 5px;border-bottom:1px solid var(--border-default);margin-bottom:2px;">' +
+          '<span style="font-size:13px;">' + icon + '</span>' +
+          '<span style="font-size:11.5px;font-weight:700;color:var(--text-primary);flex:1;">' + esc(label) + '</span>' +
+          (count > 0 ? '<span style="font-size:10.5px;font-weight:700;background:' + accentColor + ';color:#fff;border-radius:10px;padding:1px 8px;">' + count + '</span>' : '') +
         '</div>';
-      }).join('') +
-      '<div style="padding-top:6px;"></div>';
+      var rows = count === 0
+        ? '<div style="padding:5px 0 9px;font-size:11.5px;color:var(--text-tertiary);">' + esc(emptyMsg) + '</div>'
+        : items.map(function(item) {
+            return '<div style="display:flex;align-items:flex-start;gap:10px;padding:7px 0;border-bottom:1px solid var(--border-default);">' +
+              '<div style="flex:1;min-width:0;">' +
+                '<div style="font-size:12px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' +
+                  '<span style="font-family:var(--font-mono);font-size:10.5px;color:var(--brand-navy);margin-right:5px;">' + esc(item.ticketNo) + '</span>' +
+                  esc(item.title) +
+                '</div>' +
+                '<div style="font-size:11px;color:var(--text-secondary);margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + esc(item.sub) + '</div>' +
+              '</div>' +
+              '<button onclick="navigate(\'' + esc(item.pageTarget || fallbackNav) + '\')" ' +
+                'style="height:24px;padding:0 9px;border:1px solid var(--border-default);border-radius:4px;font-size:11px;background:#fff;color:var(--text-secondary);cursor:pointer;white-space:nowrap;flex-shrink:0;">' +
+                esc(item.action) +
+              '</button>' +
+            '</div>';
+          }).join('');
+      return '<div style="margin-bottom:2px;">' + hdr + rows + '</div>';
     }
+
+    attnEl.innerHTML =
+      _attnSection_('📋', 'Awaiting Approval',    'var(--status-info)',    approval, 'None — all clear.',        'waiting') +
+      _attnSection_('✅', 'Awaiting Verification', 'var(--status-success)', verify,   'None — all clear.',        'open')    +
+      _attnSection_('🔧', 'Temp Fix Alerts',       'var(--status-high)',    tempFix,  'No past-due temp fixes.',  'tempfix');
   }
 
   // Open tickets table
