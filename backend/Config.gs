@@ -325,7 +325,11 @@ var TL_HEADERS = [
   'To Dept','Transferred By','Reason','Email Sent'
 ];
 
-// ─── REPORT DATABASE — 27 columns ────────────────────────────────────────────
+// ─── REPORT DATABASE — 33 columns ────────────────────────────────────────────
+// C11: expanded from 27 → 33 to adopt Izzy's service-report field set.
+// Cols 1–27 are unchanged (backward-compatible with existing rows).
+// Cols 28–33 are new: Shift, Service Date, Date Completed, Recommendations,
+// Manager Notes, Problem Type.
 var RDB = {
   REPORT_ID:1,    TICKET_NO:2,    DATE:3,          DEPT:4,
   BUILDING_ZONE:5, EQUIP_TYPE:6,  EQUIP_CODE:7,    SPECIFIC_EQUIP:8,
@@ -333,15 +337,19 @@ var RDB = {
   WORK_SUMMARY:13, FIX_TYPE:14,   TEMP_FIX_FLAG:15, PARTS_USED:16,
   LABOR_HOURS:17, ADDED_BY:18,    COMPLETED_BY:19, VERIFIED_BY:20,
   VERIFIED_DATE:21, UPDATED_BY:22, PRIORITY:23,    DOWNTIME_TYPE:24,
-  IMAGE_LINKS:25, PDF_LINK:26,    NOTES:27
+  IMAGE_LINKS:25, PDF_LINK:26,    NOTES:27,
+  // C11 additions ─ Izzy field-set conformance
+  SHIFT:28,       SERVICE_DATE:29, DATE_COMPLETED:30,
+  RECOMMENDATIONS:31, MANAGER_NOTES:32, PROBLEM_TYPE:33
 };
-var RDB_COLS = 27;
+var RDB_COLS = 33;
 var RDB_HEADERS = [
   'Report ID','Ticket #','Date','Department','Building / Zone','Equipment Type',
   'Equipment Code','Equipment Description','Problem Description','Root Cause',
   'Corrective Action','Preventive Action','Work Summary','Fix Type','Temp Fix Flag',
   'Parts Used','Labor Hours','Added By','Completed By','Verified By','Verified Date',
-  'Updated By','Priority','Downtime Type','Image Links','PDF Link','Notes'
+  'Updated By','Priority','Downtime Type','Image Links','PDF Link','Notes',
+  'Shift','Service Date','Date Completed','Recommendations','Manager Notes','Problem Type'
 ];
 
 // ─── PM FORWARD-DESIGN SCHEMAS (v1: no UI; schema and nav placeholder only) ──
