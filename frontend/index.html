@@ -57,6 +57,8 @@ a{color:inherit;text-decoration:none;}
 .sidebar-logomark{width:28px;height:28px;border-radius:6px;background:#fff;color:var(--brand-navy);display:grid;place-items:center;font-weight:800;font-size:12px;letter-spacing:-.02em;flex-shrink:0;}
 .sidebar-wordmark{font-weight:700;font-size:12.5px;letter-spacing:.02em;line-height:1.15;white-space:nowrap;}
 .sidebar-wordmark .sub{display:block;font-weight:400;font-size:10px;color:var(--text-onnavy-dim);letter-spacing:.06em;text-transform:uppercase;margin-top:2px;}
+.app-ver{display:block;font-size:9px;color:rgba(255,255,255,.28);letter-spacing:.05em;margin-top:1px;font-weight:400;}
+.app.collapsed .app-ver{display:none;}
 .sidebar-collapse{background:transparent;border:0;color:var(--text-onnavy-dim);padding:4px;border-radius:4px;display:grid;place-items:center;}
 .sidebar-collapse:hover{background:rgba(255,255,255,.08);color:#fff;}
 .app.collapsed .sidebar-wordmark{display:none;}
@@ -202,7 +204,7 @@ var COMPANY = <?!= JSON.stringify(companyName) ?>;
       <div class="sidebar-logo">
         <div class="sidebar-logomark">CSC</div>
         <div class="sidebar-wordmark">
-          Maintenance<span class="sub">Operations Console</span>
+          Maintenance<span class="sub">Operations Console</span><span class="app-ver" id="app-version-badge">v—</span>
         </div>
       </div>
       <button class="sidebar-collapse" onclick="toggleSidebar()" title="Collapse sidebar">
@@ -867,6 +869,15 @@ function renderTrendChart(trend) {
   document.getElementById('topbar-company').textContent  = COMPANY;
 
   buildNav();
+
+  // C14: populate version badge — silent fail (cosmetic)
+  google.script.run
+    .withSuccessHandler(function(v) {
+      var el = document.getElementById('app-version-badge');
+      if (el) el.textContent = 'v' + v;
+    })
+    .withFailureHandler(function() {})
+    .getAppVersion();
 
   // Open "Tickets" section by default so the queue is visible on first load
   toggleNavSection('tickets');

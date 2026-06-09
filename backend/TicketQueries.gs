@@ -213,7 +213,27 @@ function getEquipTicketHistory(equipCode) {
 
 // ═══════════════════════════════════════════════════════════════════════════════
 //  getClosedTickets
-//  Reads the Closed Tickets sheet (dept-scoped to caller's owned depts).
+//  Reads the Closed Tickets sheet (SH.CLOSED, CS_ 29-col layout).
+//
+//  C15 — ARCHITECTURAL NOTE (phantom mismatch, no code bug):
+//  getClosedTickets() and getReportData() intentionally use DIFFERENT sources:
+//    • getClosedTickets() → SH.CLOSED physical sheet (archive of completed work)
+//    • getReportData()    → SH.MASTER_LOG filtered by status CLOSED/COMPLETE
+//
+//  The two views can legitimately differ in count because:
+//    1. getReportData() applies a rolling daysBack window (default 30 days),
+//       whereas getClosedTickets() returns ALL closed tickets (up to opts.limit).
+//    2. getReportData() reads all status history rows in ML to compute analytics;
+//       getClosedTickets() reads the flat CS_ archive row.
+//    3. A theoretical mismatch: if appendToMasterLog_() succeeds but
+//       _moveTicketToClosed_() throws in the same verifyAndCloseTicket() call,
+//       the ticket would be CLOSED in ML but absent from SH.CLOSED.
+//       In practice this is extremely unlikely (same spreadsheet, same execution).
+//       verifyAndCloseTicket() wraps both calls in one try/catch and returns
+//       { success: false } on any error, so the caller knows the close failed.
+//
+//  NO FIX REQUIRED — the divergence is by design.  Both functions are correct
+//  for their respective use-cases (audit log vs analytics).
 // ═══════════════════════════════════════════════════════════════════════════════
 
 function getClosedTickets(opts) {
