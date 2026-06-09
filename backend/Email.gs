@@ -627,6 +627,97 @@ function sendJointResponseEmail_(ticketNo, data) {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
+//  sendTicketCompleteEmail_ — C07
+//  Fires when a manager marks work complete (completeTicket → PENDING VERIFICATION).
+//  Notifies the dept managers that the ticket is ready for their verification.
+//  Called from TicketLifecycle.gs::completeTicket() after both log writes succeed.
+// ═══════════════════════════════════════════════════════════════════════════════
+
+function sendTicketCompleteEmail_(ticketNo, data) {
+  try {
+    var dept        = normalizeDept(String(data.dept         || ''));
+    var equip       = String(data.specificEquip || data.equipDesc || '');
+    var equipCode   = String(data.equipCode     || '');
+    var description = String(data.description   || '');
+    var completedBy = String(data.completedBy   || data.updatedBy || '');
+    var corrective  = String(data.correctiveAct || '');
+    var rootCause   = String(data.rootCause     || '');
+    var prevAction  = String(data.preventiveAct || '');
+
+    var tz    = Session.getScriptTimeZone();
+    var tsStr = Utilities.formatDate(new Date(), tz, 'MM/dd/yyyy · hh:mm a');
+
+    var recipients = _emailRecipients_(dept);
+    if (!recipients) {
+      Logger.log('sendTicketCompleteEmail_: no recipients for ' + ticketNo);
+      return;
+    }
+
+    var subject = '✅ Work Complete — Ready for Verification | ' + ticketNo + ' | ' + dept;
+
+    var htmlBody =
+      '<div style="font-family:Arial,sans-serif;max-width:620px;margin:0 auto;border:1px solid #E0E0E0;border-radius:8px;overflow:hidden;">' +
+      '<div style="background:#2A2A2A;padding:14px 20px;display:flex;align-items:center;gap:10px;">' +
+        '<div style="background:#EF6C00;width:5px;height:40px;border-radius:3px;flex-shrink:0;"></div>' +
+        '<div style="flex:1;">' +
+          '<div style="font-size:15px;font-weight:bold;color:#FFD700;letter-spacing:.4px;">⚡ MAINTENANCE TRACKER</div>' +
+          '<div style="font-size:10px;color:#9E9E9E;margin-top:2px;">Container Supply Co. — Garden Grove, CA</div>' +
+        '</div>' +
+        '<div style="text-align:right;">' +
+          '<div style="font-size:10px;color:#9E9E9E;">Work Complete Notification</div>' +
+          '<div style="font-size:10px;color:#9E9E9E;margin-top:2px;">' + tsStr + '</div>' +
+        '</div>' +
+      '</div>' +
+      '<div style="background:#1B5E20;padding:12px 20px;display:flex;align-items:center;gap:12px;">' +
+        '<div style="font-size:20px;">✅</div>' +
+        '<div>' +
+          '<div style="font-size:13px;font-weight:bold;color:#fff;">Work Complete — Verification Required</div>' +
+          '<div style="font-size:11px;color:#A5D6A7;margin-top:2px;">Ticket ' + esc_(ticketNo) + ' has been marked complete and is awaiting your verification</div>' +
+        '</div>' +
+      '</div>' +
+      '<div style="background:#1B2A3C;padding:10px 20px;display:flex;gap:24px;flex-wrap:wrap;">' +
+        '<div><div style="font-size:9px;color:#5C6BC0;text-transform:uppercase;letter-spacing:.6px;">Ticket #</div>' +
+          '<div style="font-size:18px;font-weight:bold;color:#FFD700;font-family:monospace;">' + esc_(ticketNo) + '</div></div>' +
+        '<div><div style="font-size:9px;color:#5C6BC0;text-transform:uppercase;letter-spacing:.6px;">Department</div>' +
+          '<div style="font-size:13px;font-weight:bold;color:#ECEFF1;">' + esc_(dept) + '</div></div>' +
+        '<div><div style="font-size:9px;color:#5C6BC0;text-transform:uppercase;letter-spacing:.6px;">Status</div>' +
+          '<div style="font-size:13px;font-weight:bold;color:#A5D6A7;">Pending Verification</div></div>' +
+        '<div><div style="font-size:9px;color:#5C6BC0;text-transform:uppercase;letter-spacing:.6px;">Completed By</div>' +
+          '<div style="font-size:13px;font-weight:bold;color:#ECEFF1;">' + esc_(completedBy) + '</div></div>' +
+      '</div>' +
+      '<div style="padding:18px 20px;background:#fff;">' +
+      '<table style="width:100%;border-collapse:collapse;font-size:12px;margin-bottom:16px;">' +
+        '<tr><td colspan="2" style="padding:0 0 8px 0;"><div style="font-size:10px;font-weight:bold;color:#616161;text-transform:uppercase;letter-spacing:.6px;border-bottom:1.5px solid #F0F0F0;padding-bottom:5px;">Equipment</div></td></tr>' +
+        (equip ? '<tr><td style="padding:5px 0;color:#9E9E9E;width:140px;">Equipment</td><td style="padding:5px 0;color:#2A2A2A;font-weight:bold;">' + esc_(equip) + '</td></tr>' : '') +
+        (equipCode ? '<tr style="background:#FAFAFA;"><td style="padding:5px 0;color:#9E9E9E;">Equipment Code</td><td style="padding:5px 0;font-family:monospace;font-weight:bold;">' + esc_(equipCode) + '</td></tr>' : '') +
+        (description ? '<tr><td style="padding:5px 0;color:#9E9E9E;vertical-align:top;">Problem</td><td style="padding:5px 0;color:#2A2A2A;">' + esc_(description) + '</td></tr>' : '') +
+      '</table>' +
+      '<table style="width:100%;border-collapse:collapse;font-size:12px;margin-bottom:16px;">' +
+        '<tr><td colspan="2" style="padding:0 0 8px 0;"><div style="font-size:10px;font-weight:bold;color:#616161;text-transform:uppercase;letter-spacing:.6px;border-bottom:1.5px solid #F0F0F0;padding-bottom:5px;">CAPA / Work Summary</div></td></tr>' +
+        (corrective ? '<tr><td style="padding:5px 0;color:#9E9E9E;width:140px;vertical-align:top;">Corrective Action</td><td style="padding:5px 0;color:#2A2A2A;">' + esc_(corrective) + '</td></tr>' : '') +
+        (rootCause  ? '<tr style="background:#FAFAFA;"><td style="padding:5px 0;color:#9E9E9E;vertical-align:top;">Root Cause</td><td style="padding:5px 0;color:#2A2A2A;">' + esc_(rootCause) + '</td></tr>' : '') +
+        (prevAction ? '<tr><td style="padding:5px 0;color:#9E9E9E;vertical-align:top;">Preventive Action</td><td style="padding:5px 0;color:#2A2A2A;">' + esc_(prevAction) + '</td></tr>' : '') +
+      '</table>' +
+      '<div style="background:#E8F5E9;border:1px solid #C8E6C9;border-radius:5px;padding:12px 14px;">' +
+        '<div style="font-size:11px;font-weight:bold;color:#1B5E20;margin-bottom:6px;">Action Required</div>' +
+        '<div style="font-size:11px;color:#2E7D32;line-height:1.7;">Open the Maintenance Tracker and go to <strong>Open Tickets</strong> to find this ticket. ' +
+          'Review the CAPA, confirm the repair, and click <strong>Verify &amp; Close</strong> to complete the audit trail.</div>' +
+      '</div>' +
+      '</div>' +
+      '<div style="background:#F5F5F5;border-top:1px solid #E0E0E0;padding:10px 20px;text-align:center;">' +
+        '<div style="font-size:10px;color:#9E9E9E;">Container Supply Co. — Maintenance Tracker v5.0 &nbsp;&middot;&nbsp; Garden Grove, CA</div>' +
+        '<div style="font-size:10px;color:#B0B0B0;margin-top:3px;">This is an automated notification. Do not reply to this email.</div>' +
+      '</div>' +
+      '</div>';
+
+    MailApp.sendEmail({ to: recipients, name: 'CSC Maintenance Tracker', subject: subject, htmlBody: htmlBody });
+    Logger.log('sendTicketCompleteEmail_: sent for ' + ticketNo + ' to ' + recipients);
+  } catch (e) {
+    Logger.log('sendTicketCompleteEmail_ error: ' + e.message);
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
 //  runDailyEmailAlerts — time-trigger entry point (daily)
 // ═══════════════════════════════════════════════════════════════════════════════
 

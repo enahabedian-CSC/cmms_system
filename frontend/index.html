@@ -772,12 +772,15 @@ function _homeRenderPanels_(panels) {
     }
 
     var pendingJoint = (panels.pendingJointRequests || []);
+    // C09: chronic equipment — 3+ tickets in 90 days; threshold per Izzy's reference code
+    var chronic = (panels.chronicEquipment || []);
     attnEl.innerHTML =
-      _attnSection_('📋', 'Awaiting Approval',    'var(--status-info)',    approval,    'None — all clear.',              'waiting') +
-      _attnSection_('✅', 'Awaiting Verification', 'var(--status-success)', verify,      'None — all clear.',              'open')    +
-      _attnSection_('🔧', 'Temp Fix Alerts',       'var(--status-high)',    tempFix,     'No past-due temp fixes.',        'tempfix') +
-      _attnSection_('🔗', 'Pending Joint Requests','#7B1FA2',               pendingJoint,'No pending joint requests.',     'open',
-                    'openTicketDetail(\'__TN__\')');
+      _attnSection_('📋', 'Awaiting Approval',         'var(--status-info)',    approval,    'None — all clear.',              'waiting') +
+      _attnSection_('✅', 'Awaiting Verification',      'var(--status-success)', verify,      'None — all clear.',              'open')    +
+      _attnSection_('🔧', 'Temp Fix Alerts',            'var(--status-high)',    tempFix,     'No past-due temp fixes.',        'tempfix') +
+      _attnSection_('🔗', 'Pending Joint Requests',     '#7B1FA2',               pendingJoint,'No pending joint requests.',     'open',
+                    'openTicketDetail(\'__TN__\')') +
+      _attnSection_('⚠️', 'Chronic Equipment (90 days)','#B71C1C',               chronic,     'No chronic equipment detected.', 'open');
   }
 
   // Open tickets table

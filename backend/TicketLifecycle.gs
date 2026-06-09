@@ -134,6 +134,22 @@ function completeTicket(data) {
         (data.fixType ? ' | Fix type: ' + data.fixType : '') +
         (data.tempFixFlag ? ' | TEMP FIX flagged' : ''));
 
+    // C07 — notify dept manager that work is complete and ticket is ready for verification
+    try {
+      sendTicketCompleteEmail_(tn, {
+        dept:          dept,
+        specificEquip: String(orig[ML.SPECIFIC_EQUIP - 1] || ''),
+        equipCode:     String(orig[ML.EQUIP_CODE     - 1] || ''),
+        description:   String(orig[ML.DESCRIPTION    - 1] || ''),
+        correctiveAct: correctiveAct,
+        rootCause:     rootCause,
+        preventiveAct: preventiveAct,
+        completedBy:   data.updatedBy || user.displayName
+      });
+    } catch (eEmail) {
+      Logger.log('completeTicket/sendTicketCompleteEmail_ error: ' + eEmail.message);
+    }
+
     var ss = getBoundSS_();
     _updateTicketInSheets_(ss, tn, {
       status:        'PENDING VERIFICATION',

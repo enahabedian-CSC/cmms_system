@@ -288,8 +288,50 @@ function getDashboardPanels() {
       };
     });
 
+    // C09: chronic equipment — equipment with 3+ distinct tickets in the last 90 days.
+    // Threshold matches Izzy's reference code: if(tix.length >= 3).
+    // Dept-scoped the same way as attentionItems (user.ownedDepts filter).
+    var CHRONIC_THRESHOLD = 3;
+    var cutoff90 = new Date();
+    cutoff90.setDate(cutoff90.getDate() - 90);
+
+    var equipTickets = {};  // equipCode → { dept, equip, ticketSet:{} }
+    data.forEach(function(r) {
+      var tn    = String(r[ML.TICKET_NO      - 1] || '').trim();
+      var dept  = String(r[ML.DEPT           - 1] || '').trim();
+      var code  = String(r[ML.EQUIP_CODE     - 1] || '').trim();
+      var equip = String(r[ML.SPECIFIC_EQUIP - 1] || '').trim();
+      if (!tn || !code) return;
+      if (!user.isAdmin && user.ownedDepts.indexOf(dept) === -1) return;
+      var doVal  = r[ML.DATE_OPENED - 1];
+      if (!doVal) return;
+      var doDate = doVal instanceof Date ? doVal : new Date(doVal);
+      if (isNaN(doDate) || doDate < cutoff90) return;
+      if (!equipTickets[code]) equipTickets[code] = { dept: dept, equip: equip || code, ticketSet: {} };
+      equipTickets[code].ticketSet[tn] = true;
+    });
+
+    var chronicEquipment = [];
+    Object.keys(equipTickets).forEach(function(code) {
+      var entry = equipTickets[code];
+      var count = Object.keys(entry.ticketSet).length;
+      if (count >= CHRONIC_THRESHOLD) {
+        chronicEquipment.push({
+          kind:       'chronic',
+          ticketNo:   code,       // equipment code — displayed in mono font in the attention row
+          title:      entry.equip,
+          sub:        entry.dept + ' · ' + count + ' ticket' + (count !== 1 ? 's' : '') + ' in the last 90 days — chronic equipment alert',
+          action:     'View Open',
+          pageTarget: 'open',
+          count:      count
+        });
+      }
+    });
+    chronicEquipment.sort(function(a, b) { return b.count - a.count; });
+
     return { attentionItems: attentionItems, openTickets: openTickets, holdTags: holdTags,
-             pendingJointRequests: pendingJointRequests };
+             pendingJointRequests: pendingJointRequests,
+             chronicEquipment: chronicEquipment };
   } catch (e) {
     Logger.log('getDashboardPanels error: ' + e.message);
     return _emptyPanels_();
@@ -297,7 +339,7 @@ function getDashboardPanels() {
 }
 
 function _emptyPanels_() {
-  return { attentionItems: [], openTickets: [], holdTags: [], pendingJointRequests: [] };
+  return { attentionItems: [], openTickets: [], holdTags: [], pendingJointRequests: [], chronicEquipment: [] };
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
