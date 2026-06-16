@@ -130,3 +130,22 @@ The prompt's Flag 2 warned about `FRM-003-003`. The **actual deployed value is a
 5. **Three completion fields** — universal-required + display. *(step 6)*
 6. **Doc-control triplet wiring** on every printable screen. *(step 8)*
 7. **Document Register conformance** report (`FRM-040-xxx` series reconciliation). *(step 9)*
+
+---
+
+## I. POST-BUILD STATUS (2026-06-16, branch `Claude-changes`)
+
+| Module | Status | Notes |
+|---|---|---|
+| R1 service report print + FRM-030-003 | ✅ done | No Drive (Michael); header corrected; print-at-will. |
+| R2 close-on-navigate | ✅ done | `_closeAllPanels_()` global handler. |
+| R3 Closed Tickets data | ✅ done | Reads Master Log; FRM-030-002 framing kept. |
+| 4 Hold tag FRM-029-002 | ✅ done | Auditor form ported + printable; NCR register label. |
+| 5 FRM-030-003 fields + Clearance | ✅ done | RDB cols 34-40; embedded clearance; restricted-activity; facility sign-off. |
+| 6 Three completion fields | ✅ already conformant | **Correction to §C below.** |
+| 7 Temp Repair Log data matching | ✅ done | TF cols 18-22; two SQF confirmations required; displayed. |
+| 8 Doc-control wiring | ✅ done | `getDocControlMap_()` + `docLabel()` from config. |
+| 9 Register conformance | ✅ reported | See `DOCUMENT_REGISTER_CONFORMANCE.md`. |
+| 10 Dashboard 3-category | ✅ done | Slim KPI strip + 3 collapsible categories. |
+
+**Correction to §C:** the Step-0 snapshot said the three CAPA fields were "not required / no priority gate." On closer verification that was true **only of the optional service-report modal**. The **completion** flow (`completeTicket`, `TicketLifecycle.gs:82-92`, and the frontend `_tdComplete_`) **already requires all three on every ticket with no priority exception** ("C05"), persists them (ML cols 20/21/22), and displays them on the detail view. Module 6 was therefore already conformant — no code change made. The universal-CAPA invariant (Flag 7) is satisfied.
