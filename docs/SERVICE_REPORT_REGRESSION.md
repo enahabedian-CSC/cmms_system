@@ -30,13 +30,16 @@ The **real PDF engine does exist — but only in the reference/legacy code, not 
 - `_reference/izzy_current/Code.js:2279–2288` — finds/creates the **"Maintenance Reports"** Drive folder, `createFile(blob)`, sets `ANYONE_WITH_LINK` sharing → returns the Drive URL. **This is "the existing PDF engine."**
 - `legacy-apps-script/CodeCoreUpdates.js:385–394` — same engine.
 
-### 🔴 DISCREPANCY TO RESOLVE WITH MICHAEL
-The charter frames R1 as a **restore to last-known-good** with the instruction **"the PDF engine is not touched … generation goes through the existing engine."** But in the **web app's own git history there is no prior working PDF-to-Drive to restore** — it was never ported from Izzy's reference. So R1 is, in practice, **"port the call path to the existing (reference) PDF engine,"** not "revert a commit." Two readings, and I need your call:
+### ✅ RESOLVED BY MICHAEL (2026-06-16)
+> "No need for PDF to drive. I would just like the optionality to print at will. We do not need anything saved to drive."
 
-- **(a)** "Existing PDF engine" = Izzy's reference `Code.js:2279–2288`. R1 = bring that engine's call path into the web app (engine logic copied intact, not redesigned), wire the service-report render to it, save to the "Maintenance Reports" Drive folder, stamp the correct header.
-- **(b)** There was a *deployed* web-app version (outside this git repo / a `clasp` snapshot) that had PDF-to-Drive and regressed. If so, point me to it and I'll restore from there.
+**R1 is therefore NOT a PDF-engine task.** No Drive save, no port of `Code.js:2279–2288`. R1 scope collapses to:
+1. Ensure the service report **renders and prints on demand** (browser print path — `window.print()` already exists at `reports.html:122`; confirm the service-report view has a working print affordance).
+2. **Stamp the correct document-control header** so the printed output reads **FRM-030-003 / Rev 0 / 6/5/2026** (fix the `FRM-040-002` default at `ServiceReport.gs:44` + `ticket-detail.html:681`).
 
-I will not start R1 until you confirm (a) or (b). **No code touched.**
+The PDF engine is untouched because it is not used. The earlier `git log` discrepancy (no PDF-to-Drive in history) is now moot — there is no Drive output to restore.
+
+**Revised R1 verification:** open a service report → print affordance produces a printable/PDF-able view (OS/browser print dialog) → header reads **FRM-030-003 / Rev 0 / 6/5/2026**. (Supersedes the Section 9 R1 criterion's "saved to Drive" clause per Michael's instruction.)
 
 ## 3. Document-control header on the service report (must be corrected)
 Independently of the PDF path, the service report currently stamps **`FRM-040-002`** (`ServiceReport.gs:44`, `ticket-detail.html:681`). Per the SQF Reference Master + Section 7 it must read **FRM-030-003 / Rev 0 / 6/5/2026**. The PASS criterion for R1 explicitly requires the header to read FRM-030-003 — so the header fix and the PDF wiring land together. (See `SQF_COVERAGE_MATRIX.md` §F.)

@@ -111,7 +111,7 @@ The prompt's Flag 2 warned about `FRM-003-003`. The **actual deployed value is a
 |---|---|---|---|
 | 1 | FRM-030-002 collision (Repair Log vs PM Schedule) | **Resolved** | Keep Closed Tickets at FRM-030-002 ✅ (already correct). PM Schedule deferred. |
 | 2 | FRM-003-003 vs FRM-030-003 | **Resolved** | Use **FRM-030-003**; fix code's `FRM-040-002` before PDF header. |
-| 3 | Clearance: standalone vs embedded | **Open** | Build step 5 — **ask Michael** whether clearance is embedded in 030-003 or standalone. |
+| 3 | Clearance: standalone vs embedded | **Resolved (Michael 6/16)** | **Embedded** as a Post-Repair Clearance block within FRM-030-003. No new doc number. Build step 5. |
 | 4 | Downtime review cadence (daily vs weekly) | Open | Out of scope this round (dashboard reorg adjacent only). |
 | 5 | Two tags (029-002 vs 031 instrument tag) | Open | Hold-tag build uses **FRM-029-002**; do not reconcile 031. |
 | 6 | SOP-031-002 title | Open | Quality-owned, not ours. |
