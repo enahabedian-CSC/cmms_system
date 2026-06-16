@@ -456,4 +456,43 @@ All managers can **view** all tickets across all departments. Managers can only 
 
 ---
 
+## APPENDIX — SQF Workstream & Regression-Restore round (branch `Claude-changes`, 2026-06-16)
+
+### A. Closed Tickets data-source path & what the FRM-030-002 reframe did
+- **Render path:** `getClosedTickets()` — `backend/TicketQueries.gs:239–301` — reads the **`✅ Closed Tickets` physical sheet** (CS_ 29-col layout, `:245–253`), **not** the Master Log.
+- **The reframe commit:** `4288422` (Workshop 2: joint-ticket model) switched `getClosedTickets()` from the old **TK_ tracker layout** to the **CS_ 29-col layout** (`closedSh.getRange(startRow, 1, numRows, CS_COLS)`). Tickets are written to CS_ only by `_moveTicketToClosed_` (`TicketLifecycle.gs:1032–1040`), called from `verifyAndCloseTicket`.
+- The later **FRM-030-002 banner** commit (`de96754`) added only the header banner (`closed-tickets.html:73`); it changed **no data logic**.
+- **Why the tab returns empty:** the read now depends on the `✅ Closed Tickets` sheet being populated in CS_ layout from row `QUEUE_FROZEN+1`. If the CS_ sheet was never back-filled (historical closed tickets live in the Master Log / old layout, not migrated into CS_), the query returns nothing. **R3 = restore the data source** (read closed tickets from the Master Log, or back-fill CS_) **without losing the FRM-030-002 Maintenance Repair Log framing**. The architectural divergence is documented in-code at `TicketQueries.gs:218–236` (the "C15" note).
+
+### B. UI navigation / detail-panel state mechanism (for the R2 global fix)
+- **Single nav entry point:** `navigate(pageId)` — `frontend/index.html:493`. At `:508` it does `querySelectorAll('.page').forEach(p => p.classList.remove('active'))` then activates the target. Pages are `.page` / `.page.active` (`index.html:113–114`).
+- **Detail panel:** `closeTicketDetail()` — `frontend/partials/ticket-detail.html:136–138` — removes `.open` from `#td-overlay` (a fixed-position overlay).
+- **Root cause (R2):** `navigate()` never calls `closeTicketDetail()` (nor closes other modals/sub-views), so the overlay persists across tab changes.
+- **One-handler fix point:** add a single panel/modal reset at the **top of `navigate()` (`index.html:~507`)** — project-wide, not per-screen. Any future modal registers into one reset routine.
+
+### C. Confirmed priority strings (verbatim)
+**ALL-CAPS:** `LOW`, `MEDIUM`, `HIGH`, `CRITICAL`. Source: `📋 Data Lists` → `getDataList('Priorities')` (`Config.gs` default `['LOW','MEDIUM','HIGH','CRITICAL']`); compared upper-cased throughout (`Dashboard.gs`, `ServiceReport.gs:49`). Use these exact tokens; do not introduce title-case.
+
+### D. Document-control fields the frontend carries on printable screens (and source)
+| Screen | Number shown | File:line | Source | Correct? |
+|---|---|---|---|---|
+| Closed Tickets (Maintenance Repair Log) | FRM-030-002 / Rev 0 / 6/5/2026 | `closed-tickets.html:73` | hard-coded in HTML | ✅ matches register |
+| Reports / EMRL badge | FRM-030-002 | `reports.html:165` | hard-coded | ✅ |
+| Service Report modal (Maintenance Repair Record) | **FRM-040-002** | `ticket-detail.html:681` | from `ServiceReport.gs:44` (`Doc No (Service Report)` config, default `FRM-040-002`) | ❌ must be **FRM-030-003** |
+| Ticket submission form | FRM-040-001 | `TicketSubmission.gs:35` | config `Doc No (Ticket Form)` | ⚠️ not in maintenance register |
+| Equipment Hold Tag | *(none)* | `ticket-detail.html:645` | — | ❌ must stamp FRM-029-002 |
+
+Doc-control values are read from `⚙️ Configuration` via `getConfig()` (`Config.gs:392`) with hard-coded defaults in the `.gs` form-data builders. Build step 8 wires the full triplet (number + rev + rev date) from config to every printable screen.
+
+### E. Current dashboard layout (for the 3-category declutter)
+- **Home dashboard** is rendered in `frontend/index.html` (`:592–602`), backed by `getDashboardCounts()` (`Dashboard.gs:14–91`) and `getDashboardPanels()` (`Dashboard.gs:~117+`).
+- **Today = 6 KPI cards** (`index.html:593–598`): Open·Mine, Waiting Review, Critical Open, Pending Parts, Temp Fix Active, Closed This Week — **plus** a 2fr/1fr panel grid (`:602`) of attention-items + open-tickets + hold-tags. This is the clutter to reduce.
+- **Target = 3 categories** (Michael's direction): **Awaiting Assignment · Awaiting Verification · Temp Fix Alerts**, with collapsible sections permitted. Clean mapping to existing data:
+  - *Awaiting Assignment* ≈ `WAITING` status (and/or OPEN with no assignee) — already in `getDashboardCounts.waiting` / `getDashboardPanels.attentionItems`.
+  - *Awaiting Verification* ≈ `PENDING VERIFICATION` status — already surfaced in `attentionItems`.
+  - *Temp Fix Alerts* ≈ Temp Fix `ACTIVE`/`PAST DUE` — `getDashboardCounts.tempFixActive`, `getTempFixItems`.
+- No new backend reads required; the reorg is a frontend regrouping plus a thin counts shaping. **STOP-and-workshop** (touches dashboard source) per Michael's instruction to include it this round.
+
+---
+
 *End of system-map.md*
