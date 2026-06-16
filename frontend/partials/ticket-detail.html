@@ -513,21 +513,37 @@ function _tdFlagTF_() {
       'This ticket <strong>cannot be closed</strong> until the permanent fix is confirmed.' +
     '</div>' +
     '<div class="form-group"><label>Temp Fix Description *</label><textarea id="tf-desc" placeholder="Describe the temporary fix applied…"></textarea></div>' +
+    '<div class="form-group"><label>Reason Fix Is Temporary *</label><textarea id="tf-reason" placeholder="Why is this a temporary fix rather than permanent?"></textarea></div>' +
     '<div class="form-group"><label>Permanent Fix Plan *</label><textarea id="tf-perm-plan" placeholder="What permanent corrective action is planned?"></textarea></div>' +
-    '<div class="form-group"><label>Target Permanent Fix Date *</label><input id="tf-perm-date" type="date" /></div>',
+    '<div class="form-group"><label>Expected Completion Date *</label><input id="tf-perm-date" type="date" /></div>' +
+    '<div class="form-group"><label style="display:flex;align-items:center;gap:8px;cursor:pointer;">' +
+      '<input id="tf-no-improvised" type="checkbox" style="width:auto;"/> ' +
+      'No improvised materials used (no string / tape / wire) — SQF 2.10.7 *</label></div>' +
+    '<div class="form-group"><label style="display:flex;align-items:center;gap:8px;cursor:pointer;">' +
+      '<input id="tf-no-risk" type="checkbox" style="width:auto;"/> ' +
+      'Temporary repair poses no product safety / quality risk — SQF 2.10.1 *</label></div>',
     function() {
       var desc     = document.getElementById('tf-desc').value.trim();
+      var reason   = document.getElementById('tf-reason').value.trim();
       var permPlan = document.getElementById('tf-perm-plan').value.trim();
       var permDate = document.getElementById('tf-perm-date').value.trim();
+      var noImp    = document.getElementById('tf-no-improvised').checked;
+      var noRisk   = document.getElementById('tf-no-risk').checked;
       if (!desc)     { alert('Temp fix description is required.'); return; }
+      if (!reason)   { alert('Reason the fix is temporary is required (SQF 2.10.4).'); return; }
       if (!permPlan) { alert('Permanent Fix Plan is required (C08).'); return; }
-      if (!permDate) { alert('Target Permanent Fix Date is required (C08).'); return; }
+      if (!permDate) { alert('Expected Completion Date is required (C08).'); return; }
+      if (!noImp)    { alert('You must confirm no improvised materials were used (SQF 2.10.7).'); return; }
+      if (!noRisk)   { alert('You must confirm the temp repair poses no product risk (SQF 2.10.1).'); return; }
       var data = {
-        ticketNo:    t.ticketNo,
-        tempFixDesc: desc,
-        permFixPlan: permPlan,
-        permFixDate: permDate,
-        updatedBy:   USER.displayName
+        ticketNo:        t.ticketNo,
+        tempFixDesc:     desc,
+        reasonTemporary: reason,
+        permFixPlan:     permPlan,
+        permFixDate:     permDate,
+        noImprovised:    true,
+        productRiskOk:   true,
+        updatedBy:       USER.displayName
       };
       _tdRunAction_(flagTempFix, data, 'Temp Fix Flagged');
     });
@@ -689,7 +705,7 @@ function _tdServiceReport_() {
   modal.innerHTML =
     '<div class="td-modal-backdrop" id="td-modal-backdrop" onclick="if(event.target===this)_closeModal_()">' +
     '<div class="td-modal" style="width:560px;max-width:96vw;">' +
-      '<h3>📝 Service Report — ' + esc(t.ticketNo) + ' <span style="font-size:11px;color:var(--text-tertiary);font-weight:400;">FRM-030-003 &middot; Rev 0 &middot; 6/5/2026</span></h3>' +
+      '<h3>📝 Service Report — ' + esc(t.ticketNo) + ' <span style="font-size:11px;color:var(--text-tertiary);font-weight:400;">' + esc(docLabel('serviceReport')) + '</span></h3>' +
       '<div class="form-group"><label>Completed By</label>' +
         '<input id="sr-completed-by" value="' + esc(t.assignedTo || '') + '" placeholder="Technician name"/></div>' +
       '<div class="form-group"><label>Labor Hours</label>' +

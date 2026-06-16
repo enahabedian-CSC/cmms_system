@@ -194,6 +194,15 @@ a{color:inherit;text-decoration:none;}
 <script>
 var USER = <?!= userInfoJson ?>;
 var COMPANY = <?!= JSON.stringify(companyName) ?>;
+var DOC_CONTROL = <?!= docControlJson ?>;  // Module 8: { key: {no, rev, date} } from config
+// Formats a controlled-document identity triplet, e.g. "FRM-030-003 · Rev 0 · 6/5/2026".
+function docLabel(key) {
+  var d = (DOC_CONTROL || {})[key];
+  if (!d || !d.no) return '';
+  return d.no +
+    (d.rev !== '' && d.rev != null ? ' · Rev ' + d.rev : '') +
+    (d.date ? ' · ' + d.date : '');
+}
 </script>
 
 <div id="app" class="app">

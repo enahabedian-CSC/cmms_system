@@ -430,6 +430,30 @@ function getConfigValue(key) {
   return getConfig()[key] || '';
 }
 
+// ─── Document-control identity (Module 8) ───────────────────────────────────────
+// Single source of truth for the form-number / revision / revision-date triplet
+// printed on every controlled document. Defaults are the SQF-Reference-Master
+// numbers (Section 7); each is overridable from the ⚙️ Configuration tab so a
+// number can be corrected without a code change. Injected into the frontend as
+// DOC_CONTROL by doGet().
+function getDocControlMap_() {
+  var cfg = getConfig();
+  function pick(noKey, revKey, dateKey, dNo, dRev, dDate) {
+    return {
+      no:   String(cfg[noKey]   || dNo),
+      rev:  String(cfg[revKey]  != null && cfg[revKey] !== '' ? cfg[revKey] : (cfg['Revision'] != null && cfg['Revision'] !== '' ? cfg['Revision'] : dRev)),
+      date: String(cfg[dateKey] || dDate)
+    };
+  }
+  return {
+    serviceReport: pick('Doc No (Service Report)', 'Rev (Service Report)', 'Rev Date (Service Report)', 'FRM-030-003', '0', '6/5/2026'),
+    repairLog:     pick('Doc No (Repair Log)',     'Rev (Repair Log)',     'Rev Date (Repair Log)',     'FRM-030-002', '0', '6/5/2026'),
+    holdTag:       pick('Doc No (Hold Tag)',        'Rev (Hold Tag)',        'Rev Date (Hold Tag)',        'FRM-029-002', '0', '6/15/26'),
+    ncrRegister:   pick('Doc No (NCR Register)',    'Rev (NCR Register)',    'Rev Date (NCR Register)',    'FRM-029-001', '0', ''),
+    ticketForm:    pick('Doc No (Ticket Form)',     'Rev (Ticket Form)',     'Rev Date (Ticket Form)',     'FRM-040-001', '0', '')
+  };
+}
+
 function setConfigValue(key, value) {
   var sh = getBoundSS_().getSheetByName(SH.CONFIG);
   if (!sh) return;
