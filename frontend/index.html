@@ -194,6 +194,15 @@ a{color:inherit;text-decoration:none;}
 <script>
 var USER = <?!= userInfoJson ?>;
 var COMPANY = <?!= JSON.stringify(companyName) ?>;
+var DOC_CONTROL = <?!= docControlJson ?>;  // Module 8: { key: {no, rev, date} } from config
+// Formats a controlled-document identity triplet, e.g. "FRM-030-003 · Rev 0 · 6/5/2026".
+function docLabel(key) {
+  var d = (DOC_CONTROL || {})[key];
+  if (!d || !d.no) return '';
+  return d.no +
+    (d.rev !== '' && d.rev != null ? ' · Rev ' + d.rev : '') +
+    (d.date ? ' · ' + d.date : '');
+}
 </script>
 
 <div id="app" class="app">
@@ -490,7 +499,28 @@ var PAGE_TITLES = {
 // ── Navigation ────────────────────────────────────────────────────────────────
 var _currentPage = 'home';
 
+// Global panel/modal reset — closes any open detail panel, modal, or sub-view.
+// Called once at the top of navigate() so every tab change starts clean.
+// Project-wide single handler (R2): never patch this per-screen.
+function _closeAllPanels_() {
+  // Ticket detail slide-over (defined in ticket-detail partial; guard for load order)
+  try { if (typeof closeTicketDetail === 'function') closeTicketDetail(); } catch (e) {}
+  var overlay = document.getElementById('td-overlay');
+  if (overlay) overlay.classList.remove('open');
+  // Any modal rendered into the shared modal container + its backdrop
+  var modalC = document.getElementById('td-modal-container');
+  if (modalC) modalC.innerHTML = '';
+  var backdrops = document.querySelectorAll('.td-modal-backdrop, .modal-backdrop');
+  for (var i = 0; i < backdrops.length; i++) {
+    var b = backdrops[i];
+    if (b && b.parentNode) b.parentNode.removeChild(b);
+  }
+}
+
 function navigate(pageId) {
+  // R2: close any open detail panel / modal / sub-view before switching tabs.
+  _closeAllPanels_();
+
   // Deactivate old nav item (works for both .nav-item and .nav-subitem)
   var oldEl = document.getElementById('nav-' + _currentPage);
   if (oldEl) oldEl.classList.remove('active');
@@ -589,114 +619,70 @@ window.PAGES['home'] = function(container) {
           ' New Ticket' +
         '</button>' +
       '</div>' +
-      '<div class="kpi-grid" id="kpi-grid" style="margin-top:20px;">' +
-        _homeKpiCard_('Open · Mine',        '—', 'Active work items',        'info',     'kpi-open') +
-        _homeKpiCard_('Waiting Review',      '—', 'Pending your approval',    '',         'kpi-waiting') +
-        _homeKpiCard_('Critical Open',       '—', 'Immediate attention',      'critical', 'kpi-critical') +
-        _homeKpiCard_('Pending Parts',       '—', 'On order / backordered',   'warn',     'kpi-parts') +
-        _homeKpiCard_('Temp Fix Active',     '—', 'Monitoring required',      '',         'kpi-tempfix') +
-        _homeKpiCard_('Closed This Week',    '—', 'Resolved since Monday',    'success',  'kpi-closed') +
+      // Slim KPI strip — 3 cards (Module 10 declutter)
+      '<div class="kpi-grid" id="kpi-grid" style="margin-top:20px;grid-template-columns:repeat(3,minmax(160px,1fr));">' +
+        _homeKpiCard_('Open · Mine',     '—', 'Active work items',     'info',     'kpi-open') +
+        _homeKpiCard_('Critical Open',   '—', 'Immediate attention',   'critical', 'kpi-critical') +
+        _homeKpiCard_('Closed This Week','—', 'Resolved since Monday', 'success',  'kpi-closed') +
       '</div>' +
     '</div>' +
 
-    '<div style="padding:0 24px 24px;display:grid;grid-template-columns:2fr 1fr;gap:16px;" id="home-panels">' +
-      // Left column
-      '<div>' +
-        // Needs your attention card
-        '<div class="trend-card" style="margin-bottom:14px;">' +
-          '<div class="trend-header" style="margin-bottom:0;">' +
-            '<span class="trend-title">Needs your attention</span>' +
-            '<button onclick="navigate(\'waiting\')" style="font-size:11.5px;color:var(--text-secondary);background:transparent;border:0;cursor:pointer;padding:0;">View all →</button>' +
-          '</div>' +
-          '<div id="home-attn-list" style="min-height:40px;padding-top:8px;">' +
-            '<div class="loading-overlay" style="height:60px;"><div class="spinner"></div></div>' +
-          '</div>' +
-        '</div>' +
-        // My open tickets table
-        '<div class="trend-card">' +
-          '<div class="trend-header" style="margin-bottom:12px;">' +
-            '<span class="trend-title">My open tickets</span>' +
-            '<button onclick="navigate(\'open\')" style="font-size:11.5px;color:var(--text-secondary);background:transparent;border:0;cursor:pointer;padding:0;">View all →</button>' +
-          '</div>' +
-          '<div style="overflow-x:auto;">' +
-            '<table style="width:100%;border-collapse:collapse;font-size:12.5px;" id="home-open-tbl">' +
-              '<thead><tr style="border-bottom:1px solid var(--border-default);">' +
-                '<th style="padding:6px 10px;text-align:left;font-size:10.5px;font-weight:600;color:var(--text-secondary);text-transform:uppercase;letter-spacing:.04em;white-space:nowrap;">Ticket</th>' +
-                '<th style="padding:6px 10px;text-align:left;font-size:10.5px;font-weight:600;color:var(--text-secondary);text-transform:uppercase;letter-spacing:.04em;">Priority</th>' +
-                '<th style="padding:6px 10px;text-align:left;font-size:10.5px;font-weight:600;color:var(--text-secondary);text-transform:uppercase;letter-spacing:.04em;">Status</th>' +
-                '<th style="padding:6px 10px;text-align:left;font-size:10.5px;font-weight:600;color:var(--text-secondary);text-transform:uppercase;letter-spacing:.04em;max-width:160px;">Equipment</th>' +
-                '<th style="padding:6px 10px;text-align:left;font-size:10.5px;font-weight:600;color:var(--text-secondary);text-transform:uppercase;letter-spacing:.04em;">Assigned</th>' +
-                '<th style="padding:6px 10px;text-align:left;font-size:10.5px;font-weight:600;color:var(--text-secondary);text-transform:uppercase;letter-spacing:.04em;white-space:nowrap;">Date Opened</th>' +
-              '</tr></thead>' +
-              '<tbody id="home-open-tbody"><tr><td colspan="6" style="padding:20px;text-align:center;color:var(--text-tertiary);font-size:12px;">Loading…</td></tr></tbody>' +
-            '</table>' +
-          '</div>' +
-        '</div>' +
-      '</div>' +
-
-      // Right column
-      '<div>' +
-        // Equipment on hold card
-        '<div class="trend-card" style="margin-bottom:14px;">' +
-          '<div class="trend-header" style="margin-bottom:8px;">' +
-            '<span class="trend-title">Equipment on hold</span>' +
-            '<button onclick="navigate(\'equipment-hold\')" style="font-size:11.5px;color:var(--text-secondary);background:transparent;border:0;cursor:pointer;padding:0;">View all →</button>' +
-          '</div>' +
-          '<div id="home-hold-list" style="min-height:40px;">' +
-            '<div class="loading-overlay" style="height:60px;"><div class="spinner"></div></div>' +
-          '</div>' +
-        '</div>' +
-
-        // Trend chart (right column)
-        '<div class="trend-card">' +
-          '<div class="trend-header">' +
-            '<span class="trend-title">Ticket activity — last 6 months</span>' +
-          '</div>' +
-          '<div id="home-trend-legend" style="display:flex;gap:12px;font-size:11px;color:var(--text-secondary);margin-bottom:8px;">' +
-            '<span><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--brand-navy-soft);margin-right:4px;"></span>Opened</span>' +
-            '<span><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--status-success);margin-right:4px;"></span>Closed</span>' +
-          '</div>' +
-          '<div class="trend-chart" id="trend-chart" style="height:90px;">' +
-            '<div style="width:100%;text-align:center;color:var(--text-tertiary);font-size:12px;padding-top:20px;">Loading chart…</div>' +
-          '</div>' +
-        '</div>' +
-      '</div>' +
+    // Three collapsible category sections (Module 10 — declutter to 3 categories)
+    '<div style="padding:0 24px 24px;display:flex;flex-direction:column;gap:14px;">' +
+      _homeCatCard_('cat-assign', '📋', 'Awaiting Assignment',   'var(--status-info)',    'waiting') +
+      _homeCatCard_('cat-verify', '✅', 'Awaiting Verification',  'var(--status-success)', 'open')    +
+      _homeCatCard_('cat-temp',   '🔧', 'Temp Fix Alerts',        'var(--status-high)',    'tempfix') +
     '</div>';
 
-  // Load real counts
+  // Load slim KPI counts
   google.script.run
     .withSuccessHandler(function(counts) { _homeRenderKpis_(counts); })
     .withFailureHandler(function() { /* KPIs stay as '—' */ })
     .getDashboardCounts();
 
   if (USER.isManager) {
-    // Load panels (attention items, open tickets, hold tags)
+    // Load the three category lists from the existing dashboard panels.
     google.script.run
       .withSuccessHandler(function(panels) { _homeRenderPanels_(panels); })
       .withFailureHandler(function() {
-        var attnEl = document.getElementById('home-attn-list');
-        if (attnEl) attnEl.innerHTML = '<div style="padding:12px;color:var(--text-tertiary);font-size:12px;">Unable to load attention items.</div>';
+        ['cat-assign','cat-verify','cat-temp'].forEach(function(id) {
+          var el = document.getElementById(id + '-body');
+          if (el) el.innerHTML = '<div style="padding:10px 0;color:var(--text-tertiary);font-size:12px;">Unable to load.</div>';
+        });
       })
       .getDashboardPanels();
-
-    // Load trend chart
-    google.script.run
-      .withSuccessHandler(function(trend) { renderTrendChart(trend); })
-      .withFailureHandler(function() {
-        var el = document.getElementById('trend-chart');
-        if (el) el.innerHTML = '<div style="padding:20px;text-align:center;color:var(--text-tertiary);font-size:12px;">Chart unavailable.</div>';
-      })
-      .getDashboardTrend(6);
   } else {
-    // Tech view: hide right column panels
-    var panels = document.getElementById('home-panels');
-    if (panels) panels.style.gridTemplateColumns = '1fr';
-    var attnEl = document.getElementById('home-attn-list');
-    if (attnEl) attnEl.innerHTML = '<div style="padding:12px;color:var(--text-tertiary);font-size:12px;">Dashboard panels available to managers.</div>';
-    var holdEl = document.getElementById('home-hold-list');
-    if (holdEl) holdEl.innerHTML = '';
+    ['cat-assign','cat-verify','cat-temp'].forEach(function(id) {
+      var el = document.getElementById(id + '-body');
+      if (el) el.innerHTML = '<div style="padding:10px 0;color:var(--text-tertiary);font-size:12px;">Dashboard categories are available to managers.</div>';
+    });
   }
 };
+
+// Collapsible category card for the home dashboard (Module 10).
+function _homeCatCard_(id, icon, label, accent, navTarget) {
+  return '<div class="trend-card" style="padding:0;overflow:hidden;">' +
+    '<div onclick="_homeToggle_(\'' + id + '\')" style="display:flex;align-items:center;gap:8px;padding:12px 16px;cursor:pointer;border-bottom:1px solid var(--border-default);">' +
+      '<span id="' + id + '-caret" style="font-size:10px;color:var(--text-tertiary);width:10px;">▼</span>' +
+      '<span style="font-size:14px;">' + icon + '</span>' +
+      '<span style="font-size:13px;font-weight:700;color:var(--text-primary);flex:1;">' + esc(label) + '</span>' +
+      '<span id="' + id + '-count" style="font-size:11px;font-weight:700;background:' + accent + ';color:#fff;border-radius:10px;padding:1px 9px;min-width:14px;text-align:center;">0</span>' +
+      '<button onclick="event.stopPropagation();navigate(\'' + navTarget + '\')" style="font-size:11px;color:var(--text-secondary);background:transparent;border:0;cursor:pointer;">View all →</button>' +
+    '</div>' +
+    '<div id="' + id + '-body" style="padding:6px 16px 10px;">' +
+      '<div class="loading-overlay" style="height:50px;"><div class="spinner"></div></div>' +
+    '</div>' +
+  '</div>';
+}
+
+function _homeToggle_(id) {
+  var body  = document.getElementById(id + '-body');
+  var caret = document.getElementById(id + '-caret');
+  if (!body) return;
+  var hidden = body.style.display === 'none';
+  body.style.display = hidden ? '' : 'none';
+  if (caret) caret.textContent = hidden ? '▼' : '▶';
+}
 
 function _homeKpiCard_(label, value, foot, accent, id) {
   return '<div class="kpi' + (accent ? ' kpi-' + accent : '') + '" id="' + id + '" style="cursor:default;">' +
@@ -711,10 +697,7 @@ function _homeRenderKpis_(counts) {
   if (!counts) return;
   var map = {
     'kpi-open':    counts.open,
-    'kpi-waiting': counts.waiting,
     'kpi-critical':counts.critical,
-    'kpi-parts':   counts.partsPending,
-    'kpi-tempfix': counts.tempFixActive,
     'kpi-closed':  counts.closedThisWeek !== undefined ? counts.closedThisWeek : counts.closedRecent
   };
   Object.keys(map).forEach(function(id) {
@@ -731,112 +714,39 @@ function _homeRenderKpis_(counts) {
 
 function _homeRenderPanels_(panels) {
   if (!panels) return;
+  var attn    = panels.attentionItems || [];
+  // review → Awaiting Assignment (WAITING), complete → Awaiting Verification
+  // (PENDING VERIFICATION), temp → Temp Fix Alerts (past-due temp fixes).
+  _homeFillCat_('cat-assign', attn.filter(function(i){ return i.kind === 'review';   }), 'No tickets awaiting assignment.');
+  _homeFillCat_('cat-verify', attn.filter(function(i){ return i.kind === 'complete'; }), 'No tickets awaiting verification.');
+  _homeFillCat_('cat-temp',   attn.filter(function(i){ return i.kind === 'temp';     }), 'No past-due temp fixes.');
+}
 
-  // Attention items — three named subsections
-  var attnEl = document.getElementById('home-attn-list');
-  if (attnEl) {
-    var attn     = panels.attentionItems || [];
-    var approval = attn.filter(function(i) { return i.kind === 'review'; });
-    var verify   = attn.filter(function(i) { return i.kind === 'complete'; });
-    var tempFix  = attn.filter(function(i) { return i.kind === 'temp'; });
-
-    // clickExpr: optional onclick expression; use '__TN__' as placeholder for ticketNo.
-    // When omitted, defaults to navigate(item.pageTarget || fallbackNav).
-    function _attnSection_(icon, label, accentColor, items, emptyMsg, fallbackNav, clickExpr) {
-      var count = items.length;
-      var hdr =
-        '<div style="display:flex;align-items:center;gap:6px;padding:9px 0 5px;border-bottom:1px solid var(--border-default);margin-bottom:2px;">' +
-          '<span style="font-size:13px;">' + icon + '</span>' +
-          '<span style="font-size:11.5px;font-weight:700;color:var(--text-primary);flex:1;">' + esc(label) + '</span>' +
-          (count > 0 ? '<span style="font-size:10.5px;font-weight:700;background:' + accentColor + ';color:#fff;border-radius:10px;padding:1px 8px;">' + count + '</span>' : '') +
-        '</div>';
-      var rows = count === 0
-        ? '<div style="padding:5px 0 9px;font-size:11.5px;color:var(--text-tertiary);">' + esc(emptyMsg) + '</div>'
-        : items.map(function(item) {
-            var onclickVal = clickExpr
-              ? clickExpr.replace('__TN__', esc(item.ticketNo))
-              : 'navigate(\'' + esc(item.pageTarget || fallbackNav) + '\')';
-            return '<div style="display:flex;align-items:flex-start;gap:10px;padding:7px 0;border-bottom:1px solid var(--border-default);">' +
-              '<div style="flex:1;min-width:0;">' +
-                '<div style="font-size:12px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' +
-                  '<span style="font-family:var(--font-mono);font-size:10.5px;color:var(--brand-navy);margin-right:5px;">' + esc(item.ticketNo) + '</span>' +
-                  esc(item.title) +
-                '</div>' +
-                '<div style="font-size:11px;color:var(--text-secondary);margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + esc(item.sub) + '</div>' +
-              '</div>' +
-              '<button onclick="' + onclickVal + '" ' +
-                'style="height:24px;padding:0 9px;border:1px solid var(--border-default);border-radius:4px;font-size:11px;background:#fff;color:var(--text-secondary);cursor:pointer;white-space:nowrap;flex-shrink:0;">' +
-                esc(item.action) +
-              '</button>' +
-            '</div>';
-          }).join('');
-      return '<div style="margin-bottom:2px;">' + hdr + rows + '</div>';
-    }
-
-    var pendingJoint = (panels.pendingJointRequests || []);
-    // C09: chronic equipment — 3+ tickets in 90 days; threshold per Izzy's reference code
-    var chronic = (panels.chronicEquipment || []);
-    attnEl.innerHTML =
-      _attnSection_('📋', 'Awaiting Approval',         'var(--status-info)',    approval,    'None — all clear.',              'waiting') +
-      _attnSection_('✅', 'Awaiting Verification',      'var(--status-success)', verify,      'None — all clear.',              'open')    +
-      _attnSection_('🔧', 'Temp Fix Alerts',            'var(--status-high)',    tempFix,     'No past-due temp fixes.',        'tempfix') +
-      _attnSection_('🔗', 'Pending Joint Requests',     '#7B1FA2',               pendingJoint,'No pending joint requests.',     'open',
-                    'openTicketDetail(\'__TN__\')') +
-      _attnSection_('⚠️', 'Chronic Equipment (90 days)','#B71C1C',               chronic,     'No chronic equipment detected.', 'open');
+// Fills one collapsible category section (Module 10) and updates its count badge.
+function _homeFillCat_(id, items, emptyMsg) {
+  var cnt = document.getElementById(id + '-count');
+  if (cnt) cnt.textContent = items.length;
+  var body = document.getElementById(id + '-body');
+  if (!body) return;
+  if (items.length === 0) {
+    body.innerHTML = '<div style="padding:8px 0;font-size:12px;color:var(--text-tertiary);">' + esc(emptyMsg) + '</div>';
+    return;
   }
-
-  // Open tickets table
-  var tbody = document.getElementById('home-open-tbody');
-  if (tbody) {
-    if (!panels.openTickets || panels.openTickets.length === 0) {
-      tbody.innerHTML = '<tr><td colspan="6" style="padding:20px;text-align:center;color:var(--text-tertiary);font-size:12px;">No open tickets.</td></tr>';
-    } else {
-      var prioColors = { CRITICAL: 'var(--status-critical)', HIGH: 'var(--status-high)', MEDIUM: 'var(--status-medium)', LOW: 'var(--status-low)' };
-      tbody.innerHTML = panels.openTickets.map(function(t) {
-        var staCls = 'stat-' + (t.status || '').replace(/\s+/g, '-');
-        var priCls = 'pri-' + (t.priority || '');
-        return '<tr onclick="openTicketDetail(\'' + esc(t.ticketNo) + '\')" style="cursor:pointer;" onmouseover="this.style.background=\'var(--bg-hover)\'" onmouseout="this.style.background=\'\'">' +
-          '<td style="padding:8px 10px;font-family:var(--font-mono);font-size:11.5px;color:var(--brand-navy);font-weight:600;white-space:nowrap;">' + esc(t.ticketNo) + '</td>' +
-          '<td style="padding:8px 10px;"><span class="pri-badge ' + esc(priCls) + '">' + esc(t.priority || '—') + '</span></td>' +
-          '<td style="padding:8px 10px;"><span class="stat-badge ' + esc(staCls) + '">' + esc(t.status) + '</span></td>' +
-          '<td style="padding:8px 10px;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' +
-            (t.equipCode ? '<span style="font-family:var(--font-mono);font-size:10.5px;color:var(--text-secondary);margin-right:4px;">' + esc(t.equipCode) + '</span>' : '') +
-            esc(t.specificEquip || t.description || '—') +
-          '</td>' +
-          '<td style="padding:8px 10px;font-size:12px;">' + esc(t.assignedTo || '—') + '</td>' +
-          '<td style="padding:8px 10px;font-size:11.5px;color:var(--text-tertiary);">' + esc(t.dateOpened) + '</td>' +
-        '</tr>';
-      }).join('');
-    }
-  }
-
-  // Equipment hold tags
-  var holdEl = document.getElementById('home-hold-list');
-  if (holdEl) {
-    if (!panels.holdTags || panels.holdTags.length === 0) {
-      holdEl.innerHTML = '<div style="padding:10px 0;font-size:12px;color:var(--text-tertiary);">No active hold tags.</div>';
-    } else {
-      var tagColors = { Red: '#DC2626', Yellow: '#CA8A04', Orange: '#EA580C', Green: '#059669' };
-      holdEl.innerHTML = panels.holdTags.slice(0, 5).map(function(h) {
-        var color = '#64748B';
-        Object.keys(tagColors).forEach(function(k) {
-          if ((h.tagType || '').toLowerCase().indexOf(k.toLowerCase()) >= 0) color = tagColors[k];
-        });
-        return '<div style="display:flex;align-items:flex-start;gap:10px;padding:7px 0;border-bottom:1px solid var(--border-default);">' +
-          '<div style="width:10px;height:10px;border-radius:50%;background:' + color + ';margin-top:4px;flex-shrink:0;"></div>' +
-          '<div style="flex:1;min-width:0;">' +
-            '<div style="font-size:12px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' +
-              esc(h.specificEquip || h.equipCode || h.tagId) +
-            '</div>' +
-            '<div style="font-size:11px;color:var(--text-secondary);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + esc(h.reason) + '</div>' +
-            '<div style="font-family:var(--font-mono);font-size:10.5px;color:var(--text-tertiary);margin-top:1px;">' + esc(h.tagId) + ' · ' + esc(h.dateTagged) + '</div>' +
-          '</div>' +
-        '</div>';
-      }).join('') +
-      (panels.holdTags.length > 5 ?
-        '<div style="font-size:11.5px;color:var(--text-tertiary);padding-top:6px;">+' + (panels.holdTags.length - 5) + ' more</div>' : '');
-    }
-  }
+  body.innerHTML = items.map(function(item) {
+    var onclickVal = item.ticketNo
+      ? 'openTicketDetail(\'' + esc(item.ticketNo) + '\')'
+      : 'navigate(\'' + esc(item.pageTarget || 'open') + '\')';
+    return '<div onclick="' + onclickVal + '" style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--border-default);cursor:pointer;">' +
+      '<div style="flex:1;min-width:0;">' +
+        '<div style="font-size:12.5px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' +
+          (item.ticketNo ? '<span style="font-family:var(--font-mono);font-size:10.5px;color:var(--brand-navy);margin-right:5px;">' + esc(item.ticketNo) + '</span>' : '') +
+          esc(item.title) +
+        '</div>' +
+        '<div style="font-size:11px;color:var(--text-secondary);margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + esc(item.sub) + '</div>' +
+      '</div>' +
+      (item.action ? '<span style="font-size:11px;color:var(--text-tertiary);white-space:nowrap;flex-shrink:0;">' + esc(item.action) + ' →</span>' : '') +
+    '</div>';
+  }).join('');
 }
 
 function renderTrendChart(trend) {

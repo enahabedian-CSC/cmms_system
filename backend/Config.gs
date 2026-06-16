@@ -277,14 +277,23 @@ var TF = {
   DEPT:5,         BUILDING_ZONE:6, DATE_FLAGGED:7,  DESCRIPTION:8,
   TEMP_FIX_DESC:9, FREQ_DAYS:10,   LAST_INSPECTED:11, NEXT_DUE:12,
   STATUS:13,      FLAGGED_BY:14,   CLEARED_BY:15,   CLEARED_DATE:16,
-  NOTES:17
+  NOTES:17,
+  // Temporary Repair Log conformance (SQF 2.10) — data matching for the
+  // Temp Fix Monitor → Temporary Repair Log. (FRM#/rev/date added later.)
+  REASON_TEMPORARY:18,    // reason the fix is temporary (2.10.4)
+  PERM_FIX_PLAN:19,       // permanent-fix plan / work-order ref (2.10.4)
+  EXPECTED_COMPLETION:20, // expected permanent-fix completion date (stakeholder R)
+  NO_IMPROVISED:21,       // no improvised materials confirmed Y/N (2.10.7)
+  PRODUCT_RISK_OK:22      // temp repair poses no product safety/quality risk Y/N (2.10.1)
 };
-var TF_COLS = 17;
+var TF_COLS = 22;
 var TF_HEADERS = [
   'Temp ID','Ticket #','Equip Code','Specific Equip','Department',
   'Building / Zone','Date Flagged','Description','Temp Fix Description',
   'Frequency (Days)','Last Inspected','Next Due','Status',
-  'Flagged By','Cleared By','Cleared Date','Notes'
+  'Flagged By','Cleared By','Cleared Date','Notes',
+  'Reason Fix Is Temporary','Permanent Fix Plan / WO Ref','Expected Completion Date',
+  'No Improvised Materials','No Product Risk'
 ];
 
 // ─── PARTS NEEDED — 12 columns ───────────────────────────────────────────────
@@ -340,16 +349,27 @@ var RDB = {
   IMAGE_LINKS:25, PDF_LINK:26,    NOTES:27,
   // C11 additions ─ Izzy field-set conformance
   SHIFT:28,       SERVICE_DATE:29, DATE_COMPLETED:30,
-  RECOMMENDATIONS:31, MANAGER_NOTES:32, PROBLEM_TYPE:33
+  RECOMMENDATIONS:31, MANAGER_NOTES:32, PROBLEM_TYPE:33,
+  // FRM-030-003 conformance ─ restricted activity + Post-Repair Clearance (2.4.1, 2.14.3-.4)
+  RESTRICTED_ACTIVITY:34,  // Y/N — cut/weld/grind/paint (2.4.1)
+  CLR_REPAIR_COMPLETE:35,  // Y/N (2.14.3.1)
+  CLR_TOOLS_REMOVED:36,    // Y/N (2.14.3.2)
+  CLR_AREA_CLEAN:37,       // Y/N — cleaned & sanitized, no residual lubricants/chemicals (2.14.3.3)
+  CLR_QA_REQUIRED:38,      // Y/N — sanitation/QA inspection required (conditional, 2.13/2.4.1)
+  FACILITY_CONTACT:39,     // facility-contact signature/name (2.14.4)
+  FACILITY_CONTACT_DATE:40 // facility-contact sign-off date (2.14.4)
 };
-var RDB_COLS = 33;
+var RDB_COLS = 40;
 var RDB_HEADERS = [
   'Report ID','Ticket #','Date','Department','Building / Zone','Equipment Type',
   'Equipment Code','Equipment Description','Problem Description','Root Cause',
   'Corrective Action','Preventive Action','Work Summary','Fix Type','Temp Fix Flag',
   'Parts Used','Labor Hours','Added By','Completed By','Verified By','Verified Date',
   'Updated By','Priority','Downtime Type','Image Links','PDF Link','Notes',
-  'Shift','Service Date','Date Completed','Recommendations','Manager Notes','Problem Type'
+  'Shift','Service Date','Date Completed','Recommendations','Manager Notes','Problem Type',
+  'Restricted Activity','Clearance: Repair Complete','Clearance: Tools Removed',
+  'Clearance: Area Cleaned/Sanitized','Clearance: QA Inspection Required',
+  'Facility Contact (Signature)','Facility Contact Date'
 ];
 
 // ─── PM FORWARD-DESIGN SCHEMAS (v1: no UI; schema and nav placeholder only) ──
@@ -408,6 +428,30 @@ function getConfig() {
 
 function getConfigValue(key) {
   return getConfig()[key] || '';
+}
+
+// ─── Document-control identity (Module 8) ───────────────────────────────────────
+// Single source of truth for the form-number / revision / revision-date triplet
+// printed on every controlled document. Defaults are the SQF-Reference-Master
+// numbers (Section 7); each is overridable from the ⚙️ Configuration tab so a
+// number can be corrected without a code change. Injected into the frontend as
+// DOC_CONTROL by doGet().
+function getDocControlMap_() {
+  var cfg = getConfig();
+  function pick(noKey, revKey, dateKey, dNo, dRev, dDate) {
+    return {
+      no:   String(cfg[noKey]   || dNo),
+      rev:  String(cfg[revKey]  != null && cfg[revKey] !== '' ? cfg[revKey] : (cfg['Revision'] != null && cfg['Revision'] !== '' ? cfg['Revision'] : dRev)),
+      date: String(cfg[dateKey] || dDate)
+    };
+  }
+  return {
+    serviceReport: pick('Doc No (Service Report)', 'Rev (Service Report)', 'Rev Date (Service Report)', 'FRM-030-003', '0', '6/5/2026'),
+    repairLog:     pick('Doc No (Repair Log)',     'Rev (Repair Log)',     'Rev Date (Repair Log)',     'FRM-030-002', '0', '6/5/2026'),
+    holdTag:       pick('Doc No (Hold Tag)',        'Rev (Hold Tag)',        'Rev Date (Hold Tag)',        'FRM-029-002', '0', '6/15/26'),
+    ncrRegister:   pick('Doc No (NCR Register)',    'Rev (NCR Register)',    'Rev Date (NCR Register)',    'FRM-029-001', '0', ''),
+    ticketForm:    pick('Doc No (Ticket Form)',     'Rev (Ticket Form)',     'Rev Date (Ticket Form)',     'FRM-030-004', '0', '')
+  };
 }
 
 function setConfigValue(key, value) {

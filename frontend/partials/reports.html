@@ -162,7 +162,7 @@ function _renderReport_(data, container) {
     // EMRL search panel
     '<div class="emrl-section">' +
       '<div class="emrl-section-hdr">SQF 13.2.8 — Equipment Maintenance Repair Log ' +
-        '<span class="emrl-badge">FRM-030-002</span>' +
+        '<span class="emrl-badge">' + esc(docLabel('repairLog')) + '</span>' +
       '</div>' +
       '<div class="emrl-filters">' +
         '<div class="emrl-filter-group"><label class="emrl-filter-label">Ticket #</label>' +

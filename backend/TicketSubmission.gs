@@ -32,7 +32,7 @@ function getAddTicketFormData() {
 
   return {
     companyName:    String(cfg['Company Name']          || 'Container Supply Co.'),
-    docNo:          String(cfg['Doc No (Ticket Form)']  || 'FRM-040-001'),
+    docNo:          String(cfg['Doc No (Ticket Form)']  || 'FRM-030-004'),
     revision:       String(cfg['Revision']              || '0'),
     departments:    departments,
     equipHierarchy: getEquipmentHierarchy(),

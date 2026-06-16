@@ -212,86 +212,100 @@ function getEquipTicketHistory(equipCode) {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
-//  getClosedTickets
-//  Reads the Closed Tickets sheet (SH.CLOSED, CS_ 29-col layout).
+//  getClosedTickets   —   Maintenance Repair Log (FRM-030-002)
+//  Reads the Master Log (SH.MASTER_LOG) — the canonical source of truth — and
+//  returns every ticket whose latest status is CLOSED/COMPLETE.
 //
-//  C15 — ARCHITECTURAL NOTE (phantom mismatch, no code bug):
-//  getClosedTickets() and getReportData() intentionally use DIFFERENT sources:
-//    • getClosedTickets() → SH.CLOSED physical sheet (archive of completed work)
-//    • getReportData()    → SH.MASTER_LOG filtered by status CLOSED/COMPLETE
-//
-//  The two views can legitimately differ in count because:
-//    1. getReportData() applies a rolling daysBack window (default 30 days),
-//       whereas getClosedTickets() returns ALL closed tickets (up to opts.limit).
-//    2. getReportData() reads all status history rows in ML to compute analytics;
-//       getClosedTickets() reads the flat CS_ archive row.
-//    3. A theoretical mismatch: if appendToMasterLog_() succeeds but
-//       _moveTicketToClosed_() throws in the same verifyAndCloseTicket() call,
-//       the ticket would be CLOSED in ML but absent from SH.CLOSED.
-//       In practice this is extremely unlikely (same spreadsheet, same execution).
-//       verifyAndCloseTicket() wraps both calls in one try/catch and returns
-//       { success: false } on any error, so the caller knows the close failed.
-//
-//  NO FIX REQUIRED — the divergence is by design.  Both functions are correct
-//  for their respective use-cases (audit log vs analytics).
+//  R3 RESTORE (SQF Workstream round): previously this read only the SH.CLOSED
+//  physical sheet (CS_ 29-col layout). That sheet is populated going-forward by
+//  _moveTicketToClosed_() at verify-time, so closed tickets that were imported
+//  (Izzy/external sync) or closed before the CS_ migration were never written to
+//  it — and the tab returned empty. Reading from the Master Log restores the
+//  complete list (matching getQueueTickets / getReportData, which also read ML)
+//  WITHOUT changing the FRM-030-002 Maintenance Repair Log framing in the UI.
+//  The Closed Tickets tab header (closed-tickets.html) is unchanged.
 // ═══════════════════════════════════════════════════════════════════════════════
 
 function getClosedTickets(opts) {
   requireManager_();
   opts = opts || {};
-  // Managers see all closed tickets (manager view-all — same as queue views)
+  // Managers see all closed tickets (manager view-all — same as queue views).
 
   try {
-    var ss       = getBoundSS_();
-    var closedSh = ss.getSheetByName(SH.CLOSED);
-    if (!closedSh || closedSh.getLastRow() < 2) return [];
+    var ss = getBoundSS_();
+    var ml = ss.getSheetByName(SH.MASTER_LOG);
+    if (!ml || ml.getLastRow() < 2) return [];
 
-    var startRow = QUEUE_FROZEN + 1;
-    if (closedSh.getLastRow() < startRow) return [];
-    var numRows  = closedSh.getLastRow() - startRow + 1;
-    // Read from col 1 using CS_ 29-col layout (post-migration format)
-    var data     = closedSh.getRange(startRow, 1, numRows, CS_COLS).getValues();
-    var tz       = Session.getScriptTimeZone();
+    var data = ml.getRange(2, 1, ml.getLastRow() - 1, ML_COLS).getValues();
+    var tz   = Session.getScriptTimeZone();
 
     function fmtDate(v) {
       if (!v) return '';
       if (v instanceof Date && !isNaN(v)) return Utilities.formatDate(v, tz, 'MM/dd/yyyy');
       return String(v);
     }
+    function tsOf(v) {
+      if (v instanceof Date && !isNaN(v)) return v.getTime();
+      var t = Date.parse(v);
+      return isNaN(t) ? 0 : t;
+    }
+
+    // Collapse Master Log rows per ticket (last non-empty value wins — same
+    // rule as _mergeAndFilter_ / getQueueTickets), then keep only closed tickets.
+    var byTicket = {};
+    data.forEach(function(r) {
+      var tn = String(r[ML.TICKET_NO - 1] || '').trim();
+      if (!tn) return;
+      if (!byTicket[tn]) { byTicket[tn] = r.slice(); return; }
+      var cur = byTicket[tn];
+      for (var c = 0; c < r.length; c++) {
+        if (r[c] !== '' && r[c] !== null && r[c] !== undefined) cur[c] = r[c];
+      }
+    });
 
     var tickets = [];
-    data.forEach(function(r) {
-      var tn   = String(r[CS.TICKET_NO - 1] || '').trim();
-      if (!tn) return;
-      var dept = String(r[CS.DEPT      - 1] || '').trim();
+    Object.keys(byTicket).forEach(function(tn) {
+      var r = byTicket[tn];
+      var status = String(r[ML.STATUS - 1] || '').trim().toUpperCase();
+      if (status !== 'CLOSED' && status !== 'COMPLETE') return;
+
+      var dept = String(r[ML.DEPT - 1] || '').trim();
       if (opts.search) {
         var q = opts.search.toLowerCase();
         var haystack = (tn + ' ' + dept + ' ' +
-          String(r[CS.SPECIFIC_EQUIP - 1] || '') + ' ' +
-          String(r[CS.DESCRIPTION    - 1] || '') + ' ' +
-          String(r[CS.COMPLETED_BY   - 1] || '')).toLowerCase();
+          String(r[ML.SPECIFIC_EQUIP - 1] || '') + ' ' +
+          String(r[ML.DESCRIPTION    - 1] || '') + ' ' +
+          String(r[ML.ASSIGNED_TO    - 1] || '') + ' ' +
+          String(r[ML.ADDED_BY       - 1] || '')).toLowerCase();
         if (haystack.indexOf(q) < 0) return;
       }
+
+      var rawClose = r[ML.DATE_CLOSED - 1] || r[ML.VERIFIED_DATE - 1];
       tickets.push({
         ticketNo:     tn,
-        status:       String(r[CS.STATUS        - 1] || '').trim(),
-        priority:     String(r[CS.PRIORITY      - 1] || '').trim().toUpperCase(),
+        status:       String(r[ML.STATUS         - 1] || '').trim(),
+        priority:     String(r[ML.PRIORITY       - 1] || '').trim().toUpperCase(),
         dept:         dept,
-        equipCode:    String(r[CS.EQUIP_CODE    - 1] || ''),
-        specificEquip:String(r[CS.SPECIFIC_EQUIP- 1] || ''),
-        description:  String(r[CS.DESCRIPTION   - 1] || ''),
-        assignedTo:   String(r[CS.COMPLETED_BY  - 1] || ''),
-        actualHours:  r[CS.ACTUAL_HOURS         - 1] || '',
-        dateOpened:   fmtDate(r[CS.DATE_OPENED  - 1]),
-        lastUpdated:  fmtDate(r[CS.VERIFIED_DATE- 1]),
-        verifiedBy:   String(r[CS.VERIFIED_BY   - 1] || ''),
-        verifiedDate: fmtDate(r[CS.VERIFIED_DATE- 1]),
-        addedBy:      String(r[CS.ADDED_BY      - 1] || ''),
-        lineNo:       String(r[CS.LINE_NO       - 1] || '')
+        equipCode:    String(r[ML.EQUIP_CODE     - 1] || ''),
+        specificEquip:String(r[ML.SPECIFIC_EQUIP - 1] || ''),
+        description:  String(r[ML.DESCRIPTION    - 1] || ''),
+        assignedTo:   String(r[ML.ASSIGNED_TO    - 1] || ''),
+        actualHours:  r[ML.ACTUAL_HOURS          - 1] || '',
+        dateOpened:   fmtDate(r[ML.DATE_OPENED   - 1]),
+        dateClosed:   fmtDate(rawClose),
+        lastUpdated:  fmtDate(r[ML.VERIFIED_DATE - 1]),
+        verifiedBy:   String(r[ML.VERIFIED_BY    - 1] || ''),
+        verifiedDate: fmtDate(r[ML.VERIFIED_DATE - 1]),
+        addedBy:      String(r[ML.ADDED_BY       - 1] || ''),
+        lineNo:       String(r[ML.LINE_NO        - 1] || ''),
+        _closeTs:     tsOf(rawClose)
       });
     });
 
-    tickets.reverse(); // most-recently-closed first
+    // Most-recently-closed first (true chronological order via timestamp).
+    tickets.sort(function(a, b) { return b._closeTs - a._closeTs; });
+    tickets.forEach(function(t) { delete t._closeTs; });
+
     if (opts.limit) tickets = tickets.slice(0, opts.limit);
     return tickets;
   } catch (e) {

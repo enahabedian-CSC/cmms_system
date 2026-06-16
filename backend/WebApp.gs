@@ -24,6 +24,7 @@ function doGet(e) {
   tmpl.userInfoJson  = JSON.stringify(userInfo);
   tmpl.companyName   = getConfigValue('Company Name') || 'Container Supply Co.';
   tmpl.systemVersion = getConfigValue('System Version') || '5.0';
+  tmpl.docControlJson = JSON.stringify(getDocControlMap_()); // Module 8: doc-control triplets
 
   return tmpl.evaluate()
     .setTitle('CSC Maintenance Console')

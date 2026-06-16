@@ -64,6 +64,42 @@
 .mon-modal-notes{width:100%;padding:8px 10px;border:1px solid var(--border-default);border-radius:6px;font-size:12.5px;font-family:inherit;resize:vertical;height:60px;outline:none;}
 .mon-modal-notes:focus{border-color:var(--brand-navy);}
 .mon-modal-footer{display:flex;gap:8px;justify-content:flex-end;margin-top:14px;}
+
+/* ── Equipment Quality Hold Tag — printable (FRM-029-002) ────────────────── */
+/* Auditor-approved field set ported from Izzy's EquipmentHoldTag.html.        */
+/* Fields are auditor-approved — only the doc-control triplet was added.       */
+#ehl-print-area{display:none;}
+.eht-tag{width:340px;margin:0 auto;border:3px solid #000;border-radius:10px;font-family:Arial,Helvetica,sans-serif;background:#fff;overflow:hidden;}
+.eht-hero{padding:12px 14px;text-align:center;background:#C62828;color:#fff;}
+.eht-hero .l{font-size:10px;letter-spacing:.06em;text-transform:uppercase;opacity:.92;}
+.eht-hero .n{font-size:22px;font-weight:800;font-family:var(--font-mono),monospace;margin-top:2px;}
+.eht-cobar{display:flex;justify-content:space-between;align-items:center;padding:6px 12px;background:#111;color:#fff;font-size:10px;font-weight:600;}
+.eht-title{text-align:center;padding:10px;border-bottom:2px solid #000;}
+.eht-title .m{font-size:17px;font-weight:800;letter-spacing:.02em;}
+.eht-title .s{font-size:10.5px;color:#444;margin-top:2px;}
+.eht-status{text-align:center;padding:12px;background:#C62828;color:#fff;}
+.eht-status .t{font-size:16px;font-weight:800;}
+.eht-status .onhold{font-size:12px;font-weight:800;margin-top:5px;text-transform:uppercase;letter-spacing:.02em;}
+.eht-seclbl{background:#000;color:#fff;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;padding:3px 12px;}
+.eht-grid{display:grid;grid-template-columns:1fr 1fr;}
+.eht-grid .f{padding:6px 12px;border-bottom:1px solid #ccc;border-right:1px solid #ccc;}
+.eht-grid .f .fl{font-size:8.5px;text-transform:uppercase;color:#666;letter-spacing:.04em;}
+.eht-grid .f .fv{font-size:12px;font-weight:600;color:#000;margin-top:1px;word-break:break-word;}
+.eht-reason{padding:8px 12px;border-bottom:1px solid #000;}
+.eht-reason .fl{font-size:9px;text-transform:uppercase;color:#666;font-weight:700;}
+.eht-reason .fv{font-size:12.5px;color:#000;margin-top:2px;word-break:break-word;}
+.eht-warn{background:#000;color:#fff;text-align:center;font-weight:800;font-size:12px;padding:8px;letter-spacing:.04em;}
+.eht-sign{display:grid;grid-template-columns:1fr 1fr;border-bottom:1px solid #000;}
+.eht-sign .sg{padding:18px 10px 6px;border-right:1px solid #ccc;}
+.eht-sign .sg .sl{font-size:8.5px;text-transform:uppercase;color:#666;border-top:1px solid #000;padding-top:3px;}
+.eht-foot{display:flex;justify-content:space-between;padding:6px 12px;font-size:9px;color:#444;}
+.eht-yellow .eht-hero,.eht-yellow .eht-status{background:#F9A825;color:#000;}
+.eht-orange .eht-hero,.eht-orange .eht-status{background:#EF6C00;color:#fff;}
+@media print{
+  body.printing-tag *{visibility:hidden !important;}
+  body.printing-tag #ehl-print-area,body.printing-tag #ehl-print-area *{visibility:visible !important;}
+  body.printing-tag #ehl-print-area{display:block !important;position:absolute;left:0;top:0;width:100%;}
+}
 </style>
 
 <div id="mon-modal-back" class="mon-modal-back">
@@ -77,6 +113,9 @@
     </div>
   </div>
 </div>
+
+<!-- Printable Equipment Quality Hold Tag (FRM-029-002) target; populated by _ehlPrintTag_ -->
+<div id="ehl-print-area"></div>
 
 <script>
 // ── Monitoring page utilities ─────────────────────────────────────────────────
@@ -119,12 +158,23 @@ function _renderTf_(items, container) {
     '<div class="mon-table-wrap"><table class="mon-table">' +
       '<thead><tr>' +
         '<th>ID</th><th>Ticket #</th><th>Equipment</th><th>Dept</th>' +
-        '<th>Description</th><th>Status</th><th>Date Flagged</th>' +
+        '<th>Temp Fix / Permanent Plan</th><th>Status</th><th>Date Flagged</th>' +
+        '<th>Expected Completion</th><th>SQF Confirms</th>' +
         '<th>Days to Re-Inspect</th><th>Freq (days)</th><th></th>' +
       '</tr></thead>' +
       '<tbody id="tf-tbody"></tbody>' +
     '</table></div></div>';
   _tfRenderRows_(_tfData_);
+}
+
+// Renders the two SQF Temporary Repair Log confirmations (2.10.7 / 2.10.1).
+function _tfConfirm_(t) {
+  function b(val, label) {
+    if (val === 'Y') return '<span style="color:var(--status-success);font-weight:700;">✓ ' + label + '</span>';
+    if (val === 'N') return '<span style="color:var(--status-critical);font-weight:700;">✗ ' + label + '</span>';
+    return '<span style="color:var(--text-tertiary);">— ' + label + '</span>';
+  }
+  return b(t.noImprovised, 'No-Improv') + '<br>' + b(t.productRiskOk, 'No-Risk');
 }
 
 function _tfApply_() {
@@ -149,7 +199,7 @@ function _tfRenderRows_(list) {
   var cntEl = document.getElementById('tf-cnt');
   if (cntEl) cntEl.textContent = list.length + ' item' + (list.length !== 1 ? 's' : '');
   if (list.length === 0) {
-    tbody.innerHTML = '<tr><td colspan="10" class="mon-empty">No active temp fixes.</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="12" class="mon-empty">No active temp fixes.</td></tr>';
     return;
   }
   var today = new Date(); today.setHours(0,0,0,0);
@@ -182,9 +232,13 @@ function _tfRenderRows_(list) {
         (t.equipCode ? '<span style="font-family:var(--font-mono);font-size:10.5px;color:var(--text-secondary);">' + esc(t.equipCode) + '</span> ' : '') +
         esc(t.specificEquip) + '</td>' +
       '<td>' + esc(t.dept) + '</td>' +
-      '<td class="mon-desc" title="' + esc(t.tempFixDesc || t.description) + '">' + esc(t.tempFixDesc || t.description) + '</td>' +
+      '<td class="mon-desc" title="' + esc((t.tempFixDesc || t.description) + (t.reasonTemporary ? ' | Reason temporary: ' + t.reasonTemporary : '') + (t.permFixPlan ? ' | Plan: ' + t.permFixPlan : '')) + '">' +
+        esc(t.tempFixDesc || t.description) +
+        (t.permFixPlan ? '<div style="font-size:10.5px;color:var(--text-tertiary);margin-top:2px;">Plan: ' + esc(t.permFixPlan) + '</div>' : '') + '</td>' +
       '<td><span class="stat-badge ' + esc('stat-' + t.status.replace(/\s+/g, '-')) + '">' + esc(t.status) + '</span></td>' +
       '<td style="font-size:11.5px;color:var(--text-tertiary);">' + esc(t.dateFlagged) + '</td>' +
+      '<td style="font-size:11.5px;color:var(--text-secondary);">' + esc(t.expectedCompletion || '—') + '</td>' +
+      '<td style="font-size:10.5px;white-space:nowrap;">' + _tfConfirm_(t) + '</td>' +
       '<td style="' + daysCellStyle + '">' + daysCell + '</td>' +
       '<td style="font-size:11.5px;color:var(--text-secondary);">' + esc(String(t.freqDays)) + '</td>' +
       '<td style="white-space:nowrap;">' +
@@ -242,7 +296,9 @@ function _renderEhl_(items, container) {
   container.innerHTML =
     '<div class="mon-wrap">' +
     '<div class="mon-toolbar">' +
-      '<span class="mon-title">Equipment Hold Log</span>' +
+      '<span class="mon-title">Equipment Hold Log ' +
+        '<span style="font-size:10px;font-weight:600;color:var(--text-tertiary);letter-spacing:.04em;">' +
+        'Non-Conforming Equipment Register · ' + esc(docLabel('ncrRegister')) + '</span></span>' +
       '<span class="mon-count" id="ehl-cnt">' + _ehlData_.length + ' tagged</span>' +
       '<input class="mon-search" id="ehl-search" placeholder="Search…" oninput="_ehlApply_()" />' +
       '<button onclick="_loadEhlPage_(document.getElementById(\'page-equipment-hold\'))" ' +
@@ -291,11 +347,75 @@ function _ehlRenderRows_(list) {
       '<td style="font-size:11.5px;color:var(--text-tertiary);">' + esc(t.dateTagged) + '</td>' +
       '<td class="mon-desc" title="' + esc(t.reason) + '">' + esc(t.reason) + '</td>' +
       '<td>' + esc(t.taggedBy) + '</td>' +
-      '<td>' +
+      '<td style="white-space:nowrap;">' +
+        '<button class="mon-btn" onclick="_ehlPrintTag_(\'' + esc(t.tagId) + '\')">🖨 Print Tag</button> ' +
         '<button class="mon-btn danger" onclick="_ehlClear_(\'' + esc(t.tagId) + '\')">Clear Tag</button>' +
       '</td>' +
     '</tr>';
   }).join('');
+}
+
+// Render Izzy's auditor-approved Equipment Quality Hold Tag (FRM-029-002) for a
+// hold-log row and send it to the browser print dialog. Fields are auditor-
+// approved — only the doc-control triplet (FRM-029-002 / Rev 0 / 6/15/26) is added.
+function _ehlPrintTag_(tagId) {
+  var t = null;
+  for (var i = 0; i < _ehlData_.length; i++) {
+    if (_ehlData_[i].tagId === tagId) { t = _ehlData_[i]; break; }
+  }
+  if (!t) { showToast('Tag not found', 'error'); return; }
+
+  var ty = (t.tagType || '').toLowerCase();
+  var variant = ty.indexOf('yellow') >= 0 ? 'eht-yellow'
+              : ty.indexOf('orange') >= 0 ? 'eht-orange' : 'eht-red';
+  var statusTxt = ty.indexOf('yellow') >= 0 ? '⚠️ USE WITH CAUTION'
+                : ty.indexOf('orange') >= 0 ? '🔧 TEMPORARY FIX IN PLACE'
+                : '⛔ OUT OF SERVICE';
+  var ref = t.ticketNo || t.tagId;
+
+  function f(label, val) {
+    return '<div class="f"><div class="fl">' + label + '</div><div class="fv">' + esc(val || '—') + '</div></div>';
+  }
+
+  var html =
+    '<div class="eht-tag ' + variant + '">' +
+      '<div class="eht-hero"><div class="l">Maintenance Ticket # / Hold Tag ID</div><div class="n">' + esc(ref) + '</div></div>' +
+      '<div class="eht-cobar"><span>' + esc(window.COMPANY || 'Container Supply Co.') + '</span><span>' + esc(docLabel('holdTag')) + '</span></div>' +
+      '<div class="eht-title"><div class="m">Equipment Quality Hold Tag</div><div class="s">Place in Tag Holder — Do Not Remove</div></div>' +
+      '<div class="eht-status"><div class="t">' + statusTxt + '</div>' +
+        '<div class="onhold">ON HOLD — not to be used until further notice</div></div>' +
+      '<div class="eht-seclbl">Equipment Information</div>' +
+      '<div class="eht-grid">' +
+        f('Department', t.dept) + f('Equipment Code', t.equipCode) +
+        f('Equipment Description', t.specificEquip) + f('Building / Zone', t.buildingZone) +
+        f('Equipment Type', t.equipType) + f('Problem Type', t.problemType) +
+      '</div>' +
+      '<div class="eht-seclbl">Tag Details</div>' +
+      '<div class="eht-grid">' +
+        f('Hold Tag #', t.tagId) + f('Tag Type / Color', t.tagType) +
+        f('Date Placed on Hold', t.dateTagged) + f('Hold Authority (Tagged By)', t.taggedBy) +
+      '</div>' +
+      '<div class="eht-reason"><div class="fl">Issue / Reason for Equipment Hold (Identified Risk)</div>' +
+        '<div class="fv">' + esc(t.reason || '—') + '</div></div>' +
+      '<div class="eht-warn">DO NOT OPERATE — AUTHORIZED PERSONNEL ONLY</div>' +
+      '<div class="eht-sign">' +
+        '<div class="sg"><div style="height:20px;"></div><div class="sl">Tagged By — Signature / Date</div></div>' +
+        '<div class="sg"><div style="height:20px;"></div><div class="sl">Cleared By — Manager Signature / Date</div></div>' +
+      '</div>' +
+      '<div class="eht-foot"><span>' + esc(ref) + '</span><span>CSC Maintenance · FRM-029-002</span></div>' +
+    '</div>';
+
+  var area = document.getElementById('ehl-print-area');
+  if (!area) { showToast('Print area missing', 'error'); return; }
+  area.innerHTML = html;
+  document.body.classList.add('printing-tag');
+  function _cleanup_() {
+    document.body.classList.remove('printing-tag');
+    window.removeEventListener('afterprint', _cleanup_);
+  }
+  window.addEventListener('afterprint', _cleanup_);
+  window.print();
+  setTimeout(_cleanup_, 2000); // fallback if afterprint doesn't fire
 }
 
 function _ehlClear_(tagId) {
