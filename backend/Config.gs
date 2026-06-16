@@ -340,16 +340,27 @@ var RDB = {
   IMAGE_LINKS:25, PDF_LINK:26,    NOTES:27,
   // C11 additions ─ Izzy field-set conformance
   SHIFT:28,       SERVICE_DATE:29, DATE_COMPLETED:30,
-  RECOMMENDATIONS:31, MANAGER_NOTES:32, PROBLEM_TYPE:33
+  RECOMMENDATIONS:31, MANAGER_NOTES:32, PROBLEM_TYPE:33,
+  // FRM-030-003 conformance ─ restricted activity + Post-Repair Clearance (2.4.1, 2.14.3-.4)
+  RESTRICTED_ACTIVITY:34,  // Y/N — cut/weld/grind/paint (2.4.1)
+  CLR_REPAIR_COMPLETE:35,  // Y/N (2.14.3.1)
+  CLR_TOOLS_REMOVED:36,    // Y/N (2.14.3.2)
+  CLR_AREA_CLEAN:37,       // Y/N — cleaned & sanitized, no residual lubricants/chemicals (2.14.3.3)
+  CLR_QA_REQUIRED:38,      // Y/N — sanitation/QA inspection required (conditional, 2.13/2.4.1)
+  FACILITY_CONTACT:39,     // facility-contact signature/name (2.14.4)
+  FACILITY_CONTACT_DATE:40 // facility-contact sign-off date (2.14.4)
 };
-var RDB_COLS = 33;
+var RDB_COLS = 40;
 var RDB_HEADERS = [
   'Report ID','Ticket #','Date','Department','Building / Zone','Equipment Type',
   'Equipment Code','Equipment Description','Problem Description','Root Cause',
   'Corrective Action','Preventive Action','Work Summary','Fix Type','Temp Fix Flag',
   'Parts Used','Labor Hours','Added By','Completed By','Verified By','Verified Date',
   'Updated By','Priority','Downtime Type','Image Links','PDF Link','Notes',
-  'Shift','Service Date','Date Completed','Recommendations','Manager Notes','Problem Type'
+  'Shift','Service Date','Date Completed','Recommendations','Manager Notes','Problem Type',
+  'Restricted Activity','Clearance: Repair Complete','Clearance: Tools Removed',
+  'Clearance: Area Cleaned/Sanitized','Clearance: QA Inspection Required',
+  'Facility Contact (Signature)','Facility Contact Date'
 ];
 
 // ─── PM FORWARD-DESIGN SCHEMAS (v1: no UI; schema and nav placeholder only) ──

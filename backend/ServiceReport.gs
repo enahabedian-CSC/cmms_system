@@ -203,7 +203,15 @@ function submitServiceReport(data) {
     managerNotes:    String(data.managerNotes   || ''),
     notes:           String(data.notes         || ''),
     imageCount:      data.imageCount            || 0,
-    problemType:     String(data.problemType    || '')
+    problemType:     String(data.problemType    || ''),
+    // FRM-030-003 conformance — restricted activity + Post-Repair Clearance
+    restrictedActivity: data.restrictedActivity ? 'Y' : 'N',
+    clrRepairComplete:  String(data.clrRepairComplete || ''),
+    clrToolsRemoved:    String(data.clrToolsRemoved   || ''),
+    clrAreaClean:       String(data.clrAreaClean      || ''),
+    clrQaRequired:      String(data.clrQaRequired     || ''),
+    facilityContact:    String(data.facilityContact     || ''),
+    facilityContactDate:String(data.facilityContactDate || '')
   };
 
   var result = saveServiceReport(mapped);
@@ -312,6 +320,14 @@ function saveServiceReport(data) {
   row[RDB.RECOMMENDATIONS-1] = String(data.recommendations || '');
   row[RDB.MANAGER_NOTES - 1] = String(data.managerNotes  || '');
   row[RDB.PROBLEM_TYPE  - 1] = String(data.problemType   || '');
+  // ── FRM-030-003 fields (cols 34–40) ──────────────────────────────────────
+  row[RDB.RESTRICTED_ACTIVITY - 1] = String(data.restrictedActivity || 'N');
+  row[RDB.CLR_REPAIR_COMPLETE - 1] = String(data.clrRepairComplete  || '');
+  row[RDB.CLR_TOOLS_REMOVED   - 1] = String(data.clrToolsRemoved    || '');
+  row[RDB.CLR_AREA_CLEAN      - 1] = String(data.clrAreaClean       || '');
+  row[RDB.CLR_QA_REQUIRED     - 1] = String(data.clrQaRequired      || '');
+  row[RDB.FACILITY_CONTACT    - 1] = String(data.facilityContact     || '');
+  row[RDB.FACILITY_CONTACT_DATE-1] = String(data.facilityContactDate || '');
 
   sh.appendRow(row);
 

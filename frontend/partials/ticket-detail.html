@@ -669,6 +669,17 @@ function _tdIssueTag_() {
     }, 'Issue Tag');
 }
 
+// Yes/No (+ optional N/A) select row for the Post-Repair Clearance block.
+function _srYN_(id, label, allowNA) {
+  return '<div class="form-group"><label>' + esc(label) + '</label>' +
+    '<select id="' + id + '" style="width:120px">' +
+      '<option value=""></option>' +
+      '<option value="Yes">Yes</option>' +
+      '<option value="No">No</option>' +
+      (allowNA ? '<option value="N/A">N/A</option>' : '') +
+    '</select></div>';
+}
+
 function _tdServiceReport_() {
   var t = _tdTicket;
   if (!t) return;
@@ -693,8 +704,27 @@ function _tdServiceReport_() {
         '<textarea id="sr-preventive-act" placeholder="Steps taken to prevent recurrence…"></textarea></div>' +
       '<div class="form-group"><label>Parts Used (describe)</label>' +
         '<input id="sr-parts-used" placeholder="e.g. 2× bearing #6205, 1× V-belt"/></div>' +
-      '<div class="form-group"><label>Notes</label>' +
-        '<input id="sr-notes" placeholder="Any additional notes…"/></div>' +
+      '<div class="form-group"><label>Date of Service</label>' +
+        '<input id="sr-service-date" type="date"/></div>' +
+      '<div class="form-group"><label>Recommendations</label>' +
+        '<textarea id="sr-recommendations" placeholder="Follow-up recommendations…"></textarea></div>' +
+      '<div class="form-group"><label style="display:flex;align-items:center;gap:8px;cursor:pointer;">' +
+        '<input id="sr-restricted" type="checkbox" style="width:auto;"/> ' +
+        'Restricted activity (cut / weld / grind / paint)</label>' +
+        '<div style="font-size:11px;color:var(--text-tertiary);margin-top:2px;">' +
+        'If checked, sanitation/QA inspection is required before clearance.</div></div>' +
+      // ── Post-Repair Clearance (FRM-030-003, SQF 2.14.3-.4) ──────────────────
+      '<div style="margin:14px 0 6px;font-size:12px;font-weight:700;color:var(--text-secondary);' +
+        'text-transform:uppercase;letter-spacing:.04em;border-top:1px solid var(--border-default);padding-top:12px;">' +
+        'Post-Repair Clearance</div>' +
+      _srYN_('sr-clr-complete',  'Maintenance / repair complete?') +
+      _srYN_('sr-clr-tools',     'All tools removed?') +
+      _srYN_('sr-clr-clean',     'Area cleaned & sanitized, no residual lubricants/chemicals?') +
+      _srYN_('sr-clr-qa',        'Sanitation / QA inspection required?', true) +
+      '<div class="form-group"><label>Facility Contact (Signature)</label>' +
+        '<input id="sr-fac-contact" placeholder="Name of facility contact accepting the work"/></div>' +
+      '<div class="form-group"><label>Facility Contact Date</label>' +
+        '<input id="sr-fac-date" type="date"/></div>' +
       '<div class="modal-actions">' +
         '<button class="btn-cancel" onclick="_closeModal_()">Cancel</button>' +
         '<button class="btn-cancel" onclick="window.print()">🖨 Print</button>' +
@@ -726,7 +756,17 @@ function _tdSaveServiceReport_() {
     fixType:       t.fixType       || '',
     tempFixFlag:   t.tempFixFlag   || false,
     addedBy:       USER.displayName,
-    notes:         (document.getElementById('sr-notes') || {}).value || ''
+    notes:         (document.getElementById('sr-notes') || {}).value || '',
+    // FRM-030-003 conformance fields
+    serviceDate:        (document.getElementById('sr-service-date')  || {}).value || '',
+    recommendations:    (document.getElementById('sr-recommendations')|| {}).value || '',
+    restrictedActivity: (document.getElementById('sr-restricted') || {}).checked ? 'Y' : 'N',
+    clrRepairComplete:  (document.getElementById('sr-clr-complete') || {}).value || '',
+    clrToolsRemoved:    (document.getElementById('sr-clr-tools')    || {}).value || '',
+    clrAreaClean:       (document.getElementById('sr-clr-clean')    || {}).value || '',
+    clrQaRequired:      (document.getElementById('sr-clr-qa')       || {}).value || '',
+    facilityContact:    (document.getElementById('sr-fac-contact')  || {}).value || '',
+    facilityContactDate:(document.getElementById('sr-fac-date')     || {}).value || ''
   };
   _tdRunAction_(saveServiceReport, data, 'Service Report saved');
 }
