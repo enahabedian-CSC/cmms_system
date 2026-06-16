@@ -678,7 +678,7 @@ function _tdServiceReport_() {
   modal.innerHTML =
     '<div class="td-modal-backdrop" id="td-modal-backdrop" onclick="if(event.target===this)_closeModal_()">' +
     '<div class="td-modal" style="width:560px;max-width:96vw;">' +
-      '<h3>📝 Service Report — ' + esc(t.ticketNo) + ' <span style="font-size:11px;color:var(--text-tertiary);font-weight:400;">FRM-040-002</span></h3>' +
+      '<h3>📝 Service Report — ' + esc(t.ticketNo) + ' <span style="font-size:11px;color:var(--text-tertiary);font-weight:400;">FRM-030-003 &middot; Rev 0 &middot; 6/5/2026</span></h3>' +
       '<div class="form-group"><label>Completed By</label>' +
         '<input id="sr-completed-by" value="' + esc(t.assignedTo || '') + '" placeholder="Technician name"/></div>' +
       '<div class="form-group"><label>Labor Hours</label>' +
@@ -697,6 +697,7 @@ function _tdServiceReport_() {
         '<input id="sr-notes" placeholder="Any additional notes…"/></div>' +
       '<div class="modal-actions">' +
         '<button class="btn-cancel" onclick="_closeModal_()">Cancel</button>' +
+        '<button class="btn-cancel" onclick="window.print()">🖨 Print</button>' +
         '<button class="btn-confirm" onclick="_tdSaveServiceReport_()">Save Service Report</button>' +
       '</div>' +
     '</div></div>';

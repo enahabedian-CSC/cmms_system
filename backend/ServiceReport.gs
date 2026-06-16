@@ -1,6 +1,8 @@
 // ╔══════════════════════════════════════════════════════════════════════════╗
 // ║  ServiceReport.gs — CSC CMMS v5.0                                       ║
-// ║  FRM-040-002 Maintenance Service Report infrastructure.                 ║
+// ║  FRM-030-003 Maintenance Repair Record infrastructure.                  ║
+// ║  Doc# corrected from FRM-040-002 → FRM-030-003 per SQF Reference Master  ║
+// ║  (Document Register + Open Items Flag 2). Rev 0, Rev Date 6/5/2026.      ║
 // ║  C11: field set conformed to Izzy's ServiceReport.html + backend.       ║
 // ║  Report Database (📝 Report Database) stores one row per report.        ║
 // ╚══════════════════════════════════════════════════════════════════════════╝
@@ -41,8 +43,9 @@ function getServiceReportFormData(ticketNoOrOpts) {
     // ── Doc header ─────────────────────────────────────────────────────────
     companyName:    String(cfg['Company Name']            || 'Container Supply Co.'),
     location:       String(cfg['Location']                || 'Garden Grove, CA'),
-    docNo:          String(cfg['Doc No (Service Report)'] || 'FRM-040-002'),
+    docNo:          String(cfg['Doc No (Service Report)'] || 'FRM-030-003'),
     revision:       String(cfg['Revision']                || '0'),
+    revDate:        String(cfg['Rev Date (Service Report)'] || '6/5/2026'),
 
     // ── Dropdown lists (Izzy-compatible key names) ──────────────────────────
     departments:    DEPT_TRACKERS.map(function(dt) { return dt.dept; }),
