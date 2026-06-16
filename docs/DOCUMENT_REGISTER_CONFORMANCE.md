@@ -41,12 +41,12 @@ These are register rows not (fully) satisfied by the CMMS. **None invented; all 
 
 The app uses an **FRM-040-xxx** series that does **not appear in the Maintenance Document Register** (PRO-029/PRO-030 scope):
 
-| App number | Where | Register status | Recommendation |
+| App number | Where | Register status | Resolution |
 |---|---|---|---|
-| ~~FRM-040-002~~ → **FRM-030-003** | Service Report | **Corrected this round** | ✅ done (R1/M5/M8) |
-| **FRM-040-001** | Ticket submission form (`TicketSubmission.gs:35`, config `Doc No (Ticket Form)`) | **Not in the maintenance register** | **Decision needed (Michael + Compliance):** either (a) add the ticket-intake form to the register under an appropriate number, or (b) confirm it is an internal/uncontrolled UI form and leave the FRM-040-001 label as an app-local identifier. It is config-driven, so changing it is a config edit, not a code change. |
+| ~~FRM-040-002~~ → **FRM-030-003** | Service Report (Maintenance Repair Record) | Corrected this round | ✅ done (R1/M5/M8) |
+| ~~FRM-040-001~~ → **FRM-030-004** | Ticket submission form (`TicketSubmission.gs:35`, config `Doc No (Ticket Form)`, `DOC_CONTROL.ticketForm`) | Moved into the 030 series | ✅ **Resolved (Michael 6/16):** FRM-040-001 was a mistaken number; ticket form now displays **FRM-030-004** (safe placeholder until an official number is assigned). Config-overridable via `Doc No (Ticket Form)`. |
 
-No other FRM-040 numbers are emitted by the app.
+**No FRM-040 numbers are emitted by the app any longer** (the only remaining `FRM-040` reference is a historical code comment in `ServiceReport.gs` documenting the correction). The FRM-030-004 placeholder can be changed to the official number via the Configuration tab with no code edit when Compliance assigns it.
 
 ---
 
