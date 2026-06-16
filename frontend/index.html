@@ -490,7 +490,28 @@ var PAGE_TITLES = {
 // ── Navigation ────────────────────────────────────────────────────────────────
 var _currentPage = 'home';
 
+// Global panel/modal reset — closes any open detail panel, modal, or sub-view.
+// Called once at the top of navigate() so every tab change starts clean.
+// Project-wide single handler (R2): never patch this per-screen.
+function _closeAllPanels_() {
+  // Ticket detail slide-over (defined in ticket-detail partial; guard for load order)
+  try { if (typeof closeTicketDetail === 'function') closeTicketDetail(); } catch (e) {}
+  var overlay = document.getElementById('td-overlay');
+  if (overlay) overlay.classList.remove('open');
+  // Any modal rendered into the shared modal container + its backdrop
+  var modalC = document.getElementById('td-modal-container');
+  if (modalC) modalC.innerHTML = '';
+  var backdrops = document.querySelectorAll('.td-modal-backdrop, .modal-backdrop');
+  for (var i = 0; i < backdrops.length; i++) {
+    var b = backdrops[i];
+    if (b && b.parentNode) b.parentNode.removeChild(b);
+  }
+}
+
 function navigate(pageId) {
+  // R2: close any open detail panel / modal / sub-view before switching tabs.
+  _closeAllPanels_();
+
   // Deactivate old nav item (works for both .nav-item and .nav-subitem)
   var oldEl = document.getElementById('nav-' + _currentPage);
   if (oldEl) oldEl.classList.remove('active');
