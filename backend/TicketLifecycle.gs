@@ -581,6 +581,17 @@ function flagTempFix(data) {
   if (!permFixDate)
     return { success: false, error: 'Target Permanent Fix Date is required when flagging a temp fix (C08).' };
 
+  // Temporary Repair Log conformance — SQF 2.10.7 (no improvised materials) and
+  // 2.10.1 (no product safety/quality risk) confirmations are REQUIRED.
+  var noImprovised  = (data.noImprovised  === true || data.noImprovised  === 'Y');
+  var productRiskOk = (data.productRiskOk === true || data.productRiskOk === 'Y');
+  if (!noImprovised)
+    return { success: false, error: 'Confirm no improvised materials (string/tape/wire) were used (SQF 2.10.7).' };
+  if (!productRiskOk)
+    return { success: false, error: 'Confirm the temporary repair poses no product safety/quality risk (SQF 2.10.1).' };
+  data.noImprovised  = true;
+  data.productRiskOk = true;
+
   try {
     var orig = getOriginalMlRow_(tn) || {};
     var prev = getLatestMlRow_(tn)   || orig;
@@ -1082,23 +1093,31 @@ function _logTempFix_(ss, ticketNo, data, orig, now) {
   var cfg   = getConfig();
   var freq  = parseInt(cfg['Monitoring Frequency'] || '7', 10);
   var nextDue = new Date(now.getTime() + freq * 24 * 60 * 60 * 1000);
-  sh.appendRow([
-    'TF-' + Utilities.formatDate(now, Session.getScriptTimeZone(), 'yyyyMMddHHmmss'),
-    ticketNo,
-    String(orig ? orig[ML.EQUIP_CODE     - 1] : data.equipCode     || ''),
-    String(orig ? orig[ML.SPECIFIC_EQUIP - 1] : data.specificEquip || ''),
-    String(orig ? orig[ML.DEPT           - 1] : data.dept          || ''),
-    String(orig ? orig[ML.BUILDING_ZONE  - 1] : data.buildingZone  || ''),
-    formatDateStr_(now),
-    String(orig ? orig[ML.DESCRIPTION    - 1] : data.description   || ''),
-    data.tempFixDesc || data.notes || '',
-    freq,
-    '',
-    formatDateStr_(nextDue),
-    'ACTIVE',
-    data.updatedBy || data.addedBy || '',
-    '', '', data._permFixNote_ || data.notes || ''
-  ]);
+  var row = new Array(TF_COLS).fill('');
+  row[TF.TEMP_ID        - 1] = 'TF-' + Utilities.formatDate(now, Session.getScriptTimeZone(), 'yyyyMMddHHmmss');
+  row[TF.TICKET_NO      - 1] = ticketNo;
+  row[TF.EQUIP_CODE     - 1] = String(orig ? orig[ML.EQUIP_CODE     - 1] : data.equipCode     || '');
+  row[TF.SPECIFIC_EQUIP - 1] = String(orig ? orig[ML.SPECIFIC_EQUIP - 1] : data.specificEquip || '');
+  row[TF.DEPT           - 1] = String(orig ? orig[ML.DEPT           - 1] : data.dept          || '');
+  row[TF.BUILDING_ZONE  - 1] = String(orig ? orig[ML.BUILDING_ZONE  - 1] : data.buildingZone  || '');
+  row[TF.DATE_FLAGGED   - 1] = formatDateStr_(now);
+  row[TF.DESCRIPTION    - 1] = String(orig ? orig[ML.DESCRIPTION    - 1] : data.description   || '');
+  row[TF.TEMP_FIX_DESC  - 1] = data.tempFixDesc || data.notes || '';
+  row[TF.FREQ_DAYS      - 1] = freq;
+  row[TF.LAST_INSPECTED - 1] = '';
+  row[TF.NEXT_DUE       - 1] = formatDateStr_(nextDue);
+  row[TF.STATUS         - 1] = 'ACTIVE';
+  row[TF.FLAGGED_BY     - 1] = data.updatedBy || data.addedBy || '';
+  row[TF.CLEARED_BY     - 1] = '';
+  row[TF.CLEARED_DATE   - 1] = '';
+  row[TF.NOTES          - 1] = data._permFixNote_ || data.notes || '';
+  // ── Temporary Repair Log fields (SQF 2.10) ────────────────────────────────
+  row[TF.REASON_TEMPORARY    - 1] = String(data.reasonTemporary || '');
+  row[TF.PERM_FIX_PLAN       - 1] = String(data.permFixPlan     || '');
+  row[TF.EXPECTED_COMPLETION - 1] = String(data.permFixDate     || data.expectedCompletion || '');
+  row[TF.NO_IMPROVISED       - 1] = data.noImprovised  ? 'Y' : (data.noImprovised  === false ? 'N' : '');
+  row[TF.PRODUCT_RISK_OK     - 1] = data.productRiskOk ? 'Y' : (data.productRiskOk === false ? 'N' : '');
+  sh.appendRow(row);
 }
 
 // ─── Private helpers ──────────────────────────────────────────────────────────

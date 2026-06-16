@@ -55,7 +55,13 @@ function getTempFixItems(opts) {
         flaggedBy:    String(r[TF.FLAGGED_BY     - 1] || ''),
         clearedBy:    String(r[TF.CLEARED_BY     - 1] || ''),
         clearedDate:  fmtDate(r[TF.CLEARED_DATE  - 1]),
-        notes:        String(r[TF.NOTES          - 1] || '')
+        notes:        String(r[TF.NOTES          - 1] || ''),
+        // Temporary Repair Log fields (SQF 2.10)
+        reasonTemporary:    String(r[TF.REASON_TEMPORARY    - 1] || ''),
+        permFixPlan:        String(r[TF.PERM_FIX_PLAN       - 1] || ''),
+        expectedCompletion: fmtDate(r[TF.EXPECTED_COMPLETION - 1]),
+        noImprovised:       String(r[TF.NO_IMPROVISED       - 1] || ''),
+        productRiskOk:      String(r[TF.PRODUCT_RISK_OK     - 1] || '')
       });
     });
     return items;

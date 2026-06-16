@@ -158,12 +158,23 @@ function _renderTf_(items, container) {
     '<div class="mon-table-wrap"><table class="mon-table">' +
       '<thead><tr>' +
         '<th>ID</th><th>Ticket #</th><th>Equipment</th><th>Dept</th>' +
-        '<th>Description</th><th>Status</th><th>Date Flagged</th>' +
+        '<th>Temp Fix / Permanent Plan</th><th>Status</th><th>Date Flagged</th>' +
+        '<th>Expected Completion</th><th>SQF Confirms</th>' +
         '<th>Days to Re-Inspect</th><th>Freq (days)</th><th></th>' +
       '</tr></thead>' +
       '<tbody id="tf-tbody"></tbody>' +
     '</table></div></div>';
   _tfRenderRows_(_tfData_);
+}
+
+// Renders the two SQF Temporary Repair Log confirmations (2.10.7 / 2.10.1).
+function _tfConfirm_(t) {
+  function b(val, label) {
+    if (val === 'Y') return '<span style="color:var(--status-success);font-weight:700;">✓ ' + label + '</span>';
+    if (val === 'N') return '<span style="color:var(--status-critical);font-weight:700;">✗ ' + label + '</span>';
+    return '<span style="color:var(--text-tertiary);">— ' + label + '</span>';
+  }
+  return b(t.noImprovised, 'No-Improv') + '<br>' + b(t.productRiskOk, 'No-Risk');
 }
 
 function _tfApply_() {
@@ -188,7 +199,7 @@ function _tfRenderRows_(list) {
   var cntEl = document.getElementById('tf-cnt');
   if (cntEl) cntEl.textContent = list.length + ' item' + (list.length !== 1 ? 's' : '');
   if (list.length === 0) {
-    tbody.innerHTML = '<tr><td colspan="10" class="mon-empty">No active temp fixes.</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="12" class="mon-empty">No active temp fixes.</td></tr>';
     return;
   }
   var today = new Date(); today.setHours(0,0,0,0);
@@ -221,9 +232,13 @@ function _tfRenderRows_(list) {
         (t.equipCode ? '<span style="font-family:var(--font-mono);font-size:10.5px;color:var(--text-secondary);">' + esc(t.equipCode) + '</span> ' : '') +
         esc(t.specificEquip) + '</td>' +
       '<td>' + esc(t.dept) + '</td>' +
-      '<td class="mon-desc" title="' + esc(t.tempFixDesc || t.description) + '">' + esc(t.tempFixDesc || t.description) + '</td>' +
+      '<td class="mon-desc" title="' + esc((t.tempFixDesc || t.description) + (t.reasonTemporary ? ' | Reason temporary: ' + t.reasonTemporary : '') + (t.permFixPlan ? ' | Plan: ' + t.permFixPlan : '')) + '">' +
+        esc(t.tempFixDesc || t.description) +
+        (t.permFixPlan ? '<div style="font-size:10.5px;color:var(--text-tertiary);margin-top:2px;">Plan: ' + esc(t.permFixPlan) + '</div>' : '') + '</td>' +
       '<td><span class="stat-badge ' + esc('stat-' + t.status.replace(/\s+/g, '-')) + '">' + esc(t.status) + '</span></td>' +
       '<td style="font-size:11.5px;color:var(--text-tertiary);">' + esc(t.dateFlagged) + '</td>' +
+      '<td style="font-size:11.5px;color:var(--text-secondary);">' + esc(t.expectedCompletion || '—') + '</td>' +
+      '<td style="font-size:10.5px;white-space:nowrap;">' + _tfConfirm_(t) + '</td>' +
       '<td style="' + daysCellStyle + '">' + daysCell + '</td>' +
       '<td style="font-size:11.5px;color:var(--text-secondary);">' + esc(String(t.freqDays)) + '</td>' +
       '<td style="white-space:nowrap;">' +

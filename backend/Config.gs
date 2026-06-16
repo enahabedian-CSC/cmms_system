@@ -277,14 +277,23 @@ var TF = {
   DEPT:5,         BUILDING_ZONE:6, DATE_FLAGGED:7,  DESCRIPTION:8,
   TEMP_FIX_DESC:9, FREQ_DAYS:10,   LAST_INSPECTED:11, NEXT_DUE:12,
   STATUS:13,      FLAGGED_BY:14,   CLEARED_BY:15,   CLEARED_DATE:16,
-  NOTES:17
+  NOTES:17,
+  // Temporary Repair Log conformance (SQF 2.10) — data matching for the
+  // Temp Fix Monitor → Temporary Repair Log. (FRM#/rev/date added later.)
+  REASON_TEMPORARY:18,    // reason the fix is temporary (2.10.4)
+  PERM_FIX_PLAN:19,       // permanent-fix plan / work-order ref (2.10.4)
+  EXPECTED_COMPLETION:20, // expected permanent-fix completion date (stakeholder R)
+  NO_IMPROVISED:21,       // no improvised materials confirmed Y/N (2.10.7)
+  PRODUCT_RISK_OK:22      // temp repair poses no product safety/quality risk Y/N (2.10.1)
 };
-var TF_COLS = 17;
+var TF_COLS = 22;
 var TF_HEADERS = [
   'Temp ID','Ticket #','Equip Code','Specific Equip','Department',
   'Building / Zone','Date Flagged','Description','Temp Fix Description',
   'Frequency (Days)','Last Inspected','Next Due','Status',
-  'Flagged By','Cleared By','Cleared Date','Notes'
+  'Flagged By','Cleared By','Cleared Date','Notes',
+  'Reason Fix Is Temporary','Permanent Fix Plan / WO Ref','Expected Completion Date',
+  'No Improvised Materials','No Product Risk'
 ];
 
 // ─── PARTS NEEDED — 12 columns ───────────────────────────────────────────────
