@@ -38,19 +38,23 @@ var _ctData_ = [];
 function _loadClosedPage_(container) {
   container.innerHTML =
     '<div class="loading-overlay"><div class="spinner"></div><span>Loading closed tickets…</span></div>';
-  google.script.run
-    .withSuccessHandler(function(tickets) { _renderClosed_(tickets, container); })
-    .withFailureHandler(function(err) {
-      var msg = err.message || String(err);
-      if (msg.indexOf('UNAUTHORIZED') >= 0 || msg.indexOf('Manager') >= 0) {
-        container.innerHTML =
-          '<div class="ct-empty">Closed ticket history is only available to managers.</div>';
-      } else {
-        container.innerHTML =
-          '<div class="ct-empty">Error loading closed tickets: ' + esc(msg) + '</div>';
-      }
-    })
-    .getClosedTickets({ limit: 200 });
+  fetch(WORKER_URL + '/api/tickets/closed', {
+    headers: { 'X-User-Email': USER ? USER.email : '' }
+  })
+  .then(function(r) { return r.json(); })
+  .then(function(tickets) {
+    if (tickets && tickets.error) {
+      var msg = tickets.error;
+      container.innerHTML = (msg.indexOf('Manager') >= 0 || msg.indexOf('required') >= 0)
+        ? '<div class="ct-empty">Closed ticket history is only available to managers.</div>'
+        : '<div class="ct-empty">Error loading closed tickets: ' + esc(msg) + '</div>';
+      return;
+    }
+    _renderClosed_(tickets, container);
+  })
+  .catch(function(err) {
+    container.innerHTML = '<div class="ct-empty">Error loading closed tickets: ' + esc(err.message || String(err)) + '</div>';
+  });
 }
 
 function _renderClosed_(tickets, container) {

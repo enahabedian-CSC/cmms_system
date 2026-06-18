@@ -93,15 +93,23 @@ PAGES['reports'] = function(c) { _loadReportPage_(c, 30); };
 function _loadReportPage_(container, daysBack) {
   container.innerHTML =
     '<div class="loading-overlay"><div class="spinner"></div><span>Building report…</span></div>';
-  google.script.run
-    .withSuccessHandler(function(data) { _renderReport_(data, container); })
-    .withFailureHandler(function(err) {
-      var msg = err.message || String(err);
-      container.innerHTML = msg.indexOf('UNAUTHORIZED') >= 0 || msg.indexOf('Manager') >= 0
+  fetch(WORKER_URL + '/api/reports/data?daysBack=' + (daysBack || 30), {
+    headers: { 'X-User-Email': USER ? USER.email : '' }
+  })
+  .then(function(r) { return r.json(); })
+  .then(function(data) {
+    if (data && data.error) {
+      var msg = data.error;
+      container.innerHTML = (msg.indexOf('Manager') >= 0 || msg.indexOf('required') >= 0)
         ? '<div class="rpt-empty">Reports are only available to managers.</div>'
         : '<div class="rpt-empty">Error loading report: ' + esc(msg) + '</div>';
-    })
-    .getReportData({ daysBack: daysBack || 30 });
+      return;
+    }
+    _renderReport_(data, container);
+  })
+  .catch(function(err) {
+    container.innerHTML = '<div class="rpt-empty">Error loading report: ' + esc(err.message || String(err)) + '</div>';
+  });
 }
 
 function _renderReport_(data, container) {
@@ -556,12 +564,20 @@ function _emrlSearch_() {
   statusEl.textContent  = 'Loading…';
   resultsEl.innerHTML   = '';
 
-  google.script.run
-    .withSuccessHandler(function(res) { _emrlRender_(res, statusEl, resultsEl); })
-    .withFailureHandler(function(err) {
-      statusEl.textContent = 'Error: ' + (err.message || String(err));
-    })
-    .getEMRLData(params);
+  var qs = Object.keys(params).map(function(k) {
+    return encodeURIComponent(k) + '=' + encodeURIComponent(params[k]);
+  }).join('&');
+  fetch(WORKER_URL + '/api/reports/emrl?' + qs, {
+    headers: { 'X-User-Email': USER ? USER.email : '' }
+  })
+  .then(function(r) { return r.json(); })
+  .then(function(res) {
+    if (res && res.error) { statusEl.textContent = 'Error: ' + esc(res.error); return; }
+    _emrlRender_(res, statusEl, resultsEl);
+  })
+  .catch(function(err) {
+    statusEl.textContent = 'Error: ' + (err.message || String(err));
+  });
 }
 
 function _emrlRender_(res, statusEl, resultsEl) {

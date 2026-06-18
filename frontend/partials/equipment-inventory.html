@@ -100,13 +100,20 @@ PAGES['equipment-inventory'] = function(c) { _loadEquipInventory_(c); };
 function _loadEquipInventory_(container) {
   container.innerHTML =
     '<div class="loading-overlay"><div class="spinner"></div><span>Loading equipment inventory…</span></div>';
-  google.script.run
-    .withSuccessHandler(function(data) { _renderEquipInventory_(data, container); })
-    .withFailureHandler(function(err) {
-      container.innerHTML =
-        '<div class="ei-empty">Error loading equipment inventory: ' + esc(err.message || String(err)) + '</div>';
-    })
-    .getEquipmentInventoryPageData();
+  fetch(WORKER_URL + '/api/equip/inventory', {
+    headers: { 'X-User-Email': USER ? USER.email : '' }
+  })
+  .then(function(r) { return r.json(); })
+  .then(function(data) {
+    if (data && data.error) {
+      container.innerHTML = '<div class="ei-empty">Error loading equipment inventory: ' + esc(data.error) + '</div>';
+      return;
+    }
+    _renderEquipInventory_(data, container);
+  })
+  .catch(function(err) {
+    container.innerHTML = '<div class="ei-empty">Error loading equipment inventory: ' + esc(err.message || String(err)) + '</div>';
+  });
 }
 
 function _renderEquipInventory_(data, container) {
@@ -224,10 +231,12 @@ function _eiOpenDetail_(equipCode) {
   document.getElementById('ei-detail-body').innerHTML =
     '<div class="loading-overlay"><div class="spinner"></div><span>Loading ticket history…</span></div>';
 
-  google.script.run
-    .withSuccessHandler(function(hist) { _eiRenderDetail_(equip, hist || []); })
-    .withFailureHandler(function() { _eiRenderDetail_(equip, []); })
-    .getEquipTicketHistory(equipCode);
+  fetch(WORKER_URL + '/api/tickets/equip-history?equipCode=' + encodeURIComponent(equipCode), {
+    headers: { 'X-User-Email': USER ? USER.email : '' }
+  })
+  .then(function(r) { return r.json(); })
+  .then(function(hist) { _eiRenderDetail_(equip, Array.isArray(hist) ? hist : []); })
+  .catch(function() { _eiRenderDetail_(equip, []); });
 }
 
 function _eiCloseDetail_() {

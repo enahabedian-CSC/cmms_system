@@ -138,18 +138,21 @@ PAGES['submit'] = function(container) {
   if (_sfData) {
     _sfPopulate_(_sfData);
   } else {
-    google.script.run
-      .withSuccessHandler(function(d) {
+    fetch(WORKER_URL + '/api/submit/form-data', {
+      headers: { 'X-User-Email': USER ? USER.email : '' }
+    })
+      .then(function(r) { return r.json(); })
+      .then(function(d) {
+        if (d.error) throw new Error(d.error);
         _sfData = d;
         _sfPopulate_(d);
         _sfUpdatePreview_();
       })
-      .withFailureHandler(function(e) {
+      .catch(function(e) {
         container.innerHTML =
           '<div style="padding:32px;color:var(--status-critical);">Failed to load form: ' +
-          esc(e.message || String(e)) + '</div>';
-      })
-      .getAddTicketFormData();
+          esc(String(e.message || e)) + '</div>';
+      });
   }
   _sfUpdatePreview_();
 };
@@ -671,8 +674,11 @@ function _sfUpdateHeadsUp_() {
   }
   el.innerHTML = '<span style="color:var(--text-tertiary);">Loading history for ' + esc(_sfEquipCode) + '…</span>';
   var code = _sfEquipCode;
-  google.script.run
-    .withSuccessHandler(function(stats) {
+  fetch(WORKER_URL + '/api/submit/equip-stats?equipCode=' + encodeURIComponent(code), {
+    headers: { 'X-User-Email': USER ? USER.email : '' }
+  })
+    .then(function(r) { return r.json(); })
+    .then(function(stats) {
       var el2 = document.getElementById('sf-headsup-text');
       if (!el2) return;
       if (!stats || stats.count60d === 0) {
@@ -685,11 +691,10 @@ function _sfUpdateHeadsUp_() {
       if (stats.count60d >= 3) msg += ' Consider a parallel preventive ticket if the root cause is unresolved.';
       el2.innerHTML = msg;
     })
-    .withFailureHandler(function() {
+    .catch(function() {
       var el2 = document.getElementById('sf-headsup-text');
       if (el2) el2.innerHTML = 'Could not load equipment ticket history.';
-    })
-    .getEquipQuickStats(code);
+    });
 }
 
 // ── Step navigation ───────────────────────────────────────────────────────────
@@ -833,8 +838,13 @@ function submitTicket() {
     photoUrl:      val('sf-photo').trim()
   };
 
-  google.script.run
-    .withSuccessHandler(function(result) {
+  fetch(WORKER_URL + '/api/submit/add', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-User-Email': USER ? USER.email : '' },
+    body: JSON.stringify(payload)
+  })
+    .then(function(r) { return r.json(); })
+    .then(function(result) {
       if (result.success) {
         showSuccessScreen(result.ticketNo, result.status, result.tracker);
       } else {
@@ -842,11 +852,10 @@ function submitTicket() {
         if (btn) { btn.disabled = false; btn.textContent = 'Submit Ticket'; }
       }
     })
-    .withFailureHandler(function(err) {
-      showToast('Submission failed: ' + esc(err.message || String(err)), 'error', 7000);
+    .catch(function(err) {
+      showToast('Submission failed: ' + esc(String(err.message || err)), 'error', 7000);
       if (btn) { btn.disabled = false; btn.textContent = 'Submit Ticket'; }
-    })
-    .addNewTicket(payload);
+    });
 }
 
 function showSuccessScreen(ticketNo, status, tracker) {
@@ -886,10 +895,12 @@ function submitAnotherTicket() {
   if (_sfData) {
     _sfPopulate_(_sfData);
   } else {
-    google.script.run
-      .withSuccessHandler(function(d) { _sfData = d; _sfPopulate_(d); _sfUpdatePreview_(); })
-      .withFailureHandler(function(e) { showToast('Error reloading form: ' + esc(e.message || String(e)), 'error'); })
-      .getAddTicketFormData();
+    fetch(WORKER_URL + '/api/submit/form-data', {
+      headers: { 'X-User-Email': USER ? USER.email : '' }
+    })
+      .then(function(r) { return r.json(); })
+      .then(function(d) { if (d.error) throw new Error(d.error); _sfData = d; _sfPopulate_(d); _sfUpdatePreview_(); })
+      .catch(function(e) { showToast('Error reloading form: ' + esc(String(e.message || e)), 'error'); });
   }
   _sfUpdatePreview_();
 }
