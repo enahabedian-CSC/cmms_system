@@ -206,6 +206,72 @@ function docLabel(key) {
     (d.rev !== '' && d.rev != null ? ' · Rev ' + d.rev : '') +
     (d.date ? ' · ' + d.date : '');
 }
+
+// ── google.script.run → Cloudflare Worker bridge ─────────────────────────────
+// Every screen partial was written for Apps Script's google.script.run RPC API.
+// On GitHub Pages that API does not exist, so we shim it onto the Worker's
+// /api/rpc endpoint: google.script.run.<fn>(args) becomes a POST {fn,args} and
+// the .withSuccessHandler / .withFailureHandler callbacks fire exactly as they
+// would under Apps Script. Without this shim NO screen beyond the dashboard
+// can load its data.
+(function installGasBridge() {
+  window.google = window.google || {};
+  google.script = google.script || {};
+
+  function dispatch(handlers, fnName, args) {
+    var email = (typeof USER !== 'undefined' && USER && USER.email) ||
+                sessionStorage.getItem('cmms_email') || '';
+    fetch(WORKER_URL + '/api/rpc', {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json', 'X-User-Email': email },
+      body:    JSON.stringify({ fn: fnName, args: args })
+    })
+      .then(function(r) {
+        return r.json()
+          .catch(function() { return {}; })
+          .then(function(body) { return { ok: r.ok, body: body }; });
+      })
+      .then(function(res) {
+        if (!res.ok || (res.body && res.body.error)) {
+          var msg = (res.body && res.body.error) || 'Request failed';
+          if (handlers.failure) handlers.failure(new Error(msg));
+          else if (typeof showToast === 'function') showToast(msg, 'error', 6000);
+          return;
+        }
+        if (handlers.success) handlers.success(res.body ? res.body.result : undefined);
+      })
+      .catch(function(err) {
+        if (handlers.failure) handlers.failure(err);
+        else if (typeof showToast === 'function') showToast('Network error: ' + err.message, 'error', 6000);
+      });
+  }
+
+  function makeRunner(handlers) {
+    return new Proxy({}, {
+      get: function(_t, prop) {
+        if (prop === 'withSuccessHandler')
+          return function(fn) { return makeRunner(Object.assign({}, handlers, { success: fn })); };
+        if (prop === 'withFailureHandler')
+          return function(fn) { return makeRunner(Object.assign({}, handlers, { failure: fn })); };
+        if (prop === 'withUserObject')
+          return function(o)  { return makeRunner(Object.assign({}, handlers, { userObject: o })); };
+        // Any other property access is treated as a server-function invocation.
+        return function() { dispatch(handlers, String(prop), Array.prototype.slice.call(arguments)); };
+      }
+    });
+  }
+
+  // Fresh runner per access so chained handlers from different call sites
+  // never leak into one another (matches Apps Script semantics).
+  Object.defineProperty(google.script, 'run', {
+    configurable: true,
+    get: function() { return makeRunner({}); }
+  });
+
+  // Some partials reference google.script.host.* — provide harmless no-ops.
+  google.script.host = google.script.host ||
+    { close: function() {}, setHeight: function() {}, setWidth: function() {}, editor: {} };
+})();
 </script>
 
 <div id="app" class="app">
@@ -219,9 +285,6 @@ function docLabel(key) {
           Maintenance<span class="sub">Operations Console</span><span class="app-ver" id="app-version-badge">v—</span>
         </div>
       </div>
-      <button class="sidebar-collapse" onclick="toggleSidebar()" title="Collapse sidebar">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M15 18l-6-6 6-6"/></svg>
-      </button>
     </div>
 
     <nav class="sidebar-nav" id="sidebar-nav"><!-- rendered by buildNav() --></nav>
@@ -572,11 +635,6 @@ function loadPage(pageId, container) {
       '<div style="padding:40px 24px;color:var(--text-secondary);font-size:13px;">' +
       'This screen is not yet available.</div>';
   }
-}
-
-// ── Sidebar collapse toggle ───────────────────────────────────────────────────
-function toggleSidebar() {
-  document.getElementById('app').classList.toggle('collapsed');
 }
 
 // ── Toast notifications ───────────────────────────────────────────────────────
