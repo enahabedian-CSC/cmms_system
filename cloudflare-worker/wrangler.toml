@@ -1,0 +1,18 @@
+name = "cmms-worker"
+main = "worker.js"
+compatibility_date = "2024-09-23"
+
+# ── Required secrets ──────────────────────────────────────────────────────────
+# Set each with:  wrangler secret put <NAME>
+#
+#   SPREADSHEET_ID        — The ID from your Google Sheets URL
+#                           (the long string between /d/ and /edit)
+#   GOOGLE_SA_EMAIL       — "client_email" from the service account JSON key file
+#   GOOGLE_SA_PRIVATE_KEY — "private_key" from the service account JSON key file
+#                           (paste the full PEM block including -----BEGIN/END-----)
+#   ALLOWED_ORIGIN        — CORS origin for your GitHub Pages site
+#                           e.g. https://your-org.github.io
+#
+# ── Optional vars ─────────────────────────────────────────────────────────────
+# [vars]
+# APP_VERSION = "2.5"     # bumped by deploy.ps1; can also be a secret
