@@ -26,6 +26,29 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Inline GAS partials into index.html
+        run: |
+          python3 - <<'EOF'
+          import re
+
+          with open('frontend/index.html', 'r') as f:
+              content = f.read()
+
+          def replace_include(m):
+              path = m.group(1) + '.html'
+              with open(path, 'r') as pf:
+                  return pf.read()
+
+          content = re.sub(
+              r"<\?!=\s*include_\('([^']+)'\)\s*\?>",
+              replace_include,
+              content
+          )
+
+          with open('frontend/index.html', 'w') as f:
+              f.write(content)
+          EOF
+
       - uses: actions/configure-pages@v5
 
       - uses: actions/upload-pages-artifact@v3
