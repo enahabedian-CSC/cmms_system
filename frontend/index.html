@@ -6,6 +6,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://accounts.google.com/gsi/client" async defer></script>
 <style>
 /* ── Design tokens (match mockup) ───────────────────────────────────────── */
 :root {
@@ -192,9 +193,11 @@ a{color:inherit;text-decoration:none;}
 <body>
 <!-- Server injects userInfo via template scriptlet -->
 <script>
-var USER = <?!= userInfoJson ?>;
-var COMPANY = <?!= JSON.stringify(companyName) ?>;
-var DOC_CONTROL = <?!= docControlJson ?>;  // Module 8: { key: {no, rev, date} } from config
+var USER        = null;   // populated by boot() via /api/me
+var COMPANY     = '';     // populated by boot() via /api/me
+var DOC_CONTROL = {};     // populated by boot() via /api/me
+var WORKER_URL  = 'https://cmms-worker.enahabedian.workers.dev'; // ← replace with your Worker URL
+var GOOGLE_CLIENT_ID = '944106369972-82conr311g7rq5ndmkc274b2fc3i30fp.apps.googleusercontent.com'; // ← replace with your OAuth client ID
 // Formats a controlled-document identity triplet, e.g. "FRM-030-003 · Rev 0 · 6/5/2026".
 function docLabel(key) {
   var d = (DOC_CONTROL || {})[key];
@@ -635,22 +638,24 @@ window.PAGES['home'] = function(container) {
     '</div>';
 
   // Load slim KPI counts
-  google.script.run
-    .withSuccessHandler(function(counts) { _homeRenderKpis_(counts); })
-    .withFailureHandler(function() { /* KPIs stay as '—' */ })
-    .getDashboardCounts();
+  fetch(WORKER_URL + '/api/dashboard/counts', {
+    headers: { 'X-User-Email': (USER && USER.email) || '' }
+  }).then(function(r) { return r.json(); })
+    .then(function(counts) { _homeRenderKpis_(counts); })
+    .catch(function() { /* KPIs stay as '—' */ });
 
   if (USER.isManager) {
     // Load the three category lists from the existing dashboard panels.
-    google.script.run
-      .withSuccessHandler(function(panels) { _homeRenderPanels_(panels); })
-      .withFailureHandler(function() {
+    fetch(WORKER_URL + '/api/dashboard/panels', {
+      headers: { 'X-User-Email': (USER && USER.email) || '' }
+    }).then(function(r) { return r.json(); })
+      .then(function(panels) { _homeRenderPanels_(panels); })
+      .catch(function() {
         ['cat-assign','cat-verify','cat-temp'].forEach(function(id) {
           var el = document.getElementById(id + '-body');
           if (el) el.innerHTML = '<div style="padding:10px 0;color:var(--text-tertiary);font-size:12px;">Unable to load.</div>';
         });
-      })
-      .getDashboardPanels();
+      });
   } else {
     ['cat-assign','cat-verify','cat-temp'].forEach(function(id) {
       var el = document.getElementById(id + '-body');
@@ -769,38 +774,113 @@ function renderTrendChart(trend) {
   }).join('');
 }
 
-// ── Init ──────────────────────────────────────────────────────────────────────
-(function init() {
-  // Populate user info in footer
+// ── App init — runs after boot() resolves USER/COMPANY/DOC_CONTROL ───────────
+function _runApp_(version) {
   document.getElementById('user-avatar').textContent    = USER.initials;
   document.getElementById('user-name').textContent      = USER.displayName;
   var roleLabel = { admin: 'System Admin', manager: 'Manager', tech: 'Technician' }[USER.role] || USER.role;
   document.getElementById('user-role-label').textContent = roleLabel;
   document.getElementById('topbar-company').textContent  = COMPANY;
 
+  if (version) {
+    var vBadge = document.getElementById('app-version-badge');
+    if (vBadge) vBadge.textContent = 'v' + version;
+  }
+
   buildNav();
-
-  // C14: populate version badge — silent fail (cosmetic)
-  google.script.run
-    .withSuccessHandler(function(v) {
-      var el = document.getElementById('app-version-badge');
-      if (el) el.textContent = 'v' + v;
-    })
-    .withFailureHandler(function() {})
-    .getAppVersion();
-
-  // Open "Tickets" section by default so the queue is visible on first load
   toggleNavSection('tickets');
 
-  // Activate home nav item
   var homeEl = document.getElementById('nav-home');
   if (homeEl) homeEl.classList.add('active');
 
-  // Render home page content (mark as loaded so navigate() won't re-init)
   var homePage = document.getElementById('page-home');
   if (homePage) {
     loadPage('home', homePage);
     homePage.setAttribute('data-loaded', '1');
+  }
+}
+
+// ── Boot — signs the user in, fetches identity from sheet, starts the app ────
+(function boot() {
+  var STORAGE_KEY = 'cmms_email';
+
+  function _accessDenied_(email) {
+    document.body.innerHTML =
+      '<div style="display:flex;align-items:center;justify-content:center;height:100vh;' +
+      'font-family:system-ui,sans-serif;flex-direction:column;gap:12px;color:#64748b;">' +
+      '<span style="font-size:32px;">🔒</span>' +
+      '<strong style="font-size:16px;color:#0f172a;">Access Denied</strong>' +
+      '<span style="font-size:13px;">No access for <em>' + (email || 'this account') + '</em>. Contact your administrator.</span>' +
+      '<button onclick="sessionStorage.removeItem(\'' + STORAGE_KEY + '\');location.reload()" ' +
+      'style="margin-top:8px;padding:8px 16px;border:1px solid #cbd2da;border-radius:6px;background:#fff;cursor:pointer;font-size:13px;">Sign in with a different account</button>' +
+      '</div>';
+  }
+
+  function _loadError_() {
+    document.body.innerHTML =
+      '<div style="display:flex;align-items:center;justify-content:center;height:100vh;' +
+      'font-family:system-ui,sans-serif;flex-direction:column;gap:12px;color:#64748b;">' +
+      '<span style="font-size:32px;">⚠️</span>' +
+      '<strong style="font-size:16px;color:#0f172a;">Unable to connect</strong>' +
+      '<span style="font-size:13px;">Could not reach the CMMS service. Check your connection and try again.</span>' +
+      '<button onclick="location.reload()" ' +
+      'style="margin-top:8px;padding:8px 16px;border:1px solid #cbd2da;border-radius:6px;background:#fff;cursor:pointer;font-size:13px;">Retry</button>' +
+      '</div>';
+  }
+
+  function startWithEmail(email) {
+    fetch(WORKER_URL + '/api/me', { headers: { 'X-User-Email': email } })
+      .then(function(r) { return r.json(); })
+      .then(function(data) {
+        if (!data.user || data.user.role === 'noaccess') {
+          sessionStorage.removeItem(STORAGE_KEY);
+          _accessDenied_(email);
+          return;
+        }
+        USER        = data.user;
+        COMPANY     = data.company     || 'Container Supply Co.';
+        DOC_CONTROL = data.docControl  || {};
+        sessionStorage.setItem(STORAGE_KEY, email);
+        _runApp_(data.version);
+      })
+      .catch(_loadError_);
+  }
+
+  var storedEmail = sessionStorage.getItem(STORAGE_KEY);
+  if (storedEmail) { startWithEmail(storedEmail); return; }
+
+  // No stored session — use Google Identity Services to identify the user.
+  // GOOGLE_CLIENT_ID must be set at the top of this script.
+  function _initGSI_() {
+    google.accounts.id.initialize({
+      client_id:             GOOGLE_CLIENT_ID,
+      auto_select:           true,
+      cancel_on_tap_outside: false,
+      callback: function(response) {
+        var parts   = response.credential.split('.');
+        var payload = JSON.parse(atob(parts[1].replace(/-/g, '+').replace(/_/g, '/')));
+        startWithEmail(payload.email);
+      },
+    });
+    google.accounts.id.prompt(function(notification) {
+      if (notification.isNotDisplayed() || notification.isSkippedMoment()) {
+        // One-tap not available — render a standard sign-in button
+        document.body.innerHTML =
+          '<div style="display:flex;align-items:center;justify-content:center;height:100vh;">' +
+          '<div id="_gsi_btn_"></div></div>';
+        google.accounts.id.renderButton(
+          document.getElementById('_gsi_btn_'),
+          { theme: 'outline', size: 'large', text: 'signin_with', logo_alignment: 'left' }
+        );
+      }
+    });
+  }
+
+  // GSI library may still be loading (async defer) — wait for it
+  if (typeof google !== 'undefined' && google.accounts) {
+    _initGSI_();
+  } else {
+    window.addEventListener('load', _initGSI_);
   }
 })();
 </script>
