@@ -816,13 +816,14 @@ function _runApp_(version) {
       '</div>';
   }
 
-  function _loadError_() {
+  function _loadError_(detail) {
     document.body.innerHTML =
       '<div style="display:flex;align-items:center;justify-content:center;height:100vh;' +
       'font-family:system-ui,sans-serif;flex-direction:column;gap:12px;color:#64748b;">' +
       '<span style="font-size:32px;">⚠️</span>' +
       '<strong style="font-size:16px;color:#0f172a;">Unable to connect</strong>' +
       '<span style="font-size:13px;">Could not reach the CMMS service. Check your connection and try again.</span>' +
+      (detail ? '<code style="font-size:11px;background:#f1f5f9;padding:4px 8px;border-radius:4px;color:#64748b;max-width:500px;word-break:break-all;">' + detail + '</code>' : '') +
       '<button onclick="location.reload()" ' +
       'style="margin-top:8px;padding:8px 16px;border:1px solid #cbd2da;border-radius:6px;background:#fff;cursor:pointer;font-size:13px;">Retry</button>' +
       '</div>';
@@ -832,6 +833,7 @@ function _runApp_(version) {
     fetch(WORKER_URL + '/api/me', { headers: { 'X-User-Email': email } })
       .then(function(r) { return r.json(); })
       .then(function(data) {
+        if (data.error) { _loadError_(data.error); return; }
         if (!data.user || data.user.role === 'noaccess') {
           sessionStorage.removeItem(STORAGE_KEY);
           _accessDenied_(email);
