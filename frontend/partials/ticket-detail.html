@@ -124,13 +124,22 @@ function openTicketDetail(ticketNo) {
   document.getElementById('td-body').innerHTML =
     '<div class="loading-overlay"><div class="spinner"></div><span>Loading ticket…</span></div>';
 
-  google.script.run
-    .withSuccessHandler(function(result) { _renderDetail_(result); })
-    .withFailureHandler(function(err) {
+  fetch(WORKER_URL + '/api/tickets/detail?ticketNo=' + encodeURIComponent(ticketNo), {
+    headers: { 'X-User-Email': USER ? USER.email : '' }
+  })
+  .then(function(r) { return r.json(); })
+  .then(function(result) {
+    if (result && result.error) {
       document.getElementById('td-body').innerHTML =
-        '<div style="padding:40px 24px;color:var(--text-secondary);">Error: ' + esc(err.message || String(err)) + '</div>';
-    })
-    .getTicketDetail(ticketNo);
+        '<div style="padding:40px 24px;color:var(--text-secondary);">Error: ' + esc(result.error) + '</div>';
+      return;
+    }
+    _renderDetail_(result);
+  })
+  .catch(function(err) {
+    document.getElementById('td-body').innerHTML =
+      '<div style="padding:40px 24px;color:var(--text-secondary);">Error: ' + esc(err.message || String(err)) + '</div>';
+  });
 }
 
 function closeTicketDetail() {
@@ -812,40 +821,66 @@ function _tdTransfer_() {
 
 // ── Action runner ─────────────────────────────────────────────────────────────
 
+var _tdActionUrls_ = {
+  approveTicket:        '/api/tickets/approve',
+  completeTicket:       '/api/tickets/complete',
+  verifyAndCloseTicket: '/api/tickets/verify-close',
+  voidTicket:           '/api/tickets/void',
+  requestParts:         '/api/tickets/request-parts',
+  updateTicket:         '/api/tickets/update',
+  assignTicket:         '/api/tickets/assign',
+  flagTempFix:          '/api/tickets/flag-temp-fix',
+  transferTicket:       '/api/tickets/transfer',
+  deptSignOff:          '/api/tickets/dept-sign-off',
+  confirmJointRequest:  '/api/tickets/confirm-joint',
+  rejectJointRequest:   '/api/tickets/reject-joint',
+  issueEquipHoldTag:    '/api/monitoring/hold-tags/issue',
+  saveServiceReport:    '/api/tickets/service-report',
+};
+
 function _tdRunAction_(serverFn, data, successLabel) {
   _closeModal_();
   document.getElementById('td-body').innerHTML =
     '<div class="loading-overlay"><div class="spinner"></div><span>Saving…</span></div>';
 
-  google.script.run
-    .withSuccessHandler(function(result) {
-      if (result && result.success) {
-        showToast(successLabel + ': ' + data.ticketNo, 'success');
-        // Refresh detail view
-        openTicketDetail(data.ticketNo);
-        // Refresh whichever queue page is behind the overlay
-        var activePage = document.querySelector('.page.active');
-        if (activePage && activePage.id && activePage.id.startsWith('page-')) {
-          var pid = activePage.id.replace('page-', '');
-          if (pid.startsWith('tracker-')) {
-            var dept = pid.replace('tracker-', '').replace(/-/g, ' ').toUpperCase();
-            _refreshQueuePage_(pid, dept);
-          } else if (pid === 'waiting' || pid === 'open') {
-            _refreshQueuePage_(pid, null);
-          } else if (window.PAGES && window.PAGES[pid]) {
-            window.PAGES[pid](activePage);
-          }
-        }
-      } else {
-        showToast('Error: ' + ((result && result.error) || 'Unknown error'), 'error');
-        openTicketDetail(data.ticketNo); // reload to recover
-      }
-    })
-    .withFailureHandler(function(err) {
-      showToast('Server error: ' + (err.message || String(err)), 'error');
+  var apiUrl = _tdActionUrls_[serverFn.name];
+  if (!apiUrl) {
+    showToast('Unknown action: ' + serverFn.name, 'error');
+    openTicketDetail(data.ticketNo);
+    return;
+  }
+
+  fetch(WORKER_URL + apiUrl, {
+    method:  'POST',
+    headers: { 'Content-Type': 'application/json', 'X-User-Email': USER ? USER.email : '' },
+    body:    JSON.stringify(data)
+  })
+  .then(function(r) { return r.json(); })
+  .then(function(result) {
+    if (result && result.success) {
+      showToast(successLabel + ': ' + data.ticketNo, 'success');
       openTicketDetail(data.ticketNo);
-    })
-    [serverFn.name](data);
+      var activePage = document.querySelector('.page.active');
+      if (activePage && activePage.id && activePage.id.startsWith('page-')) {
+        var pid = activePage.id.replace('page-', '');
+        if (pid.startsWith('tracker-')) {
+          var dept = pid.replace('tracker-', '').replace(/-/g, ' ').toUpperCase();
+          _refreshQueuePage_(pid, dept);
+        } else if (pid === 'waiting' || pid === 'open') {
+          _refreshQueuePage_(pid, null);
+        } else if (window.PAGES && window.PAGES[pid]) {
+          window.PAGES[pid](activePage);
+        }
+      }
+    } else {
+      showToast('Error: ' + ((result && result.error) || 'Unknown error'), 'error');
+      openTicketDetail(data.ticketNo);
+    }
+  })
+  .catch(function(err) {
+    showToast('Error: ' + (err.message || String(err)), 'error');
+    openTicketDetail(data.ticketNo);
+  });
 }
 
 // ── Modal helpers ─────────────────────────────────────────────────────────────
@@ -1004,19 +1039,20 @@ function _tdRejectJoint_() {
     }, 'Reject');
 }
 
-// ── Backend function proxies (called via _tdRunAction_) ───────────────────────
-// These are defined here as stubs so _tdRunAction_ can call fn.name on them.
-// The actual work is done by google.script.run.[name](data) on the server.
-function approveTicket(d)        { /* server */ }
-function completeTicket(d)       { /* server */ }
-function verifyAndCloseTicket(d) { /* server */ }
-function voidTicket(d)           { /* server */ }
-function requestParts(d)         { /* server */ }
-function updateTicket(d)         { /* server */ }
-function assignTicket(d)         { /* server */ }
-function flagTempFix(d)          { /* server */ }
-function transferTicket(d)       { /* server */ }
-function deptSignOff(d)           { /* server */ }
-function confirmJointRequest(d)   { /* server */ }
-function rejectJointRequest(d)    { /* server */ }
+// ── Backend function stubs (called via _tdRunAction_) ────────────────────────
+// fn.name is used to look up the Worker URL in _tdActionUrls_.
+function approveTicket(d)        {}
+function completeTicket(d)       {}
+function verifyAndCloseTicket(d) {}
+function voidTicket(d)           {}
+function requestParts(d)         {}
+function updateTicket(d)         {}
+function assignTicket(d)         {}
+function flagTempFix(d)          {}
+function transferTicket(d)       {}
+function deptSignOff(d)          {}
+function confirmJointRequest(d)  {}
+function rejectJointRequest(d)   {}
+function issueEquipHoldTag(d)    {}
+function saveServiceReport(d)    {}
 </script>

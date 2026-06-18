@@ -55,13 +55,20 @@ PAGES['tech-board'] = function(c) { _loadTechBoard_(c); };
 function _loadTechBoard_(container) {
   container.innerHTML =
     '<div class="loading-overlay"><div class="spinner"></div><span>Loading work board…</span></div>';
-  google.script.run
-    .withSuccessHandler(function(data) { _renderTechBoard_(data, container); })
-    .withFailureHandler(function(err) {
-      container.innerHTML =
-        '<div class="twb-empty">Error loading work board: ' + esc(err.message || String(err)) + '</div>';
-    })
-    .getTechWorkBoardData();
+  fetch(WORKER_URL + '/api/tech-board', {
+    headers: { 'X-User-Email': USER ? USER.email : '' }
+  })
+  .then(function(r) { return r.json(); })
+  .then(function(data) {
+    if (data && data.error) {
+      container.innerHTML = '<div class="twb-empty">Error loading work board: ' + esc(data.error) + '</div>';
+      return;
+    }
+    _renderTechBoard_(data, container);
+  })
+  .catch(function(err) {
+    container.innerHTML = '<div class="twb-empty">Error loading work board: ' + esc(err.message || String(err)) + '</div>';
+  });
 }
 
 function _renderTechBoard_(data, container) {

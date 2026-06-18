@@ -31,15 +31,23 @@ window.PAGES = window.PAGES || {};
 function _loadAdminPage_(view, title, container) {
   container.innerHTML =
     '<div class="loading-overlay"><div class="spinner"></div><span>Loading ' + esc(title) + '…</span></div>';
-  google.script.run
-    .withSuccessHandler(function(data) { _renderAdminView_(data, container); })
-    .withFailureHandler(function(err) {
-      var msg = err.message || String(err);
-      container.innerHTML = msg.indexOf('UNAUTHORIZED') >= 0 || msg.indexOf('Admin') >= 0
+  fetch(WORKER_URL + '/api/admin/view?view=' + encodeURIComponent(view), {
+    headers: { 'X-User-Email': USER ? USER.email : '' }
+  })
+  .then(function(r) { return r.json(); })
+  .then(function(data) {
+    if (data && data.error) {
+      var msg = data.error;
+      container.innerHTML = (msg.indexOf('Admin') >= 0 || msg.indexOf('required') >= 0)
         ? '<div class="adm-unauthorized">This view requires system admin access.</div>'
         : '<div class="adm-unauthorized">Error: ' + esc(msg) + '</div>';
-    })
-    .getAdminViewData(view);
+      return;
+    }
+    _renderAdminView_(data, container);
+  })
+  .catch(function(err) {
+    container.innerHTML = '<div class="adm-unauthorized">Error: ' + esc(err.message || String(err)) + '</div>';
+  });
 }
 
 function _renderAdminView_(data, container) {
@@ -129,12 +137,17 @@ PAGES['admin-equip'] = function(c) { _loadEquipCachePage_(c); };
 function _loadEquipCachePage_(container) {
   container.innerHTML =
     '<div class="loading-overlay"><div class="spinner"></div><span>Checking equipment cache…</span></div>';
-  google.script.run
-    .withSuccessHandler(function(d) { _renderEquipCachePage_(d, container); })
-    .withFailureHandler(function(err) {
-      container.innerHTML = '<div class="adm-unauthorized">Error: ' + esc(err.message || String(err)) + '</div>';
-    })
-    .getEquipCacheStatus();
+  fetch(WORKER_URL + '/api/admin/equip-cache', {
+    headers: { 'X-User-Email': USER ? USER.email : '' }
+  })
+  .then(function(r) { return r.json(); })
+  .then(function(d) {
+    if (d && d.error) { container.innerHTML = '<div class="adm-unauthorized">Error: ' + esc(d.error) + '</div>'; return; }
+    _renderEquipCachePage_(d, container);
+  })
+  .catch(function(err) {
+    container.innerHTML = '<div class="adm-unauthorized">Error: ' + esc(err.message || String(err)) + '</div>';
+  });
 }
 
 function _renderEquipCachePage_(d, container) {
@@ -284,32 +297,34 @@ function _runEquipCacheRefresh_() {
   var res = document.getElementById('equip-refresh-result');
   if (btn) { btn.disabled = true; btn.textContent = '↻ Refreshing…'; }
   if (res) res.innerHTML = '';
-  google.script.run
-    .withSuccessHandler(function(result) {
-      if (btn) { btn.disabled = false; btn.textContent = '↻ Refresh Cache Now'; }
-      if (res) {
-        if (result.success) {
-          res.innerHTML =
-            '<div class="adm-notice" style="background:var(--status-success-bg);border-color:var(--status-success);color:var(--status-success);margin-bottom:10px;">' +
-            '✓ Cache refreshed — <strong>' + result.rows + ' rows</strong> cached. Reloading status…</div>';
-          setTimeout(function() {
-            _loadEquipCachePage_(document.getElementById('page-admin-equip'));
-          }, 1500);
-        } else {
-          res.innerHTML =
-            '<div class="adm-notice" style="background:var(--status-critical-bg);border-color:var(--status-critical);color:var(--status-critical);margin-bottom:10px;">' +
-            '✗ Refresh failed: ' + esc(result.error || 'Unknown error') + '</div>';
-        }
-      }
-    })
-    .withFailureHandler(function(err) {
-      if (btn) { btn.disabled = false; btn.textContent = '↻ Refresh Cache Now'; }
-      if (res) {
+  fetch(WORKER_URL + '/api/admin/equip-cache/refresh', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-User-Email': USER ? USER.email : '' },
+    body: '{}'
+  })
+  .then(function(r) { return r.json(); })
+  .then(function(result) {
+    if (btn) { btn.disabled = false; btn.textContent = '↻ Refresh Cache Now'; }
+    if (res) {
+      if (result.success) {
+        res.innerHTML =
+          '<div class="adm-notice" style="background:var(--status-success-bg);border-color:var(--status-success);color:var(--status-success);margin-bottom:10px;">' +
+          '✓ Cache refreshed — <strong>' + result.rows + ' rows</strong> cached. Reloading status…</div>';
+        setTimeout(function() { _loadEquipCachePage_(document.getElementById('page-admin-equip')); }, 1500);
+      } else {
         res.innerHTML =
           '<div class="adm-notice" style="background:var(--status-critical-bg);border-color:var(--status-critical);color:var(--status-critical);margin-bottom:10px;">' +
-          '✗ ' + esc(err.message || String(err)) + '</div>';
+          '✗ Refresh failed: ' + esc(result.error || 'Unknown error') + '</div>';
       }
-    })
-    .refreshEquipCache();
+    }
+  })
+  .catch(function(err) {
+    if (btn) { btn.disabled = false; btn.textContent = '↻ Refresh Cache Now'; }
+    if (res) {
+      res.innerHTML =
+        '<div class="adm-notice" style="background:var(--status-critical-bg);border-color:var(--status-critical);color:var(--status-critical);margin-bottom:10px;">' +
+        '✗ ' + esc(err.message || String(err)) + '</div>';
+    }
+  });
 }
 </script>

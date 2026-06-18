@@ -52,13 +52,18 @@
 function _loadListPage_(queueType, deptFilter, container) {
   container.innerHTML =
     '<div class="loading-overlay"><div class="spinner"></div><span>Loading tickets…</span></div>';
-  google.script.run
-    .withSuccessHandler(function(tickets) { _renderList_(tickets, queueType, deptFilter, container); })
-    .withFailureHandler(function(err) {
-      container.innerHTML =
-        '<div class="tl-empty">Error loading tickets: ' + esc(err.message || String(err)) + '</div>';
+  var _qtParam = queueType === 'tracker' ? 'tracker' : queueType;
+  var _qtUrl   = WORKER_URL + '/api/tickets/queue?type=' + encodeURIComponent(_qtParam) +
+                 (deptFilter ? '&dept=' + encodeURIComponent(deptFilter) : '');
+  fetch(_qtUrl, { headers: { 'X-User-Email': USER ? USER.email : '' } })
+    .then(function(r) { return r.json(); })
+    .then(function(tickets) {
+      if (tickets.error) throw new Error(tickets.error);
+      _renderList_(tickets, queueType, deptFilter, container);
     })
-    .getQueueTickets(queueType, { dept: deptFilter || null });
+    .catch(function(err) {
+      container.innerHTML = '<div class="tl-empty">Error loading tickets: ' + esc(String(err.message || err)) + '</div>';
+    });
 }
 
 // Maps tracker dept → formal display title matching PAGE_TITLES in index.html
@@ -331,11 +336,15 @@ function renderPendingRows(list, tbodyId) {
 
 function _tlAcceptJoint_(ticketNo) {
   if (!confirm('Accept the joint attachment request for ticket ' + ticketNo + '?\n\nYour department will be added to this ticket and you will be required to sign off before it can be closed.')) return;
-  google.script.run
-    .withSuccessHandler(function(r) {
+  fetch(WORKER_URL + '/api/tickets/confirm-joint', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-User-Email': USER ? USER.email : '' },
+    body: JSON.stringify({ ticketNo: ticketNo })
+  })
+    .then(function(r) { return r.json(); })
+    .then(function(r) {
       if (r && r.success) {
         showToast('✓ Joint request accepted for ' + ticketNo, 'success');
-        // Refresh the current tracker page
         var activePageEl = document.querySelector('[id^="page-tracker-"]');
         if (activePageEl) {
           var deptMatch = activePageEl.id.replace('page-tracker-', '');
@@ -345,15 +354,19 @@ function _tlAcceptJoint_(ticketNo) {
         showToast('Error: ' + ((r && r.error) || 'Unknown error'), 'error');
       }
     })
-    .withFailureHandler(function(err) { showToast('Server error: ' + (err.message || err), 'error'); })
-    .confirmJointRequest({ ticketNo: ticketNo });
+    .catch(function(err) { showToast('Server error: ' + String(err.message || err), 'error'); });
 }
 
 function _tlRejectJoint_(ticketNo) {
   var reason = prompt('Reason for rejecting the joint request on ' + ticketNo + ' (optional):');
   if (reason === null) return;  // user cancelled
-  google.script.run
-    .withSuccessHandler(function(r) {
+  fetch(WORKER_URL + '/api/tickets/reject-joint', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-User-Email': USER ? USER.email : '' },
+    body: JSON.stringify({ ticketNo: ticketNo, reason: reason })
+  })
+    .then(function(r) { return r.json(); })
+    .then(function(r) {
       if (r && r.success) {
         showToast('Joint request rejected for ' + ticketNo, 'info');
         var activePageEl = document.querySelector('[id^="page-tracker-"]');
@@ -365,20 +378,25 @@ function _tlRejectJoint_(ticketNo) {
         showToast('Error: ' + ((r && r.error) || 'Unknown error'), 'error');
       }
     })
-    .withFailureHandler(function(err) { showToast('Server error: ' + (err.message || err), 'error'); })
-    .rejectJointRequest({ ticketNo: ticketNo, reason: reason });
+    .catch(function(err) { showToast('Server error: ' + String(err.message || err), 'error'); });
 }
 
 function _tlRollover_(dept) {
   if (!confirm('Remove all CLOSED and VOIDED tickets from the ' + (dept || 'tracker') + ' sheet?\n\nTickets remain in the Closed Tickets record — this only cleans up the physical tracker sheet view.')) return;
   var deptId = 'tracker-' + (dept || '').toLowerCase().replace(/\s+/g, '-');
-  google.script.run
-    .withSuccessHandler(function(result) {
+  fetch(WORKER_URL + '/api/tickets/rollover', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-User-Email': USER ? USER.email : '' },
+    body: JSON.stringify({ dept: dept })
+  })
+    .then(function(r) { return r.json(); })
+    .then(function(result) {
       if (result && result.success) {
         var n = result.totalRemoved;
         showToast(
-          n > 0 ? 'Removed ' + n + ' closed/voided ticket' + (n !== 1 ? 's' : '') + ' from ' + (dept || 'tracker') + ' sheet'
-                : 'Nothing to remove — tracker sheet is already clean',
+          result.message || (n > 0
+            ? 'Removed ' + n + ' closed/voided ticket' + (n !== 1 ? 's' : '') + ' from ' + (dept || 'tracker') + ' sheet'
+            : 'Nothing to remove — tracker sheet is already clean'),
           n > 0 ? 'success' : 'info'
         );
       } else {
@@ -386,11 +404,10 @@ function _tlRollover_(dept) {
       }
       _refreshQueuePage_(deptId, dept);
     })
-    .withFailureHandler(function(err) {
-      showToast('Server error: ' + (err.message || String(err)), 'error');
+    .catch(function(err) {
+      showToast('Server error: ' + String(err.message || err), 'error');
       _refreshQueuePage_(deptId, dept);
-    })
-    .monthlyRollover({ dept: dept });
+    });
 }
 
 function _refreshQueuePage_(queueType, deptFilter) {

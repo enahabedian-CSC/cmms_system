@@ -130,13 +130,17 @@ PAGES['tempfix'] = function(c) { _loadTfPage_(c); };
 function _loadTfPage_(container) {
   container.innerHTML =
     '<div class="loading-overlay"><div class="spinner"></div><span>Loading temp fixes…</span></div>';
-  google.script.run
-    .withSuccessHandler(function(items) { _renderTf_(items, container); })
-    .withFailureHandler(function(err) {
-      container.innerHTML =
-        '<div class="mon-empty">Error: ' + esc(err.message || String(err)) + '</div>';
+  fetch(WORKER_URL + '/api/monitoring/temp-fix', {
+    headers: { 'X-User-Email': USER ? USER.email : '' }
+  })
+    .then(function(r) { return r.json(); })
+    .then(function(items) {
+      if (items.error) throw new Error(items.error);
+      _renderTf_(items, container);
     })
-    .getTempFixItems({ includeCleared: false });
+    .catch(function(err) {
+      container.innerHTML = '<div class="mon-empty">Error: ' + esc(String(err.message || err)) + '</div>';
+    });
 }
 
 function _renderTf_(items, container) {
@@ -251,25 +255,33 @@ function _tfRenderRows_(list) {
 
 function _tfInspect_(tempId) {
   _monModalOpen_('Record Inspection', 'Update last inspected date and recalculate next due.', function(notes) {
-    google.script.run
-      .withSuccessHandler(function(r) {
+    fetch(WORKER_URL + '/api/monitoring/temp-fix/inspect', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-User-Email': USER ? USER.email : '' },
+      body: JSON.stringify({ tempId: tempId, notes: notes })
+    })
+      .then(function(r) { return r.json(); })
+      .then(function(r) {
         if (r.success) { showToast('Inspection recorded', 'success'); _loadTfPage_(document.getElementById('page-tempfix')); }
         else showToast(r.error || 'Error', 'error');
       })
-      .withFailureHandler(function(e) { showToast(e.message || String(e), 'error'); })
-      .inspectTempFix({ tempId: tempId, notes: notes });
+      .catch(function(e) { showToast(String(e.message || e), 'error'); });
   });
 }
 
 function _tfClear_(tempId) {
   _monModalOpen_('Clear Temp Fix', 'Mark this temp fix as cleared. The parent ticket will not be closed.', function(notes) {
-    google.script.run
-      .withSuccessHandler(function(r) {
+    fetch(WORKER_URL + '/api/monitoring/temp-fix/clear', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-User-Email': USER ? USER.email : '' },
+      body: JSON.stringify({ tempId: tempId, notes: notes })
+    })
+      .then(function(r) { return r.json(); })
+      .then(function(r) {
         if (r.success) { showToast('Temp fix cleared', 'success'); _loadTfPage_(document.getElementById('page-tempfix')); }
         else showToast(r.error || 'Error', 'error');
       })
-      .withFailureHandler(function(e) { showToast(e.message || String(e), 'error'); })
-      .clearTempFix({ tempId: tempId, notes: notes });
+      .catch(function(e) { showToast(String(e.message || e), 'error'); });
   });
 }
 
@@ -282,13 +294,17 @@ PAGES['equipment-hold'] = function(c) { _loadEhlPage_(c); };
 function _loadEhlPage_(container) {
   container.innerHTML =
     '<div class="loading-overlay"><div class="spinner"></div><span>Loading equipment holds…</span></div>';
-  google.script.run
-    .withSuccessHandler(function(items) { _renderEhl_(items, container); })
-    .withFailureHandler(function(err) {
-      container.innerHTML =
-        '<div class="mon-empty">Error: ' + esc(err.message || String(err)) + '</div>';
+  fetch(WORKER_URL + '/api/monitoring/hold-tags', {
+    headers: { 'X-User-Email': USER ? USER.email : '' }
+  })
+    .then(function(r) { return r.json(); })
+    .then(function(items) {
+      if (items.error) throw new Error(items.error);
+      _renderEhl_(items, container);
     })
-    .getEquipHoldItems({ includeCleared: false });
+    .catch(function(err) {
+      container.innerHTML = '<div class="mon-empty">Error: ' + esc(String(err.message || err)) + '</div>';
+    });
 }
 
 function _renderEhl_(items, container) {
@@ -420,13 +436,17 @@ function _ehlPrintTag_(tagId) {
 
 function _ehlClear_(tagId) {
   _monModalOpen_('Clear Equipment Tag', 'Confirm equipment is cleared and safe to return to service.', function(notes) {
-    google.script.run
-      .withSuccessHandler(function(r) {
+    fetch(WORKER_URL + '/api/monitoring/hold-tags/clear', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-User-Email': USER ? USER.email : '' },
+      body: JSON.stringify({ tagId: tagId, notes: notes })
+    })
+      .then(function(r) { return r.json(); })
+      .then(function(r) {
         if (r.success) { showToast('Equipment tag cleared', 'success'); _loadEhlPage_(document.getElementById('page-equipment-hold')); }
         else showToast(r.error || 'Error', 'error');
       })
-      .withFailureHandler(function(e) { showToast(e.message || String(e), 'error'); })
-      .clearEquipTag({ tagId: tagId, notes: notes });
+      .catch(function(e) { showToast(String(e.message || e), 'error'); });
   });
 }
 
@@ -439,13 +459,17 @@ PAGES['parts'] = function(c) { _loadPnPage_(c); };
 function _loadPnPage_(container) {
   container.innerHTML =
     '<div class="loading-overlay"><div class="spinner"></div><span>Loading parts…</span></div>';
-  google.script.run
-    .withSuccessHandler(function(items) { _renderPn_(items, container); })
-    .withFailureHandler(function(err) {
-      container.innerHTML =
-        '<div class="mon-empty">Error: ' + esc(err.message || String(err)) + '</div>';
+  fetch(WORKER_URL + '/api/monitoring/parts', {
+    headers: { 'X-User-Email': USER ? USER.email : '' }
+  })
+    .then(function(r) { return r.json(); })
+    .then(function(items) {
+      if (items.error) throw new Error(items.error);
+      _renderPn_(items, container);
     })
-    .getPartsItems({});
+    .catch(function(err) {
+      container.innerHTML = '<div class="mon-empty">Error: ' + esc(String(err.message || err)) + '</div>';
+    });
 }
 
 function _renderPn_(items, container) {
@@ -521,13 +545,17 @@ function _pnApply_() {
 }
 
 function _pnAdvance_(partId, newStatus) {
-  google.script.run
-    .withSuccessHandler(function(r) {
+  fetch(WORKER_URL + '/api/monitoring/parts/status', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-User-Email': USER ? USER.email : '' },
+    body: JSON.stringify({ partId: partId, status: newStatus })
+  })
+    .then(function(r) { return r.json(); })
+    .then(function(r) {
       if (r.success) { showToast('Status → ' + newStatus, 'success'); _loadPnPage_(document.getElementById('page-parts')); }
       else showToast(r.error || 'Error', 'error');
     })
-    .withFailureHandler(function(e) { showToast(e.message || String(e), 'error'); })
-    .updatePartsStatus({ partId: partId, status: newStatus });
+    .catch(function(e) { showToast(String(e.message || e), 'error'); });
 }
 
 // ─── KPI helpers ─────────────────────────────────────────────────────────────
