@@ -35,23 +35,40 @@ function getDashboardCounts() {
     var latestDept     = {};
     var latestClosed   = {};
     var latestOpened   = {};
+    // Global (un-scoped) maps: one entry per ticket number, so a joint ticket
+    // that appears in several department trackers is still counted exactly ONCE.
+    var gStatus   = {};
+    var gPriority = {};
 
     data.forEach(function(r) {
       var tn   = String(r[ML.TICKET_NO  - 1] || '').trim();
       var dept = String(r[ML.DEPT       - 1] || '').trim();
       if (!tn) return;
-      // dept-scope filter
-      if (!user.isAdmin && user.ownedDepts.indexOf(dept) === -1) return;
       // Last NON-EMPTY wins (matches the tracker/panel queues). Absolute
       // last-write-wins let a trailing blank-status row overwrite a real status
       // with '', silently dropping open tickets from the count.
       var st = String(r[ML.STATUS   - 1] || '').trim().toUpperCase();
-      if (st) latestStatus[tn] = st;
       var pr = String(r[ML.PRIORITY - 1] || '').trim().toUpperCase();
+      // Global, keyed by ticket number (joint-safe, never double counts).
+      if (st) gStatus[tn] = st;
+      if (pr) gPriority[tn] = pr;
+      // dept-scope filter for "mine"
+      if (!user.isAdmin && user.ownedDepts.indexOf(dept) === -1) return;
+      if (st) latestStatus[tn] = st;
       if (pr) latestPriority[tn] = pr;
       latestDept[tn]     = dept;
       if (r[ML.DATE_CLOSED - 1]) latestClosed[tn] = r[ML.DATE_CLOSED - 1];
       if (r[ML.DATE_OPENED - 1]) latestOpened[tn] = r[ML.DATE_OPENED - 1];
+    });
+
+    // System-wide unique totals (each ticket counted once, joint-safe).
+    Object.keys(gStatus).forEach(function(tn) {
+      var st = gStatus[tn];
+      if (st === 'OPEN' || st === 'PENDING PARTS' || st === 'ON HOLD' || st === 'PENDING VERIFICATION') {
+        counts.openAll++;
+        if (gPriority[tn] === 'CRITICAL') counts.criticalAll++;
+      }
+      if (st === 'WAITING') counts.waitingAll++;
     });
 
     Object.keys(latestStatus).forEach(function(tn) {
@@ -107,7 +124,8 @@ function getDashboardCounts() {
 
 function _zeroCounts_() {
   return { open: 0, waiting: 0, critical: 0, tempFixActive: 0, closedRecent: 0, partsPending: 0,
-           closedThisWeek: 0, openedThisWeek: 0, openedThisMonth: 0, closedThisMonth: 0 };
+           closedThisWeek: 0, openedThisWeek: 0, openedThisMonth: 0, closedThisMonth: 0,
+           openAll: 0, waitingAll: 0, criticalAll: 0 };
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════

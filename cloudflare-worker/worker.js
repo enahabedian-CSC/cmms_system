@@ -294,6 +294,9 @@ async function handleDashboardCounts(env, userEmail) {
   const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
 
   const latestStatus = {}, latestPriority = {}, latestClosed = {}, latestOpened = {};
+  // Global (un-scoped) maps: one entry per ticket number, so a joint ticket that
+  // shows in several department trackers is still counted exactly ONCE here.
+  const gStatus = {}, gPriority = {};
 
   // Collapse per ticket with LAST NON-EMPTY wins (matching the tracker/panel
   // queues). Absolute last-write-wins previously let a trailing row with a blank
@@ -301,11 +304,16 @@ async function handleDashboardCounts(env, userEmail) {
   // from the count — the root of the dashboard-vs-tracker total mismatch.
   mlRows.forEach(r => {
     const tn   = cellStr(r, ML.TICKET_NO);
+    if (!tn) return;
     const dept = cellStr(r, ML.DEPT);
-    if (!tn || !allowed(user, dept)) return;
     const st = cellStr(r, ML.STATUS).toUpperCase();
-    if (st) latestStatus[tn] = st;
     const pr = cellStr(r, ML.PRIORITY).toUpperCase();
+    // Global, keyed by ticket number (joint-safe, never double counts).
+    if (st) gStatus[tn] = st;
+    if (pr) gPriority[tn] = pr;
+    // Dept-scoped ("mine").
+    if (!allowed(user, dept)) return;
+    if (st) latestStatus[tn] = st;
     if (pr) latestPriority[tn] = pr;
     const dc = cellDate(r, ML.DATE_CLOSED);
     if (dc) latestClosed[tn] = dc;
@@ -315,9 +323,18 @@ async function handleDashboardCounts(env, userEmail) {
 
   const counts = { open: 0, waiting: 0, critical: 0, tempFixActive: 0,
                    closedRecent: 0, partsPending: 0, closedThisWeek: 0,
-                   openedThisWeek: 0, openedThisMonth: 0, closedThisMonth: 0 };
+                   openedThisWeek: 0, openedThisMonth: 0, closedThisMonth: 0,
+                   // Airtight system-wide unique totals (all departments).
+                   openAll: 0, waitingAll: 0, criticalAll: 0 };
 
   const OPEN_STS = new Set(['OPEN', 'PENDING PARTS', 'ON HOLD', 'PENDING VERIFICATION']);
+
+  // System-wide unique totals (each ticket counted once, joint-safe).
+  Object.keys(gStatus).forEach(tn => {
+    const st = gStatus[tn];
+    if (OPEN_STS.has(st)) { counts.openAll++; if (gPriority[tn] === 'CRITICAL') counts.criticalAll++; }
+    if (st === 'WAITING') counts.waitingAll++;
+  });
 
   Object.keys(latestStatus).forEach(tn => {
     const st = latestStatus[tn];

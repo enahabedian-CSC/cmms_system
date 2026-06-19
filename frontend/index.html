@@ -615,8 +615,9 @@ window.PAGES['home'] = function(container) {
         '</button>' +
       '</div>' +
       // Slim KPI strip — current state (Module 10 declutter)
-      '<div class="kpi-grid" id="kpi-grid" style="margin-top:20px;grid-template-columns:repeat(3,minmax(160px,1fr));">' +
-        _homeKpiCard_('Open · Mine',     '—', 'Active work items',     'info',     'kpi-open') +
+      '<div class="kpi-grid" id="kpi-grid" style="margin-top:20px;grid-template-columns:repeat(4,minmax(150px,1fr));">' +
+        _homeKpiCard_('Open · All Depts','—', 'Unique open tickets',   'info',     'kpi-open-all') +
+        _homeKpiCard_('Open · Mine',     '—', 'Your departments',      'info',     'kpi-open') +
         _homeKpiCard_('Critical Open',   '—', 'Immediate attention',   'critical', 'kpi-critical') +
         _homeKpiCard_('Temp Fixes Active','—', 'Need follow-up',       'warn',     'kpi-temp') +
       '</div>' +
@@ -717,6 +718,7 @@ function _homeKpiCard_(label, value, foot, accent, id) {
 function _homeRenderKpis_(counts) {
   if (!counts) return;
   var map = {
+    'kpi-open-all':   counts.openAll,
     'kpi-open':       counts.open,
     'kpi-critical':   counts.critical,
     'kpi-temp':       counts.tempFixActive,
