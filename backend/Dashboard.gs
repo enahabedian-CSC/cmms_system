@@ -39,8 +39,13 @@ function getDashboardCounts() {
       if (!tn) return;
       // dept-scope filter
       if (!user.isAdmin && user.ownedDepts.indexOf(dept) === -1) return;
-      latestStatus[tn]   = String(r[ML.STATUS   - 1] || '').trim().toUpperCase();
-      latestPriority[tn] = String(r[ML.PRIORITY - 1] || '').trim().toUpperCase();
+      // Last NON-EMPTY wins (matches the tracker/panel queues). Absolute
+      // last-write-wins let a trailing blank-status row overwrite a real status
+      // with '', silently dropping open tickets from the count.
+      var st = String(r[ML.STATUS   - 1] || '').trim().toUpperCase();
+      if (st) latestStatus[tn] = st;
+      var pr = String(r[ML.PRIORITY - 1] || '').trim().toUpperCase();
+      if (pr) latestPriority[tn] = pr;
       latestDept[tn]     = dept;
       if (r[ML.DATE_CLOSED - 1]) latestClosed[tn] = r[ML.DATE_CLOSED - 1];
     });

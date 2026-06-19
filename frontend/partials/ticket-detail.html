@@ -65,7 +65,7 @@
 
 /* Action modals */
 .td-modal-backdrop{position:fixed;inset:0;background:rgba(0,0,0,.35);z-index:200;display:flex;align-items:center;justify-content:center;}
-.td-modal{background:#fff;border-radius:12px;padding:24px;width:440px;max-width:95vw;box-shadow:var(--shadow-lg);}
+.td-modal{background:#fff;border-radius:12px;padding:24px;width:440px;max-width:95vw;max-height:90vh;overflow-y:auto;box-shadow:var(--shadow-lg);}
 .td-modal h3{font-size:14px;font-weight:700;color:var(--text-primary);margin:0 0 14px 0;}
 .td-modal .form-group{margin-bottom:12px;}
 .td-modal label{font-size:11.5px;font-weight:600;color:var(--text-secondary);display:block;margin-bottom:4px;}
@@ -75,6 +75,15 @@
 .td-modal .btn-cancel{height:32px;padding:0 14px;border-radius:6px;border:1px solid var(--border-default);background:#fff;font-size:12.5px;cursor:pointer;}
 .td-modal .btn-confirm{height:32px;padding:0 16px;border-radius:6px;border:0;background:var(--brand-navy);color:#fff;font-size:12.5px;font-weight:600;cursor:pointer;}
 .td-modal .btn-confirm:hover{background:var(--brand-navy-soft);}
+/* Service-report print isolation: print only the report, not the whole dashboard. */
+@media print {
+  body.printing-sr *{visibility:hidden !important;}
+  body.printing-sr #td-modal-container,
+  body.printing-sr #td-modal-container *{visibility:visible !important;}
+  body.printing-sr .td-modal-backdrop{position:static;background:#fff;display:block;inset:auto;}
+  body.printing-sr .td-modal{box-shadow:none;width:auto;max-width:100%;max-height:none;overflow:visible;}
+  body.printing-sr .td-modal .modal-actions{display:none !important;}
+}
 </style>
 
 <div id="td-overlay">
@@ -189,9 +198,13 @@ function _renderDetail_(result) {
       actions += '<button class="btn-action btn-transfer" onclick="_tdTransfer_()">Attach Dept</button>';
       actions += '<button class="btn-action btn-void" onclick="_tdVoid_()">Void Ticket</button>';
     }
-    if (t.status === 'CLOSED') {
-      actions += '<button class="btn-action btn-update" onclick="_tdServiceReport_()">📝 Service Report</button>';
-    }
+  }
+
+  // Service Report is a record/print output available for ANY closed ticket a
+  // manager can view — not restricted to owned departments (previously gated by
+  // canAct, which hid it on closed tickets outside the manager's own depts).
+  if (isManager && t.status === 'CLOSED') {
+    actions += '<button class="btn-action btn-update" onclick="_tdServiceReport_()">📝 Service Report</button>';
   }
 
   // Dept sign-off: joint dept manager can sign off when ticket is PENDING VERIFICATION
@@ -695,13 +708,15 @@ function _tdIssueTag_() {
 }
 
 // Yes/No (+ optional N/A) select row for the Post-Repair Clearance block.
-function _srYN_(id, label, allowNA) {
+// `val` pre-selects an option so saved/derived clearance data isn't re-entered.
+function _srYN_(id, label, allowNA, val) {
+  function opt(v, txt) {
+    return '<option value="' + v + '"' + (val === v ? ' selected' : '') + '>' + txt + '</option>';
+  }
   return '<div class="form-group"><label>' + esc(label) + '</label>' +
     '<select id="' + id + '" style="width:120px">' +
-      '<option value=""></option>' +
-      '<option value="Yes">Yes</option>' +
-      '<option value="No">No</option>' +
-      (allowNA ? '<option value="N/A">N/A</option>' : '') +
+      opt('', '') + opt('Yes', 'Yes') + opt('No', 'No') +
+      (allowNA ? opt('N/A', 'N/A') : '') +
     '</select></div>';
 }
 
@@ -711,30 +726,65 @@ function _tdServiceReport_() {
   var modal = document.getElementById('td-modal-container');
   if (!modal) return;
 
+  // Show a brief loading shell, then fetch any previously-saved report so the
+  // form pre-fills instead of forcing re-entry of data already on file.
+  modal.innerHTML =
+    '<div class="td-modal-backdrop"><div class="td-modal" style="width:560px;max-width:96vw;">' +
+    '<div class="loading-overlay" style="height:120px;"><div class="spinner"></div>' +
+    '<span>Loading service report…</span></div></div></div>';
+
+  fetch(WORKER_URL + '/api/tickets/service-report?ticketNo=' + encodeURIComponent(t.ticketNo), {
+    headers: { 'X-User-Email': USER ? USER.email : '' }
+  })
+    .then(function(r) { return r.json(); })
+    .then(function(res) { _tdRenderServiceReport_((res && res.report) || null); })
+    .catch(function() { _tdRenderServiceReport_(null); });
+}
+
+function _tdRenderServiceReport_(prev) {
+  var t = _tdTicket;
+  if (!t) return;
+  var modal = document.getElementById('td-modal-container');
+  if (!modal) return;
+  var p = prev || {};
+
+  // Pre-fill priority: a saved report wins, else fall back to the ticket's own
+  // captured fields, else blank.
+  function v(key, fallback) {
+    if (p[key] !== undefined && p[key] !== null && p[key] !== '') return p[key];
+    return (fallback === undefined || fallback === null) ? '' : fallback;
+  }
+  // The ticket is CLOSED when this form opens, so it has been verified/completed.
+  // If no clearance was recorded yet, default "repair complete?" to Yes so the
+  // verification work already done isn't re-keyed; reviewer can still change it.
+  var defComplete = (t.status === 'CLOSED') ? 'Yes' : '';
+  var restricted = (v('restrictedActivity', '') === 'Y' || v('restrictedActivity', '') === 'Yes');
+
   modal.innerHTML =
     '<div class="td-modal-backdrop" id="td-modal-backdrop" onclick="if(event.target===this)_closeModal_()">' +
     '<div class="td-modal" style="width:560px;max-width:96vw;">' +
       '<h3>📝 Service Report — ' + esc(t.ticketNo) + ' <span style="font-size:11px;color:var(--text-tertiary);font-weight:400;">' + esc(docLabel('serviceReport')) + '</span></h3>' +
+      (prev ? '<div style="background:var(--status-info-bg);border:1px solid var(--status-info);border-radius:6px;padding:7px 11px;margin-bottom:12px;font-size:11.5px;color:var(--status-info);">Pre-filled from the saved report for this ticket. Edit and re-save to update.</div>' : '') +
       '<div class="form-group"><label>Completed By</label>' +
-        '<input id="sr-completed-by" value="' + esc(t.assignedTo || '') + '" placeholder="Technician name"/></div>' +
+        '<input id="sr-completed-by" value="' + esc(v('completedBy', t.assignedTo)) + '" placeholder="Technician name"/></div>' +
       '<div class="form-group"><label>Labor Hours</label>' +
-        '<input id="sr-hours" type="number" step="0.5" min="0" value="' + esc(String(t.actualHours || '')) + '" placeholder="0.0" style="width:120px"/></div>' +
+        '<input id="sr-hours" type="number" step="0.5" min="0" value="' + esc(String(v('laborHours', t.actualHours))) + '" placeholder="0.0" style="width:120px"/></div>' +
       '<div class="form-group"><label>Work Summary</label>' +
-        '<textarea id="sr-work-summary">' + esc(t.workSummary || '') + '</textarea></div>' +
+        '<textarea id="sr-work-summary">' + esc(v('preventiveAct', t.workSummary)) + '</textarea></div>' +
       '<div class="form-group"><label>Root Cause</label>' +
-        '<textarea id="sr-root-cause">' + esc(t.rootCause || '') + '</textarea></div>' +
+        '<textarea id="sr-root-cause">' + esc(v('rootCause', t.rootCause)) + '</textarea></div>' +
       '<div class="form-group"><label>Corrective Action</label>' +
-        '<textarea id="sr-corrective-act">' + esc(t.correctiveAct || '') + '</textarea></div>' +
+        '<textarea id="sr-corrective-act">' + esc(v('correctiveAct', t.correctiveAct)) + '</textarea></div>' +
       '<div class="form-group"><label>Preventive Action</label>' +
-        '<textarea id="sr-preventive-act" placeholder="Steps taken to prevent recurrence…"></textarea></div>' +
+        '<textarea id="sr-preventive-act" placeholder="Steps taken to prevent recurrence…">' + esc(v('preventiveAct', t.preventiveAct)) + '</textarea></div>' +
       '<div class="form-group"><label>Parts Used (describe)</label>' +
-        '<input id="sr-parts-used" placeholder="e.g. 2× bearing #6205, 1× V-belt"/></div>' +
+        '<input id="sr-parts-used" value="' + esc(v('partsUsed', '')) + '" placeholder="e.g. 2× bearing #6205, 1× V-belt"/></div>' +
       '<div class="form-group"><label>Date of Service</label>' +
-        '<input id="sr-service-date" type="date"/></div>' +
+        '<input id="sr-service-date" type="date" value="' + esc(_srDateVal_(v('serviceDate', ''))) + '"/></div>' +
       '<div class="form-group"><label>Recommendations</label>' +
-        '<textarea id="sr-recommendations" placeholder="Follow-up recommendations…"></textarea></div>' +
+        '<textarea id="sr-recommendations" placeholder="Follow-up recommendations…">' + esc(v('recommendations', '')) + '</textarea></div>' +
       '<div class="form-group"><label style="display:flex;align-items:center;gap:8px;cursor:pointer;">' +
-        '<input id="sr-restricted" type="checkbox" style="width:auto;"/> ' +
+        '<input id="sr-restricted" type="checkbox" style="width:auto;"' + (restricted ? ' checked' : '') + '/> ' +
         'Restricted activity (cut / weld / grind / paint)</label>' +
         '<div style="font-size:11px;color:var(--text-tertiary);margin-top:2px;">' +
         'If checked, sanitation/QA inspection is required before clearance.</div></div>' +
@@ -742,20 +792,44 @@ function _tdServiceReport_() {
       '<div style="margin:14px 0 6px;font-size:12px;font-weight:700;color:var(--text-secondary);' +
         'text-transform:uppercase;letter-spacing:.04em;border-top:1px solid var(--border-default);padding-top:12px;">' +
         'Post-Repair Clearance</div>' +
-      _srYN_('sr-clr-complete',  'Maintenance / repair complete?') +
-      _srYN_('sr-clr-tools',     'All tools removed?') +
-      _srYN_('sr-clr-clean',     'Area cleaned & sanitized, no residual lubricants/chemicals?') +
-      _srYN_('sr-clr-qa',        'Sanitation / QA inspection required?', true) +
+      _srYN_('sr-clr-complete',  'Maintenance / repair complete?', false, v('clrRepairComplete', defComplete)) +
+      _srYN_('sr-clr-tools',     'All tools removed?', false, v('clrToolsRemoved', '')) +
+      _srYN_('sr-clr-clean',     'Area cleaned & sanitized, no residual lubricants/chemicals?', false, v('clrAreaClean', '')) +
+      _srYN_('sr-clr-qa',        'Sanitation / QA inspection required?', true, v('clrQaRequired', '')) +
       '<div class="form-group"><label>Facility Contact (Signature)</label>' +
-        '<input id="sr-fac-contact" placeholder="Name of facility contact accepting the work"/></div>' +
+        '<input id="sr-fac-contact" value="' + esc(v('facilityContact', '')) + '" placeholder="Name of facility contact accepting the work"/></div>' +
       '<div class="form-group"><label>Facility Contact Date</label>' +
-        '<input id="sr-fac-date" type="date"/></div>' +
+        '<input id="sr-fac-date" type="date" value="' + esc(_srDateVal_(v('facilityContactDate', ''))) + '"/></div>' +
       '<div class="modal-actions">' +
         '<button class="btn-cancel" onclick="_closeModal_()">Cancel</button>' +
-        '<button class="btn-cancel" onclick="window.print()">🖨 Print</button>' +
+        '<button class="btn-cancel" onclick="_srPrint_()">🖨 Print</button>' +
         '<button class="btn-confirm" onclick="_tdSaveServiceReport_()">Save Service Report</button>' +
       '</div>' +
     '</div></div>';
+}
+
+// Coerce a stored date string into the yyyy-mm-dd a <input type=date> expects.
+function _srDateVal_(s) {
+  s = String(s || '').trim();
+  if (!s) return '';
+  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
+  var d = new Date(s);
+  if (isNaN(d.getTime())) return '';
+  var m = String(d.getMonth() + 1), day = String(d.getDate());
+  return d.getFullYear() + '-' + (m.length < 2 ? '0' + m : m) + '-' + (day.length < 2 ? '0' + day : day);
+}
+
+// Print only the service-report modal (see .printing-sr @media print rules).
+function _srPrint_() {
+  document.body.classList.add('printing-sr');
+  function _done_() {
+    document.body.classList.remove('printing-sr');
+    window.removeEventListener('afterprint', _done_);
+  }
+  window.addEventListener('afterprint', _done_);
+  window.print();
+  // Fallback for browsers that don't fire afterprint.
+  setTimeout(_done_, 1000);
 }
 
 function _tdSaveServiceReport_() {

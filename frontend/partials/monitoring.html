@@ -99,6 +99,13 @@
   body.printing-tag *{visibility:hidden !important;}
   body.printing-tag #ehl-print-area,body.printing-tag #ehl-print-area *{visibility:visible !important;}
   body.printing-tag #ehl-print-area{display:block !important;position:absolute;left:0;top:0;width:100%;}
+  /* Force the tag's red/yellow/orange banners to print in color (browsers drop
+     background colors by default, which made the tag come out grayscale). */
+  body.printing-tag #ehl-print-area,body.printing-tag #ehl-print-area *{
+    -webkit-print-color-adjust:exact !important;
+    print-color-adjust:exact !important;
+    color-adjust:exact !important;
+  }
 }
 </style>
 

@@ -292,12 +292,18 @@ async function handleDashboardCounts(env, userEmail) {
 
   const latestStatus = {}, latestPriority = {}, latestClosed = {};
 
+  // Collapse per ticket with LAST NON-EMPTY wins (matching the tracker/panel
+  // queues). Absolute last-write-wins previously let a trailing row with a blank
+  // STATUS cell overwrite a real status with '', silently dropping open tickets
+  // from the count — the root of the dashboard-vs-tracker total mismatch.
   mlRows.forEach(r => {
     const tn   = cellStr(r, ML.TICKET_NO);
     const dept = cellStr(r, ML.DEPT);
     if (!tn || !allowed(user, dept)) return;
-    latestStatus[tn]   = cellStr(r, ML.STATUS).toUpperCase();
-    latestPriority[tn] = cellStr(r, ML.PRIORITY).toUpperCase();
+    const st = cellStr(r, ML.STATUS).toUpperCase();
+    if (st) latestStatus[tn] = st;
+    const pr = cellStr(r, ML.PRIORITY).toUpperCase();
+    if (pr) latestPriority[tn] = pr;
     const dc = cellDate(r, ML.DATE_CLOSED);
     if (dc) latestClosed[tn] = dc;
   });
@@ -995,8 +1001,14 @@ async function handleTicketDetail(env, userEmail, ticketNo) {
     downtimeDuration: cellStr(best, ML.DOWNTIME_DURATION),
   };
 
+  // Sort chronologically by the real timestamp column. Raw sheet-append order
+  // mixes backdated imports (e.g. an Izzy import stamped with the ticket's
+  // original date appended after a newer local action), which made the timeline
+  // show out-of-order / "impossible back-to-back" actions.
+  const histTs = r => { const d = cellDate(r, 3); return d ? d.getTime() : 0; };
   const history = thRows
     .filter(r => String(r[1] || '').trim() === ticketNo)
+    .sort((a, b) => histTs(a) - histTs(b))
     .map(r => ({
       histId:      String(r[0] || ''),
       timestamp:   fmtDate(cellDate(r, 3)) || String(r[2] || ''),
@@ -1548,6 +1560,52 @@ async function handleServiceReport(env, userEmail, body) {
   return jsonResponse({ success: true, ticketNo });
 }
 
+// Returns the most recent saved service report for a ticket so the Service
+// Report form can pre-fill instead of forcing re-entry of data already on file.
+// Column order matches the rptRow written in handleServiceReport.
+async function handleGetServiceReport(env, userEmail, ticketNo) {
+  const token = await getAccessToken(env);
+  const user  = await resolveUser(token, env, userEmail);
+  if (!user.isManager) return jsonResponse({ error: 'Manager access required' }, 403);
+  ticketNo = String(ticketNo || '').trim();
+  if (!ticketNo) return jsonResponse({ error: 'ticketNo required' }, 400);
+
+  let rows = [];
+  try {
+    rows = await readSheet(token, env.SPREADSHEET_ID, SH.RPT_DB, 'A2:W');
+  } catch (_) { return jsonResponse({ report: null }); }
+
+  // Last matching row wins (most recent save).
+  let match = null;
+  rows.forEach(r => { if (String(r[1] || '').trim() === ticketNo) match = r; });
+  if (!match) return jsonResponse({ report: null });
+
+  const s = i => String(match[i] == null ? '' : match[i]);
+  return jsonResponse({ report: {
+    ticketNo:            s(1),
+    dept:                s(3),
+    equipType:           s(4),
+    specificEquip:       s(5),
+    description:         s(6),
+    completedBy:         s(7),
+    laborHours:          s(8),
+    serviceDate:         s(9),
+    rootCause:           s(10),
+    correctiveAct:       s(11),
+    preventiveAct:       s(12),
+    partsUsed:           s(13),
+    recommendations:     s(14),
+    clrRepairComplete:   s(15),
+    clrToolsRemoved:     s(16),
+    clrAreaClean:        s(17),
+    clrQaRequired:       s(18),
+    facilityContact:     s(19),
+    facilityContactDate: s(20),
+    restrictedActivity:  s(21),
+    tempFixFlag:         s(22),
+  }});
+}
+
 async function handleDeptSignOff(env, userEmail, body) {
   const token     = await getAccessToken(env);
   const user      = await resolveUser(token, env, userEmail);
@@ -2058,6 +2116,7 @@ export default {
       else if (p === '/api/tickets/request-parts'       && method === 'POST')res = await handleRequestParts(env, userEmail, body);
       else if (p === '/api/tickets/update'              && method === 'POST')res = await handleUpdateTicket(env, userEmail, body);
       else if (p === '/api/tickets/service-report'      && method === 'POST')res = await handleServiceReport(env, userEmail, body);
+      else if (p === '/api/tickets/service-report'      && method === 'GET') res = await handleGetServiceReport(env, userEmail, url.searchParams.get('ticketNo') || '');
       else if (p === '/api/tickets/dept-sign-off'       && method === 'POST')res = await handleDeptSignOff(env, userEmail, body);
       else if (p === '/api/monitoring/hold-tags/issue'  && method === 'POST')res = await handleIssueHoldTag(env, userEmail, body);
       // Reports

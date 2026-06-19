@@ -139,10 +139,16 @@ function getTicketDetail(ticketNo) {
           statusFrom:  String(r[4] || ''),
           statusTo:    String(r[5] || ''),
           performedBy: String(r[6] || ''),
-          notes:       String(r[7] || '')
+          notes:       String(r[7] || ''),
+          _ts:         (r[2] instanceof Date) ? r[2].getTime() : (new Date(r[2]).getTime() || 0)
         });
       });
     }
+    // Sort chronologically by the real timestamp. Raw append order mixes
+    // backdated imports and renders out-of-order / "impossible back-to-back"
+    // actions on the timeline.
+    history.sort(function(a, b) { return a._ts - b._ts; });
+    history.forEach(function(h) { delete h._ts; });
 
     return { ticket: ticket, history: history, techs: getTechsForDept(ticket.dept) };
   } catch (e) {
