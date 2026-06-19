@@ -1784,6 +1784,53 @@ async function handleDeptSignOff(env, userEmail, body) {
 
 // ── Reports handlers ──────────────────────────────────────────────────────────
 
+// All currently-active tickets (open + waiting + pending + on hold), one row per
+// ticket (joint-safe), regardless of age. Powers the "Export Active Tickets"
+// button on the Reports page.
+async function handleActiveTickets(env, userEmail) {
+  const token = await getAccessToken(env);
+  const user  = await resolveUser(token, env, userEmail);
+  if (!user.isManager) return jsonResponse({ error: 'Manager access required' }, 403);
+
+  const mlRows = await readSheet(token, env.SPREADSHEET_ID, SH.MASTER_LOG, 'A2:AQ');
+  const byTicket = {};
+  mlRows.forEach(r => {
+    const tn = cellStr(r, ML.TICKET_NO);
+    if (!tn) return;
+    if (!byTicket[tn]) { byTicket[tn] = r.slice(); return; }
+    const cur = byTicket[tn];
+    r.forEach((v, i) => { if (v != null && v !== '') cur[i] = v; });
+  });
+
+  const ACTIVE = new Set(['WAITING', 'OPEN', 'PENDING VERIFICATION', 'PENDING PARTS', 'ON HOLD']);
+  const tickets = [];
+  Object.keys(byTicket).forEach(tn => {
+    const r  = byTicket[tn];
+    const st = cellStr(r, ML.STATUS).toUpperCase();
+    if (!ACTIVE.has(st)) return;
+    tickets.push({
+      ticketNo:      tn,
+      status:        st,
+      priority:      cellStr(r, ML.PRIORITY).toUpperCase(),
+      dept:          cellStr(r, ML.DEPT),
+      equipCode:     cellStr(r, ML.EQUIP_CODE),
+      specificEquip: cellStr(r, ML.SPECIFIC_EQUIP),
+      problemType:   cellStr(r, ML.PROBLEM_TYPE),
+      description:   cellStr(r, ML.DESCRIPTION),
+      assignedTo:    cellStr(r, ML.ASSIGNED_TO),
+      dateOpened:    fmtDate(cellDate(r, ML.DATE_OPENED)),
+    });
+  });
+
+  const prioOrder = { CRITICAL: 0, HIGH: 1, MEDIUM: 2, LOW: 3 };
+  tickets.sort((a, b) =>
+    (prioOrder[a.priority] ?? 4) - (prioOrder[b.priority] ?? 4) ||
+    a.dept.localeCompare(b.dept) ||
+    a.ticketNo.localeCompare(b.ticketNo));
+
+  return jsonResponse({ generatedAt: fmtDate(new Date()), count: tickets.length, tickets });
+}
+
 async function handleReportData(env, userEmail, daysBack) {
   const token = await getAccessToken(env);
   const user  = await resolveUser(token, env, userEmail);
@@ -2271,6 +2318,7 @@ export default {
       else if (p === '/api/monitoring/hold-tags/issue'  && method === 'POST')res = await handleIssueHoldTag(env, userEmail, body);
       // Reports
       else if (p === '/api/reports/data'                && method === 'GET') res = await handleReportData(env, userEmail, parseInt(url.searchParams.get('daysBack') || '30', 10));
+      else if (p === '/api/reports/active-tickets'       && method === 'GET') res = await handleActiveTickets(env, userEmail);
       else if (p === '/api/reports/emrl'                && method === 'GET') res = await handleEMRLData(env, userEmail, Object.fromEntries(url.searchParams));
       // Admin
       else if (p === '/api/admin/view'                  && method === 'GET') res = await handleAdminView(env, userEmail, url.searchParams.get('view') || '');
