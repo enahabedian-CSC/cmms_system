@@ -791,7 +791,9 @@ function _tdRenderServiceReport_(prev) {
       // ── Post-Repair Clearance (FRM-030-003, SQF 2.14.3-.4) ──────────────────
       '<div style="margin:14px 0 6px;font-size:12px;font-weight:700;color:var(--text-secondary);' +
         'text-transform:uppercase;letter-spacing:.04em;border-top:1px solid var(--border-default);padding-top:12px;">' +
-        'Post-Repair Clearance</div>' +
+        'Post-Repair Clearance ' +
+        '<span style="font-size:10px;font-weight:400;text-transform:none;letter-spacing:0;color:var(--text-tertiary);">' + esc(docLabel('repairClearance')) + '</span>' +
+      '</div>' +
       _srYN_('sr-clr-complete',  'Maintenance / repair complete?', false, v('clrRepairComplete', defComplete)) +
       _srYN_('sr-clr-tools',     'All tools removed?', false, v('clrToolsRemoved', '')) +
       _srYN_('sr-clr-clean',     'Area cleaned & sanitized, no residual lubricants/chemicals?', false, v('clrAreaClean', '')) +

@@ -258,11 +258,13 @@ async function handleMe(env, userEmail) {
     };
   }
   const docControl = {
-    serviceReport: pick('Doc No (Service Report)', 'Rev (Service Report)', 'Rev Date (Service Report)', 'FRM-030-003', '0', '6/5/2026'),
-    repairLog:     pick('Doc No (Repair Log)',     'Rev (Repair Log)',     'Rev Date (Repair Log)',     'FRM-030-002', '0', '6/5/2026'),
-    holdTag:       pick('Doc No (Hold Tag)',        'Rev (Hold Tag)',        'Rev Date (Hold Tag)',        'FRM-029-002', '0', '6/15/26'),
-    ncrRegister:   pick('Doc No (NCR Register)',    'Rev (NCR Register)',    'Rev Date (NCR Register)',    'FRM-029-001', '0', ''),
-    ticketForm:    pick('Doc No (Ticket Form)',     'Rev (Ticket Form)',     'Rev Date (Ticket Form)',     'FRM-030-004', '0', ''),
+    serviceReport:   pick('Doc No (Service Report)', 'Rev (Service Report)', 'Rev Date (Service Report)', 'FRM-030-003', '0', '6/5/2026'),
+    repairLog:       pick('Doc No (Repair Log)',     'Rev (Repair Log)',     'Rev Date (Repair Log)',     'FRM-030-002', '0', '6/5/2026'),
+    repairClearance: pick('Doc No (Repair Clearance)','Rev (Repair Clearance)','Rev Date (Repair Clearance)','FRM-030-003', '0', '6/5/2026'),
+    tempRepairLog:   pick('Doc No (Temp Repair Log)','Rev (Temp Repair Log)','Rev Date (Temp Repair Log)','FRM-030-005', '0', ''),
+    holdTag:         pick('Doc No (Hold Tag)',        'Rev (Hold Tag)',        'Rev Date (Hold Tag)',        'FRM-029-002', '0', '6/15/26'),
+    ncrRegister:     pick('Doc No (NCR Register)',    'Rev (NCR Register)',    'Rev Date (NCR Register)',    'FRM-029-001', '0', ''),
+    ticketForm:      pick('Doc No (Ticket Form)',     'Rev (Ticket Form)',     'Rev Date (Ticket Form)',     'FRM-030-004', '0', ''),
   };
 
   const company = config['Company Name'] || 'Container Supply Co.';
@@ -289,8 +291,9 @@ async function handleDashboardCounts(env, userEmail) {
   weekStart.setHours(0, 0, 0, 0);
   const dow = weekStart.getDay();
   weekStart.setDate(weekStart.getDate() - (dow === 0 ? 6 : dow - 1));
+  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
 
-  const latestStatus = {}, latestPriority = {}, latestClosed = {};
+  const latestStatus = {}, latestPriority = {}, latestClosed = {}, latestOpened = {};
 
   // Collapse per ticket with LAST NON-EMPTY wins (matching the tracker/panel
   // queues). Absolute last-write-wins previously let a trailing row with a blank
@@ -306,10 +309,13 @@ async function handleDashboardCounts(env, userEmail) {
     if (pr) latestPriority[tn] = pr;
     const dc = cellDate(r, ML.DATE_CLOSED);
     if (dc) latestClosed[tn] = dc;
+    const od = cellDate(r, ML.DATE_OPENED);
+    if (od) latestOpened[tn] = od;
   });
 
   const counts = { open: 0, waiting: 0, critical: 0, tempFixActive: 0,
-                   closedRecent: 0, partsPending: 0, closedThisWeek: 0 };
+                   closedRecent: 0, partsPending: 0, closedThisWeek: 0,
+                   openedThisWeek: 0, openedThisMonth: 0, closedThisMonth: 0 };
 
   const OPEN_STS = new Set(['OPEN', 'PENDING PARTS', 'ON HOLD', 'PENDING VERIFICATION']);
 
@@ -321,6 +327,12 @@ async function handleDashboardCounts(env, userEmail) {
       const cd = latestClosed[tn];
       if (cd >= thirtyDaysAgo) counts.closedRecent++;
       if (cd >= weekStart)     counts.closedThisWeek++;
+      if (cd >= monthStart)    counts.closedThisMonth++;
+    }
+    const od = latestOpened[tn];
+    if (od) {
+      if (od >= weekStart)  counts.openedThisWeek++;
+      if (od >= monthStart) counts.openedThisMonth++;
     }
   });
 
@@ -637,6 +649,88 @@ async function handleTempFix(env, userEmail) {
     });
   });
   return jsonResponse(items);
+}
+
+// Full SQF view for one temp fix (Temporary Repair Log). Joins the TF row with
+// the parent ticket (priority, downtime, problem), parts ordered, and the
+// inspection/review history so the detail partial can show every SQF-required
+// field without adding columns to the live Temp Fix sheet.
+async function handleTempFixDetail(env, userEmail, tempId) {
+  const token = await getAccessToken(env);
+  const user  = await resolveUser(token, env, userEmail);
+  if (!user.isManager) return jsonResponse({ error: 'Manager access required' }, 403);
+  tempId = String(tempId || '').trim();
+  if (!tempId) return jsonResponse({ error: 'tempId required' }, 400);
+
+  const dataStart = HIST_HEADER_ROW + 1;
+  const [tfRows, mlRows, pnRows, thRows] = await Promise.all([
+    readSheet(token, env.SPREADSHEET_ID, SH.TEMP_FIX,     `A${dataStart}:V`),
+    readSheet(token, env.SPREADSHEET_ID, SH.MASTER_LOG,   'A2:AQ'),
+    readSheet(token, env.SPREADSHEET_ID, SH.PARTS_NEEDED, `A${dataStart}:L`),
+    readSheet(token, env.SPREADSHEET_ID, SH.TICKET_HIST,  'A2:H'),
+  ]);
+
+  let tfRow = null;
+  tfRows.forEach(r => { if (cellStr(r, TF.TEMP_ID) === tempId) tfRow = r; });
+  if (!tfRow) return jsonResponse({ error: 'Temp fix not found' }, 404);
+  const dept = cellStr(tfRow, TF.DEPT);
+  if (!allowed(user, dept)) return jsonResponse({ error: 'Access denied' }, 403);
+
+  const ticketNo = cellStr(tfRow, TF.TICKET_NO);
+
+  // Collapse parent ticket from Master Log (last non-empty wins).
+  const tRows = mlRows.filter(r => cellStr(r, ML.TICKET_NO) === ticketNo);
+  const best  = tRows.length ? tRows[0].slice() : [];
+  for (let i = 1; i < tRows.length; i++) tRows[i].forEach((v, c) => { if (v != null && v !== '') best[c] = v; });
+
+  // Parts ordered against this ticket.
+  const parts = pnRows
+    .filter(r => cellStr(r, PN.TICKET_NO) === ticketNo)
+    .map(r => ({
+      partDesc:  cellStr(r, PN.PART_DESC),
+      status:    cellStr(r, PN.PARTS_STATUS),
+      requested: fmtDate(cellDate(r, PN.DATE_REQUESTED)),
+      ordered:   fmtDate(cellDate(r, PN.DATE_ORDERED)),
+      received:  fmtDate(cellDate(r, PN.DATE_RECEIVED)),
+    }));
+
+  // Weekly follow-up / inspection history from Ticket History (temp-fix events).
+  const histTs = r => { const d = cellDate(r, 3); return d ? d.getTime() : 0; };
+  const reviews = thRows
+    .filter(r => String(r[1] || '').trim() === ticketNo && /TEMP\s*FIX/i.test(String(r[3] || '')))
+    .sort((a, b) => histTs(a) - histTs(b))
+    .map(r => ({
+      date:  fmtDate(cellDate(r, 3)) || String(r[2] || ''),
+      event: String(r[3] || ''),
+      by:    String(r[6] || ''),
+      notes: String(r[7] || ''),
+    }));
+
+  return jsonResponse({ detail: {
+    tempId, ticketNo, dept,
+    equipCode:          cellStr(tfRow, TF.EQUIP_CODE),
+    specificEquip:      cellStr(tfRow, TF.SPECIFIC_EQUIP),
+    buildingZone:       cellStr(tfRow, TF.BUILDING_ZONE),
+    dateFlagged:        fmtDate(cellDate(tfRow, TF.DATE_FLAGGED)),
+    tempFixDesc:        cellStr(tfRow, TF.TEMP_FIX_DESC),
+    reasonTemporary:    cellStr(tfRow, TF.REASON_TEMPORARY),
+    permFixPlan:        cellStr(tfRow, TF.PERM_FIX_PLAN),
+    expectedCompletion: fmtDate(cellDate(tfRow, TF.EXPECTED_COMPLETION)),
+    noImprovised:       cellStr(tfRow, TF.NO_IMPROVISED),
+    productRiskOk:      cellStr(tfRow, TF.PRODUCT_RISK_OK),
+    status:             cellStr(tfRow, TF.STATUS).toUpperCase(),
+    lastInspected:      fmtDate(cellDate(tfRow, TF.LAST_INSPECTED)),
+    nextDue:            fmtDate(cellDate(tfRow, TF.NEXT_DUE)),
+    freqDays:           tfRow[TF.FREQ_DAYS - 1] || '',
+    flaggedBy:          cellStr(tfRow, TF.FLAGGED_BY),
+    // Joined from the parent ticket (no TF schema change needed):
+    priority:           cellStr(best, ML.PRIORITY),
+    problemType:        cellStr(best, ML.PROBLEM_TYPE),
+    description:        cellStr(best, ML.DESCRIPTION),
+    downtimeType:       cellStr(best, ML.DOWNTIME_TYPE),
+    downtimeDuration:   cellStr(best, ML.DOWNTIME_DURATION),
+    parts, reviews,
+  }});
 }
 
 async function handleTempFixInspect(env, userEmail, body) {
@@ -2087,6 +2181,7 @@ export default {
       else if (p === '/api/dashboard/panels')                                res = await handleDashboardPanels(env, userEmail);
       // Monitoring
       else if (p === '/api/monitoring/temp-fix'         && method === 'GET') res = await handleTempFix(env, userEmail);
+      else if (p === '/api/monitoring/temp-fix/detail'  && method === 'GET') res = await handleTempFixDetail(env, userEmail, url.searchParams.get('tempId') || '');
       else if (p === '/api/monitoring/temp-fix/inspect' && method === 'POST')res = await handleTempFixInspect(env, userEmail, body);
       else if (p === '/api/monitoring/temp-fix/clear'   && method === 'POST')res = await handleTempFixClear(env, userEmail, body);
       else if (p === '/api/monitoring/hold-tags'        && method === 'GET') res = await handleEhl(env, userEmail);

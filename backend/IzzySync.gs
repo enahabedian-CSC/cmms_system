@@ -174,6 +174,23 @@ function syncFromIzzySheet_() {
         importStatus = 'WAITING';
       }
 
+      // ── Guard against contradictory imported rows ──────────────────────────
+      // The per-column merge above keeps the latest NON-EMPTY value per column,
+      // so a ticket Izzy closed and later reopened ends up with STATUS=OPEN but a
+      // stale DATE_CLOSED / VERIFIED stamp from the earlier close row. That writes
+      // a single row that is simultaneously "OPEN" and "closed on date X" — the
+      // root of the "closed twice / impossible back-to-back actions" report.
+      // Strip close/verify fields that don't belong to the resolved status.
+      if (importStatus !== 'CLOSED') {
+        dateClosed   = '';
+        verifiedBy   = '';
+        verifiedDate = '';
+      }
+      if (importStatus !== 'CLOSED' && importStatus !== 'PENDING VERIFICATION') {
+        // dateCompleted only applies once work is complete (pre-close) or closed.
+        dateCompleted = '';
+      }
+
       // ── MANDATORY: Master Log write ────────────────────────────────────────
       appendToMasterLog_({
         ticketNo:      ticketNo,

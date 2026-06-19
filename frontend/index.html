@@ -614,11 +614,27 @@ window.PAGES['home'] = function(container) {
           ' New Ticket' +
         '</button>' +
       '</div>' +
-      // Slim KPI strip — 3 cards (Module 10 declutter)
+      // Slim KPI strip — current state (Module 10 declutter)
       '<div class="kpi-grid" id="kpi-grid" style="margin-top:20px;grid-template-columns:repeat(3,minmax(160px,1fr));">' +
         _homeKpiCard_('Open · Mine',     '—', 'Active work items',     'info',     'kpi-open') +
         _homeKpiCard_('Critical Open',   '—', 'Immediate attention',   'critical', 'kpi-critical') +
-        _homeKpiCard_('Closed This Week','—', 'Resolved since Monday', 'success',  'kpi-closed') +
+        _homeKpiCard_('Temp Fixes Active','—', 'Need follow-up',       'warn',     'kpi-temp') +
+      '</div>' +
+      // SQF Weekly Review band (resets each Monday)
+      _homeReviewTitle_('This Week · Weekly Review', 'Resets Monday — SQF weekly maintenance review') +
+      '<div class="kpi-grid" style="grid-template-columns:repeat(4,minmax(130px,1fr));">' +
+        _homeKpiCard_('Opened',        '—', 'New since Monday',      'info',    'kpi-wk-opened') +
+        _homeKpiCard_('Closed',        '—', 'Resolved since Monday', 'success', 'kpi-wk-closed') +
+        _homeKpiCard_('Temp Fixes',    '—', 'Active, need review',   'warn',    'kpi-wk-temp') +
+        _homeKpiCard_('Parts Pending', '—', 'Awaiting parts',        'info',    'kpi-wk-parts') +
+      '</div>' +
+      // SQF Monthly Review band (resets on the 1st)
+      _homeReviewTitle_('This Month · Monthly Review', 'Resets on the 1st — SQF monthly maintenance review') +
+      '<div class="kpi-grid" style="grid-template-columns:repeat(4,minmax(130px,1fr));">' +
+        _homeKpiCard_('Opened',        '—', 'New this month',        'info',    'kpi-mo-opened') +
+        _homeKpiCard_('Closed',        '—', 'Resolved this month',   'success', 'kpi-mo-closed') +
+        _homeKpiCard_('Critical Open', '—', 'Immediate attention',   'critical','kpi-mo-critical') +
+        _homeKpiCard_('Closed (30d)',  '—', 'Rolling 30 days',       'success', 'kpi-mo-closed30') +
       '</div>' +
     '</div>' +
 
@@ -681,6 +697,14 @@ function _homeToggle_(id) {
   if (caret) caret.textContent = hidden ? '▼' : '▶';
 }
 
+// Small section header for the weekly/monthly SQF review bands.
+function _homeReviewTitle_(label, sub) {
+  return '<div style="display:flex;align-items:baseline;gap:8px;margin:18px 0 8px;">' +
+    '<span style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--text-secondary);">' + esc(label) + '</span>' +
+    '<span style="font-size:10.5px;color:var(--text-tertiary);">' + esc(sub) + '</span>' +
+  '</div>';
+}
+
 function _homeKpiCard_(label, value, foot, accent, id) {
   return '<div class="kpi' + (accent ? ' kpi-' + accent : '') + '" id="' + id + '" style="cursor:default;">' +
     '<div class="kpi-accent"></div>' +
@@ -693,9 +717,19 @@ function _homeKpiCard_(label, value, foot, accent, id) {
 function _homeRenderKpis_(counts) {
   if (!counts) return;
   var map = {
-    'kpi-open':    counts.open,
-    'kpi-critical':counts.critical,
-    'kpi-closed':  counts.closedThisWeek !== undefined ? counts.closedThisWeek : counts.closedRecent
+    'kpi-open':       counts.open,
+    'kpi-critical':   counts.critical,
+    'kpi-temp':       counts.tempFixActive,
+    // Weekly review
+    'kpi-wk-opened':  counts.openedThisWeek,
+    'kpi-wk-closed':  counts.closedThisWeek,
+    'kpi-wk-temp':    counts.tempFixActive,
+    'kpi-wk-parts':   counts.partsPending,
+    // Monthly review
+    'kpi-mo-opened':  counts.openedThisMonth,
+    'kpi-mo-closed':  counts.closedThisMonth,
+    'kpi-mo-critical':counts.critical,
+    'kpi-mo-closed30':counts.closedRecent
   };
   Object.keys(map).forEach(function(id) {
     var el = document.getElementById(id + '-val');

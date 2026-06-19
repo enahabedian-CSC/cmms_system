@@ -124,6 +124,11 @@
 <!-- Printable Equipment Quality Hold Tag (FRM-029-002) target; populated by _ehlPrintTag_ -->
 <div id="ehl-print-area"></div>
 
+<!-- Temporary Repair Log detail (all SQF fields); populated by _tfDetail_ -->
+<div id="tf-detail-back" class="mon-modal-back" style="align-items:flex-start;">
+  <div class="mon-modal" id="tf-detail-modal" style="width:620px;max-width:96vw;max-height:90vh;overflow-y:auto;margin-top:4vh;"></div>
+</div>
+
 <script>
 // ── Monitoring page utilities ─────────────────────────────────────────────────
 window.PAGES = window.PAGES || {};
@@ -253,11 +258,144 @@ function _tfRenderRows_(list) {
       '<td style="' + daysCellStyle + '">' + daysCell + '</td>' +
       '<td style="font-size:11.5px;color:var(--text-secondary);">' + esc(String(t.freqDays)) + '</td>' +
       '<td style="white-space:nowrap;">' +
+        '<button class="mon-btn" onclick="_tfDetail_(\'' + esc(t.tempId) + '\')" style="margin-right:4px;">Details</button>' +
         '<button class="mon-btn" onclick="_tfInspect_(\'' + esc(t.tempId) + '\')" style="margin-right:4px;">Inspect</button>' +
         '<button class="mon-btn danger" onclick="_tfClear_(\'' + esc(t.tempId) + '\')">Clear</button>' +
       '</td>' +
     '</tr>';
   }).join('');
+}
+
+// Temporary Repair Log detail — shows every SQF-required field for one temp fix.
+function _tfDetail_(tempId) {
+  var back  = document.getElementById('tf-detail-back');
+  var modal = document.getElementById('tf-detail-modal');
+  if (!back || !modal) return;
+  modal.innerHTML = '<div class="loading-overlay" style="height:120px;"><div class="spinner"></div>' +
+    '<span>Loading temporary repair record…</span></div>';
+  back.classList.add('open');
+  fetch(WORKER_URL + '/api/monitoring/temp-fix/detail?tempId=' + encodeURIComponent(tempId), {
+    headers: { 'X-User-Email': USER ? USER.email : '' }
+  })
+    .then(function(r) { return r.json(); })
+    .then(function(res) {
+      if (!res || res.error || !res.detail) {
+        modal.innerHTML = '<div class="mon-empty">Error: ' + esc((res && res.error) || 'Not found') +
+          '</div><div class="mon-modal-footer"><button class="mon-btn" onclick="_tfDetailClose_()">Close</button></div>';
+        return;
+      }
+      _tfRenderDetail_(res.detail);
+    })
+    .catch(function(err) {
+      modal.innerHTML = '<div class="mon-empty">Error: ' + esc(String(err.message || err)) + '</div>' +
+        '<div class="mon-modal-footer"><button class="mon-btn" onclick="_tfDetailClose_()">Close</button></div>';
+    });
+}
+
+function _tfDetailClose_() {
+  var back = document.getElementById('tf-detail-back');
+  if (back) back.classList.remove('open');
+}
+
+function _tfRenderDetail_(d) {
+  var modal = document.getElementById('tf-detail-modal');
+  if (!modal) return;
+
+  // Yes/No SQF confirmation badge.
+  function yn(v, yes, no) {
+    if (v === 'Y') return '<span style="color:var(--status-success);font-weight:700;">✓ ' + yes + '</span>';
+    if (v === 'N') return '<span style="color:var(--status-critical);font-weight:700;">✗ ' + no + '</span>';
+    return '<span style="color:var(--text-tertiary);">— not recorded</span>';
+  }
+  function row(label, val) {
+    return '<div style="display:flex;gap:10px;padding:5px 0;border-bottom:1px solid var(--border-subtle,#eee);">' +
+      '<div style="flex:0 0 190px;font-size:11px;font-weight:600;color:var(--text-secondary);">' + esc(label) + '</div>' +
+      '<div style="flex:1;font-size:12.5px;color:var(--text-primary);word-break:break-word;">' + (val || '<span style="color:var(--text-tertiary);">—</span>') + '</div>' +
+    '</div>';
+  }
+  function sec(title) {
+    return '<div style="margin:16px 0 4px;font-size:11px;font-weight:700;text-transform:uppercase;' +
+      'letter-spacing:.05em;color:var(--brand-navy);border-top:1px solid var(--border-default);padding-top:10px;">' + esc(title) + '</div>';
+  }
+
+  var dt = (window.COMPANY || 'CSC Maintenance');
+  var downtime = d.downtimeDuration
+    ? esc(d.downtimeDuration) + ' min' + (d.downtimeType ? ' · ' + esc(d.downtimeType) : '')
+    : (d.downtimeType ? esc(d.downtimeType) : '');
+
+  var partsHtml;
+  if (d.parts && d.parts.length) {
+    partsHtml = '<table style="width:100%;border-collapse:collapse;font-size:12px;">' +
+      '<thead><tr style="text-align:left;color:var(--text-secondary);font-size:10.5px;text-transform:uppercase;">' +
+      '<th style="padding:3px 6px;">Part</th><th style="padding:3px 6px;">Status</th><th style="padding:3px 6px;">Ordered</th><th style="padding:3px 6px;">Received</th></tr></thead><tbody>' +
+      d.parts.map(function(p) {
+        return '<tr><td style="padding:3px 6px;">' + esc(p.partDesc || '—') + '</td>' +
+          '<td style="padding:3px 6px;">' + esc(p.status || '—') + '</td>' +
+          '<td style="padding:3px 6px;">' + esc(p.ordered || '—') + '</td>' +
+          '<td style="padding:3px 6px;">' + esc(p.received || '—') + '</td></tr>';
+      }).join('') + '</tbody></table>';
+  } else {
+    partsHtml = '<span style="color:var(--text-tertiary);font-size:12px;">No parts ordered for this repair.</span>';
+  }
+
+  var reviewsHtml;
+  if (d.reviews && d.reviews.length) {
+    reviewsHtml = '<ul style="list-style:none;margin:0;padding:0;">' +
+      d.reviews.map(function(rv) {
+        return '<li style="padding:5px 0;border-bottom:1px solid var(--border-subtle,#eee);font-size:12px;">' +
+          '<span style="font-family:var(--font-mono);color:var(--text-secondary);">' + esc(rv.date) + '</span> · ' +
+          '<strong>' + esc(rv.event) + '</strong>' + (rv.by ? ' — ' + esc(rv.by) : '') +
+          (rv.notes ? '<div style="color:var(--text-tertiary);margin-top:1px;">' + esc(rv.notes) + '</div>' : '') +
+        '</li>';
+      }).join('') + '</ul>';
+  } else {
+    reviewsHtml = '<span style="color:var(--text-tertiary);font-size:12px;">No follow-up reviews recorded yet.</span>';
+  }
+
+  modal.innerHTML =
+    '<div style="display:flex;align-items:baseline;justify-content:space-between;gap:12px;">' +
+      '<div class="mon-modal-title">🔧 Temporary Repair Log — ' + esc(d.tempId) + '</div>' +
+      '<span style="font-size:10.5px;color:var(--text-tertiary);">' + esc(docLabel('tempRepairLog')) + '</span>' +
+    '</div>' +
+    '<div class="mon-modal-sub">Ticket ' + esc(d.ticketNo) + ' · ' + esc(d.dept) +
+      ' · <span class="stat-badge ' + esc('stat-' + (d.status || '').replace(/\s+/g, '-')) + '">' + esc(d.status) + '</span></div>' +
+
+    sec('Identification') +
+    row('Entry / Temp ID', esc(d.tempId)) +
+    row('Asset ID', esc(d.equipCode || '—') + (d.specificEquip ? ' — ' + esc(d.specificEquip) : '')) +
+    row('Location (Building / Zone)', esc(d.buildingZone)) +
+    row('Priority', esc(d.priority)) +
+    row('Date temp repair made', esc(d.dateFlagged)) +
+    row('Logged by', esc(d.flaggedBy)) +
+
+    sec('Temporary Repair') +
+    row('Problem / fault', esc(d.problemType ? d.problemType + ' — ' : '') + esc(d.description)) +
+    row('Temporary-repair description', esc(d.tempFixDesc)) +
+    row('Reason fix is temporary', esc(d.reasonTemporary)) +
+    row('Permanent-fix plan / WO ref', esc(d.permFixPlan)) +
+    row('Expected completion date', esc(d.expectedCompletion)) +
+
+    sec('Parts Ordered') +
+    '<div style="padding:4px 0;">' + partsHtml + '</div>' +
+
+    sec('SQF Confirmations') +
+    row('No improvised materials (2.10.7)', yn(d.noImprovised, 'Confirmed — no string/tape/wire', 'NOT confirmed')) +
+    row('No product safety/quality risk (2.10.1)', yn(d.productRiskOk, 'Confirmed — no risk', 'RISK FLAGGED')) +
+
+    sec('Downtime') +
+    row('Downtime (planned/unplanned, duration)', downtime ? esc(downtime) : '') +
+
+    sec('Weekly Follow-Up Review (2.10.5–.6)') +
+    row('Re-inspection frequency', d.freqDays ? esc(String(d.freqDays)) + ' days' : '') +
+    row('Last inspected', esc(d.lastInspected)) +
+    row('Next due', esc(d.nextDue)) +
+    '<div style="margin-top:6px;">' + reviewsHtml + '</div>' +
+    '<div style="font-size:10.5px;color:var(--text-tertiary);margin-top:6px;">Weekly review history is drawn from the audit trail. A dedicated review-log dataset (per-row date / reviewer / status) is planned for the next data-layer revision.</div>' +
+
+    '<div class="mon-modal-footer">' +
+      '<button class="mon-btn" onclick="_tfDetailClose_()">Close</button>' +
+      '<button class="mon-btn primary" onclick="_tfDetailClose_();_tfInspect_(\'' + esc(d.tempId) + '\')">Record Inspection</button>' +
+    '</div>';
 }
 
 function _tfInspect_(tempId) {

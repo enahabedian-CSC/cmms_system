@@ -26,12 +26,15 @@ function getDashboardCounts() {
     weekStart.setHours(0, 0, 0, 0);
     var dayOfWeek = weekStart.getDay(); // 0=Sun, 1=Mon…
     weekStart.setDate(weekStart.getDate() - (dayOfWeek === 0 ? 6 : dayOfWeek - 1));
+    var nowM = new Date();
+    var monthStart = new Date(nowM.getFullYear(), nowM.getMonth(), 1);
 
     // Track latest status per ticket (last ML row wins)
     var latestStatus   = {};
     var latestPriority = {};
     var latestDept     = {};
     var latestClosed   = {};
+    var latestOpened   = {};
 
     data.forEach(function(r) {
       var tn   = String(r[ML.TICKET_NO  - 1] || '').trim();
@@ -48,6 +51,7 @@ function getDashboardCounts() {
       if (pr) latestPriority[tn] = pr;
       latestDept[tn]     = dept;
       if (r[ML.DATE_CLOSED - 1]) latestClosed[tn] = r[ML.DATE_CLOSED - 1];
+      if (r[ML.DATE_OPENED - 1]) latestOpened[tn] = r[ML.DATE_OPENED - 1];
     });
 
     Object.keys(latestStatus).forEach(function(tn) {
@@ -61,6 +65,12 @@ function getDashboardCounts() {
         var cd = latestClosed[tn] instanceof Date ? latestClosed[tn] : new Date(latestClosed[tn]);
         if (!isNaN(cd) && cd >= thirtyDaysAgo) counts.closedRecent++;
         if (!isNaN(cd) && cd >= weekStart) counts.closedThisWeek++;
+        if (!isNaN(cd) && cd >= monthStart) counts.closedThisMonth++;
+      }
+      if (latestOpened[tn]) {
+        var od = latestOpened[tn] instanceof Date ? latestOpened[tn] : new Date(latestOpened[tn]);
+        if (!isNaN(od) && od >= weekStart)  counts.openedThisWeek++;
+        if (!isNaN(od) && od >= monthStart) counts.openedThisMonth++;
       }
     });
 
@@ -96,7 +106,8 @@ function getDashboardCounts() {
 }
 
 function _zeroCounts_() {
-  return { open: 0, waiting: 0, critical: 0, tempFixActive: 0, closedRecent: 0, partsPending: 0, closedThisWeek: 0 };
+  return { open: 0, waiting: 0, critical: 0, tempFixActive: 0, closedRecent: 0, partsPending: 0,
+           closedThisWeek: 0, openedThisWeek: 0, openedThisMonth: 0, closedThisMonth: 0 };
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
