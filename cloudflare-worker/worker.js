@@ -1216,11 +1216,12 @@ async function handleFormData(env, userEmail) {
   const isTech = (userEmail || '').trim().toLowerCase().endsWith('@cscmfg.com');
   if (!user.isManager && !isTech) return jsonResponse({ error: 'Access required' }, 403);
 
-  const [configRows, dataRows, managerRows, techRows] = await Promise.all([
+  const [configRows, dataRows, managerRows, techRows, cacheRows] = await Promise.all([
     readSheet(token, env.SPREADSHEET_ID, SH.CONFIG,         'C2:D30'),
     readSheet(token, env.SPREADSHEET_ID, SH.DATA_VALID,     'A1:Z200'),
     readSheet(token, env.SPREADSHEET_ID, SH.MANAGER_ACCESS, 'A4:E200'),
     readSheet(token, env.SPREADSHEET_ID, SH.TECH_DIR,       'A2:D200').catch(() => []),
+    readSheet(token, env.SPREADSHEET_ID, SH.EQUIP_CACHE,    'A1:H').catch(() => []),
   ]);
 
   const config = {};
@@ -1270,12 +1271,49 @@ async function handleFormData(env, userEmail) {
     'FACILTIIES': 'FACILITIES', 'METAL': 'METALS', 'PLASTIC': 'PLASTICS',
   };
 
+  // Build the equipment hierarchy { DEPT: { EQUIP_TYPE: [ {code, specific} ] } }
+  // from the Equipment Inventory Cache. This was previously returned as an empty
+  // object, which left the new-ticket equipment dropdown blank for every
+  // department and blocked ticket creation.
+  const equipHierarchy = {};
+  if (cacheRows && cacheRows.length > 4) {
+    const HDR_MAP = {
+      dept:     ['department', 'dept'],
+      eType:    ['equipment type', 'equip type', 'type'],
+      code:     ['equipment code', 'equip code', 'code'],
+      specific: ['equipment name', 'equipment', 'specific', 'description'],
+      status:   ['status'],
+    };
+    const rawHeaders = (cacheRows[3] || []).map(h => String(h || '').trim());
+    const colIdx = {};
+    rawHeaders.forEach((h, i) => {
+      const hl = h.toLowerCase();
+      for (const [key, variants] of Object.entries(HDR_MAP)) {
+        if (colIdx[key] === undefined && variants.some(v => hl.includes(v))) colIdx[key] = i;
+      }
+    });
+    for (let i = 4; i < cacheRows.length; i++) {
+      const row = cacheRows[i]; if (!row) continue;
+      const code     = String(row[colIdx.code     ?? 2] || '').trim();
+      const specific = String(row[colIdx.specific ?? 1] || '').trim();
+      if (!code && !specific) continue;
+      const status = String(row[colIdx.status ?? 4] || 'ACTIVE').trim().toUpperCase();
+      if (status === 'RETIRED' || status === 'INACTIVE') continue;
+      const dept  = String(row[colIdx.dept  ?? 0] || '').trim().toUpperCase();
+      const eType = String(row[colIdx.eType ?? 3] || '').trim() || 'EQUIPMENT';
+      if (!dept) continue;
+      if (!equipHierarchy[dept]) equipHierarchy[dept] = {};
+      if (!equipHierarchy[dept][eType]) equipHierarchy[dept][eType] = [];
+      equipHierarchy[dept][eType].push({ code, specific });
+    }
+  }
+
   return jsonResponse({
     companyName:    config['Company Name'] || 'Container Supply Co.',
     docNo:          config['Doc No (Ticket Form)'] || 'FRM-030-004',
     revision:       config['Revision'] || '0',
     departments,
-    equipHierarchy: {},
+    equipHierarchy,
     buildingZones:  lists['Building / Zone'] || [],
     priorities:     lists['Priorities'] || ['LOW', 'MEDIUM', 'HIGH', 'CRITICAL'],
     problemTypes:   lists['Problem Types'] || [],
