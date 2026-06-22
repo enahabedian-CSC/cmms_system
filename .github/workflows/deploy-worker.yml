@@ -1,0 +1,33 @@
+name: Deploy Cloudflare Worker
+
+# Deploys the CMMS Worker (the GitHub Pages app's backend) to Cloudflare on every
+# push to main that touches the worker. Mirrors deploy-pages.yml so the frontend
+# and backend both deploy from main automatically — no manual `wrangler deploy`.
+#
+# ONE-TIME SETUP (GitHub UI, no terminal):
+#   Settings → Secrets and variables → Actions → New repository secret
+#     CLOUDFLARE_API_TOKEN   — a Cloudflare API token with "Workers Scripts: Edit"
+#     CLOUDFLARE_ACCOUNT_ID  — your Cloudflare account ID
+#   The Worker's runtime secrets (SPREADSHEET_ID, GOOGLE_SA_*, PHOTO_FOLDER_ID,
+#   ALLOWED_ORIGIN) are already set on the Worker in Cloudflare and persist across
+#   deploys, so they do NOT need to be re-entered here.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'cloudflare-worker/**'
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Deploy Worker
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          workingDirectory: cloudflare-worker

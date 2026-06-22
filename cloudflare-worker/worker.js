@@ -49,7 +49,15 @@ const EHL = {
   DEPT:5, BUILDING_ZONE:6, TAG_TYPE:7, DATE_TAGGED:8,
   TAGGED_BY:9, REASON:10, EQUIP_STATUS:11, CLEARED_BY:12,
   CLEARED_DATE:13, NOTES:14,
+  // FRM-029-001 Non-Conforming Equipment Register conformance (SQF 2.3-2.6).
+  // Appended columns (15-19) — additive, so existing 14-col reads/rows are safe.
+  HOLD_REF:15,       // unique hold reference # (2.3.4), distinct from the tag #
+  CAPA_REF:16,       // root-cause → CAPA reference, links to FRM-017-001 (2.4.2)
+  DISPOSITION:17,    // disposition decision on release (2.5.2-.3)
+  AUTHORIZED_BY:18,  // who authorized the disposition / release (2.5.3 / 2.6.3.2)
+  WHAT_DONE:19,      // what was done with the equipment on release (2.6.3.3)
 };
+const EHL_COLS = 19;
 
 const HIST_HEADER_ROW = 5; // data starts at row HIST_HEADER_ROW + 1
 
@@ -863,12 +871,12 @@ async function handleTempFixClear(env, userEmail, body) {
   return jsonResponse({ success: true, tempId });
 }
 
-async function handleEhl(env, userEmail) {
+async function handleEhl(env, userEmail, includeCleared) {
   const token = await getAccessToken(env);
   const user  = await resolveUser(token, env, userEmail);
   if (!user.isManager) return jsonResponse({ error: 'Manager access required' }, 403);
 
-  const rows = await readSheet(token, env.SPREADSHEET_ID, SH.EQUIP_HOLD_LOG, `A${HIST_HEADER_ROW + 1}:N`);
+  const rows = await readSheet(token, env.SPREADSHEET_ID, SH.EQUIP_HOLD_LOG, `A${HIST_HEADER_ROW + 1}:S`);
   const items = [];
   rows.forEach(r => {
     const tagId = cellStr(r, EHL.TAG_ID);
@@ -876,7 +884,7 @@ async function handleEhl(env, userEmail) {
     const dept   = cellStr(r, EHL.DEPT);
     if (!allowed(user, dept)) return;
     const status = cellStr(r, EHL.EQUIP_STATUS).toUpperCase();
-    if (status === 'CLEARED') return;
+    if (status === 'CLEARED' && !includeCleared) return;
     items.push({
       tagId,
       ticketNo:     cellStr(r, EHL.TICKET_NO),
@@ -892,6 +900,12 @@ async function handleEhl(env, userEmail) {
       clearedBy:    cellStr(r, EHL.CLEARED_BY),
       clearedDate:  fmtDate(cellDate(r, EHL.CLEARED_DATE)),
       notes:        cellStr(r, EHL.NOTES),
+      // FRM-029-001 NCR register fields (2.3-2.6)
+      holdRef:      cellStr(r, EHL.HOLD_REF),
+      capaRef:      cellStr(r, EHL.CAPA_REF),
+      disposition:  cellStr(r, EHL.DISPOSITION),
+      authorizedBy: cellStr(r, EHL.AUTHORIZED_BY),
+      whatDone:     cellStr(r, EHL.WHAT_DONE),
     });
   });
   return jsonResponse(items);
@@ -909,16 +923,21 @@ async function handleEhlClear(env, userEmail, body) {
   const sheetRow  = await findMonitorRow(token, env.SPREADSHEET_ID, SH.EQUIP_HOLD_LOG, tagId, dataStart);
   if (sheetRow < 0) return jsonResponse({ error: 'Tag not found: ' + tagId }, 404);
 
-  const rowData  = (await readSheet(token, env.SPREADSHEET_ID, SH.EQUIP_HOLD_LOG, `A${sheetRow}:N${sheetRow}`))[0] || [];
+  const rowData  = (await readSheet(token, env.SPREADSHEET_ID, SH.EQUIP_HOLD_LOG, `A${sheetRow}:S${sheetRow}`))[0] || [];
   const ticketNo = cellStr(rowData, EHL.TICKET_NO);
   const dept     = cellStr(rowData, EHL.DEPT);
   const now      = new Date();
   const clearer  = body.clearedBy || user.displayName;
 
+  // FRM-029-001 release record (SQF 2.6.3): disposition + authorized-by +
+  // what-was-done are captured at release and written to the NCR register.
   await writeSheetCells(token, env.SPREADSHEET_ID, SH.EQUIP_HOLD_LOG, sheetRow, [
-    { col: EHL.EQUIP_STATUS, value: 'CLEARED' },
-    { col: EHL.CLEARED_BY,   value: clearer },
-    { col: EHL.CLEARED_DATE, value: fmtDate(now) },
+    { col: EHL.EQUIP_STATUS,  value: 'CLEARED' },
+    { col: EHL.CLEARED_BY,    value: clearer },
+    { col: EHL.CLEARED_DATE,  value: fmtDate(now) },
+    { col: EHL.DISPOSITION,   value: body.disposition  || '' },
+    { col: EHL.AUTHORIZED_BY, value: body.authorizedBy || clearer },
+    { col: EHL.WHAT_DONE,     value: body.whatDone     || body.notes || '' },
   ]);
 
   if (ticketNo) {
@@ -1591,6 +1610,18 @@ async function handleVerifyClose(env, userEmail, body) {
   if (!user.isManager) return jsonResponse({ error: 'Manager access required' }, 403);
   const ticketNo  = String(body.ticketNo  || '').trim();
   if (!ticketNo) return jsonResponse({ error: 'ticketNo required' }, 400);
+
+  // W1 — enforce the SQF verification checklist server-side (cannot be bypassed
+  // by the UI). All four confirmations must be present before a ticket closes
+  // (SQF 2.13 / 2.14.3 / 13.2.8): work summary, root cause, corrective action,
+  // and sanitation / food-safety clearance.
+  const _chk = String(body.sqfChecklist || '').toLowerCase();
+  const _required = ['work summary', 'root cause', 'corrective action', 'saniti'];
+  const _missing = _required.filter(k => _chk.indexOf(k) < 0);
+  if (_missing.length) {
+    return jsonResponse({ error: 'Verification checklist incomplete — all four items (work summary, root cause, corrective action, sanitation / food-safety) must be confirmed before closing.' }, 400);
+  }
+
   const updatedBy = String(body.updatedBy || user.displayName).trim();
   const now       = new Date();
   await appendMasterLog(token, env, {
@@ -1764,7 +1795,9 @@ async function handleIssueHoldTag(env, userEmail, body) {
   const now      = new Date();
   const taggedBy = String(body.taggedBy || user.displayName).trim();
   const tagId    = 'TAG-' + ticketNo + '-' + String(now.getTime()).slice(-4);
-  const ehlRow   = new Array(14).fill('');
+  // Unique hold reference # for the NCR register (SQF 2.3.4), distinct from the tag #.
+  const holdRef  = 'NCR-' + ticketNo + '-' + String(now.getTime()).slice(-4);
+  const ehlRow   = new Array(EHL_COLS).fill('');
   ehlRow[EHL.TAG_ID       - 1] = tagId;
   ehlRow[EHL.TICKET_NO    - 1] = ticketNo;
   ehlRow[EHL.EQUIP_CODE   - 1] = body.equipCode     || '';
@@ -1776,6 +1809,8 @@ async function handleIssueHoldTag(env, userEmail, body) {
   ehlRow[EHL.TAGGED_BY    - 1] = taggedBy;
   ehlRow[EHL.REASON       - 1] = body.reason        || '';
   ehlRow[EHL.EQUIP_STATUS - 1] = 'ACTIVE';
+  ehlRow[EHL.HOLD_REF     - 1] = holdRef;
+  ehlRow[EHL.CAPA_REF     - 1] = body.capaRef       || '';
   await appendSheetRow(token, env.SPREADSHEET_ID, SH.EQUIP_HOLD_LOG, ehlRow);
   await appendMasterLog(token, env, {
     ticketNo, now, action: 'HOLD TAG ISSUED', equipTagStatus: 'ACTIVE',
@@ -2494,7 +2529,7 @@ export default {
       else if (p === '/api/monitoring/temp-fix/detail'  && method === 'GET') res = await handleTempFixDetail(env, userEmail, url.searchParams.get('tempId') || '');
       else if (p === '/api/monitoring/temp-fix/inspect' && method === 'POST')res = await handleTempFixInspect(env, userEmail, body);
       else if (p === '/api/monitoring/temp-fix/clear'   && method === 'POST')res = await handleTempFixClear(env, userEmail, body);
-      else if (p === '/api/monitoring/hold-tags'        && method === 'GET') res = await handleEhl(env, userEmail);
+      else if (p === '/api/monitoring/hold-tags'        && method === 'GET') res = await handleEhl(env, userEmail, url.searchParams.get('includeCleared') === '1');
       else if (p === '/api/monitoring/hold-tags/clear'  && method === 'POST')res = await handleEhlClear(env, userEmail, body);
       else if (p === '/api/monitoring/parts'            && method === 'GET') res = await handleParts(env, userEmail);
       else if (p === '/api/monitoring/parts/status'     && method === 'POST')res = await handlePartsStatus(env, userEmail, body);
