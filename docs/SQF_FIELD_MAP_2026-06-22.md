@@ -14,18 +14,37 @@ Legend: ✅ live in Worker · ⚠️ partial · ❌ not persisted by Worker · *
 
 ---
 
-## 1. Admin access — the actual fix for the Pages app
+## 1. Admin access — CORRECTED (admin is hardcoded; the sheet has no admin row)
 
-**Where "admin" is defined for Pages:** data, not code — the `⚙️ Configuration` tab, key column `System Admins` (Worker reads `config['System Admins']`, splits on commas, checks your email).
+**Correction (confirmed by Michael + Izzy, 6/22):** the live spreadsheet has **no `System Admins` row**, and admin is **hardcoded in code**. My earlier "edit the config cell" suggestion is wrong — there is no cell to edit. (I trusted the repo `worker.js`, which reads `config['System Admins']`; the *deployed* code clearly differs from the repo.)
 
-**To make yourself admin (no deploy, instant on next login):**
-1. Open the maintenance spreadsheet the Worker is bound to (the `SPREADSHEET_ID` in `cloudflare-worker/wrangler.toml`).
-2. Go to the **`⚙️ Configuration`** tab.
-3. Find the row whose **key (col C)** is `System Admins`.
-4. In the **value (col D)**, append `, mjmarrujo@cscmfg.com` to whatever's there.
-5. Reload the app → you're admin → the **Equipment Cache** tab (and Configuration / Manager Access / Dept Map) appears.
+**Where admin is hardcoded:**
+- **Izzy's code** (`CSC Maintenance Tracker v3.2`): `getAdminEmails_()` reads config key **`Admin Emails`** and falls back to a hardcoded list.
+  - Repo reference: `_reference/izzy_current/Accesscontrol.js:32` → `var fallback = ['izuniga@cscmfg.com'];`
+  - **The fix:** in Izzy's *live* Apps Script project, change that line to `['izuniga@cscmfg.com', 'mjmarrujo@cscmfg.com']`. (Editing the `_reference/` copy in this repo does nothing — it's a read-only snapshot; the live code is in Izzy's own Apps Script project.)
+- **If the Pages app's admin actually comes from the Worker** (not Izzy's GAS): the deployed `worker.js` admin list is Edward's to edit — add `mjmarrujo@cscmfg.com` there. The repo worker reads config, so the deployed one has been changed; Edward knows where.
 
-*(If you want the in-sheet legacy app to also recognize you, that's the `getAdminEmails()` change I already pushed — but Pages only needs the config cell above.)*
+**Action:** confirm with Izzy/Edward which of the two gates the Pages app, then add your email to that one hardcoded list (one line). Becoming admin unlocks the **Equipment Cache** tab and the rest of the Admin section.
+
+*(My pushed `backend/Config.gs` change targets our copy's key `System Admins` for the in-sheet legacy app only. It is harmless but NOT the operative fix — left in place; ignore for Pages.)*
+
+---
+
+## 1b. WHERE EACH SQF DOCUMENT LIVES IN THE APP (navigation map)
+
+This is the "where is the Maintenance Repair Record?" map. Sidebar sections are role-scoped (`index.html:300`).
+
+| SQF document | App screen | How to get there | Sheet behind it |
+|---|---|---|---|
+| **FRM-030-001 Master Equipment Register** | **Equipment Inventory** | Sidebar → **Monitoring → Equipment Inventory** | Equipment Inventory / cache |
+| **FRM-030-002 Maintenance Repair Log** | **Closed Tickets** | Sidebar → **Tickets → Closed Tickets** | `✅ Closed Tickets` |
+| **FRM-030-003 Maintenance Repair Record** | **Service Report** (printable modal) | Open a **CLOSED ticket** → its detail panel → **"📝 Service Report"** button → scroll within the modal → print | `📝 Report Database` |
+| **Maintenance Repair Clearance** | **"Post-Repair Clearance" section** *inside* the Service Report modal | Same as above — it's a block lower down in the Service Report; **scroll the modal** to reach it | Report Database (clearance cols) |
+| **Temporary Repair Log / Maintenance Activity** | **Temp Fix Monitor** | Sidebar → **Monitoring → Temp Fix Monitor**. New entries are created from an **OPEN ticket → "Flag Temp Fix"** button | `🔧 Temp Fix Monitor` |
+| **FRM-029-001 Non-Conforming Equipment Register** | **Equipment Hold** | Sidebar → **Monitoring → Equipment Hold** | `🏷️ Equipment Hold Log` |
+| **FRM-029-002 Equipment Quality Hold Tag** | **Hold Tag** (printable) | Open an **OPEN ticket** → **"🏷 Issue Hold Tag"** button | Equipment Hold Log |
+
+**Answer to your direct question:** the **Maintenance Repair Record IS the Service Report, and it opens from a CLOSED ticket** — exactly the path you described (Reports → closed ticket → "Service Report" top-left). Code: the button only renders when `t.status === 'CLOSED'` for a manager (`ticket-detail.html:206`). The clearance fields are a **section inside that same modal** — you reach them by scrolling down within the Service Report (which is the scroll bug, fixed on `main`, not on the live/Edward deployment).
 
 ---
 
