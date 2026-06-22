@@ -1190,11 +1190,13 @@ async function handleFormData(env, userEmail) {
     'FACILTIIES': 'FACILITIES', 'METAL': 'METALS', 'PLASTIC': 'PLASTICS',
   };
 
-  // Build equipHierarchy from the Equipment Inventory Cache tab.
-  // We read from A4 so cacheData[0] = header row, cacheData[1+] = data rows.
+  // Build equipRows (flat, csc-hub style) and equipHierarchy from cache.
+  // cacheData[0] = header row, cacheData[1+] = data rows (read from A4).
   const equipHierarchy = {};
+  const equipRows      = [];
   if (cacheData.length > 1) {
-    const colIdx = buildEquipColIdx(cacheData[0] || []);
+    const colIdx  = buildEquipColIdx(cacheData[0] || []);
+    const seenKeys = new Set();
     for (let i = 1; i < cacheData.length; i++) {
       const row = cacheData[i]; if (!row || !row.length) continue;
       const col = k => colIdx[k] !== undefined ? String(row[colIdx[k]] || '').trim() : '';
@@ -1203,12 +1205,21 @@ async function handleFormData(env, userEmail) {
       const rawDept = col('dept').toUpperCase();
       const code    = col('code');
       if (!rawDept || !code) continue;
-      const dept  = deptMapping[rawDept] || rawDept;
-      const eType = col('eType') || 'Other';
-      const name  = col('specific') || code;
+      const dept   = deptMapping[rawDept] || rawDept;
+      const eType  = col('eType') || 'Other';
+      const name   = col('specific') || code;
+      // Legacy nested hierarchy (kept for backwards compat)
       if (!equipHierarchy[dept]) equipHierarchy[dept] = {};
       if (!equipHierarchy[dept][eType]) equipHierarchy[dept][eType] = [];
       equipHierarchy[dept][eType].push({ code, name });
+      // Flat rows for csc-hub-style cascading button grid
+      const level2  = eType;
+      const level3  = name || code;
+      const rowKey  = dept + '|' + level2 + '|' + level3 + '|' + code;
+      if (!seenKeys.has(rowKey)) {
+        seenKeys.add(rowKey);
+        equipRows.push({ dept, level2, level3, level4: '', code });
+      }
     }
   }
 
@@ -1218,6 +1229,7 @@ async function handleFormData(env, userEmail) {
     revision:       config['Revision'] || '0',
     departments,
     equipHierarchy,
+    equipRows,
     buildingZones:  lists['Building / Zone'] || [],
     priorities:     lists['Priorities'] || ['LOW', 'MEDIUM', 'HIGH', 'CRITICAL'],
     problemTypes:   lists['Problem Types'] || [],
