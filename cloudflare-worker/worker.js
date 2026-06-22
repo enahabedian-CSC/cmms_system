@@ -1591,6 +1591,18 @@ async function handleVerifyClose(env, userEmail, body) {
   if (!user.isManager) return jsonResponse({ error: 'Manager access required' }, 403);
   const ticketNo  = String(body.ticketNo  || '').trim();
   if (!ticketNo) return jsonResponse({ error: 'ticketNo required' }, 400);
+
+  // W1 — enforce the SQF verification checklist server-side (cannot be bypassed
+  // by the UI). All four confirmations must be present before a ticket closes
+  // (SQF 2.13 / 2.14.3 / 13.2.8): work summary, root cause, corrective action,
+  // and sanitation / food-safety clearance.
+  const _chk = String(body.sqfChecklist || '').toLowerCase();
+  const _required = ['work summary', 'root cause', 'corrective action', 'saniti'];
+  const _missing = _required.filter(k => _chk.indexOf(k) < 0);
+  if (_missing.length) {
+    return jsonResponse({ error: 'Verification checklist incomplete — all four items (work summary, root cause, corrective action, sanitation / food-safety) must be confirmed before closing.' }, 400);
+  }
+
   const updatedBy = String(body.updatedBy || user.displayName).trim();
   const now       = new Date();
   await appendMasterLog(token, env, {

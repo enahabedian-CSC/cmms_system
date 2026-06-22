@@ -467,9 +467,13 @@ function _tdVerifyClose_() {
       '<label style="display:flex;align-items:center;gap:8px;margin-bottom:7px;cursor:pointer;font-size:12.5px;">' +
         '<input type="checkbox" id="sqf-check-2" style="width:14px;height:14px;"> Root cause identified' +
       '</label>' +
-      '<label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:12.5px;">' +
+      '<label style="display:flex;align-items:center;gap:8px;margin-bottom:7px;cursor:pointer;font-size:12.5px;">' +
         '<input type="checkbox" id="sqf-check-3" style="width:14px;height:14px;"> Corrective action verified' +
       '</label>' +
+      '<label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:12.5px;">' +
+        '<input type="checkbox" id="sqf-check-4" style="width:14px;height:14px;"> Area cleaned &amp; sanitized — no food-safety risk' +
+      '</label>' +
+      '<div style="font-size:10.5px;color:var(--text-tertiary);margin-top:6px;">All four items are required to close (SQF 2.13 / 2.14.3 / 13.2.8).</div>' +
     '</div>' +
     tempFixSection,
     function() {
@@ -477,6 +481,8 @@ function _tdVerifyClose_() {
       if ((document.getElementById('sqf-check-1') || {}).checked) sqfItems.push('Work summary documented');
       if ((document.getElementById('sqf-check-2') || {}).checked) sqfItems.push('Root cause identified');
       if ((document.getElementById('sqf-check-3') || {}).checked) sqfItems.push('Corrective action verified');
+      if ((document.getElementById('sqf-check-4') || {}).checked) sqfItems.push('Area cleaned and sanitized - no food-safety risk');
+      if (sqfItems.length < 4) { alert('All four SQF verification items must be confirmed before closing (work summary, root cause, corrective action, and sanitation / food-safety).'); return; }
       var data = {
         ticketNo:     t.ticketNo,
         verifiedBy:   document.getElementById('vc-verifier').value.trim() || USER.displayName,
