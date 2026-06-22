@@ -606,13 +606,27 @@ function getManagerConfig() {
   }
 }
 
-// Returns array of lowercase email strings from ⚙️ Configuration 'System Admins'.
+// Code-level safety list: these addresses are ALWAYS admins, regardless of the
+// ⚙️ Configuration 'System Admins' value. This guarantees admin access can never
+// be locked out by a sheet edit, and mirrors the fallback pattern in the legacy
+// system. The sheet ('System Admins' row) remains the place to grant/revoke
+// everyone else — this list is intentionally minimal.
+var GUARANTEED_ADMIN_EMAILS_ = ['mjmarrujo@cscmfg.com'];
+
+// Returns array of lowercase email strings from ⚙️ Configuration 'System Admins',
+// unioned with the code-level guaranteed-admin safety list.
 function getAdminEmails() {
-  var raw = getConfigValue('System Admins');
-  if (!raw) return [];
-  return String(raw).split(',').map(function(e) {
-    return e.trim().toLowerCase();
-  }).filter(function(e) { return e !== ''; });
+  var raw  = getConfigValue('System Admins');
+  var list = raw
+    ? String(raw).split(',').map(function(e) {
+        return e.trim().toLowerCase();
+      }).filter(function(e) { return e !== ''; })
+    : [];
+  GUARANTEED_ADMIN_EMAILS_.forEach(function(e) {
+    e = String(e).trim().toLowerCase();
+    if (e && list.indexOf(e) < 0) list.push(e);
+  });
+  return list;
 }
 
 // Returns manager emails for a given dept (post-normalization).

@@ -70,6 +70,48 @@ const SH = {
   OPEN:           '📂 Open Tickets',
 };
 
+// ── Equipment cache column map (mirrors EquipRegistry.gs _EQUIP_COL_MAPPINGS_) ─
+// Used by handleFormData, handleEquipCacheStatus, and handleEquipInventory.
+// Cache tab layout: row 4 = headers (A4), row 5+ = data.  Always read from A4.
+// Matching strategy: exact lowercase match (same as GAS indexOf approach).
+const EQUIP_COL_MAP = {
+  dept:     ['department','dept','dept.','department name','dept name',
+             'area','division','plant','facility','location','cost center',
+             'work center','workcenter','shop','building'],
+  eType:    ['equipment type','equip type','type','asset type','machine type',
+             'category','class','equipment class','asset class','object type',
+             'machine class'],
+  code:     ['equipment code','equip code','code','asset code',
+             'job #','job no','job no.','job number',
+             'id','asset id','asset #','asset no','asset no.','asset number',
+             'machine code','machine #','machine id','machine no','machine no.',
+             'equip id','equip #','equip no','equip no.','equip number',
+             'equipment #','equipment id','equipment no','equipment no.',
+             'equipment number','plant no','plant #','plant no.','no.','number',
+             'serial','serial #','serial no','serial number'],
+  specific: ['specific equipment','equipment name','name','description',
+             'asset name','equipment description','machine name','equip name',
+             'item','item name','equipment','machine','asset description',
+             'short text','desc','long description','full name','title'],
+  status:   ['status','active','state','asset status','equip status',
+             'condition','in service','active/inactive'],
+};
+
+// Build colIdx map from a header row array (0-based indices, exact match).
+function buildEquipColIdx(headerRow) {
+  const colIdx = {};
+  headerRow.forEach((h, i) => {
+    const hl = String(h || '').trim().toLowerCase();
+    if (!hl) return;
+    for (const [key, variants] of Object.entries(EQUIP_COL_MAP)) {
+      if (colIdx[key] === undefined && variants.indexOf(hl) >= 0) {
+        colIdx[key] = i;
+      }
+    }
+  });
+  return colIdx;
+}
+
 // ── Cell helpers ──────────────────────────────────────────────────────────────
 
 function cellStr(row, colOneBased) {
@@ -1216,12 +1258,12 @@ async function handleFormData(env, userEmail) {
   const isTech = (userEmail || '').trim().toLowerCase().endsWith('@cscmfg.com');
   if (!user.isManager && !isTech) return jsonResponse({ error: 'Access required' }, 403);
 
-  const [configRows, dataRows, managerRows, techRows, cacheRows] = await Promise.all([
+  const [configRows, dataRows, managerRows, techRows, cacheData] = await Promise.all([
     readSheet(token, env.SPREADSHEET_ID, SH.CONFIG,         'C2:D30'),
     readSheet(token, env.SPREADSHEET_ID, SH.DATA_VALID,     'A1:Z200'),
     readSheet(token, env.SPREADSHEET_ID, SH.MANAGER_ACCESS, 'A4:E200'),
     readSheet(token, env.SPREADSHEET_ID, SH.TECH_DIR,       'A2:D200').catch(() => []),
-    readSheet(token, env.SPREADSHEET_ID, SH.EQUIP_CACHE,    'A1:H').catch(() => []),
+    readSheet(token, env.SPREADSHEET_ID, SH.EQUIP_CACHE,    'A4:Z').catch(() => []),
   ]);
 
   const config = {};
@@ -1271,40 +1313,25 @@ async function handleFormData(env, userEmail) {
     'FACILTIIES': 'FACILITIES', 'METAL': 'METALS', 'PLASTIC': 'PLASTICS',
   };
 
-  // Build the equipment hierarchy { DEPT: { EQUIP_TYPE: [ {code, specific} ] } }
-  // from the Equipment Inventory Cache. This was previously returned as an empty
-  // object, which left the new-ticket equipment dropdown blank for every
-  // department and blocked ticket creation.
+  // Build equipHierarchy from the Equipment Inventory Cache tab.
+  // We read from A4 so cacheData[0] = header row, cacheData[1+] = data rows.
   const equipHierarchy = {};
-  if (cacheRows && cacheRows.length > 4) {
-    const HDR_MAP = {
-      dept:     ['department', 'dept'],
-      eType:    ['equipment type', 'equip type', 'type'],
-      code:     ['equipment code', 'equip code', 'code'],
-      specific: ['equipment name', 'equipment', 'specific', 'description'],
-      status:   ['status'],
-    };
-    const rawHeaders = (cacheRows[3] || []).map(h => String(h || '').trim());
-    const colIdx = {};
-    rawHeaders.forEach((h, i) => {
-      const hl = h.toLowerCase();
-      for (const [key, variants] of Object.entries(HDR_MAP)) {
-        if (colIdx[key] === undefined && variants.some(v => hl.includes(v))) colIdx[key] = i;
-      }
-    });
-    for (let i = 4; i < cacheRows.length; i++) {
-      const row = cacheRows[i]; if (!row) continue;
-      const code     = String(row[colIdx.code     ?? 2] || '').trim();
-      const specific = String(row[colIdx.specific ?? 1] || '').trim();
-      if (!code && !specific) continue;
-      const status = String(row[colIdx.status ?? 4] || 'ACTIVE').trim().toUpperCase();
-      if (status === 'RETIRED' || status === 'INACTIVE') continue;
-      const dept  = String(row[colIdx.dept  ?? 0] || '').trim().toUpperCase();
-      const eType = String(row[colIdx.eType ?? 3] || '').trim() || 'EQUIPMENT';
-      if (!dept) continue;
+  if (cacheData.length > 1) {
+    const colIdx = buildEquipColIdx(cacheData[0] || []);
+    for (let i = 1; i < cacheData.length; i++) {
+      const row = cacheData[i]; if (!row || !row.length) continue;
+      const col = k => colIdx[k] !== undefined ? String(row[colIdx[k]] || '').trim() : '';
+      const status = (col('status') || 'ACTIVE').toUpperCase();
+      if (status === 'INACTIVE') continue;
+      const rawDept = col('dept').toUpperCase();
+      const code    = col('code');
+      if (!rawDept || !code) continue;
+      const dept  = deptMapping[rawDept] || rawDept;
+      const eType = col('eType') || 'Other';
+      const name  = col('specific') || code;
       if (!equipHierarchy[dept]) equipHierarchy[dept] = {};
       if (!equipHierarchy[dept][eType]) equipHierarchy[dept][eType] = [];
-      equipHierarchy[dept][eType].push({ code, specific });
+      equipHierarchy[dept][eType].push({ code, name });
     }
   }
 
@@ -1360,6 +1387,83 @@ async function handleEquipQuickStats(env, userEmail, equipCode) {
   return jsonResponse({ count60d, topProbType });
 }
 
+async function handleReserveTicketId(env, userEmail, searchParams) {
+  const isTech = (userEmail || '').trim().toLowerCase().endsWith('@cscmfg.com');
+  if (!isTech) return jsonResponse({ error: 'Access required' }, 403);
+  const dept = (searchParams.get('dept') || '').toUpperCase().trim();
+  const DEPT_CODES = { ELECTRICAL: 'EL', 'MACHINE SHOP': 'MS', FACILITIES: 'FAC', PLASTICS: 'PL', METALS: 'MTL', LITHO: 'LTH' };
+  const prefix = DEPT_CODES[dept] || 'TK';
+  const now    = new Date();
+  const stamp  = String(now.getFullYear()) +
+                 String(now.getMonth() + 1).padStart(2, '0') +
+                 String(now.getDate()).padStart(2, '0');
+  const ticketNo = prefix + '-' + stamp + '-' +
+                   String(now.getHours()).padStart(2, '0') +
+                   String(now.getMinutes()).padStart(2, '0') +
+                   String(now.getSeconds()).padStart(2, '0');
+  return jsonResponse({ ticketNo });
+}
+
+async function handleUploadPhoto(env, userEmail, body) {
+  const isTech = (userEmail || '').trim().toLowerCase().endsWith('@cscmfg.com');
+  if (!isTech) return jsonResponse({ error: 'Access required' }, 403);
+
+  const folderId = env.PHOTO_FOLDER_ID || '';
+  if (!folderId) return jsonResponse({ ok: false, error: 'Photo storage not configured (PHOTO_FOLDER_ID missing)' }, 500);
+
+  const token     = await getAccessToken(env);
+  const ticketNo  = String(body.ticketNo   || '');
+  const photoIdx  = body.photoIndex || 1;
+  const dataUrl   = String(body.dataUrl    || '');
+  const mimeType  = String(body.mimeType   || 'image/jpeg');
+  const ext       = String(body.ext        || 'jpg');
+  const filename  = `cmms_${ticketNo}_photo_${photoIdx}.${ext}`;
+
+  const b64    = dataUrl.includes(',') ? dataUrl.split(',')[1] : dataUrl;
+  const binary = atob(b64);
+  const bytes  = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+
+  const boundary = 'boundary-' + Math.random().toString(36).slice(2);
+  const metadata = { name: filename, parents: [folderId], mimeType };
+  const enc  = new TextEncoder();
+  const head = enc.encode(
+    `--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n` +
+    JSON.stringify(metadata) +
+    `\r\n--${boundary}\r\nContent-Type: ${mimeType}\r\n\r\n`
+  );
+  const tail    = enc.encode(`\r\n--${boundary}--`);
+  const bodyBuf = new Uint8Array(head.length + bytes.length + tail.length);
+  bodyBuf.set(head, 0);
+  bodyBuf.set(bytes, head.length);
+  bodyBuf.set(tail, head.length + bytes.length);
+
+  const upRes = await fetch(
+    'https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&supportsAllDrives=true',
+    {
+      method:  'POST',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': `multipart/related; boundary=${boundary}` },
+      body:    bodyBuf
+    }
+  );
+  if (!upRes.ok) {
+    const errText = await upRes.text();
+    return jsonResponse({ ok: false, error: `Drive upload failed: ${upRes.status} ${errText}` });
+  }
+  const file = await upRes.json();
+
+  // Grant view access to the cscmfg.com domain (non-fatal if it fails)
+  try {
+    await fetch(`https://www.googleapis.com/drive/v3/files/${file.id}/permissions?supportsAllDrives=true`, {
+      method:  'POST',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body:    JSON.stringify({ type: 'domain', role: 'reader', domain: 'cscmfg.com' })
+    });
+  } catch (_) { /* non-fatal */ }
+
+  return jsonResponse({ ok: true, url: `https://drive.google.com/file/d/${file.id}/view` });
+}
+
 async function handleAddTicket(env, userEmail, body) {
   const token  = await getAccessToken(env);
   const user   = await resolveUser(token, env, userEmail);
@@ -1373,18 +1477,26 @@ async function handleAddTicket(env, userEmail, body) {
   const now        = new Date();
   const addedBy    = body.addedBy || user.displayName;
 
-  // Generate ticket number: dept prefix + YYYYMMDD + 4-digit ms
+  // Use pre-reserved ticketNo if provided (photos were uploaded before this call),
+  // otherwise generate one now from the current timestamp.
   const DEPT_CODES = { ELECTRICAL: 'EL', 'MACHINE SHOP': 'MS', FACILITIES: 'FAC', PLASTICS: 'PL', METALS: 'MTL', LITHO: 'LTH' };
-  const prefix     = DEPT_CODES[dept] || 'TK';
-  const d          = now;
-  const stamp      = String(d.getFullYear()) + String(d.getMonth()+1).padStart(2,'0') + String(d.getDate()).padStart(2,'0');
-  const ticketNo   = prefix + '-' + stamp + '-' + String(d.getHours()).padStart(2,'0') + String(d.getMinutes()).padStart(2,'0');
+  let ticketNo = String(body.ticketNo || '').trim();
+  if (!ticketNo) {
+    const prefix = DEPT_CODES[dept] || 'TK';
+    const stamp  = String(now.getFullYear()) + String(now.getMonth()+1).padStart(2,'0') + String(now.getDate()).padStart(2,'0');
+    ticketNo     = prefix + '-' + stamp + '-' + String(now.getHours()).padStart(2,'0') + String(now.getMinutes()).padStart(2,'0');
+  }
+
+  // Build photo cell: join any uploaded Drive links with newline
+  const photoLinks = Array.isArray(body.photoLinks) ? body.photoLinks.filter(l => l && !l.startsWith('UPLOAD_FAILED') && !l.startsWith('NETWORK_ERROR')) : [];
+  const photoCell  = photoLinks.length > 0 ? photoLinks.join('\n') : (body.photoUrl || '');
 
   await appendMasterLog(token, env, {
     ticketNo, now, action: isCritical ? 'TICKET CREATED — CRITICAL (bypass)' : 'TICKET CREATED',
     status, dept,
     updatedBy: addedBy,
-    notes: (body.description || '') + (body.observations ? ' | ' + body.observations : ''),
+    notes:    (body.description || '') + (body.observations ? ' | ' + body.observations : ''),
+    photoUrl: photoCell,
   });
   // Extended ML fields via batch write on the newly-appended row (best-effort)
   await appendTicketHistory(token, env, ticketNo, 'CREATED', '', status, addedBy,
@@ -2060,43 +2172,48 @@ async function handleEquipCacheStatus(env, userEmail) {
   const config = {};
   configRows.forEach(r => { if (r[0]) config[String(r[0]).trim()] = String(r[1] ?? ''); });
 
-  const configSheetUrl = config['Equipment Register Sheet URL'] || '';
+  const URL_CANDIDATES_ST = [
+    'Equipment Register Sheet URL','Equipment List Source URL',
+    'Equipment Register URL','Equip Register URL',
+    'Equipment Register Sheet ID','Equipment Source URL',
+  ];
+  let configSheetUrl = '', resolvedSheetId = '';
+  for (const key of URL_CANDIDATES_ST) {
+    const val = config[key] || '';
+    if (val) { configSheetUrl = val; const m = val.match(/\/d\/([-\w]{25,})/); if (m) { resolvedSheetId = m[1]; break; } }
+  }
+  if (!resolvedSheetId && configSheetUrl.length >= 25 && !/[/ ]/.test(configSheetUrl)) resolvedSheetId = configSheetUrl;
   const configTabName  = config['Equipment Inventory Tab Name'] || '';
-  const resolvedSheetId = configSheetUrl.match(/[-\w]{25,}/)?.[0] || '';
   const canonicalDepts  = ['ELECTRICAL','MACHINE SHOP','FACILITIES','PLASTICS','METALS','LITHO'];
 
   let cacheRows = 0, parsedItemCount = 0, rawHeaders = [], mappedCols = {}, unmappedHdrs = [];
   let lastRefreshed = 'Never', deptSummary = [];
-  const HDR_MAP = {
-    dept:     ['department','dept'],
-    eType:    ['equipment type','type','equip type'],
-    code:     ['equipment code','code','equip code'],
-    specific: ['equipment name','equipment','specific','description'],
-    status:   ['status'],
-    group:    ['group','line','group/line'],
-    deptCode: ['dept code','department code'],
-  };
+  // lastRefreshed comes from config (written by handleRefreshEquipCache)
+  lastRefreshed = config['Equip Cache Last Refreshed'] || 'Never';
   try {
-    const cacheData = await readSheet(token, env.SPREADSHEET_ID, SH.EQUIP_CACHE, 'A1:H');
-    cacheRows = Math.max(0, cacheData.length - 4);
-    if (cacheData.length > 3) {
-      rawHeaders = (cacheData[3] || []).map(h => String(h || '').trim()).filter(Boolean);
+    // Read from A4 so cacheData[0]=headers, cacheData[1+]=data (avoids empty leading-row issue)
+    const cacheData = await readSheet(token, env.SPREADSHEET_ID, SH.EQUIP_CACHE, 'A4:Z');
+    cacheRows = Math.max(0, cacheData.length - 1);
+    if (cacheData.length > 0) {
+      rawHeaders = (cacheData[0] || []).map(h => String(h || '').trim()).filter(Boolean);
+      const allVars = Object.values(EQUIP_COL_MAP).flat();
       rawHeaders.forEach(h => {
         const hl = h.toLowerCase(); let matched = false;
-        for (const [key, variants] of Object.entries(HDR_MAP)) {
-          if (variants.some(v => hl.includes(v))) { mappedCols[key] = h; matched = true; break; }
+        for (const [key, variants] of Object.entries(EQUIP_COL_MAP)) {
+          if (variants.indexOf(hl) >= 0) { mappedCols[key] = h; matched = true; break; }
         }
         if (!matched) unmappedHdrs.push(h);
       });
     }
-    if (cacheData.length > 1 && cacheData[1][0]) lastRefreshed = String(cacheData[1][0]);
+    const colIdx = buildEquipColIdx(cacheData[0] || []);
     const deptCount = {};
-    for (let i = 4; i < cacheData.length; i++) {
-      const row = cacheData[i]; if (!row || !row[0]) continue; parsedItemCount++;
-      const deptIdx = rawHeaders.indexOf(mappedCols.dept || '');
-      const typeIdx = rawHeaders.indexOf(mappedCols.eType || '');
-      const d = deptIdx >= 0 ? String(row[deptIdx] || '').trim().toUpperCase() : '';
-      const t = typeIdx >= 0 ? String(row[typeIdx] || '').trim() : '';
+    for (let i = 1; i < cacheData.length; i++) {
+      const row = cacheData[i]; if (!row || !row.length) continue;
+      const col = k => colIdx[k] !== undefined ? String(row[colIdx[k]] || '').trim() : '';
+      const status = (col('status') || 'ACTIVE').toUpperCase();
+      if (status === 'INACTIVE') continue;
+      const d = col('dept').toUpperCase(); const t = col('eType');
+      if (!d) continue; parsedItemCount++;
       if (!deptCount[d]) deptCount[d] = { dept: d, types: new Set(), items: 0 };
       if (t) deptCount[d].types.add(t); deptCount[d].items++;
     }
@@ -2111,7 +2228,110 @@ async function handleRefreshEquipCache(env, userEmail) {
   const token = await getAccessToken(env);
   const user  = await resolveUser(token, env, userEmail);
   if (!user.isAdmin) return jsonResponse({ error: 'Admin access required' }, 403);
-  return jsonResponse({ success: false, rows: 0, error: 'Cache refresh not supported via web API — use the Google Sheets add-on.' });
+
+  // Read CMMS config to find the external register sheet ID and tab name
+  const configRows = await readSheet(token, env.SPREADSHEET_ID, SH.CONFIG, 'C2:D50');
+  const config = {};
+  configRows.forEach(r => { if (r[0]) config[String(r[0]).trim()] = String(r[1] ?? ''); });
+
+  // Extract sheet ID from URL (tries several common key name variants)
+  const URL_CANDIDATES = [
+    'Equipment Register Sheet URL','Equipment List Source URL',
+    'Equipment Register URL','Equip Register URL',
+    'Equipment Register Sheet ID','Equipment Source URL',
+  ];
+  let regSheetId = '';
+  for (const key of URL_CANDIDATES) {
+    const val = config[key] || '';
+    const m = val.match(/\/d\/([-\w]{25,})/);
+    if (m) { regSheetId = m[1]; break; }
+    if (!m && val.length >= 25 && !/[/ ]/.test(val)) { regSheetId = val; break; }
+  }
+  if (!regSheetId) {
+    for (const val of Object.values(config)) {
+      if (String(val).includes('docs.google.com/spreadsheets')) {
+        const m = String(val).match(/\/d\/([-\w]{25,})/);
+        if (m) { regSheetId = m[1]; break; }
+      }
+    }
+  }
+  if (!regSheetId) return jsonResponse({ success: false, error: 'Equipment Register Sheet URL is not configured. In ⚙️ Configuration, add a row with key "Equipment Register Sheet URL" and paste the full Google Sheets URL of your Equipment Register.' });
+
+  const tabName = (config['Equipment Inventory Tab Name'] || '').trim();
+  if (!tabName) return jsonResponse({ success: false, error: 'Equipment Inventory Tab Name is not configured. In ⚙️ Configuration, add a row with key "Equipment Inventory Tab Name" and the exact tab name (case-sensitive) from your Equipment Register.' });
+
+  // Read the external Equipment Register spreadsheet
+  let srcData;
+  try {
+    srcData = await readSheet(token, regSheetId, tabName, null);
+  } catch (e) {
+    return jsonResponse({ success: false, error: 'Could not read Equipment Register: ' + e.message + '. Make sure the spreadsheet is shared with the service account (' + (env.GOOGLE_SA_EMAIL || 'see GOOGLE_SA_EMAIL secret') + ').' });
+  }
+  if (!srcData || srcData.length < 2) return jsonResponse({ success: false, error: 'Tab "' + tabName + '" in the Equipment Register appears empty.' });
+
+  // Find the real header row — pick the row with the most recognised column-name matches
+  const ALL_VARIANTS = [
+    'department','dept','dept.','area','division','plant','facility','location',
+    'cost center','work center','workcenter','shop','building',
+    'dept code','department code','dept #','dept no',
+    'group','equipment group','line #','line number','line','asset group',
+    'equipment type','equip type','type','asset type','machine type','category','class',
+    'equipment code','equip code','code','asset code','job #','job no','id','asset id',
+    'machine code','machine #','equip id','equip #','equipment #','equipment id',
+    'plant no','plant #','no.','number','serial','serial #','serial no','serial number',
+    'specific equipment','equipment name','name','description','asset name',
+    'equipment description','machine name','equip name','item','equipment','machine',
+    'short text','desc','long description','full name','title',
+    'status','active','state','asset status','equip status','condition',
+  ];
+  const limit = Math.min(10, srcData.length);
+  let bestIdx = 0, bestCount = 0, firstMultiCell = -1;
+  for (let i = 0; i < limit; i++) {
+    const row = srcData[i]; let nonEmpty = 0, matches = 0;
+    for (const cell of row) {
+      const lc = String(cell || '').trim().toLowerCase();
+      if (!lc) continue; nonEmpty++;
+      if (ALL_VARIANTS.includes(lc)) matches++;
+    }
+    if (matches > bestCount) { bestCount = matches; bestIdx = i; }
+    if (firstMultiCell < 0 && nonEmpty >= 3) firstMultiCell = i;
+  }
+  if (bestCount === 0 && firstMultiCell >= 0) bestIdx = firstMultiCell;
+  const relevantData = srcData.slice(bestIdx); // header row + data rows
+
+  // Clear cache rows 4+ then write new data starting at row 4
+  const cacheEncoded = encodeURIComponent(SH.EQUIP_CACHE);
+  await fetch(
+    `https://sheets.googleapis.com/v4/spreadsheets/${env.SPREADSHEET_ID}/values/${cacheEncoded}!A4:Z2000:clear`,
+    { method: 'POST', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }, body: '{}' }
+  );
+  const writeRes = await fetch(
+    `https://sheets.googleapis.com/v4/spreadsheets/${env.SPREADSHEET_ID}/values/${cacheEncoded}!A4?valueInputOption=USER_ENTERED`,
+    {
+      method: 'PUT',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ values: relevantData }),
+    }
+  );
+  if (!writeRes.ok) {
+    const txt = await writeRes.text();
+    return jsonResponse({ success: false, error: 'Failed to write to cache tab: ' + txt });
+  }
+
+  // Stamp the refresh timestamp into the config sheet
+  const now = new Date();
+  const nowStr = `${now.getMonth()+1}/${now.getDate()}/${now.getFullYear()} ` +
+    `${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
+  try {
+    for (let i = 0; i < configRows.length; i++) {
+      if (String(configRows[i][0] || '').trim() === 'Equip Cache Last Refreshed') {
+        await writeSheetCells(token, env.SPREADSHEET_ID, SH.CONFIG, i + 2, [{ col: 4, value: nowStr }]);
+        break;
+      }
+    }
+  } catch (_) {}
+
+  return jsonResponse({ success: true, rows: relevantData.length - 1 });
 }
 
 // ── Tech work board handler ───────────────────────────────────────────────────
@@ -2167,33 +2387,21 @@ async function handleEquipInventory(env, userEmail) {
   if (!user.isManager && !isTech) return jsonResponse({ error: 'Access required' }, 403);
 
   let equipList = [];
-  const HDR_MAP = {
-    dept:     ['department','dept'],
-    eType:    ['equipment type','type','equip type'],
-    code:     ['equipment code','code','equip code'],
-    specific: ['equipment name','equipment','specific','description'],
-    status:   ['status'],
-  };
   try {
-    const cacheData = await readSheet(token, env.SPREADSHEET_ID, SH.EQUIP_CACHE, 'A1:H');
-    if (cacheData.length > 4) {
-      const rawHeaders = (cacheData[3] || []).map(h => String(h || '').trim());
-      const colIdx = {};
-      rawHeaders.forEach((h, i) => {
-        const hl = h.toLowerCase();
-        for (const [key, variants] of Object.entries(HDR_MAP)) {
-          if (variants.some(v => hl.includes(v))) { colIdx[key] = i; break; }
-        }
-      });
-      for (let i = 4; i < cacheData.length; i++) {
-        const row  = cacheData[i]; if (!row) continue;
-        const code = String(row[colIdx.code     ?? 2] || '').trim();
+    // Read from A4: cacheData[0]=headers, cacheData[1+]=data
+    const cacheData = await readSheet(token, env.SPREADSHEET_ID, SH.EQUIP_CACHE, 'A4:Z');
+    if (cacheData.length > 1) {
+      const colIdx = buildEquipColIdx(cacheData[0] || []);
+      for (let i = 1; i < cacheData.length; i++) {
+        const row = cacheData[i]; if (!row || !row.length) continue;
+        const col = k => colIdx[k] !== undefined ? String(row[colIdx[k]] || '').trim() : '';
+        const code = col('code');
         if (!code) continue;
         equipList.push({
-          code, specific: String(row[colIdx.specific ?? 1] || '').trim(),
-          dept:    String(row[colIdx.dept   ?? 0] || '').trim().toUpperCase(),
-          eType:   String(row[colIdx.eType  ?? 3] || '').trim(),
-          status:  String(row[colIdx.status ?? 4] || 'ACTIVE').trim().toUpperCase(),
+          code, specific: col('specific'),
+          dept:   col('dept').toUpperCase(),
+          eType:  col('eType'),
+          status: (col('status') || 'ACTIVE').toUpperCase(),
           totalTickets:0, openTickets:0, avgCloseDays:null, mtbf:null, mttr:null, lastTicketDate:'',
         });
       }
@@ -2301,6 +2509,8 @@ export default {
       // Submit ticket
       else if (p === '/api/submit/form-data'            && method === 'GET') res = await handleFormData(env, userEmail);
       else if (p === '/api/submit/equip-stats'          && method === 'GET') res = await handleEquipQuickStats(env, userEmail, url.searchParams.get('equipCode') || '');
+      else if (p === '/api/submit/reserve-id'           && method === 'GET') res = await handleReserveTicketId(env, userEmail, url.searchParams);
+      else if (p === '/api/submit/upload-photo'         && method === 'POST')res = await handleUploadPhoto(env, userEmail, body);
       else if (p === '/api/submit/add'                  && method === 'POST')res = await handleAddTicket(env, userEmail, body);
       // Ticket actions
       else if (p === '/api/tickets/approve'             && method === 'POST')res = await handleApproveTicket(env, userEmail, body);

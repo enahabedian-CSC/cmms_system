@@ -12,6 +12,8 @@ compatibility_date = "2024-09-23"
 #                           (paste the full PEM block including -----BEGIN/END-----)
 #   ALLOWED_ORIGIN        — CORS origin for your GitHub Pages site
 #                           e.g. https://your-org.github.io
+#   PHOTO_FOLDER_ID       — Google Drive folder ID for ticket photo uploads
+#                           (share the folder with the service account email)
 #
 # ── Optional vars ─────────────────────────────────────────────────────────────
 # [vars]
