@@ -621,21 +621,33 @@ window.PAGES['home'] = function(container) {
         _homeKpiCard_('Critical Open',   '—', 'Immediate attention',   'critical', 'kpi-critical') +
         _homeKpiCard_('Temp Fixes Active','—', 'Need follow-up',       'warn',     'kpi-temp') +
       '</div>' +
-      // SQF Weekly Review band (resets each Monday)
-      _homeReviewTitle_('This Week · Weekly Review', 'Resets Monday — SQF weekly maintenance review') +
-      '<div class="kpi-grid" style="grid-template-columns:repeat(4,minmax(130px,1fr));">' +
-        _homeKpiCard_('Opened',        '—', 'New since Monday',      'info',    'kpi-wk-opened') +
-        _homeKpiCard_('Closed',        '—', 'Resolved since Monday', 'success', 'kpi-wk-closed') +
-        _homeKpiCard_('Temp Fixes',    '—', 'Active, need review',   'warn',    'kpi-wk-temp') +
-        _homeKpiCard_('Parts Pending', '—', 'Awaiting parts',        'info',    'kpi-wk-parts') +
-      '</div>' +
-      // SQF Monthly Review band (resets on the 1st)
-      _homeReviewTitle_('This Month · Monthly Review', 'Resets on the 1st — SQF monthly maintenance review') +
-      '<div class="kpi-grid" style="grid-template-columns:repeat(4,minmax(130px,1fr));">' +
-        _homeKpiCard_('Opened',        '—', 'New this month',        'info',    'kpi-mo-opened') +
-        _homeKpiCard_('Closed',        '—', 'Resolved this month',   'success', 'kpi-mo-closed') +
-        _homeKpiCard_('Critical Open', '—', 'Immediate attention',   'critical','kpi-mo-critical') +
-        _homeKpiCard_('Closed (30d)',  '—', 'Rolling 30 days',       'success', 'kpi-mo-closed30') +
+      // SQF Weekly + Monthly reviews — collapsed by default (declutter).
+      // Required for SQF review but tucked into one collapsible section so the
+      // default dashboard isn't dominated by review tiles. Count spans keep
+      // their IDs (just hidden) so _homeRenderKpis_ still populates them.
+      '<div class="trend-card" style="padding:0;overflow:hidden;margin-top:18px;">' +
+        '<div onclick="_homeToggle_(\'sqf-reviews\')" style="display:flex;align-items:center;gap:8px;padding:11px 16px;cursor:pointer;">' +
+          '<span id="sqf-reviews-caret" style="font-size:10px;color:var(--text-tertiary);width:10px;">▶</span>' +
+          '<span style="font-size:13px;">📋</span>' +
+          '<span style="font-size:12.5px;font-weight:700;color:var(--text-primary);flex:1;">SQF Maintenance Reviews</span>' +
+          '<span style="font-size:10.5px;color:var(--text-tertiary);">Weekly &amp; monthly — expand for SQF review</span>' +
+        '</div>' +
+        '<div id="sqf-reviews-body" style="display:none;padding:2px 16px 14px;border-top:1px solid var(--border-default);">' +
+          _homeReviewTitle_('This Week · Weekly Review', 'Resets Monday — SQF weekly maintenance review') +
+          '<div class="kpi-grid" style="grid-template-columns:repeat(4,minmax(130px,1fr));">' +
+            _homeKpiCard_('Opened',        '—', 'New since Monday',      'info',    'kpi-wk-opened') +
+            _homeKpiCard_('Closed',        '—', 'Resolved since Monday', 'success', 'kpi-wk-closed') +
+            _homeKpiCard_('Temp Fixes',    '—', 'Active, need review',   'warn',    'kpi-wk-temp') +
+            _homeKpiCard_('Parts Pending', '—', 'Awaiting parts',        'info',    'kpi-wk-parts') +
+          '</div>' +
+          _homeReviewTitle_('This Month · Monthly Review', 'Resets on the 1st — SQF monthly maintenance review') +
+          '<div class="kpi-grid" style="grid-template-columns:repeat(4,minmax(130px,1fr));">' +
+            _homeKpiCard_('Opened',        '—', 'New this month',        'info',    'kpi-mo-opened') +
+            _homeKpiCard_('Closed',        '—', 'Resolved this month',   'success', 'kpi-mo-closed') +
+            _homeKpiCard_('Critical Open', '—', 'Immediate attention',   'critical','kpi-mo-critical') +
+            _homeKpiCard_('Closed (30d)',  '—', 'Rolling 30 days',       'success', 'kpi-mo-closed30') +
+          '</div>' +
+        '</div>' +
       '</div>' +
     '</div>' +
 
