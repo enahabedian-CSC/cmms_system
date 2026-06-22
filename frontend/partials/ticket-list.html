@@ -217,9 +217,9 @@ function _renderList_(tickets, queueType, deptFilter, container, userOwnedDepts)
 
     // Update filter toggle badge
     var nActive = 0;
-    if (deptCbs.length && checkedDepts.length < deptCbs.length) nActive++;
-    if (checkedPris.length < 4)                                  nActive++;
-    if (staCbs.length && checkedStas.length < staCbs.length)     nActive++;
+    if (deptCbs.length && checkedDepts.length < deptCbs.length)              nActive++;
+    if (checkedPris.length > 0 && checkedPris.length < 4)                   nActive++;
+    if (staCbs.length && checkedStas.length < staCbs.length)                nActive++;
     if (qv)                                                       nActive++;
     var btn   = document.getElementById('fp-toggle-' + qt);
     var badge = document.getElementById('fp-badge-'  + qt);
@@ -274,8 +274,8 @@ function _renderList_(tickets, queueType, deptFilter, container, userOwnedDepts)
 
   function buildPriChips() {
     return ['CRITICAL','HIGH','MEDIUM','LOW'].map(function(p) {
-      return '<label class="fp-chip fp-checked">' +
-        '<input type="checkbox" value="' + p + '" data-fp="' + qt + '" class="fp-cb-pri" checked' +
+      return '<label class="fp-chip">' +
+        '<input type="checkbox" value="' + p + '" data-fp="' + qt + '" class="fp-cb-pri"' +
         ' onchange="_fpChip_(this);_tlFilter_(\'' + qt + '\')">' +
         p + '</label>';
     }).join('');

@@ -102,8 +102,8 @@ function _renderClosed_(tickets, userOwnedDepts, container) {
 
   function buildPriChips() {
     return ['CRITICAL','HIGH','MEDIUM','LOW'].map(function(p) {
-      return '<label class="fp-chip fp-checked">' +
-        '<input type="checkbox" value="' + p + '" data-fp="ct" class="fp-cb-pri" checked' +
+      return '<label class="fp-chip">' +
+        '<input type="checkbox" value="' + p + '" data-fp="ct" class="fp-cb-pri"' +
         ' onchange="_fpChip_(this);_ctApply_()">' +
         p + '</label>';
     }).join('');
@@ -219,9 +219,9 @@ function _ctApply_() {
 
   // Update filter badge
   var nActive = 0;
-  if (deptCbs.length && checkedDepts.length < deptCbs.length) nActive++;
-  if (checkedPris.length < 4)                                  nActive++;
-  if (staCbs.length && checkedStas.length < staCbs.length)     nActive++;
+  if (deptCbs.length && checkedDepts.length < deptCbs.length)              nActive++;
+  if (checkedPris.length > 0 && checkedPris.length < 4)                   nActive++;
+  if (staCbs.length && checkedStas.length < staCbs.length)                nActive++;
   if (atv)                                                      nActive++;
   if (qv)                                                       nActive++;
   var btn   = document.getElementById('ct-fp-toggle');
