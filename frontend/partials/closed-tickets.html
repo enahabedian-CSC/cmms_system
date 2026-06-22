@@ -10,7 +10,6 @@
 .ct-count{font-size:12px;color:var(--text-secondary);background:var(--bg-subtle);border:1px solid var(--border-default);border-radius:4px;padding:2px 8px;}
 .ct-search{height:30px;padding:0 10px;border:1px solid var(--border-default);border-radius:6px;font-size:12.5px;width:200px;outline:none;color:var(--text-primary);}
 .ct-search:focus{border-color:var(--brand-navy);}
-.ct-filter-select{height:30px;padding:0 8px;border:1px solid var(--border-default);border-radius:6px;font-size:12px;background:#fff;color:var(--text-primary);outline:none;}
 .ct-table-wrap{background:var(--bg-surface);border:1px solid var(--border-default);border-radius:10px;overflow-x:auto;box-shadow:var(--shadow-sm);}
 .ct-table{width:100%;border-collapse:collapse;font-size:12.5px;}
 .ct-table th{background:var(--bg-subtle);padding:9px 12px;text-align:left;font-size:11px;font-weight:600;color:var(--text-secondary);text-transform:uppercase;letter-spacing:.04em;border-bottom:1px solid var(--border-default);white-space:nowrap;}
@@ -33,8 +32,9 @@
 // ── Closed tickets page ───────────────────────────────────────────────────────
 window.PAGES = window.PAGES || {};
 
-var _ctData_     = [];
-var _ctSortState_ = {};
+var _ctData_          = [];
+var _ctSortState_     = {};
+var _ctUserOwnedDepts_ = [];
 
 function _ctTh_(field, label) {
   return '<th class="sort-th" data-sort-group="ct" data-sort-field="' + field + '" onclick="_ctSortBy_(\'' + field + '\')">' + label + '</th>';
@@ -57,32 +57,98 @@ function _loadClosedPage_(container) {
     headers: { 'X-User-Email': USER ? USER.email : '' }
   })
   .then(function(r) { return r.json(); })
-  .then(function(tickets) {
-    if (tickets && tickets.error) {
-      var msg = tickets.error;
+  .then(function(data) {
+    var tickets        = Array.isArray(data) ? data : (data.tickets || []);
+    var userOwnedDepts = Array.isArray(data) ? [] : (data.userOwnedDepts || []);
+    if (data && data.error) {
+      var msg = data.error;
       container.innerHTML = (msg.indexOf('Manager') >= 0 || msg.indexOf('required') >= 0)
         ? '<div class="ct-empty">Closed ticket history is only available to managers.</div>'
         : '<div class="ct-empty">Error loading closed tickets: ' + esc(msg) + '</div>';
       return;
     }
-    _renderClosed_(tickets, container);
+    _renderClosed_(tickets, userOwnedDepts, container);
   })
   .catch(function(err) {
     container.innerHTML = '<div class="ct-empty">Error loading closed tickets: ' + esc(err.message || String(err)) + '</div>';
   });
 }
 
-function _renderClosed_(tickets, container) {
-  _ctData_ = tickets || [];
+function _renderClosed_(tickets, userOwnedDepts, container) {
+  _ctData_           = tickets || [];
+  _ctUserOwnedDepts_ = (userOwnedDepts || []).map(function(d) { return d.toUpperCase().trim(); });
 
-  var statuses = [];
-  var depts = [];
+  var allDepts = [], allStas = [], allAssigned = [];
   _ctData_.forEach(function(t) {
-    if (statuses.indexOf(t.status) < 0) statuses.push(t.status);
-    if (t.dept && depts.indexOf(t.dept) < 0) depts.push(t.dept);
+    if (t.dept       && allDepts.indexOf(t.dept)             < 0) allDepts.push(t.dept);
+    if (t.status     && allStas.indexOf(t.status)            < 0) allStas.push(t.status);
+    if (t.assignedTo && allAssigned.indexOf(t.assignedTo)    < 0) allAssigned.push(t.assignedTo);
   });
-  statuses.sort();
-  depts.sort();
+  allDepts.sort(); allStas.sort(); allAssigned.sort();
+
+  var normOwned    = _ctUserOwnedDepts_;
+  var defaultDepts = normOwned.length ? normOwned : allDepts.map(function(d) { return d.toUpperCase().trim(); });
+  var showDeptFP   = allDepts.length > 1;
+
+  function buildDeptChips() {
+    return allDepts.map(function(d) {
+      var checked = defaultDepts.indexOf(d.toUpperCase().trim()) >= 0;
+      return '<label class="fp-chip' + (checked ? ' fp-checked' : '') + '">' +
+        '<input type="checkbox" value="' + esc(d) + '" data-fp="ct" class="fp-cb-dept"' +
+        (checked ? ' checked' : '') + ' onchange="_fpChip_(this);_ctApply_()">' +
+        esc(d) + '</label>';
+    }).join('');
+  }
+
+  function buildPriChips() {
+    return ['CRITICAL','HIGH','MEDIUM','LOW'].map(function(p) {
+      return '<label class="fp-chip fp-checked">' +
+        '<input type="checkbox" value="' + p + '" data-fp="ct" class="fp-cb-pri" checked' +
+        ' onchange="_fpChip_(this);_ctApply_()">' +
+        p + '</label>';
+    }).join('');
+  }
+
+  function buildStaChips() {
+    return allStas.map(function(s) {
+      return '<label class="fp-chip fp-checked">' +
+        '<input type="checkbox" value="' + esc(s) + '" data-fp="ct" class="fp-cb-sta" checked' +
+        ' onchange="_fpChip_(this);_ctApply_()">' +
+        esc(s) + '</label>';
+    }).join('');
+  }
+
+  var fpHtml =
+    '<div class="fp-bar" id="ct-fp-bar">' +
+      '<div class="fp-row">' +
+        (showDeptFP
+          ? '<div class="fp-group">' +
+              '<div class="fp-glabel">Department</div>' +
+              '<div class="fp-checks">' + buildDeptChips() + '</div>' +
+              (normOwned.length ? '<button class="fp-reset" onclick="_ctResetDepts_()">Reset to my depts</button>' : '') +
+            '</div>'
+          : '') +
+        '<div class="fp-group">' +
+          '<div class="fp-glabel">Priority</div>' +
+          '<div class="fp-checks">' + buildPriChips() + '</div>' +
+        '</div>' +
+        (allStas.length > 1
+          ? '<div class="fp-group">' +
+              '<div class="fp-glabel">Status</div>' +
+              '<div class="fp-checks">' + buildStaChips() + '</div>' +
+            '</div>'
+          : '') +
+        (allAssigned.length > 1
+          ? '<div class="fp-group">' +
+              '<div class="fp-glabel">Assigned To</div>' +
+              '<select class="fp-atsel" id="ct-fp-assigned" onchange="_ctApply_()">' +
+                '<option value="">All</option>' +
+                allAssigned.map(function(a) { return '<option>' + esc(a) + '</option>'; }).join('') +
+              '</select>' +
+            '</div>'
+          : '') +
+      '</div>' +
+    '</div>';
 
   container.innerHTML =
     // C12: SQF maintenance repair log form header (FRM-030-002)
@@ -96,18 +162,12 @@ function _renderClosed_(tickets, container) {
       '<span class="ct-title">Closed Tickets</span>' +
       '<span class="ct-count" id="ct-cnt">' + _ctData_.length + ' ticket' + (_ctData_.length !== 1 ? 's' : '') + '</span>' +
       '<input class="ct-search" id="ct-search" placeholder="Search…" oninput="_ctApply_()" />' +
-      (depts.length > 1
-        ? '<select class="ct-filter-select" id="ct-dept" onchange="_ctApply_()"><option value="">All depts</option>' +
-          depts.map(function(d) { return '<option>' + esc(d) + '</option>'; }).join('') +
-          '</select>'
-        : '') +
-      (statuses.length > 1
-        ? '<select class="ct-filter-select" id="ct-stat" onchange="_ctApply_()"><option value="">All statuses</option>' +
-          statuses.map(function(s) { return '<option>' + esc(s) + '</option>'; }).join('') +
-          '</select>'
-        : '') +
-      '<button onclick="_refreshClosed_()" style="height:30px;padding:0 10px;border:1px solid var(--border-default);border-radius:6px;background:#fff;font-size:12px;cursor:pointer;color:var(--text-secondary);" title="Refresh">↻</button>' +
+      '<button class="fp-toggle" id="ct-fp-toggle" onclick="_ctToggleFP_()">' +
+        '&#8862; Filters <span class="fp-badge" id="ct-fp-badge" style="display:none">0</span>' +
+      '</button>' +
+      '<button onclick="_refreshClosed_()" style="height:30px;padding:0 10px;border:1px solid var(--border-default);border-radius:6px;background:#fff;font-size:12px;cursor:pointer;color:var(--text-secondary);" title="Refresh">&#8635;</button>' +
     '</div>' +
+    fpHtml +
     '<div class="ct-table-wrap"><table class="ct-table">' +
       '<thead><tr>' +
         _ctTh_('ticketNo','Ticket #') +
@@ -124,21 +184,29 @@ function _renderClosed_(tickets, container) {
     '</table></div>' +
     '</div>';
 
-  var _initCt = _ctSortState_.field ? _tlSorted_(_ctData_, _ctSortState_.field, _ctSortState_.dir) : _ctData_;
-  _ctRenderRows_(_initCt);
+  _ctApply_();
 }
 
 function _ctApply_() {
-  var q   = document.getElementById('ct-search');
-  var df  = document.getElementById('ct-dept');
-  var sf  = document.getElementById('ct-stat');
-  var qv  = q  ? q.value.toLowerCase()  : '';
-  var dfv = df ? df.value.toUpperCase() : '';
-  var sfv = sf ? sf.value.toUpperCase() : '';
+  var q  = document.getElementById('ct-search');
+  var qv = q ? q.value.toLowerCase() : '';
+
+  var deptCbs = document.querySelectorAll('.fp-cb-dept[data-fp="ct"]');
+  var priCbs  = document.querySelectorAll('.fp-cb-pri[data-fp="ct"]');
+  var staCbs  = document.querySelectorAll('.fp-cb-sta[data-fp="ct"]');
+  var atEl    = document.getElementById('ct-fp-assigned');
+
+  var checkedDepts = [], checkedPris = [], checkedStas = [];
+  deptCbs.forEach(function(cb) { if (cb.checked) checkedDepts.push(cb.value.toUpperCase().trim()); });
+  priCbs.forEach(function(cb)  { if (cb.checked) checkedPris.push(cb.value); });
+  staCbs.forEach(function(cb)  { if (cb.checked) checkedStas.push(cb.value); });
+  var atv = atEl ? atEl.value : '';
 
   var filtered = _ctData_.filter(function(t) {
-    if (dfv && t.dept   !== dfv) return false;
-    if (sfv && t.status !== sfv) return false;
+    if (checkedDepts.length && checkedDepts.indexOf((t.dept || '').toUpperCase().trim()) < 0) return false;
+    if (checkedPris.length  && checkedPris.indexOf(t.priority) < 0) return false;
+    if (checkedStas.length  && checkedStas.indexOf(t.status)   < 0) return false;
+    if (atv && t.assignedTo !== atv) return false;
     if (qv) {
       var hay = (t.ticketNo + ' ' + t.specificEquip + ' ' + t.description + ' ' +
                  t.assignedTo + ' ' + t.dept + ' ' + t.equipCode + ' ' + t.addedBy).toLowerCase();
@@ -148,6 +216,18 @@ function _ctApply_() {
   });
   if (_ctSortState_.field) filtered = _tlSorted_(filtered, _ctSortState_.field, _ctSortState_.dir);
   _ctRenderRows_(filtered);
+
+  // Update filter badge
+  var nActive = 0;
+  if (deptCbs.length && checkedDepts.length < deptCbs.length) nActive++;
+  if (checkedPris.length < 4)                                  nActive++;
+  if (staCbs.length && checkedStas.length < staCbs.length)     nActive++;
+  if (atv)                                                      nActive++;
+  if (qv)                                                       nActive++;
+  var btn   = document.getElementById('ct-fp-toggle');
+  var badge = document.getElementById('ct-fp-badge');
+  if (btn)   btn.classList.toggle('fp-active', nActive > 0);
+  if (badge) { badge.textContent = nActive; badge.style.display = nActive > 0 ? '' : 'none'; }
 }
 
 function _ctRenderRows_(list) {
@@ -165,18 +245,36 @@ function _ctRenderRows_(list) {
     var staCls = 'stat-' + t.status;
     return '<tr onclick="openTicketDetail(\'' + esc(t.ticketNo) + '\')">' +
       '<td class="col-ticket">' + esc(t.ticketNo) + '</td>' +
-      '<td><span class="pri-badge ' + priCls + '">' + esc(t.priority || '—') + '</span></td>' +
+      '<td><span class="pri-badge ' + priCls + '">' + esc(t.priority || '&#8212;') + '</span></td>' +
       '<td><span class="stat-badge ' + staCls + '">' + esc(t.status) + '</span></td>' +
       '<td>' + esc(t.dept) + '</td>' +
       '<td class="col-equip" title="' + esc(t.equipCode ? t.equipCode + ' — ' + t.specificEquip : t.specificEquip) + '">' +
         (t.equipCode ? '<span style="font-family:var(--font-mono);font-size:11px;color:var(--text-secondary);">' + esc(t.equipCode) + '</span> ' : '') +
         esc(t.specificEquip) + '</td>' +
       '<td class="col-desc" title="' + esc(t.description) + '">' + esc(t.description) + '</td>' +
-      '<td>' + esc(t.assignedTo || '—') + '</td>' +
+      '<td>' + esc(t.assignedTo || '&#8212;') + '</td>' +
       '<td style="color:var(--text-tertiary);font-size:11.5px;">' + esc(t.dateOpened) + '</td>' +
-      '<td style="color:var(--status-success);font-size:11.5px;font-weight:600;">' + esc(t.dateClosed || '—') + '</td>' +
+      '<td style="color:var(--status-success);font-size:11.5px;font-weight:600;">' + esc(t.dateClosed || '&#8212;') + '</td>' +
       '</tr>';
   }).join('');
+}
+
+function _ctToggleFP_() {
+  var bar = document.getElementById('ct-fp-bar');
+  var btn = document.getElementById('ct-fp-toggle');
+  if (!bar) return;
+  bar.classList.toggle('fp-open');
+  if (btn) btn.classList.toggle('fp-active', bar.classList.contains('fp-open'));
+}
+
+function _ctResetDepts_() {
+  var owned = _ctUserOwnedDepts_ || [];
+  document.querySelectorAll('.fp-cb-dept[data-fp="ct"]').forEach(function(cb) {
+    var shouldCheck = !owned.length || owned.indexOf(cb.value.toUpperCase().trim()) >= 0;
+    cb.checked = shouldCheck;
+    if (window._fpChip_) window._fpChip_(cb);
+  });
+  _ctApply_();
 }
 
 function _refreshClosed_() {

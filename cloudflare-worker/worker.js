@@ -981,7 +981,7 @@ async function handleQueueTickets(env, userEmail, queueType, deptFilter) {
 
   const mlRows = await readSheet(token, env.SPREADSHEET_ID, SH.MASTER_LOG, 'A2:AQ');
   const tickets = mergeAndFilter(mlRows, statusFilter, deptFilter || null);
-  return jsonResponse(tickets.slice(0, 500));
+  return jsonResponse({ tickets: tickets.slice(0, 500), userOwnedDepts: user.ownedDepts || [] });
 }
 
 async function handleTicketDetail(env, userEmail, ticketNo) {
@@ -1103,7 +1103,7 @@ async function handleClosedTickets(env, userEmail) {
 
   tickets.sort((a, b) => b._closeTs - a._closeTs);
   tickets.forEach(t => delete t._closeTs);
-  return jsonResponse(tickets.slice(0, 500));
+  return jsonResponse({ tickets: tickets.slice(0, 500), userOwnedDepts: user.ownedDepts || [] });
 }
 
 async function handleEquipTicketHistory(env, userEmail, equipCode) {
@@ -2194,7 +2194,7 @@ async function handleTechWorkBoard(env, userEmail) {
     const pa = prioOrder[a.priority] ?? 4, pb = prioOrder[b.priority] ?? 4;
     return pa !== pb ? pa - pb : (b.dateOpened || '').localeCompare(a.dateOpened || '');
   });
-  return jsonResponse({ isManager: user.isManager, userDisplayName: user.displayName, tickets });
+  return jsonResponse({ isManager: user.isManager, userDisplayName: user.displayName, tickets, userOwnedDepts: user.ownedDepts || [] });
 }
 
 // ── Equipment inventory handler ───────────────────────────────────────────────

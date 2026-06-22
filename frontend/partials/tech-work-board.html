@@ -12,7 +12,6 @@
 .twb-count{font-size:12px;color:var(--text-secondary);background:var(--bg-subtle);border:1px solid var(--border-default);border-radius:4px;padding:2px 8px;}
 .twb-search{height:30px;padding:0 10px;border:1px solid var(--border-default);border-radius:6px;font-size:12.5px;width:200px;outline:none;color:var(--text-primary);}
 .twb-search:focus{border-color:var(--brand-navy);}
-.twb-filter-select{height:30px;padding:0 8px;border:1px solid var(--border-default);border-radius:6px;font-size:12px;background:#fff;color:var(--text-primary);outline:none;}
 
 /* Tech group cards */
 .twb-tech-group{background:var(--bg-surface);border:1px solid var(--border-default);border-radius:10px;overflow:hidden;box-shadow:var(--shadow-sm);margin-bottom:14px;}
@@ -65,7 +64,7 @@ PAGES['tech-board'] = function(c) { _loadTechBoard_(c); };
 
 function _loadTechBoard_(container) {
   container.innerHTML =
-    '<div class="loading-overlay"><div class="spinner"></div><span>Loading work board…</span></div>';
+    '<div class="loading-overlay"><div class="spinner"></div><span>Loading work board&#8230;</span></div>';
   fetch(WORKER_URL + '/api/tech-board', {
     headers: { 'X-User-Email': USER ? USER.email : '' }
   })
@@ -85,44 +84,113 @@ function _loadTechBoard_(container) {
 function _renderTechBoard_(data, container) {
   _twbData_   = data;
   _twbSearch_ = '';
-  var isManager = data.isManager;
-  var tickets   = data.tickets || [];
+  var isManager      = data.isManager;
+  var tickets        = data.tickets || [];
+  var userOwnedDepts = (data.userOwnedDepts || []).map(function(d) { return d.toUpperCase().trim(); });
+
+  // Build unique depts, statuses, assigned-to from data
+  var allDepts = [], allStas = [];
+  tickets.forEach(function(t) {
+    if (t.dept   && allDepts.indexOf(t.dept)   < 0) allDepts.push(t.dept);
+    if (t.status && allStas.indexOf(t.status)  < 0) allStas.push(t.status);
+  });
+  allDepts.sort(); allStas.sort();
+
+  var defaultDepts = userOwnedDepts.length ? userOwnedDepts : allDepts.map(function(d) { return d.toUpperCase().trim(); });
+  var showDeptFP   = isManager && allDepts.length > 1;
+
+  _twbData_._normOwned    = userOwnedDepts;
+  _twbData_._defaultDepts = defaultDepts;
+
+  function buildDeptChips() {
+    return allDepts.map(function(d) {
+      var checked = defaultDepts.indexOf(d.toUpperCase().trim()) >= 0;
+      return '<label class="fp-chip' + (checked ? ' fp-checked' : '') + '">' +
+        '<input type="checkbox" value="' + esc(d) + '" data-fp="twb" class="fp-cb-dept"' +
+        (checked ? ' checked' : '') + ' onchange="_fpChip_(this);_twbApply_()">' +
+        esc(d) + '</label>';
+    }).join('');
+  }
+
+  function buildPriChips() {
+    return ['CRITICAL','HIGH','MEDIUM','LOW'].map(function(p) {
+      return '<label class="fp-chip fp-checked">' +
+        '<input type="checkbox" value="' + p + '" data-fp="twb" class="fp-cb-pri" checked' +
+        ' onchange="_fpChip_(this);_twbApply_()">' +
+        p + '</label>';
+    }).join('');
+  }
+
+  function buildStaChips() {
+    return allStas.map(function(s) {
+      return '<label class="fp-chip fp-checked">' +
+        '<input type="checkbox" value="' + esc(s) + '" data-fp="twb" class="fp-cb-sta" checked' +
+        ' onchange="_fpChip_(this);_twbApply_()">' +
+        esc(s) + '</label>';
+    }).join('');
+  }
+
+  var fpHtml =
+    '<div class="fp-bar" id="twb-fp-bar">' +
+      '<div class="fp-row">' +
+        (showDeptFP
+          ? '<div class="fp-group">' +
+              '<div class="fp-glabel">Department</div>' +
+              '<div class="fp-checks">' + buildDeptChips() + '</div>' +
+              (userOwnedDepts.length ? '<button class="fp-reset" onclick="_twbResetDepts_()">Reset to my depts</button>' : '') +
+            '</div>'
+          : '') +
+        '<div class="fp-group">' +
+          '<div class="fp-glabel">Priority</div>' +
+          '<div class="fp-checks">' + buildPriChips() + '</div>' +
+        '</div>' +
+        (allStas.length > 1
+          ? '<div class="fp-group">' +
+              '<div class="fp-glabel">Status</div>' +
+              '<div class="fp-checks">' + buildStaChips() + '</div>' +
+            '</div>'
+          : '') +
+      '</div>' +
+    '</div>';
 
   container.innerHTML =
     '<div class="twb-wrap">' +
     '<div class="twb-toolbar">' +
       '<span class="twb-title">' + (isManager ? 'Tech Work Board' : 'My Work Queue') + '</span>' +
       '<span class="twb-count" id="twb-cnt">' + tickets.length + ' ticket' + (tickets.length !== 1 ? 's' : '') + '</span>' +
-      '<input class="twb-search" id="twb-search" placeholder="Search…" oninput="_twbApply_()" />' +
-      (isManager ? '<select class="twb-filter-select" id="twb-dept" onchange="_twbApply_()">' +
-        '<option value="">All Depts</option>' +
-        _twbDeptOptions_(tickets) +
-        '</select>' : '') +
-      '<button onclick="_loadTechBoard_(document.getElementById(\'page-tech-board\'))" style="height:30px;padding:0 10px;border:1px solid var(--border-default);border-radius:6px;background:#fff;font-size:12px;cursor:pointer;color:var(--text-secondary);" title="Refresh">↻</button>' +
+      '<input class="twb-search" id="twb-search" placeholder="Search&#8230;" oninput="_twbApply_()" />' +
+      '<button class="fp-toggle" id="twb-fp-toggle" onclick="_twbToggleFP_()">' +
+        '&#8862; Filters <span class="fp-badge" id="twb-fp-badge" style="display:none">0</span>' +
+      '</button>' +
+      '<button onclick="_loadTechBoard_(document.getElementById(\'page-tech-board\'))" style="height:30px;padding:0 10px;border:1px solid var(--border-default);border-radius:6px;background:#fff;font-size:12px;cursor:pointer;color:var(--text-secondary);" title="Refresh">&#8635;</button>' +
     '</div>' +
+    fpHtml +
     (!isManager ? '<div class="twb-my-banner">Showing tickets assigned to <strong>' + esc(data.userDisplayName) + '</strong></div>' : '') +
     '<div id="twb-body"></div>' +
     '</div>';
 
-  var _initTwb = _twbSortState_.field ? _tlSorted_(tickets, _twbSortState_.field, _twbSortState_.dir) : tickets;
-  _twbRender_(_initTwb, isManager);
-}
-
-function _twbDeptOptions_(tickets) {
-  var depts = [];
-  tickets.forEach(function(t) { if (depts.indexOf(t.dept) < 0) depts.push(t.dept); });
-  return depts.sort().map(function(d) { return '<option value="' + esc(d) + '">' + esc(d) + '</option>'; }).join('');
+  _twbApply_();
 }
 
 function _twbApply_() {
   if (!_twbData_) return;
-  var q     = document.getElementById('twb-search');
-  var deptEl= document.getElementById('twb-dept');
-  var qv    = q     ? q.value.toLowerCase()  : '';
-  var dv    = deptEl? deptEl.value.toUpperCase() : '';
+  var q  = document.getElementById('twb-search');
+  var qv = q ? q.value.toLowerCase() : '';
   _twbSearch_ = qv;
+
+  var deptCbs = document.querySelectorAll('.fp-cb-dept[data-fp="twb"]');
+  var priCbs  = document.querySelectorAll('.fp-cb-pri[data-fp="twb"]');
+  var staCbs  = document.querySelectorAll('.fp-cb-sta[data-fp="twb"]');
+
+  var checkedDepts = [], checkedPris = [], checkedStas = [];
+  deptCbs.forEach(function(cb) { if (cb.checked) checkedDepts.push(cb.value.toUpperCase().trim()); });
+  priCbs.forEach(function(cb)  { if (cb.checked) checkedPris.push(cb.value); });
+  staCbs.forEach(function(cb)  { if (cb.checked) checkedStas.push(cb.value); });
+
   var list = (_twbData_.tickets || []).filter(function(t) {
-    if (dv && t.dept !== dv) return false;
+    if (checkedDepts.length && checkedDepts.indexOf((t.dept || '').toUpperCase().trim()) < 0) return false;
+    if (checkedPris.length  && checkedPris.indexOf(t.priority) < 0) return false;
+    if (checkedStas.length  && checkedStas.indexOf(t.status)   < 0) return false;
     if (qv) {
       var hay = (t.ticketNo + ' ' + t.dept + ' ' + t.specificEquip + ' ' +
                  t.description + ' ' + (t.assignedTo || '')).toLowerCase();
@@ -130,8 +198,20 @@ function _twbApply_() {
     }
     return true;
   });
+
   if (_twbSortState_.field) list = _tlSorted_(list, _twbSortState_.field, _twbSortState_.dir);
   _twbRender_(list, _twbData_.isManager);
+
+  // Update filter badge
+  var nActive = 0;
+  if (deptCbs.length && checkedDepts.length < deptCbs.length) nActive++;
+  if (checkedPris.length < 4)                                  nActive++;
+  if (staCbs.length && checkedStas.length < staCbs.length)     nActive++;
+  if (qv)                                                       nActive++;
+  var btn   = document.getElementById('twb-fp-toggle');
+  var badge = document.getElementById('twb-fp-badge');
+  if (btn)   btn.classList.toggle('fp-active', nActive > 0);
+  if (badge) { badge.textContent = nActive; badge.style.display = nActive > 0 ? '' : 'none'; }
 }
 
 function _twbRender_(tickets, isManager) {
@@ -230,13 +310,31 @@ function _twbRow_(t) {
   var showDept = _twbData_ && _twbData_.isManager;
   return '<tr onclick="openTicketDetail(\'' + esc(t.ticketNo) + '\')">' +
     '<td class="col-tn">' + esc(t.ticketNo) + '</td>' +
-    '<td><span class="pri-badge pri-' + esc(t.priority || '') + '">' + esc(t.priority || '—') + '</span></td>' +
+    '<td><span class="pri-badge pri-' + esc(t.priority || '') + '">' + esc(t.priority || '&#8212;') + '</span></td>' +
     '<td><span class="stat-badge stat-' + esc(t.status.replace(/\s+/g, '-')) + '">' + esc(t.status) + '</span></td>' +
     (showDept ? '<td>' + esc(t.dept) + '</td>' : '') +
     '<td class="col-equip" title="' + esc(t.specificEquip) + '">' + esc(t.specificEquip) + '</td>' +
     '<td class="col-desc" title="' + esc(t.description) + '">' + esc(t.description) + '</td>' +
-    '<td style="font-size:11.5px;color:var(--text-secondary);">' + esc(String(t.estHours || '—')) + '</td>' +
+    '<td style="font-size:11.5px;color:var(--text-secondary);">' + esc(String(t.estHours || '&#8212;')) + '</td>' +
     '<td style="font-size:11.5px;color:var(--text-tertiary);">' + esc(t.dateOpened) + '</td>' +
     '</tr>';
+}
+
+function _twbToggleFP_() {
+  var bar = document.getElementById('twb-fp-bar');
+  var btn = document.getElementById('twb-fp-toggle');
+  if (!bar) return;
+  bar.classList.toggle('fp-open');
+  if (btn) btn.classList.toggle('fp-active', bar.classList.contains('fp-open'));
+}
+
+function _twbResetDepts_() {
+  var owned = (_twbData_ && _twbData_._normOwned) || [];
+  document.querySelectorAll('.fp-cb-dept[data-fp="twb"]').forEach(function(cb) {
+    var shouldCheck = !owned.length || owned.indexOf(cb.value.toUpperCase().trim()) >= 0;
+    cb.checked = shouldCheck;
+    if (window._fpChip_) window._fpChip_(cb);
+  });
+  _twbApply_();
 }
 </script>
