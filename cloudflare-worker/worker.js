@@ -75,26 +75,36 @@ const SH = {
 // Cache tab layout: row 4 = headers (A4), row 5+ = data.  Always read from A4.
 // Matching strategy: exact lowercase match (same as GAS indexOf approach).
 const EQUIP_COL_MAP = {
-  dept:     ['department','dept','dept.','department name','dept name',
-             'area','division','plant','facility','location','cost center',
-             'work center','workcenter','shop','building'],
-  eType:    ['equipment type','equip type','type','asset type','machine type',
-             'category','class','equipment class','asset class','object type',
-             'machine class'],
-  code:     ['equipment code','equip code','code','asset code',
-             'job #','job no','job no.','job number',
-             'id','asset id','asset #','asset no','asset no.','asset number',
-             'machine code','machine #','machine id','machine no','machine no.',
-             'equip id','equip #','equip no','equip no.','equip number',
-             'equipment #','equipment id','equipment no','equipment no.',
-             'equipment number','plant no','plant #','plant no.','no.','number',
-             'serial','serial #','serial no','serial number'],
-  specific: ['specific equipment','equipment name','name','description',
-             'asset name','equipment description','machine name','equip name',
-             'item','item name','equipment','machine','asset description',
-             'short text','desc','long description','full name','title'],
-  status:   ['status','active','state','asset status','equip status',
-             'condition','in service','active/inactive'],
+  dept:        ['department','dept','dept.','department name','dept name',
+                'area','division','plant','facility','location','cost center',
+                'work center','workcenter','shop','building'],
+  deptCode:    ['dept code','dept. code','deptcode','department code','dept cd',
+                'dept_code','dpt code','dptcode'],
+  line:        ['line #','line#','line','section','line number','line no','line no.',
+                'line num','production line','prod line','cell','work cell'],
+  eType:       ['equipment type','equip type','type','asset type','machine type',
+                'category','class','equipment class','asset class','object type',
+                'machine class'],
+  code:        ['equipment code','equip code','code','asset code',
+                'job #','job no','job no.','job number',
+                'id','asset id','asset #','asset no','asset no.','asset number',
+                'machine code','machine #','machine id','machine no','machine no.',
+                'equip id','equip #','equip no','equip no.','equip number',
+                'equipment #','equipment id','equipment no','equipment no.',
+                'equipment number','plant no','plant #','plant no.','no.','number',
+                'serial','serial #','serial no','serial number'],
+  specific:    ['specific equipment','equipment name','name','description',
+                'asset name','equipment description','machine name','equip name',
+                'item','item name','equipment','machine','asset description',
+                'short text','desc','long description','full name','title'],
+  status:      ['status','active','state','asset status','equip status',
+                'condition','in service','active/inactive'],
+  installDate: ['installation date','install date','date installed','installed',
+                'commission date','commissioned','in service date'],
+  retiredDate: ['retired date','retire date','decommission date','decommissioned',
+                'retired','end date','removal date','out of service date'],
+  notes:       ['additional notes','notes','note','comments','comment',
+                'remarks','remark','memo'],
 };
 
 // Build colIdx map from a header row array (0-based indices, exact match).
@@ -1213,12 +1223,25 @@ async function handleFormData(env, userEmail) {
       if (!equipHierarchy[dept][eType]) equipHierarchy[dept][eType] = [];
       equipHierarchy[dept][eType].push({ code, name });
       // Flat rows for csc-hub-style cascading button grid
-      const level2  = eType;
-      const level3  = name || code;
-      const rowKey  = dept + '|' + level2 + '|' + level3 + '|' + code;
+      // Level order: dept → Line # (section) → eType → specific name
+      // If no Line # on the row, fall back to: dept → eType → specific name
+      const deptCode = col('deptCode') || '';
+      const line     = col('line')     || '';
+      const specific = col('specific') || '';
+      let level2, level3, level4;
+      if (line) {
+        level2 = line;
+        level3 = eType || specific || code;
+        level4 = eType ? (specific || '') : '';
+      } else {
+        level2 = eType || '';
+        level3 = specific || code;
+        level4 = '';
+      }
+      const rowKey  = dept + '|' + level2 + '|' + level3 + '|' + level4 + '|' + code;
       if (!seenKeys.has(rowKey)) {
         seenKeys.add(rowKey);
-        equipRows.push({ dept, level2, level3, level4: '', code });
+        equipRows.push({ dept, deptCode, level2, level3, level4, code });
       }
     }
   }
