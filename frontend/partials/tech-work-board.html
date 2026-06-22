@@ -47,8 +47,19 @@
 <script>
 window.PAGES = window.PAGES || {};
 
-var _twbData_   = null;
-var _twbSearch_ = '';
+var _twbData_      = null;
+var _twbSearch_    = '';
+var _twbSortState_ = { field: '', dir: 'asc' };
+
+function _twbTh_(field, label) {
+  var cls = 'sort-th' + (_twbSortState_.field === field ? ' sort-' + _twbSortState_.dir : '');
+  return '<th class="' + cls + '" data-sort-group="twb" data-sort-field="' + field + '" onclick="_twbSortBy_(\'' + field + '\')">' + label + '</th>';
+}
+
+function _twbSortBy_(field) {
+  _twbSortState_ = { field: field, dir: _twbSortState_.field === field && _twbSortState_.dir === 'asc' ? 'desc' : 'asc' };
+  _twbApply_();
+}
 
 PAGES['tech-board'] = function(c) { _loadTechBoard_(c); };
 
@@ -93,7 +104,8 @@ function _renderTechBoard_(data, container) {
     '<div id="twb-body"></div>' +
     '</div>';
 
-  _twbRender_(tickets, isManager);
+  var _initTwb = _twbSortState_.field ? _tlSorted_(tickets, _twbSortState_.field, _twbSortState_.dir) : tickets;
+  _twbRender_(_initTwb, isManager);
 }
 
 function _twbDeptOptions_(tickets) {
@@ -118,6 +130,7 @@ function _twbApply_() {
     }
     return true;
   });
+  if (_twbSortState_.field) list = _tlSorted_(list, _twbSortState_.field, _twbSortState_.dir);
   _twbRender_(list, _twbData_.isManager);
 }
 
@@ -202,9 +215,14 @@ function _twbRender_(tickets, isManager) {
 
 function _twbTableHead_(showDept) {
   return '<thead><tr>' +
-    '<th>Ticket #</th><th>Priority</th><th>Status</th>' +
-    (showDept ? '<th>Dept</th>' : '') +
-    '<th>Equipment</th><th>Description</th><th>Est Hrs</th><th>Opened</th>' +
+    _twbTh_('ticketNo','Ticket #') +
+    _twbTh_('priority','Priority') +
+    _twbTh_('status','Status') +
+    (showDept ? _twbTh_('dept','Dept') : '') +
+    _twbTh_('specificEquip','Equipment') +
+    _twbTh_('description','Description') +
+    _twbTh_('estHours','Est Hrs') +
+    _twbTh_('dateOpened','Opened') +
     '</tr></thead>';
 }
 

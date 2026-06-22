@@ -310,6 +310,7 @@ function _runEquipCacheRefresh_() {
         res.innerHTML =
           '<div class="adm-notice" style="background:var(--status-success-bg);border-color:var(--status-success);color:var(--status-success);margin-bottom:10px;">' +
           '✓ Cache refreshed — <strong>' + result.rows + ' rows</strong> cached. Reloading status…</div>';
+        if (typeof _sfData !== 'undefined') _sfData = null; // force submit form to re-fetch hierarchy
         setTimeout(function() { _loadEquipCachePage_(document.getElementById('page-admin-equip')); }, 1500);
       } else {
         res.innerHTML =
