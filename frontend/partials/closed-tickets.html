@@ -33,7 +33,22 @@
 // ── Closed tickets page ───────────────────────────────────────────────────────
 window.PAGES = window.PAGES || {};
 
-var _ctData_ = [];
+var _ctData_     = [];
+var _ctSortState_ = {};
+
+function _ctTh_(field, label) {
+  return '<th class="sort-th" data-sort-group="ct" data-sort-field="' + field + '" onclick="_ctSortBy_(\'' + field + '\')">' + label + '</th>';
+}
+
+function _ctSortBy_(field) {
+  var cur = _ctSortState_;
+  _ctSortState_ = { field: field, dir: cur.field === field && cur.dir === 'asc' ? 'desc' : 'asc' };
+  document.querySelectorAll('[data-sort-group="ct"]').forEach(function(th) {
+    th.classList.remove('sort-asc', 'sort-desc');
+    if (th.getAttribute('data-sort-field') === field) th.classList.add('sort-' + _ctSortState_.dir);
+  });
+  _ctApply_();
+}
 
 function _loadClosedPage_(container) {
   container.innerHTML =
@@ -95,15 +110,22 @@ function _renderClosed_(tickets, container) {
     '</div>' +
     '<div class="ct-table-wrap"><table class="ct-table">' +
       '<thead><tr>' +
-        '<th>Ticket #</th><th>Priority</th><th>Status</th><th>Dept</th>' +
-        '<th>Equipment</th><th>Description</th><th>Assigned To</th>' +
-        '<th>Date Opened</th><th>Date Closed</th>' +
+        _ctTh_('ticketNo','Ticket #') +
+        _ctTh_('priority','Priority') +
+        _ctTh_('status','Status') +
+        _ctTh_('dept','Dept') +
+        _ctTh_('specificEquip','Equipment') +
+        _ctTh_('description','Description') +
+        _ctTh_('assignedTo','Assigned To') +
+        _ctTh_('dateOpened','Date Opened') +
+        _ctTh_('dateClosed','Date Closed') +
       '</tr></thead>' +
       '<tbody id="ct-tbody"></tbody>' +
     '</table></div>' +
     '</div>';
 
-  _ctRenderRows_(_ctData_);
+  var _initCt = _ctSortState_.field ? _tlSorted_(_ctData_, _ctSortState_.field, _ctSortState_.dir) : _ctData_;
+  _ctRenderRows_(_initCt);
 }
 
 function _ctApply_() {
@@ -124,6 +146,7 @@ function _ctApply_() {
     }
     return true;
   });
+  if (_ctSortState_.field) filtered = _tlSorted_(filtered, _ctSortState_.field, _ctSortState_.dir);
   _ctRenderRows_(filtered);
 }
 
