@@ -1926,9 +1926,18 @@ async function handleEquipCacheStatus(env, userEmail) {
   const config = {};
   configRows.forEach(r => { if (r[0]) config[String(r[0]).trim()] = String(r[1] ?? ''); });
 
-  const configSheetUrl = config['Equipment Register Sheet URL'] || '';
+  const URL_CANDIDATES_ST = [
+    'Equipment Register Sheet URL','Equipment List Source URL',
+    'Equipment Register URL','Equip Register URL',
+    'Equipment Register Sheet ID','Equipment Source URL',
+  ];
+  let configSheetUrl = '', resolvedSheetId = '';
+  for (const key of URL_CANDIDATES_ST) {
+    const val = config[key] || '';
+    if (val) { configSheetUrl = val; const m = val.match(/\/d\/([-\w]{25,})/); if (m) { resolvedSheetId = m[1]; break; } }
+  }
+  if (!resolvedSheetId && configSheetUrl.length >= 25 && !/[/ ]/.test(configSheetUrl)) resolvedSheetId = configSheetUrl;
   const configTabName  = config['Equipment Inventory Tab Name'] || '';
-  const resolvedSheetId = configSheetUrl.match(/[-\w]{25,}/)?.[0] || '';
   const canonicalDepts  = ['ELECTRICAL','MACHINE SHOP','FACILITIES','PLASTICS','METALS','LITHO'];
 
   let cacheRows = 0, parsedItemCount = 0, rawHeaders = [], mappedCols = {}, unmappedHdrs = [];
