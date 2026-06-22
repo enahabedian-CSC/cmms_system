@@ -70,6 +70,48 @@ const SH = {
   OPEN:           '📂 Open Tickets',
 };
 
+// ── Equipment cache column map (mirrors EquipRegistry.gs _EQUIP_COL_MAPPINGS_) ─
+// Used by handleFormData, handleEquipCacheStatus, and handleEquipInventory.
+// Cache tab layout: row 4 = headers (A4), row 5+ = data.  Always read from A4.
+// Matching strategy: exact lowercase match (same as GAS indexOf approach).
+const EQUIP_COL_MAP = {
+  dept:     ['department','dept','dept.','department name','dept name',
+             'area','division','plant','facility','location','cost center',
+             'work center','workcenter','shop','building'],
+  eType:    ['equipment type','equip type','type','asset type','machine type',
+             'category','class','equipment class','asset class','object type',
+             'machine class'],
+  code:     ['equipment code','equip code','code','asset code',
+             'job #','job no','job no.','job number',
+             'id','asset id','asset #','asset no','asset no.','asset number',
+             'machine code','machine #','machine id','machine no','machine no.',
+             'equip id','equip #','equip no','equip no.','equip number',
+             'equipment #','equipment id','equipment no','equipment no.',
+             'equipment number','plant no','plant #','plant no.','no.','number',
+             'serial','serial #','serial no','serial number'],
+  specific: ['specific equipment','equipment name','name','description',
+             'asset name','equipment description','machine name','equip name',
+             'item','item name','equipment','machine','asset description',
+             'short text','desc','long description','full name','title'],
+  status:   ['status','active','state','asset status','equip status',
+             'condition','in service','active/inactive'],
+};
+
+// Build colIdx map from a header row array (0-based indices, exact match).
+function buildEquipColIdx(headerRow) {
+  const colIdx = {};
+  headerRow.forEach((h, i) => {
+    const hl = String(h || '').trim().toLowerCase();
+    if (!hl) return;
+    for (const [key, variants] of Object.entries(EQUIP_COL_MAP)) {
+      if (colIdx[key] === undefined && variants.indexOf(hl) >= 0) {
+        colIdx[key] = i;
+      }
+    }
+  });
+  return colIdx;
+}
+
 // ── Cell helpers ──────────────────────────────────────────────────────────────
 
 function cellStr(row, colOneBased) {
@@ -1098,7 +1140,7 @@ async function handleFormData(env, userEmail) {
     readSheet(token, env.SPREADSHEET_ID, SH.DATA_VALID,     'A1:Z200'),
     readSheet(token, env.SPREADSHEET_ID, SH.MANAGER_ACCESS, 'A4:E200'),
     readSheet(token, env.SPREADSHEET_ID, SH.TECH_DIR,       'A2:D200').catch(() => []),
-    readSheet(token, env.SPREADSHEET_ID, SH.EQUIP_CACHE,    'A1:Z').catch(() => []),
+    readSheet(token, env.SPREADSHEET_ID, SH.EQUIP_CACHE,    'A4:Z').catch(() => []),
   ]);
 
   const config = {};
@@ -1149,36 +1191,24 @@ async function handleFormData(env, userEmail) {
   };
 
   // Build equipHierarchy from the Equipment Inventory Cache tab.
-  // Cache format: rows 0-3 are metadata/headers; data starts at row 4.
+  // We read from A4 so cacheData[0] = header row, cacheData[1+] = data rows.
   const equipHierarchy = {};
-  if (cacheData.length > 4) {
-    const HDR_MAP = {
-      dept:     ['dept', 'department'],
-      code:     ['code', 'equip code', 'equipment code'],
-      eType:    ['type', 'equip type', 'equipment type', 'category'],
-      specific: ['equipment name', 'equipment', 'specific', 'description'],
-      status:   ['status'],
-    };
-    const rawHeaders = (cacheData[3] || []).map(h => String(h || '').trim());
-    const colIdx = {};
-    rawHeaders.forEach((h, i) => {
-      const hl = h.toLowerCase();
-      for (const [key, variants] of Object.entries(HDR_MAP)) {
-        if (variants.some(v => hl.includes(v))) { colIdx[key] = i; break; }
-      }
-    });
-    for (let i = 4; i < cacheData.length; i++) {
-      const row    = cacheData[i]; if (!row) continue;
-      const status = String(row[colIdx.status ?? 4] || 'ACTIVE').trim().toUpperCase();
+  if (cacheData.length > 1) {
+    const colIdx = buildEquipColIdx(cacheData[0] || []);
+    for (let i = 1; i < cacheData.length; i++) {
+      const row = cacheData[i]; if (!row || !row.length) continue;
+      const col = k => colIdx[k] !== undefined ? String(row[colIdx[k]] || '').trim() : '';
+      const status = (col('status') || 'ACTIVE').toUpperCase();
       if (status === 'INACTIVE') continue;
-      const dept  = String(row[colIdx.dept     ?? 0] || '').trim().toUpperCase();
-      const eType = String(row[colIdx.eType    ?? 3] || '').trim() || 'Other';
-      const code  = String(row[colIdx.code     ?? 2] || '').trim();
-      const name  = String(row[colIdx.specific ?? 1] || '').trim();
-      if (!dept || !code) continue;
+      const rawDept = col('dept').toUpperCase();
+      const code    = col('code');
+      if (!rawDept || !code) continue;
+      const dept  = deptMapping[rawDept] || rawDept;
+      const eType = col('eType') || 'Other';
+      const name  = col('specific') || code;
       if (!equipHierarchy[dept]) equipHierarchy[dept] = {};
       if (!equipHierarchy[dept][eType]) equipHierarchy[dept][eType] = [];
-      equipHierarchy[dept][eType].push({ code, name: name || code });
+      equipHierarchy[dept][eType].push({ code, name });
     }
   }
 
@@ -1942,36 +1972,32 @@ async function handleEquipCacheStatus(env, userEmail) {
 
   let cacheRows = 0, parsedItemCount = 0, rawHeaders = [], mappedCols = {}, unmappedHdrs = [];
   let lastRefreshed = 'Never', deptSummary = [];
-  const HDR_MAP = {
-    dept:     ['department','dept'],
-    eType:    ['equipment type','type','equip type'],
-    code:     ['equipment code','code','equip code'],
-    specific: ['equipment name','equipment','specific','description'],
-    status:   ['status'],
-    group:    ['group','line','group/line'],
-    deptCode: ['dept code','department code'],
-  };
+  // lastRefreshed comes from config (written by handleRefreshEquipCache)
+  lastRefreshed = config['Equip Cache Last Refreshed'] || 'Never';
   try {
-    const cacheData = await readSheet(token, env.SPREADSHEET_ID, SH.EQUIP_CACHE, 'A1:Z');
-    cacheRows = Math.max(0, cacheData.length - 4);
-    if (cacheData.length > 3) {
-      rawHeaders = (cacheData[3] || []).map(h => String(h || '').trim()).filter(Boolean);
+    // Read from A4 so cacheData[0]=headers, cacheData[1+]=data (avoids empty leading-row issue)
+    const cacheData = await readSheet(token, env.SPREADSHEET_ID, SH.EQUIP_CACHE, 'A4:Z');
+    cacheRows = Math.max(0, cacheData.length - 1);
+    if (cacheData.length > 0) {
+      rawHeaders = (cacheData[0] || []).map(h => String(h || '').trim()).filter(Boolean);
+      const allVars = Object.values(EQUIP_COL_MAP).flat();
       rawHeaders.forEach(h => {
         const hl = h.toLowerCase(); let matched = false;
-        for (const [key, variants] of Object.entries(HDR_MAP)) {
-          if (variants.some(v => hl.includes(v))) { mappedCols[key] = h; matched = true; break; }
+        for (const [key, variants] of Object.entries(EQUIP_COL_MAP)) {
+          if (variants.indexOf(hl) >= 0) { mappedCols[key] = h; matched = true; break; }
         }
         if (!matched) unmappedHdrs.push(h);
       });
     }
-    if (cacheData.length > 1 && cacheData[1][0]) lastRefreshed = String(cacheData[1][0]);
+    const colIdx = buildEquipColIdx(cacheData[0] || []);
     const deptCount = {};
-    for (let i = 4; i < cacheData.length; i++) {
-      const row = cacheData[i]; if (!row || !row[0]) continue; parsedItemCount++;
-      const deptIdx = rawHeaders.indexOf(mappedCols.dept || '');
-      const typeIdx = rawHeaders.indexOf(mappedCols.eType || '');
-      const d = deptIdx >= 0 ? String(row[deptIdx] || '').trim().toUpperCase() : '';
-      const t = typeIdx >= 0 ? String(row[typeIdx] || '').trim() : '';
+    for (let i = 1; i < cacheData.length; i++) {
+      const row = cacheData[i]; if (!row || !row.length) continue;
+      const col = k => colIdx[k] !== undefined ? String(row[colIdx[k]] || '').trim() : '';
+      const status = (col('status') || 'ACTIVE').toUpperCase();
+      if (status === 'INACTIVE') continue;
+      const d = col('dept').toUpperCase(); const t = col('eType');
+      if (!d) continue; parsedItemCount++;
       if (!deptCount[d]) deptCount[d] = { dept: d, types: new Set(), items: 0 };
       if (t) deptCount[d].types.add(t); deptCount[d].items++;
     }
@@ -2145,33 +2171,21 @@ async function handleEquipInventory(env, userEmail) {
   if (!user.isManager && !isTech) return jsonResponse({ error: 'Access required' }, 403);
 
   let equipList = [];
-  const HDR_MAP = {
-    dept:     ['department','dept'],
-    eType:    ['equipment type','type','equip type'],
-    code:     ['equipment code','code','equip code'],
-    specific: ['equipment name','equipment','specific','description'],
-    status:   ['status'],
-  };
   try {
-    const cacheData = await readSheet(token, env.SPREADSHEET_ID, SH.EQUIP_CACHE, 'A1:Z');
-    if (cacheData.length > 4) {
-      const rawHeaders = (cacheData[3] || []).map(h => String(h || '').trim());
-      const colIdx = {};
-      rawHeaders.forEach((h, i) => {
-        const hl = h.toLowerCase();
-        for (const [key, variants] of Object.entries(HDR_MAP)) {
-          if (variants.some(v => hl.includes(v))) { colIdx[key] = i; break; }
-        }
-      });
-      for (let i = 4; i < cacheData.length; i++) {
-        const row  = cacheData[i]; if (!row) continue;
-        const code = String(row[colIdx.code     ?? 2] || '').trim();
+    // Read from A4: cacheData[0]=headers, cacheData[1+]=data
+    const cacheData = await readSheet(token, env.SPREADSHEET_ID, SH.EQUIP_CACHE, 'A4:Z');
+    if (cacheData.length > 1) {
+      const colIdx = buildEquipColIdx(cacheData[0] || []);
+      for (let i = 1; i < cacheData.length; i++) {
+        const row = cacheData[i]; if (!row || !row.length) continue;
+        const col = k => colIdx[k] !== undefined ? String(row[colIdx[k]] || '').trim() : '';
+        const code = col('code');
         if (!code) continue;
         equipList.push({
-          code, specific: String(row[colIdx.specific ?? 1] || '').trim(),
-          dept:    String(row[colIdx.dept   ?? 0] || '').trim().toUpperCase(),
-          eType:   String(row[colIdx.eType  ?? 3] || '').trim(),
-          status:  String(row[colIdx.status ?? 4] || 'ACTIVE').trim().toUpperCase(),
+          code, specific: col('specific'),
+          dept:   col('dept').toUpperCase(),
+          eType:  col('eType'),
+          status: (col('status') || 'ACTIVE').toUpperCase(),
           totalTickets:0, openTickets:0, avgCloseDays:null, mtbf:null, mttr:null, lastTicketDate:'',
         });
       }
