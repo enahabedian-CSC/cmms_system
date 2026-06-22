@@ -1093,11 +1093,12 @@ async function handleFormData(env, userEmail) {
   const isTech = (userEmail || '').trim().toLowerCase().endsWith('@cscmfg.com');
   if (!user.isManager && !isTech) return jsonResponse({ error: 'Access required' }, 403);
 
-  const [configRows, dataRows, managerRows, techRows] = await Promise.all([
+  const [configRows, dataRows, managerRows, techRows, cacheData] = await Promise.all([
     readSheet(token, env.SPREADSHEET_ID, SH.CONFIG,         'C2:D30'),
     readSheet(token, env.SPREADSHEET_ID, SH.DATA_VALID,     'A1:Z200'),
     readSheet(token, env.SPREADSHEET_ID, SH.MANAGER_ACCESS, 'A4:E200'),
     readSheet(token, env.SPREADSHEET_ID, SH.TECH_DIR,       'A2:D200').catch(() => []),
+    readSheet(token, env.SPREADSHEET_ID, SH.EQUIP_CACHE,    'A1:H').catch(() => []),
   ]);
 
   const config = {};
@@ -1147,12 +1148,46 @@ async function handleFormData(env, userEmail) {
     'FACILTIIES': 'FACILITIES', 'METAL': 'METALS', 'PLASTIC': 'PLASTICS',
   };
 
+  // Build equipHierarchy from the Equipment Inventory Cache tab.
+  // Cache format: rows 0-3 are metadata/headers; data starts at row 4.
+  const equipHierarchy = {};
+  if (cacheData.length > 4) {
+    const HDR_MAP = {
+      dept:     ['dept', 'department'],
+      code:     ['code', 'equip code', 'equipment code'],
+      eType:    ['type', 'equip type', 'equipment type', 'category'],
+      specific: ['equipment name', 'equipment', 'specific', 'description'],
+      status:   ['status'],
+    };
+    const rawHeaders = (cacheData[3] || []).map(h => String(h || '').trim());
+    const colIdx = {};
+    rawHeaders.forEach((h, i) => {
+      const hl = h.toLowerCase();
+      for (const [key, variants] of Object.entries(HDR_MAP)) {
+        if (variants.some(v => hl.includes(v))) { colIdx[key] = i; break; }
+      }
+    });
+    for (let i = 4; i < cacheData.length; i++) {
+      const row    = cacheData[i]; if (!row) continue;
+      const status = String(row[colIdx.status ?? 4] || 'ACTIVE').trim().toUpperCase();
+      if (status === 'INACTIVE') continue;
+      const dept  = String(row[colIdx.dept     ?? 0] || '').trim().toUpperCase();
+      const eType = String(row[colIdx.eType    ?? 3] || '').trim() || 'Other';
+      const code  = String(row[colIdx.code     ?? 2] || '').trim();
+      const name  = String(row[colIdx.specific ?? 1] || '').trim();
+      if (!dept || !code) continue;
+      if (!equipHierarchy[dept]) equipHierarchy[dept] = {};
+      if (!equipHierarchy[dept][eType]) equipHierarchy[dept][eType] = [];
+      equipHierarchy[dept][eType].push({ code, name: name || code });
+    }
+  }
+
   return jsonResponse({
     companyName:    config['Company Name'] || 'Container Supply Co.',
     docNo:          config['Doc No (Ticket Form)'] || 'FRM-030-004',
     revision:       config['Revision'] || '0',
     departments,
-    equipHierarchy: {},
+    equipHierarchy,
     buildingZones:  lists['Building / Zone'] || [],
     priorities:     lists['Priorities'] || ['LOW', 'MEDIUM', 'HIGH', 'CRITICAL'],
     problemTypes:   lists['Problem Types'] || [],
