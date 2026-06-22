@@ -1098,7 +1098,7 @@ async function handleFormData(env, userEmail) {
     readSheet(token, env.SPREADSHEET_ID, SH.DATA_VALID,     'A1:Z200'),
     readSheet(token, env.SPREADSHEET_ID, SH.MANAGER_ACCESS, 'A4:E200'),
     readSheet(token, env.SPREADSHEET_ID, SH.TECH_DIR,       'A2:D200').catch(() => []),
-    readSheet(token, env.SPREADSHEET_ID, SH.EQUIP_CACHE,    'A1:H').catch(() => []),
+    readSheet(token, env.SPREADSHEET_ID, SH.EQUIP_CACHE,    'A1:Z').catch(() => []),
   ]);
 
   const config = {};
@@ -1952,7 +1952,7 @@ async function handleEquipCacheStatus(env, userEmail) {
     deptCode: ['dept code','department code'],
   };
   try {
-    const cacheData = await readSheet(token, env.SPREADSHEET_ID, SH.EQUIP_CACHE, 'A1:H');
+    const cacheData = await readSheet(token, env.SPREADSHEET_ID, SH.EQUIP_CACHE, 'A1:Z');
     cacheRows = Math.max(0, cacheData.length - 4);
     if (cacheData.length > 3) {
       rawHeaders = (cacheData[3] || []).map(h => String(h || '').trim()).filter(Boolean);
@@ -2153,7 +2153,7 @@ async function handleEquipInventory(env, userEmail) {
     status:   ['status'],
   };
   try {
-    const cacheData = await readSheet(token, env.SPREADSHEET_ID, SH.EQUIP_CACHE, 'A1:H');
+    const cacheData = await readSheet(token, env.SPREADSHEET_ID, SH.EQUIP_CACHE, 'A1:Z');
     if (cacheData.length > 4) {
       const rawHeaders = (cacheData[3] || []).map(h => String(h || '').trim());
       const colIdx = {};
