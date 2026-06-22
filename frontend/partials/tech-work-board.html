@@ -137,7 +137,11 @@ function _renderTechBoard_(data, container) {
           ? '<div class="fp-group">' +
               '<div class="fp-glabel">Department</div>' +
               '<div class="fp-checks">' + buildDeptChips() + '</div>' +
-              (userOwnedDepts.length ? '<button class="fp-reset" onclick="_twbResetDepts_()">Reset to my depts</button>' : '') +
+              '<div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:2px;">' +
+                (userOwnedDepts.length ? '<button class="fp-reset" onclick="_twbResetDepts_()">Reset to my depts</button>' : '') +
+                '<button class="fp-reset" onclick="_twbSelectAllDepts_()">Select all</button>' +
+                '<button class="fp-reset" onclick="_twbDeselectAllDepts_()">Deselect all</button>' +
+              '</div>' +
             '</div>'
           : '') +
         '<div class="fp-group">' +
@@ -334,6 +338,20 @@ function _twbResetDepts_() {
     var shouldCheck = !owned.length || owned.indexOf(cb.value.toUpperCase().trim()) >= 0;
     cb.checked = shouldCheck;
     if (window._fpChip_) window._fpChip_(cb);
+  });
+  _twbApply_();
+}
+
+function _twbSelectAllDepts_() {
+  document.querySelectorAll('.fp-cb-dept[data-fp="twb"]').forEach(function(cb) {
+    cb.checked = true; if (window._fpChip_) window._fpChip_(cb);
+  });
+  _twbApply_();
+}
+
+function _twbDeselectAllDepts_() {
+  document.querySelectorAll('.fp-cb-dept[data-fp="twb"]').forEach(function(cb) {
+    cb.checked = false; if (window._fpChip_) window._fpChip_(cb);
   });
   _twbApply_();
 }

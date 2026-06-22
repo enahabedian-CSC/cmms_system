@@ -297,9 +297,13 @@ function _renderList_(tickets, queueType, deptFilter, container, userOwnedDepts)
           ? '<div class="fp-group">' +
               '<div class="fp-glabel">Department</div>' +
               '<div class="fp-checks">' + buildDeptChips() + '</div>' +
-              (normOwned.length
-                ? '<button class="fp-reset" onclick="_fpResetDepts_(\'' + qt + '\')">Reset to my depts</button>'
-                : '') +
+              '<div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:2px;">' +
+                (normOwned.length
+                  ? '<button class="fp-reset" onclick="_fpResetDepts_(\'' + qt + '\')">Reset to my depts</button>'
+                  : '') +
+                '<button class="fp-reset" onclick="_fpSelectAllDepts_(\'' + qt + '\')">Select all</button>' +
+                '<button class="fp-reset" onclick="_fpDeselectAllDepts_(\'' + qt + '\')">Deselect all</button>' +
+              '</div>' +
             '</div>'
           : '') +
         '<div class="fp-group">' +
@@ -603,6 +607,20 @@ function _fpResetDepts_(queueType) {
     var shouldCheck = !owned.length || owned.indexOf(cb.value.toUpperCase().trim()) >= 0;
     cb.checked = shouldCheck;
     window._fpChip_(cb);
+  });
+  _tlFilter_(queueType);
+}
+
+function _fpSelectAllDepts_(queueType) {
+  document.querySelectorAll('.fp-cb-dept[data-fp="' + queueType + '"]').forEach(function(cb) {
+    cb.checked = true; window._fpChip_(cb);
+  });
+  _tlFilter_(queueType);
+}
+
+function _fpDeselectAllDepts_(queueType) {
+  document.querySelectorAll('.fp-cb-dept[data-fp="' + queueType + '"]').forEach(function(cb) {
+    cb.checked = false; window._fpChip_(cb);
   });
   _tlFilter_(queueType);
 }

@@ -125,7 +125,11 @@ function _renderClosed_(tickets, userOwnedDepts, container) {
           ? '<div class="fp-group">' +
               '<div class="fp-glabel">Department</div>' +
               '<div class="fp-checks">' + buildDeptChips() + '</div>' +
-              (normOwned.length ? '<button class="fp-reset" onclick="_ctResetDepts_()">Reset to my depts</button>' : '') +
+              '<div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:2px;">' +
+                (normOwned.length ? '<button class="fp-reset" onclick="_ctResetDepts_()">Reset to my depts</button>' : '') +
+                '<button class="fp-reset" onclick="_ctSelectAllDepts_()">Select all</button>' +
+                '<button class="fp-reset" onclick="_ctDeselectAllDepts_()">Deselect all</button>' +
+              '</div>' +
             '</div>'
           : '') +
         '<div class="fp-group">' +
@@ -273,6 +277,20 @@ function _ctResetDepts_() {
     var shouldCheck = !owned.length || owned.indexOf(cb.value.toUpperCase().trim()) >= 0;
     cb.checked = shouldCheck;
     if (window._fpChip_) window._fpChip_(cb);
+  });
+  _ctApply_();
+}
+
+function _ctSelectAllDepts_() {
+  document.querySelectorAll('.fp-cb-dept[data-fp="ct"]').forEach(function(cb) {
+    cb.checked = true; if (window._fpChip_) window._fpChip_(cb);
+  });
+  _ctApply_();
+}
+
+function _ctDeselectAllDepts_() {
+  document.querySelectorAll('.fp-cb-dept[data-fp="ct"]').forEach(function(cb) {
+    cb.checked = false; if (window._fpChip_) window._fpChip_(cb);
   });
   _ctApply_();
 }
