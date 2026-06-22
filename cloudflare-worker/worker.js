@@ -1977,7 +1977,110 @@ async function handleRefreshEquipCache(env, userEmail) {
   const token = await getAccessToken(env);
   const user  = await resolveUser(token, env, userEmail);
   if (!user.isAdmin) return jsonResponse({ error: 'Admin access required' }, 403);
-  return jsonResponse({ success: false, rows: 0, error: 'Cache refresh not supported via web API — use the Google Sheets add-on.' });
+
+  // Read CMMS config to find the external register sheet ID and tab name
+  const configRows = await readSheet(token, env.SPREADSHEET_ID, SH.CONFIG, 'C2:D50');
+  const config = {};
+  configRows.forEach(r => { if (r[0]) config[String(r[0]).trim()] = String(r[1] ?? ''); });
+
+  // Extract sheet ID from URL (tries several common key name variants)
+  const URL_CANDIDATES = [
+    'Equipment Register Sheet URL','Equipment List Source URL',
+    'Equipment Register URL','Equip Register URL',
+    'Equipment Register Sheet ID','Equipment Source URL',
+  ];
+  let regSheetId = '';
+  for (const key of URL_CANDIDATES) {
+    const val = config[key] || '';
+    const m = val.match(/\/d\/([-\w]{25,})/);
+    if (m) { regSheetId = m[1]; break; }
+    if (!m && val.length >= 25 && !/[/ ]/.test(val)) { regSheetId = val; break; }
+  }
+  if (!regSheetId) {
+    for (const val of Object.values(config)) {
+      if (String(val).includes('docs.google.com/spreadsheets')) {
+        const m = String(val).match(/\/d\/([-\w]{25,})/);
+        if (m) { regSheetId = m[1]; break; }
+      }
+    }
+  }
+  if (!regSheetId) return jsonResponse({ success: false, error: 'Equipment Register Sheet URL is not configured. In ⚙️ Configuration, add a row with key "Equipment Register Sheet URL" and paste the full Google Sheets URL of your Equipment Register.' });
+
+  const tabName = (config['Equipment Inventory Tab Name'] || '').trim();
+  if (!tabName) return jsonResponse({ success: false, error: 'Equipment Inventory Tab Name is not configured. In ⚙️ Configuration, add a row with key "Equipment Inventory Tab Name" and the exact tab name (case-sensitive) from your Equipment Register.' });
+
+  // Read the external Equipment Register spreadsheet
+  let srcData;
+  try {
+    srcData = await readSheet(token, regSheetId, tabName, null);
+  } catch (e) {
+    return jsonResponse({ success: false, error: 'Could not read Equipment Register: ' + e.message + '. Make sure the spreadsheet is shared with the service account (' + (env.GOOGLE_SA_EMAIL || 'see GOOGLE_SA_EMAIL secret') + ').' });
+  }
+  if (!srcData || srcData.length < 2) return jsonResponse({ success: false, error: 'Tab "' + tabName + '" in the Equipment Register appears empty.' });
+
+  // Find the real header row — pick the row with the most recognised column-name matches
+  const ALL_VARIANTS = [
+    'department','dept','dept.','area','division','plant','facility','location',
+    'cost center','work center','workcenter','shop','building',
+    'dept code','department code','dept #','dept no',
+    'group','equipment group','line #','line number','line','asset group',
+    'equipment type','equip type','type','asset type','machine type','category','class',
+    'equipment code','equip code','code','asset code','job #','job no','id','asset id',
+    'machine code','machine #','equip id','equip #','equipment #','equipment id',
+    'plant no','plant #','no.','number','serial','serial #','serial no','serial number',
+    'specific equipment','equipment name','name','description','asset name',
+    'equipment description','machine name','equip name','item','equipment','machine',
+    'short text','desc','long description','full name','title',
+    'status','active','state','asset status','equip status','condition',
+  ];
+  const limit = Math.min(10, srcData.length);
+  let bestIdx = 0, bestCount = 0, firstMultiCell = -1;
+  for (let i = 0; i < limit; i++) {
+    const row = srcData[i]; let nonEmpty = 0, matches = 0;
+    for (const cell of row) {
+      const lc = String(cell || '').trim().toLowerCase();
+      if (!lc) continue; nonEmpty++;
+      if (ALL_VARIANTS.includes(lc)) matches++;
+    }
+    if (matches > bestCount) { bestCount = matches; bestIdx = i; }
+    if (firstMultiCell < 0 && nonEmpty >= 3) firstMultiCell = i;
+  }
+  if (bestCount === 0 && firstMultiCell >= 0) bestIdx = firstMultiCell;
+  const relevantData = srcData.slice(bestIdx); // header row + data rows
+
+  // Clear cache rows 4+ then write new data starting at row 4
+  const cacheEncoded = encodeURIComponent(SH.EQUIP_CACHE);
+  await fetch(
+    `https://sheets.googleapis.com/v4/spreadsheets/${env.SPREADSHEET_ID}/values/${cacheEncoded}!A4:Z2000:clear`,
+    { method: 'POST', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }, body: '{}' }
+  );
+  const writeRes = await fetch(
+    `https://sheets.googleapis.com/v4/spreadsheets/${env.SPREADSHEET_ID}/values/${cacheEncoded}!A4?valueInputOption=USER_ENTERED`,
+    {
+      method: 'PUT',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ values: relevantData }),
+    }
+  );
+  if (!writeRes.ok) {
+    const txt = await writeRes.text();
+    return jsonResponse({ success: false, error: 'Failed to write to cache tab: ' + txt });
+  }
+
+  // Stamp the refresh timestamp into the config sheet
+  const now = new Date();
+  const nowStr = `${now.getMonth()+1}/${now.getDate()}/${now.getFullYear()} ` +
+    `${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
+  try {
+    for (let i = 0; i < configRows.length; i++) {
+      if (String(configRows[i][0] || '').trim() === 'Equip Cache Last Refreshed') {
+        await writeSheetCells(token, env.SPREADSHEET_ID, SH.CONFIG, i + 2, [{ col: 4, value: nowStr }]);
+        break;
+      }
+    }
+  } catch (_) {}
+
+  return jsonResponse({ success: true, rows: relevantData.length - 1 });
 }
 
 // ── Tech work board handler ───────────────────────────────────────────────────
