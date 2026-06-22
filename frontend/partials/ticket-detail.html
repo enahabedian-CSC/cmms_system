@@ -695,10 +695,13 @@ function _tdIssueTag_() {
     '<select id="tag-type">' + tagTypes.map(function(tt) {
       return '<option value="' + esc(tt) + '">' + esc(tt) + '</option>';
     }).join('') + '</select></div>' +
-    '<div class="form-group"><label>Reason</label><textarea id="tag-reason" placeholder="Why is this equipment being tagged?"></textarea></div>',
+    '<div class="form-group"><label>Reason / Identified Risk *</label><textarea id="tag-reason" placeholder="Why is this equipment being tagged? What is the identified risk?"></textarea></div>' +
+    '<div class="form-group"><label>CAPA Reference # (optional)</label><input id="tag-capa" placeholder="FRM-017-001 CAPA # if a CAPA was raised" /></div>',
     function() {
       var tagType = document.getElementById('tag-type').value;
       if (!tagType) { alert('Select a tag type.'); return; }
+      var reason = document.getElementById('tag-reason').value.trim();
+      if (!reason) { alert('Reason / identified risk is required (SQF 2.6.2).'); return; }
       var data = {
         ticketNo:      t.ticketNo,
         equipCode:     t.equipCode     || '',
@@ -706,7 +709,8 @@ function _tdIssueTag_() {
         dept:          t.dept,
         buildingZone:  t.buildingZone  || '',
         tagType:       tagType,
-        reason:        document.getElementById('tag-reason').value,
+        reason:        reason,
+        capaRef:       document.getElementById('tag-capa').value.trim(),
         taggedBy:      USER.displayName
       };
       _tdRunAction_(issueEquipHoldTag, data, 'Hold Tag Issued');

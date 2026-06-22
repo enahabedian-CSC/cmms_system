@@ -113,6 +113,7 @@
   <div class="mon-modal">
     <div class="mon-modal-title" id="mon-modal-title">Confirm Action</div>
     <div class="mon-modal-sub"  id="mon-modal-sub"></div>
+    <div id="mon-modal-extra"></div>
     <textarea class="mon-modal-notes" id="mon-modal-notes" placeholder="Notes (optional)"></textarea>
     <div class="mon-modal-footer">
       <button class="mon-btn" onclick="_monModalClose_()">Cancel</button>
@@ -468,8 +469,8 @@ function _renderEhl_(items, container) {
     _ehlKpiBar_(_ehlData_) +
     '<div class="mon-table-wrap"><table class="mon-table">' +
       '<thead><tr>' +
-        '<th>Tag ID</th><th>Ticket #</th><th>Equipment</th><th>Dept</th>' +
-        '<th>Tag Type</th><th>Date Tagged</th><th>Reason</th><th>Tagged By</th><th></th>' +
+        '<th>Hold Ref #</th><th>Tag ID</th><th>Ticket #</th><th>Equipment</th><th>Dept</th>' +
+        '<th>Tag Type</th><th>Date Tagged</th><th>Reason / Identified Risk</th><th>CAPA #</th><th>Tagged By</th><th></th>' +
       '</tr></thead>' +
       '<tbody id="ehl-tbody"></tbody>' +
     '</table></div></div>';
@@ -493,11 +494,12 @@ function _ehlRenderRows_(list) {
   var cntEl = document.getElementById('ehl-cnt');
   if (cntEl) cntEl.textContent = list.length + ' item' + (list.length !== 1 ? 's' : '');
   if (list.length === 0) {
-    tbody.innerHTML = '<tr><td colspan="9" class="mon-empty">No active equipment holds.</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="11" class="mon-empty">No active equipment holds.</td></tr>';
     return;
   }
   tbody.innerHTML = list.map(function(t) {
     return '<tr>' +
+      '<td class="mon-id">' + esc(t.holdRef || '—') + '</td>' +
       '<td class="mon-id">' + esc(t.tagId) + '</td>' +
       '<td style="font-family:var(--font-mono);font-size:11.5px;color:var(--brand-navy);">' + esc(t.ticketNo) + '</td>' +
       '<td class="mon-equip" title="' + esc(t.equipCode ? t.equipCode + ' — ' + t.specificEquip : t.specificEquip) + '">' +
@@ -507,6 +509,7 @@ function _ehlRenderRows_(list) {
       '<td><span style="background:var(--status-critical-bg);color:var(--status-critical);font-size:10.5px;font-weight:700;padding:2px 6px;border-radius:4px;">' + esc(t.tagType || 'HOLD') + '</span></td>' +
       '<td style="font-size:11.5px;color:var(--text-tertiary);">' + esc(t.dateTagged) + '</td>' +
       '<td class="mon-desc" title="' + esc(t.reason) + '">' + esc(t.reason) + '</td>' +
+      '<td style="font-family:var(--font-mono);font-size:11px;color:var(--text-secondary);">' + esc(t.capaRef || '—') + '</td>' +
       '<td>' + esc(t.taggedBy) + '</td>' +
       '<td style="white-space:nowrap;">' +
         '<button class="mon-btn" onclick="_ehlPrintTag_(\'' + esc(t.tagId) + '\')">🖨 Print Tag</button> ' +
@@ -580,19 +583,46 @@ function _ehlPrintTag_(tagId) {
 }
 
 function _ehlClear_(tagId) {
-  _monModalOpen_('Clear Equipment Tag', 'Confirm equipment is cleared and safe to return to service.', function(notes) {
+  // FRM-029-001 release record (SQF 2.6.3): capture disposition, who authorized
+  // the release, and what was done with the equipment.
+  var extra =
+    '<div style="display:flex;flex-direction:column;gap:8px;margin-bottom:10px;">' +
+      '<label style="font-size:11px;font-weight:600;color:var(--text-secondary);">Disposition *' +
+        '<select id="ehl-disposition" class="mon-modal-notes" style="height:32px;margin-top:3px;">' +
+          '<option value="">— Select —</option>' +
+          '<option>Repaired &amp; returned to service</option>' +
+          '<option>Replaced</option>' +
+          '<option>Reworked</option>' +
+          '<option>Scrapped / removed</option>' +
+          '<option>Use-as-is (authorized)</option>' +
+        '</select></label>' +
+      '<label style="font-size:11px;font-weight:600;color:var(--text-secondary);">Authorized By *' +
+        '<input id="ehl-authorized" class="mon-modal-notes" style="height:32px;margin-top:3px;" placeholder="Name of person authorizing release" /></label>' +
+      '<label style="font-size:11px;font-weight:600;color:var(--text-secondary);">What was done with the equipment *' +
+        '<textarea id="ehl-whatdone" class="mon-modal-notes" style="margin-top:3px;" placeholder="Describe the disposition action taken"></textarea></label>' +
+    '</div>';
+  _monModalOpen_('Clear Equipment Hold (Release)', 'Confirm equipment is cleared and safe to return to service. This completes the Non-Conforming Equipment Register release record.', function(notes, ex) {
+    ex = ex || {};
+    if (!ex['ehl-disposition']) { showToast('Disposition is required (SQF 2.5.2)', 'error'); return false; }
+    if (!ex['ehl-authorized'])  { showToast('Authorized By is required (SQF 2.5.3)', 'error'); return false; }
+    if (!ex['ehl-whatdone'])    { showToast('Please record what was done with the equipment (SQF 2.6.3.3)', 'error'); return false; }
     fetch(WORKER_URL + '/api/monitoring/hold-tags/clear', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'X-User-Email': USER ? USER.email : '' },
-      body: JSON.stringify({ tagId: tagId, notes: notes })
+      body: JSON.stringify({
+        tagId: tagId, notes: notes,
+        disposition:  ex['ehl-disposition'],
+        authorizedBy: ex['ehl-authorized'],
+        whatDone:     ex['ehl-whatdone']
+      })
     })
       .then(function(r) { return r.json(); })
       .then(function(r) {
-        if (r.success) { showToast('Equipment tag cleared', 'success'); _loadEhlPage_(document.getElementById('page-equipment-hold')); }
+        if (r.success) { showToast('Equipment released & NCR record completed', 'success'); _loadEhlPage_(document.getElementById('page-equipment-hold')); }
         else showToast(r.error || 'Error', 'error');
       })
       .catch(function(e) { showToast(String(e.message || e), 'error'); });
-  });
+  }, extra);
 }
 
 // ─── Parts Needed ─────────────────────────────────────────────────────────────
@@ -755,21 +785,33 @@ function _ehlKpiBar_(items) {
 
 var _monModalCallback_ = null;
 
-function _monModalOpen_(title, sub, onConfirm) {
+function _monModalOpen_(title, sub, onConfirm, extraHtml) {
   document.getElementById('mon-modal-title').textContent = title;
   document.getElementById('mon-modal-sub').textContent   = sub;
   document.getElementById('mon-modal-notes').value       = '';
+  // Optional extra fields rendered above the notes box; the callback reads them
+  // by id. Backward compatible — callers that omit extraHtml see no extra fields.
+  document.getElementById('mon-modal-extra').innerHTML   = extraHtml || '';
   _monModalCallback_ = onConfirm;
   document.getElementById('mon-modal-back').classList.add('open');
   document.getElementById('mon-modal-confirm').onclick = function() {
     var notes = document.getElementById('mon-modal-notes').value.trim();
-    _monModalClose_();
-    if (_monModalCallback_) _monModalCallback_(notes);
+    // Snapshot extra-field values (by id) so the callback can read them.
+    var extra = {};
+    document.querySelectorAll('#mon-modal-extra [id]').forEach(function(el) {
+      extra[el.id] = (el.value || '').trim();
+    });
+    // The callback may return false to keep the modal open (e.g. validation
+    // failed) so the user doesn't lose their input. Anything else closes it.
+    var keepOpen = false;
+    if (_monModalCallback_) keepOpen = (_monModalCallback_(notes, extra) === false);
+    if (!keepOpen) _monModalClose_();
   };
 }
 
 function _monModalClose_() {
   document.getElementById('mon-modal-back').classList.remove('open');
+  document.getElementById('mon-modal-extra').innerHTML = '';
   _monModalCallback_ = null;
 }
 
