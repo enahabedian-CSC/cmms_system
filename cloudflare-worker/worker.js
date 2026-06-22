@@ -871,7 +871,7 @@ async function handleTempFixClear(env, userEmail, body) {
   return jsonResponse({ success: true, tempId });
 }
 
-async function handleEhl(env, userEmail) {
+async function handleEhl(env, userEmail, includeCleared) {
   const token = await getAccessToken(env);
   const user  = await resolveUser(token, env, userEmail);
   if (!user.isManager) return jsonResponse({ error: 'Manager access required' }, 403);
@@ -884,7 +884,7 @@ async function handleEhl(env, userEmail) {
     const dept   = cellStr(r, EHL.DEPT);
     if (!allowed(user, dept)) return;
     const status = cellStr(r, EHL.EQUIP_STATUS).toUpperCase();
-    if (status === 'CLEARED') return;
+    if (status === 'CLEARED' && !includeCleared) return;
     items.push({
       tagId,
       ticketNo:     cellStr(r, EHL.TICKET_NO),
@@ -2529,7 +2529,7 @@ export default {
       else if (p === '/api/monitoring/temp-fix/detail'  && method === 'GET') res = await handleTempFixDetail(env, userEmail, url.searchParams.get('tempId') || '');
       else if (p === '/api/monitoring/temp-fix/inspect' && method === 'POST')res = await handleTempFixInspect(env, userEmail, body);
       else if (p === '/api/monitoring/temp-fix/clear'   && method === 'POST')res = await handleTempFixClear(env, userEmail, body);
-      else if (p === '/api/monitoring/hold-tags'        && method === 'GET') res = await handleEhl(env, userEmail);
+      else if (p === '/api/monitoring/hold-tags'        && method === 'GET') res = await handleEhl(env, userEmail, url.searchParams.get('includeCleared') === '1');
       else if (p === '/api/monitoring/hold-tags/clear'  && method === 'POST')res = await handleEhlClear(env, userEmail, body);
       else if (p === '/api/monitoring/parts'            && method === 'GET') res = await handleParts(env, userEmail);
       else if (p === '/api/monitoring/parts/status'     && method === 'POST')res = await handlePartsStatus(env, userEmail, body);

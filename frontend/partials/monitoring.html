@@ -434,13 +434,15 @@ function _tfClear_(tempId) {
 // ─── Equipment Hold Log ───────────────────────────────────────────────────────
 
 var _ehlData_ = [];
+var _ehlShowCleared_ = false;
 
 PAGES['equipment-hold'] = function(c) { _loadEhlPage_(c); };
 
-function _loadEhlPage_(container) {
+function _loadEhlPage_(container, includeCleared) {
+  if (includeCleared !== undefined) _ehlShowCleared_ = includeCleared;
   container.innerHTML =
     '<div class="loading-overlay"><div class="spinner"></div><span>Loading equipment holds…</span></div>';
-  fetch(WORKER_URL + '/api/monitoring/hold-tags', {
+  fetch(WORKER_URL + '/api/monitoring/hold-tags' + (_ehlShowCleared_ ? '?includeCleared=1' : ''), {
     headers: { 'X-User-Email': USER ? USER.email : '' }
   })
     .then(function(r) { return r.json(); })
@@ -463,6 +465,10 @@ function _renderEhl_(items, container) {
         'Non-Conforming Equipment Register · ' + esc(docLabel('ncrRegister')) + '</span></span>' +
       '<span class="mon-count" id="ehl-cnt">' + _ehlData_.length + ' tagged</span>' +
       '<input class="mon-search" id="ehl-search" placeholder="Search…" oninput="_ehlApply_()" />' +
+      '<label style="display:flex;align-items:center;gap:5px;font-size:11.5px;color:var(--text-secondary);cursor:pointer;margin-right:4px;white-space:nowrap;">' +
+        '<input type="checkbox" id="ehl-show-cleared"' + (_ehlShowCleared_ ? ' checked' : '') + ' style="width:auto;" ' +
+        'onchange="_loadEhlPage_(document.getElementById(\'page-equipment-hold\'), this.checked)"> Show released' +
+      '</label>' +
       '<button onclick="_loadEhlPage_(document.getElementById(\'page-equipment-hold\'))" ' +
         'style="height:30px;padding:0 10px;border:1px solid var(--border-default);border-radius:6px;background:#fff;font-size:12px;cursor:pointer;color:var(--text-secondary);" title="Refresh">↻</button>' +
     '</div>' +
@@ -470,7 +476,8 @@ function _renderEhl_(items, container) {
     '<div class="mon-table-wrap"><table class="mon-table">' +
       '<thead><tr>' +
         '<th>Hold Ref #</th><th>Tag ID</th><th>Ticket #</th><th>Equipment</th><th>Dept</th>' +
-        '<th>Tag Type</th><th>Date Tagged</th><th>Reason / Identified Risk</th><th>CAPA #</th><th>Tagged By</th><th></th>' +
+        '<th>Tag Type</th><th>Status</th><th>Date Tagged</th><th>Reason / Identified Risk</th><th>CAPA #</th>' +
+        '<th>Disposition (Release)</th><th>Authority</th><th></th>' +
       '</tr></thead>' +
       '<tbody id="ehl-tbody"></tbody>' +
     '</table></div></div>';
@@ -494,11 +501,23 @@ function _ehlRenderRows_(list) {
   var cntEl = document.getElementById('ehl-cnt');
   if (cntEl) cntEl.textContent = list.length + ' item' + (list.length !== 1 ? 's' : '');
   if (list.length === 0) {
-    tbody.innerHTML = '<tr><td colspan="11" class="mon-empty">No active equipment holds.</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="13" class="mon-empty">No equipment holds.</td></tr>';
     return;
   }
   tbody.innerHTML = list.map(function(t) {
-    return '<tr>' +
+    var released = String(t.equipStatus || '').toUpperCase() === 'CLEARED';
+    var statusCell = released
+      ? '<span style="background:var(--bg-subtle);color:var(--text-secondary);font-size:10px;font-weight:700;padding:2px 6px;border-radius:4px;" title="Released ' + esc(t.clearedDate || '') + ' by ' + esc(t.clearedBy || '') + '">RELEASED</span>'
+      : '<span style="background:var(--status-critical-bg);color:var(--status-critical);font-size:10px;font-weight:700;padding:2px 6px;border-radius:4px;">ON HOLD</span>';
+    var dispoCell = released
+      ? '<div title="' + esc(t.whatDone || '') + '">' + esc(t.disposition || '—') +
+        (t.authorizedBy ? '<div style="font-size:10px;color:var(--text-tertiary);">auth: ' + esc(t.authorizedBy) + '</div>' : '') + '</div>'
+      : '<span style="color:var(--text-tertiary);">—</span>';
+    var actionCell = released
+      ? '<button class="mon-btn" onclick="_ehlPrintTag_(\'' + esc(t.tagId) + '\')">🖨 Print</button>'
+      : '<button class="mon-btn" onclick="_ehlPrintTag_(\'' + esc(t.tagId) + '\')">🖨 Print Tag</button> ' +
+        '<button class="mon-btn danger" onclick="_ehlClear_(\'' + esc(t.tagId) + '\')">Release / Clear</button>';
+    return '<tr' + (released ? ' style="opacity:.72;"' : '') + '>' +
       '<td class="mon-id">' + esc(t.holdRef || '—') + '</td>' +
       '<td class="mon-id">' + esc(t.tagId) + '</td>' +
       '<td style="font-family:var(--font-mono);font-size:11.5px;color:var(--brand-navy);">' + esc(t.ticketNo) + '</td>' +
@@ -507,14 +526,13 @@ function _ehlRenderRows_(list) {
         esc(t.specificEquip) + '</td>' +
       '<td>' + esc(t.dept) + '</td>' +
       '<td><span style="background:var(--status-critical-bg);color:var(--status-critical);font-size:10.5px;font-weight:700;padding:2px 6px;border-radius:4px;">' + esc(t.tagType || 'HOLD') + '</span></td>' +
+      '<td>' + statusCell + '</td>' +
       '<td style="font-size:11.5px;color:var(--text-tertiary);">' + esc(t.dateTagged) + '</td>' +
       '<td class="mon-desc" title="' + esc(t.reason) + '">' + esc(t.reason) + '</td>' +
       '<td style="font-family:var(--font-mono);font-size:11px;color:var(--text-secondary);">' + esc(t.capaRef || '—') + '</td>' +
+      '<td style="font-size:11.5px;">' + dispoCell + '</td>' +
       '<td>' + esc(t.taggedBy) + '</td>' +
-      '<td style="white-space:nowrap;">' +
-        '<button class="mon-btn" onclick="_ehlPrintTag_(\'' + esc(t.tagId) + '\')">🖨 Print Tag</button> ' +
-        '<button class="mon-btn danger" onclick="_ehlClear_(\'' + esc(t.tagId) + '\')">Clear Tag</button>' +
-      '</td>' +
+      '<td style="white-space:nowrap;">' + actionCell + '</td>' +
     '</tr>';
   }).join('');
 }
