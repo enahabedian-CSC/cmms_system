@@ -1199,6 +1199,83 @@ async function handleEquipQuickStats(env, userEmail, equipCode) {
   return jsonResponse({ count60d, topProbType });
 }
 
+async function handleReserveTicketId(env, userEmail, searchParams) {
+  const isTech = (userEmail || '').trim().toLowerCase().endsWith('@cscmfg.com');
+  if (!isTech) return jsonResponse({ error: 'Access required' }, 403);
+  const dept = (searchParams.get('dept') || '').toUpperCase().trim();
+  const DEPT_CODES = { ELECTRICAL: 'EL', 'MACHINE SHOP': 'MS', FACILITIES: 'FAC', PLASTICS: 'PL', METALS: 'MTL', LITHO: 'LTH' };
+  const prefix = DEPT_CODES[dept] || 'TK';
+  const now    = new Date();
+  const stamp  = String(now.getFullYear()) +
+                 String(now.getMonth() + 1).padStart(2, '0') +
+                 String(now.getDate()).padStart(2, '0');
+  const ticketNo = prefix + '-' + stamp + '-' +
+                   String(now.getHours()).padStart(2, '0') +
+                   String(now.getMinutes()).padStart(2, '0') +
+                   String(now.getSeconds()).padStart(2, '0');
+  return jsonResponse({ ticketNo });
+}
+
+async function handleUploadPhoto(env, userEmail, body) {
+  const isTech = (userEmail || '').trim().toLowerCase().endsWith('@cscmfg.com');
+  if (!isTech) return jsonResponse({ error: 'Access required' }, 403);
+
+  const folderId = env.PHOTO_FOLDER_ID || '';
+  if (!folderId) return jsonResponse({ ok: false, error: 'Photo storage not configured (PHOTO_FOLDER_ID missing)' }, 500);
+
+  const token     = await getAccessToken(env);
+  const ticketNo  = String(body.ticketNo   || '');
+  const photoIdx  = body.photoIndex || 1;
+  const dataUrl   = String(body.dataUrl    || '');
+  const mimeType  = String(body.mimeType   || 'image/jpeg');
+  const ext       = String(body.ext        || 'jpg');
+  const filename  = `cmms_${ticketNo}_photo_${photoIdx}.${ext}`;
+
+  const b64    = dataUrl.includes(',') ? dataUrl.split(',')[1] : dataUrl;
+  const binary = atob(b64);
+  const bytes  = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+
+  const boundary = 'boundary-' + Math.random().toString(36).slice(2);
+  const metadata = { name: filename, parents: [folderId], mimeType };
+  const enc  = new TextEncoder();
+  const head = enc.encode(
+    `--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n` +
+    JSON.stringify(metadata) +
+    `\r\n--${boundary}\r\nContent-Type: ${mimeType}\r\n\r\n`
+  );
+  const tail    = enc.encode(`\r\n--${boundary}--`);
+  const bodyBuf = new Uint8Array(head.length + bytes.length + tail.length);
+  bodyBuf.set(head, 0);
+  bodyBuf.set(bytes, head.length);
+  bodyBuf.set(tail, head.length + bytes.length);
+
+  const upRes = await fetch(
+    'https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&supportsAllDrives=true',
+    {
+      method:  'POST',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': `multipart/related; boundary=${boundary}` },
+      body:    bodyBuf
+    }
+  );
+  if (!upRes.ok) {
+    const errText = await upRes.text();
+    return jsonResponse({ ok: false, error: `Drive upload failed: ${upRes.status} ${errText}` });
+  }
+  const file = await upRes.json();
+
+  // Grant view access to the cscmfg.com domain (non-fatal if it fails)
+  try {
+    await fetch(`https://www.googleapis.com/drive/v3/files/${file.id}/permissions?supportsAllDrives=true`, {
+      method:  'POST',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body:    JSON.stringify({ type: 'domain', role: 'reader', domain: 'cscmfg.com' })
+    });
+  } catch (_) { /* non-fatal */ }
+
+  return jsonResponse({ ok: true, url: `https://drive.google.com/file/d/${file.id}/view` });
+}
+
 async function handleAddTicket(env, userEmail, body) {
   const token  = await getAccessToken(env);
   const user   = await resolveUser(token, env, userEmail);
@@ -1212,18 +1289,26 @@ async function handleAddTicket(env, userEmail, body) {
   const now        = new Date();
   const addedBy    = body.addedBy || user.displayName;
 
-  // Generate ticket number: dept prefix + YYYYMMDD + 4-digit ms
+  // Use pre-reserved ticketNo if provided (photos were uploaded before this call),
+  // otherwise generate one now from the current timestamp.
   const DEPT_CODES = { ELECTRICAL: 'EL', 'MACHINE SHOP': 'MS', FACILITIES: 'FAC', PLASTICS: 'PL', METALS: 'MTL', LITHO: 'LTH' };
-  const prefix     = DEPT_CODES[dept] || 'TK';
-  const d          = now;
-  const stamp      = String(d.getFullYear()) + String(d.getMonth()+1).padStart(2,'0') + String(d.getDate()).padStart(2,'0');
-  const ticketNo   = prefix + '-' + stamp + '-' + String(d.getHours()).padStart(2,'0') + String(d.getMinutes()).padStart(2,'0');
+  let ticketNo = String(body.ticketNo || '').trim();
+  if (!ticketNo) {
+    const prefix = DEPT_CODES[dept] || 'TK';
+    const stamp  = String(now.getFullYear()) + String(now.getMonth()+1).padStart(2,'0') + String(now.getDate()).padStart(2,'0');
+    ticketNo     = prefix + '-' + stamp + '-' + String(now.getHours()).padStart(2,'0') + String(now.getMinutes()).padStart(2,'0');
+  }
+
+  // Build photo cell: join any uploaded Drive links with newline
+  const photoLinks = Array.isArray(body.photoLinks) ? body.photoLinks.filter(l => l && !l.startsWith('UPLOAD_FAILED') && !l.startsWith('NETWORK_ERROR')) : [];
+  const photoCell  = photoLinks.length > 0 ? photoLinks.join('\n') : (body.photoUrl || '');
 
   await appendMasterLog(token, env, {
     ticketNo, now, action: isCritical ? 'TICKET CREATED — CRITICAL (bypass)' : 'TICKET CREATED',
     status, dept,
     updatedBy: addedBy,
-    notes: (body.description || '') + (body.observations ? ' | ' + body.observations : ''),
+    notes:    (body.description || '') + (body.observations ? ' | ' + body.observations : ''),
+    photoUrl: photoCell,
   });
   // Extended ML fields via batch write on the newly-appended row (best-effort)
   await appendTicketHistory(token, env, ticketNo, 'CREATED', '', status, addedBy,
@@ -2046,6 +2131,8 @@ export default {
       // Submit ticket
       else if (p === '/api/submit/form-data'            && method === 'GET') res = await handleFormData(env, userEmail);
       else if (p === '/api/submit/equip-stats'          && method === 'GET') res = await handleEquipQuickStats(env, userEmail, url.searchParams.get('equipCode') || '');
+      else if (p === '/api/submit/reserve-id'           && method === 'GET') res = await handleReserveTicketId(env, userEmail, url.searchParams);
+      else if (p === '/api/submit/upload-photo'         && method === 'POST')res = await handleUploadPhoto(env, userEmail, body);
       else if (p === '/api/submit/add'                  && method === 'POST')res = await handleAddTicket(env, userEmail, body);
       // Ticket actions
       else if (p === '/api/tickets/approve'             && method === 'POST')res = await handleApproveTicket(env, userEmail, body);
