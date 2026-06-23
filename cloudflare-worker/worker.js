@@ -26,6 +26,9 @@ const ML = {
   VERIFICATION_CHECKLIST:36, PHOTO_URL:37,
   JOINT_DEPTS:38, JOINT_SIGNOFFS:39, PERM_FIX_PLAN:40, PERM_FIX_DATE:41,
   DOWNTIME_DURATION:42, PENDING_JOINT_DEPTS:43,
+  // Post-Repair Clearance captured at Mark Work Complete (SQF 2.14.3). Additive
+  // columns — existing 43-col reads stay valid.
+  CLR_TOOLS_REMOVED:44, CLR_AREA_CLEAN:45, CLR_QA_REQUIRED:46,
 };
 
 const TF = {
@@ -627,7 +630,7 @@ async function findMonitorRow(token, spreadsheetId, sheetName, id, startRow) {
 // Append a row to Master Log (43 cols).
 async function appendMasterLog(token, env, opts) {
   const now = opts.now || new Date();
-  const row = new Array(43).fill('');
+  const row = new Array(46).fill('');
   row[ML.TICKET_NO       - 1] = opts.ticketNo       || '';
   row[ML.TIMESTAMP       - 1] = fmtDate(now);
   row[ML.ACTION          - 1] = opts.action          || '';
@@ -658,6 +661,9 @@ async function appendMasterLog(token, env, opts) {
   if (opts.permFixPlan   !== undefined) row[ML.PERM_FIX_PLAN  - 1] = opts.permFixPlan   || '';
   if (opts.permFixDate   !== undefined) row[ML.PERM_FIX_DATE  - 1] = opts.permFixDate   || '';
   if (opts.downtimeDuration !== undefined) row[ML.DOWNTIME_DURATION - 1] = opts.downtimeDuration || '';
+  if (opts.clrToolsRemoved !== undefined) row[ML.CLR_TOOLS_REMOVED - 1] = opts.clrToolsRemoved || '';
+  if (opts.clrAreaClean    !== undefined) row[ML.CLR_AREA_CLEAN    - 1] = opts.clrAreaClean    || '';
+  if (opts.clrQaRequired   !== undefined) row[ML.CLR_QA_REQUIRED   - 1] = opts.clrQaRequired   || '';
   if (opts.addedBy       !== undefined) row[ML.ADDED_BY       - 1] = opts.addedBy       || '';
   if (opts.buildingZone  !== undefined) row[ML.BUILDING_ZONE  - 1] = opts.buildingZone  || '';
   if (opts.equipType     !== undefined) row[ML.EQUIP_TYPE     - 1] = opts.equipType     || '';
@@ -1118,7 +1124,7 @@ async function handleTicketDetail(env, userEmail, ticketNo) {
   if (!ticketNo) return jsonResponse({ error: 'ticketNo required' }, 400);
 
   const [mlRows, thRows] = await Promise.all([
-    readSheet(token, env.SPREADSHEET_ID, SH.MASTER_LOG,  'A2:AQ'),
+    readSheet(token, env.SPREADSHEET_ID, SH.MASTER_LOG,  'A2:AT'),
     readSheet(token, env.SPREADSHEET_ID, SH.TICKET_HIST, 'A2:H'),
   ]);
 
@@ -1171,6 +1177,9 @@ async function handleTicketDetail(env, userEmail, ticketNo) {
     permFixPlan:      cellStr(best, ML.PERM_FIX_PLAN),
     permFixDate:      fmtDate(cellDate(best, ML.PERM_FIX_DATE)),
     downtimeDuration: cellStr(best, ML.DOWNTIME_DURATION),
+    clrToolsRemoved:  cellStr(best, ML.CLR_TOOLS_REMOVED),
+    clrAreaClean:     cellStr(best, ML.CLR_AREA_CLEAN),
+    clrQaRequired:    cellStr(best, ML.CLR_QA_REQUIRED),
   };
 
   // Sort chronologically by the real timestamp column. Raw sheet-append order
@@ -1599,6 +1608,9 @@ async function handleCompleteTicket(env, userEmail, body) {
     preventiveAct: body.preventiveAct || '', fixType: body.fixType || '',
     actualHours: body.actualHours || '', downtimeDuration: body.downtimeDuration || '',
     tempFixFlag: body.tempFixFlag, updatedBy, notes: body.notes || '',
+    // Post-Repair Clearance captured at completion (SQF 2.14.3)
+    clrToolsRemoved: body.clrToolsRemoved || '', clrAreaClean: body.clrAreaClean || '',
+    clrQaRequired: body.clrQaRequired || '',
   });
   await appendTicketHistory(token, env, ticketNo, 'WORK COMPLETE', 'OPEN', 'PENDING VERIFICATION', updatedBy, '');
   return jsonResponse({ success: true, ticketNo });

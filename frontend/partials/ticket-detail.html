@@ -434,15 +434,24 @@ function _tdComplete_() {
     '<select id="mc-fix"><option value="">—</option><option>Permanent</option><option>Temporary</option></select></div>' +
     '<div class="form-group"><label>Actual Hours</label><input id="mc-hours" type="number" min="0" step="0.5" /></div>' +
     '<div class="form-group"><label>Downtime Duration (minutes)</label><input id="mc-downtime" type="number" min="0" step="1" placeholder="How long was the equipment down?" /></div>' +
+    '<div style="background:#E8F5E9;border:1px solid #A5D6A7;border-radius:6px;padding:9px 12px;margin:6px 0 4px;font-size:11.5px;color:#1B5E20;">' +
+      '<strong>Post-Repair Clearance (SQF 2.14.3)</strong> — confirm the area is clean, sanitary, and safe before handing the equipment back.</div>' +
+    '<div class="form-group"><label>All tools removed? *</label><select id="mc-clr-tools"><option value=""></option><option>Yes</option><option>No</option></select></div>' +
+    '<div class="form-group"><label>Area cleaned &amp; sanitized — no residual lubricants/chemicals? *</label><select id="mc-clr-clean"><option value=""></option><option>Yes</option><option>No</option></select></div>' +
+    '<div class="form-group"><label>Sanitation / QA inspection required?</label><select id="mc-clr-qa"><option value=""></option><option>Yes</option><option>No</option><option>N/A</option></select></div>' +
     '<div class="form-group" style="display:flex;align-items:center;gap:8px;">' +
     '<input type="checkbox" id="mc-tf" style="width:auto;" /><label for="mc-tf" style="margin:0;cursor:pointer;">Flag as Temp Fix (requires follow-up inspection)</label></div>',
     function() {
       var correctiveAct = document.getElementById('mc-corrective').value.trim();
       var rootCause     = document.getElementById('mc-root').value.trim();
       var preventiveAct = document.getElementById('mc-summary').value.trim();
+      var clrTools      = document.getElementById('mc-clr-tools').value;
+      var clrClean      = document.getElementById('mc-clr-clean').value;
       if (!correctiveAct) { alert('Corrective Action is required (SQF 13.2.8).'); return; }
       if (!rootCause)     { alert('Root Cause is required (SQF 13.2.8).'); return; }
       if (!preventiveAct) { alert('Preventive Action is required (SQF 13.2.8).'); return; }
+      if (!clrTools)      { alert('Post-Repair Clearance: confirm whether all tools were removed (SQF 2.14.3).'); return; }
+      if (!clrClean)      { alert('Post-Repair Clearance: confirm the area is cleaned & sanitized (SQF 2.14.3).'); return; }
       var data = {
         ticketNo:         t.ticketNo,
         correctiveAct:    correctiveAct,
@@ -451,6 +460,9 @@ function _tdComplete_() {
         fixType:          document.getElementById('mc-fix').value,
         actualHours:      document.getElementById('mc-hours').value,
         downtimeDuration: document.getElementById('mc-downtime').value,
+        clrToolsRemoved:  clrTools,
+        clrAreaClean:     clrClean,
+        clrQaRequired:    document.getElementById('mc-clr-qa').value,
         tempFixFlag:      document.getElementById('mc-tf').checked,
         updatedBy:        USER.displayName
       };
@@ -829,9 +841,9 @@ function _tdRenderServiceReport_(prev) {
         '<span style="font-size:10px;font-weight:400;text-transform:none;letter-spacing:0;color:var(--text-tertiary);">' + esc(docLabel('repairClearance')) + '</span>' +
       '</div>' +
       _srYN_('sr-clr-complete',  'Maintenance / repair complete?', false, v('clrRepairComplete', defComplete)) +
-      _srYN_('sr-clr-tools',     'All tools removed?', false, v('clrToolsRemoved', '')) +
-      _srYN_('sr-clr-clean',     'Area cleaned & sanitized, no residual lubricants/chemicals?', false, v('clrAreaClean', '')) +
-      _srYN_('sr-clr-qa',        'Sanitation / QA inspection required?', true, v('clrQaRequired', '')) +
+      _srYN_('sr-clr-tools',     'All tools removed?', false, v('clrToolsRemoved', t.clrToolsRemoved)) +
+      _srYN_('sr-clr-clean',     'Area cleaned & sanitized, no residual lubricants/chemicals?', false, v('clrAreaClean', t.clrAreaClean)) +
+      _srYN_('sr-clr-qa',        'Sanitation / QA inspection required?', true, v('clrQaRequired', t.clrQaRequired)) +
       '<div class="form-group"><label>Facility Contact (Signature)</label>' +
         '<input id="sr-fac-contact" value="' + esc(v('facilityContact', '')) + '" placeholder="Name of facility contact accepting the work"/></div>' +
       '<div class="form-group"><label>Facility Contact Date</label>' +
@@ -876,7 +888,10 @@ function _srBuildPrintDoc_() {
   var company = (window.COMPANY || 'Container Supply Co.');
   return '<div class="sr-doc">' +
     '<div class="doc-header">' +
-      '<div><h1>Maintenance Repair Record</h1><div class="doc-co">' + esc(company) + ' · Garden Grove, CA</div></div>' +
+      '<div style="display:flex;align-items:center;gap:12px;">' +
+        '<img src="assets/csc-logo.png" alt="' + esc(company) + '" style="height:42px;width:auto;" onerror="this.style.display=\'none\'">' +
+        '<div><h1>Maintenance Repair Record</h1><div class="doc-co">' + esc(company) + ' · Garden Grove, CA</div></div>' +
+      '</div>' +
       '<div class="doc-meta"><div><strong>' + esc(docRef) + '</strong></div>' +
         '<div>Work Order #: ' + esc(t.ticketNo || '—') + '</div>' +
         '<div>Printed: ' + esc(new Date().toLocaleDateString()) + '</div></div>' +
