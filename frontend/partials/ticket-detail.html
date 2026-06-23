@@ -294,7 +294,7 @@ function _renderDetail_(result) {
     (t.photoUrl ? (
     '<div class="td-section">' +
       '<div class="td-section-title">Photo</div>' +
-      _renderPhotoGrid_([t.photoUrl]) +
+      _renderPhotoGrid_(t.photoUrl.split('\n').map(function(u){return u.trim();}).filter(Boolean)) +
     '</div>') : '') +
 
     (t.sqfChecklist ? (
