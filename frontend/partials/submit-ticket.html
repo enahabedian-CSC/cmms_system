@@ -1,8 +1,7 @@
 <!-- ╔══════════════════════════════════════════════════════════════════╗ -->
-<!-- ║  Submit Ticket — three-step form partial                        ║ -->
-<!-- ║  Registers PAGE: submit                                         ║ -->
-<!-- ║  No static <div class="page"> — rendered dynamically so the    ║ -->
-<!-- ║  form is always inside #content (the scroll container).        ║ -->
+<!-- ║  Submit Ticket — cascading button-grid form (csc-hub pattern)   ║ -->
+<!-- ║  Registers PAGE: submit                                          ║ -->
+<!-- ║  No static <div class="page"> — rendered dynamically            ║ -->
 <!-- ╚══════════════════════════════════════════════════════════════════╝ -->
 <style>
 /* ── Submit Ticket page chrome ──────────────────────────────────────── */
@@ -13,58 +12,34 @@
 .submit-page-title{font-size:18px;font-weight:700;color:var(--text-primary);line-height:1.2;}
 .submit-page-sub{font-size:12px;color:var(--text-secondary);margin-top:2px;}
 
-/* Step indicator dots (in page header) */
-.submit-steps{display:flex;align-items:center;gap:0;}
-.step-item{display:flex;align-items:center;}
-.step-circle{
-  width:26px;height:26px;border-radius:50%;display:grid;place-items:center;
-  font-size:11px;font-weight:700;flex-shrink:0;transition:all .2s;
-}
-.step-circle.pending{background:var(--bg-subtle);color:var(--text-tertiary);border:2px solid var(--border-default);}
-.step-circle.active{background:var(--brand-navy);color:#fff;border:2px solid var(--brand-navy);box-shadow:0 0 0 3px rgba(0,31,79,.15);}
-.step-circle.done{background:var(--status-success);color:#fff;border:2px solid var(--status-success);}
-.step-label{font-size:11.5px;font-weight:500;margin-left:7px;color:var(--text-secondary);white-space:nowrap;}
-.step-label.active{color:var(--brand-navy);font-weight:600;}
-.step-label.done{color:var(--status-success);}
-.step-connector{width:32px;height:2px;background:var(--border-default);margin:0 6px;flex-shrink:0;}
-.step-connector.done{background:var(--status-success);}
-
 /* Two-column grid — form left, preview right */
 .submit-layout{display:grid;grid-template-columns:1.5fr 1fr;gap:16px;align-items:start;}
 @media(max-width:920px){
   .submit-layout{grid-template-columns:1fr;}
-  .submit-right{order:-1;}  /* preview above form on narrow screens */
+  .submit-right{order:-1;}
 }
 .submit-right{display:flex;flex-direction:column;gap:12px;position:sticky;top:24px;}
 
-/* Form card */
-.submit-card{background:#fff;border:1px solid var(--border-default);border-radius:10px;padding:22px;box-shadow:var(--shadow-sm);}
-.submit-card-title{font-size:14px;font-weight:700;color:var(--text-primary);margin-bottom:2px;}
-.submit-card-sub{font-size:12px;color:var(--text-secondary);margin-bottom:18px;}
+/* Section cards */
+.sf-section{background:#fff;border:1px solid var(--border-default);border-radius:10px;padding:16px 20px;margin-bottom:12px;box-shadow:var(--shadow-sm);}
+.sf-section-hdr{display:flex;align-items:center;gap:10px;margin-bottom:14px;}
+.sf-step-num{width:24px;height:24px;border-radius:50%;background:var(--brand-navy);color:#fff;font-size:11px;font-weight:700;display:grid;place-items:center;flex-shrink:0;}
+.sf-section-title{font-size:13px;font-weight:700;color:var(--text-primary);}
+.sf-section-sel{font-size:12px;color:var(--brand-navy);font-weight:600;margin-left:auto;max-width:60%;text-align:right;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
 
-.form-row{display:grid;gap:12px;margin-bottom:12px;}
-.form-row.cols-2{grid-template-columns:1fr 1fr;}
-.form-row.cols-3{grid-template-columns:1fr 1fr 1fr;}
-.form-group{display:flex;flex-direction:column;gap:4px;}
-.form-label{font-size:12px;font-weight:600;color:var(--text-primary);}
-.form-label .req{color:var(--status-critical);margin-left:2px;}
-.form-input,.form-select,.form-textarea{
-  height:34px;padding:0 10px;border:1px solid var(--border-default);border-radius:6px;
-  font-size:13px;color:var(--text-primary);background:#fff;outline:none;width:100%;
-  box-sizing:border-box;transition:border-color .15s,box-shadow .15s;
-}
-.form-textarea{height:78px;padding:8px 10px;resize:vertical;}
-.form-input:focus,.form-select:focus,.form-textarea:focus{
-  border-color:var(--brand-navy);box-shadow:0 0 0 3px rgba(0,31,79,.07);}
-.form-input:disabled,.form-select:disabled{background:var(--bg-subtle);color:var(--text-tertiary);cursor:not-allowed;}
-.form-hint{font-size:11px;color:var(--text-tertiary);margin-top:1px;}
+/* Cascading button grids (matches csc-hub sel-btn pattern) */
+.sel-btn-grid{display:grid;gap:8px;}
+.sel-btn-grid.cols-3{grid-template-columns:1fr 1fr 1fr;}
+.sel-btn-grid.cols-2{grid-template-columns:1fr 1fr;}
+@media(max-width:600px){.sel-btn-grid.cols-3{grid-template-columns:1fr 1fr;}}
+.sel-btn{border:2px solid var(--border-default);border-radius:10px;padding:14px 12px;min-height:52px;display:flex;align-items:center;justify-content:center;text-align:center;cursor:pointer;font-size:13px;font-weight:500;color:var(--text-primary);background:#fff;transition:all .15s;user-select:none;width:100%;box-sizing:border-box;line-height:1.3;}
+.sel-btn:hover{border-color:var(--brand-navy);color:var(--brand-navy);}
+.sel-btn.active{border-color:var(--brand-navy);background:var(--brand-navy);color:#fff;}
+.sf-no-equip-note{margin-top:8px;padding:8px 12px;background:var(--status-info-bg);border:1px solid var(--status-info);border-radius:6px;font-size:12px;color:var(--status-info);line-height:1.4;}
 
 /* Priority cards */
 .priority-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;}
-.priority-card{
-  border:2px solid var(--border-default);border-radius:8px;padding:9px 6px;
-  text-align:center;cursor:pointer;transition:all .15s;user-select:none;
-}
+.priority-card{border:2px solid var(--border-default);border-radius:8px;padding:9px 6px;text-align:center;cursor:pointer;transition:all .15s;user-select:none;}
 .priority-card:hover{border-color:var(--text-secondary);}
 .priority-card.selected{border-color:var(--brand-navy);background:var(--status-info-bg);}
 .priority-card .p-label{font-size:11px;font-weight:700;letter-spacing:.03em;}
@@ -77,56 +52,38 @@
 .priority-card.p-medium.selected {border-color:var(--status-medium);background:var(--status-medium-bg);}
 .priority-card .p-sub{font-size:10px;color:var(--text-tertiary);margin-top:2px;}
 
-/* Form footer */
-.submit-footer{
-  display:flex;justify-content:space-between;align-items:center;
-  margin-top:18px;padding-top:14px;border-top:1px solid var(--border-default);
-}
+/* Form fields */
+.form-row{display:grid;gap:12px;margin-bottom:12px;}
+.form-row.cols-2{grid-template-columns:1fr 1fr;}
+.form-group{display:flex;flex-direction:column;gap:4px;}
+.form-label{font-size:12px;font-weight:600;color:var(--text-primary);}
+.form-label .req{color:var(--status-critical);margin-left:2px;}
+.form-input,.form-select,.form-textarea{height:34px;padding:0 10px;border:1px solid var(--border-default);border-radius:6px;font-size:13px;color:var(--text-primary);background:#fff;outline:none;width:100%;box-sizing:border-box;transition:border-color .15s,box-shadow .15s;}
+.form-textarea{height:78px;padding:8px 10px;resize:vertical;}
+.form-input:focus,.form-select:focus,.form-textarea:focus{border-color:var(--brand-navy);box-shadow:0 0 0 3px rgba(0,31,79,.07);}
+.form-hint{font-size:11px;color:var(--text-tertiary);margin-top:1px;}
 
-/* Review summary */
-.review-section{margin-bottom:16px;}
-.review-section-title{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--text-secondary);margin-bottom:6px;padding-bottom:5px;border-bottom:1px solid var(--border-default);}
-.review-grid{display:grid;grid-template-columns:1fr 1fr;gap:5px 16px;}
-.review-field{display:flex;flex-direction:column;gap:2px;}
-.review-field.full{grid-column:1/-1;}
-.review-field .rf-label{font-size:10.5px;font-weight:600;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:.04em;}
-.review-field .rf-value{font-size:13px;color:var(--text-primary);font-weight:500;}
-.review-field .rf-value.empty{color:var(--text-tertiary);font-style:italic;}
+/* Est. hours stepper */
+.sf-hrs-wrap{display:flex;align-items:center;gap:10px;}
+.sf-hrs-btn{width:30px;height:30px;border-radius:6px;border:1px solid var(--border-default);background:#fff;cursor:pointer;font-size:18px;font-weight:700;display:grid;place-items:center;color:var(--text-primary);flex-shrink:0;line-height:1;}
+.sf-hrs-btn:hover{border-color:var(--brand-navy);color:var(--brand-navy);}
+.sf-hrs-val{font-size:20px;font-weight:700;color:var(--text-primary);min-width:40px;text-align:center;}
+.sf-hrs-unit{font-size:13px;color:var(--text-secondary);}
 
-/* Photo capture section */
+/* Photo capture */
 .sf-photo-btns{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px;}
-.sf-photo-btn{
-  padding:12px 10px;border:none;border-radius:8px;cursor:pointer;
-  font-size:13px;font-weight:600;color:#fff;display:flex;align-items:center;
-  justify-content:center;gap:6px;transition:opacity .15s;
-  -webkit-tap-highlight-color:transparent;
-}
+.sf-photo-btn{padding:12px 10px;border:none;border-radius:8px;cursor:pointer;font-size:13px;font-weight:600;color:#fff;display:flex;align-items:center;justify-content:center;gap:6px;transition:opacity .15s;-webkit-tap-highlight-color:transparent;}
 .sf-photo-btn:active{opacity:.8;}
 .sf-camera-btn{background:var(--brand-navy);}
 .sf-upload-btn{background:#5a6a7a;}
 .sf-photo-previews{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:8px;}
 .sf-photo-thumb{position:relative;aspect-ratio:1;border-radius:6px;overflow:hidden;border:1px solid var(--border-default);}
 .sf-photo-thumb img{width:100%;height:100%;object-fit:cover;display:block;}
-.sf-photo-remove{
-  position:absolute;top:3px;right:3px;background:rgba(214,60,60,.85);
-  border:none;border-radius:50%;width:20px;height:20px;color:#fff;
-  cursor:pointer;font-size:.65rem;font-weight:700;display:grid;place-items:center;
-}
-.sf-file-thumb{
-  width:100%;height:100%;display:flex;flex-direction:column;
-  align-items:center;justify-content:center;background:#f0f4f8;
-  gap:4px;padding:6px;box-sizing:border-box;font-size:0.5rem;
-  text-align:center;color:#555;word-break:break-all;overflow:hidden;
-}
-
-/* Success state */
-.submit-success{text-align:center;padding:28px 0;}
-.submit-success .success-icon{width:48px;height:48px;border-radius:50%;background:var(--status-success-bg);display:grid;place-items:center;margin:0 auto 14px;color:var(--status-success);}
-.submit-success h3{font-size:18px;font-weight:700;margin:0 0 8px;}
-.submit-success .ticket-no{display:inline-block;padding:6px 16px;background:var(--bg-subtle);border-radius:6px;font-family:var(--font-mono);font-size:15px;font-weight:700;color:var(--brand-navy);margin-bottom:14px;cursor:pointer;}
-.submit-success .s-sub{font-size:13px;color:var(--text-secondary);}
+.sf-photo-remove{position:absolute;top:3px;right:3px;background:rgba(214,60,60,.85);border:none;border-radius:50%;width:20px;height:20px;color:#fff;cursor:pointer;font-size:.65rem;font-weight:700;display:grid;place-items:center;}
+.sf-file-thumb{width:100%;height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;background:#f0f4f8;gap:4px;padding:6px;box-sizing:border-box;font-size:0.5rem;text-align:center;color:#555;word-break:break-all;overflow:hidden;}
 
 /* Live preview card */
+.submit-card{background:#fff;border:1px solid var(--border-default);border-radius:10px;padding:22px;box-shadow:var(--shadow-sm);}
 .submit-preview-card{background:var(--bg-surface);border:1px solid var(--border-default);border-radius:10px;overflow:hidden;box-shadow:var(--shadow-sm);}
 .preview-hdr{display:flex;align-items:baseline;justify-content:space-between;padding:10px 14px;border-bottom:1px solid var(--border-default);}
 .preview-hdr-title{font-size:13px;font-weight:700;color:var(--text-primary);}
@@ -145,22 +102,33 @@
 .btn-primary:disabled{opacity:.5;cursor:not-allowed;}
 .btn-ghost{background:transparent;color:var(--text-secondary);border-color:var(--border-default);}
 .btn-ghost:hover{background:var(--bg-hover);color:var(--text-primary);}
+
+/* Success state */
+.submit-success{text-align:center;padding:28px 0;}
+.submit-success .success-icon{width:48px;height:48px;border-radius:50%;background:var(--status-success-bg);display:grid;place-items:center;margin:0 auto 14px;color:var(--status-success);}
+.submit-success h3{font-size:18px;font-weight:700;margin:0 0 8px;}
+.submit-success .ticket-no{display:inline-block;padding:6px 16px;background:var(--bg-subtle);border-radius:6px;font-family:var(--font-mono);font-size:15px;font-weight:700;color:var(--brand-navy);margin-bottom:14px;cursor:pointer;}
+.submit-success .s-sub{font-size:13px;color:var(--text-secondary);}
 </style>
 
 <script>
 // ── Module state ──────────────────────────────────────────────────────────────
-var _sfData      = null;
-var _sfStep      = 1;
-var _sfPriority  = 'MEDIUM';
-var _sfEquipCode = '';
-var _sfEquipSpec = '';
-var _sfAggTypes_ = null;  // aggregated eType→items after cross-group dept scan
-var _sfPhotos_   = [];    // { data, mimeType, ext, name }
+var _sfData         = null;
+var _sfPriority     = 'MEDIUM';
+var _sfEquipCode    = '';
+var _sfEquipSpec    = '';
+var _sfPhotos_      = [];
+var _sfSel          = { dept: '', level2: '', level3: '', level4: '' };
+var _sfRows         = [];
+var _sfResolvedCode = '';
+var _sfEstHours     = 1;
 
 window.PAGES = window.PAGES || {};
 
 PAGES['submit'] = function(container) {
-  _sfStep = 1; _sfPriority = 'MEDIUM'; _sfEquipCode = ''; _sfEquipSpec = ''; _sfPhotos_ = [];
+  _sfPriority = 'MEDIUM'; _sfEquipCode = ''; _sfEquipSpec = ''; _sfPhotos_ = [];
+  _sfSel = { dept: '', level2: '', level3: '', level4: '' };
+  _sfRows = []; _sfResolvedCode = ''; _sfEstHours = 1;
   container.innerHTML = _buildSubmitHTML_();
   if (_sfData) {
     _sfPopulate_(_sfData);
@@ -187,179 +155,179 @@ PAGES['submit'] = function(container) {
 // ── HTML builder ──────────────────────────────────────────────────────────────
 
 function _buildSubmitHTML_() {
-  // Page header: title + step dots
   var header =
     '<div class="submit-page-hdr">' +
       '<div>' +
         '<div class="submit-page-title">New Maintenance Ticket</div>' +
-        '<div class="submit-page-sub" id="sf-step-sub">FRM-030-001 · Step 1 of 3 — Select Equipment</div>' +
-      '</div>' +
-      '<div class="submit-steps" id="submit-steps">' +
-        '<div class="step-item">' +
-          '<div class="step-circle active" id="step-circle-1">1</div>' +
-          '<span class="step-label active" id="step-label-1">Equipment</span>' +
-        '</div>' +
-        '<div class="step-connector" id="step-conn-1"></div>' +
-        '<div class="step-item">' +
-          '<div class="step-circle pending" id="step-circle-2">2</div>' +
-          '<span class="step-label" id="step-label-2">Details</span>' +
-        '</div>' +
-        '<div class="step-connector" id="step-conn-2"></div>' +
-        '<div class="step-item">' +
-          '<div class="step-circle pending" id="step-circle-3">3</div>' +
-          '<span class="step-label" id="step-label-3">Review</span>' +
-        '</div>' +
+        '<div class="submit-page-sub" id="sf-step-sub">FRM-030-001</div>' +
       '</div>' +
     '</div>';
 
-  // Step 1 — Equipment
-  var step1 =
-    '<div id="submit-step-1">' +
-      '<div class="submit-card">' +
-        '<div class="submit-card-title">Select Equipment</div>' +
-        '<div class="submit-card-sub">Choose the department and specific equipment that needs attention.</div>' +
-        '<div class="form-row">' +
-          '<div class="form-group">' +
-            '<label class="form-label">Department <span class="req">*</span></label>' +
-            '<select class="form-select" id="sf-dept" onchange="_sfCascadeDept_()"><option value="">— Select department —</option></select>' +
-          '</div>' +
+  var leftCol =
+    // § 1 — Submitted By
+    '<div class="sf-section">' +
+      '<div class="sf-section-hdr">' +
+        '<div class="sf-step-num">1</div>' +
+        '<div class="sf-section-title">Submitted By</div>' +
+      '</div>' +
+      '<select class="form-select" id="sf-addedby" onchange="_sfUpdatePreview_()"></select>' +
+    '</div>' +
+
+    // § 2 — Priority
+    '<div class="sf-section">' +
+      '<div class="sf-section-hdr">' +
+        '<div class="sf-step-num">2</div>' +
+        '<div class="sf-section-title">Priority</div>' +
+        '<div class="sf-section-sel" id="sf-sel-priority">MEDIUM</div>' +
+      '</div>' +
+      '<div class="priority-grid" id="sf-priority-grid">' +
+        '<div class="priority-card p-low"      id="pcard-LOW"      onclick="selectPriority(\'LOW\')"><div class="p-label">LOW</div><div class="p-sub">Scheduled</div></div>' +
+        '<div class="priority-card p-medium selected" id="pcard-MEDIUM" onclick="selectPriority(\'MEDIUM\')"><div class="p-label">MEDIUM</div><div class="p-sub">Soon</div></div>' +
+        '<div class="priority-card p-high"     id="pcard-HIGH"     onclick="selectPriority(\'HIGH\')"><div class="p-label">HIGH</div><div class="p-sub">Urgent</div></div>' +
+        '<div class="priority-card p-critical" id="pcard-CRITICAL" onclick="selectPriority(\'CRITICAL\')"><div class="p-label">CRITICAL</div><div class="p-sub">Immediate</div></div>' +
+      '</div>' +
+      '<div class="form-hint" id="critical-hint" style="display:none;color:var(--status-critical);font-weight:600;margin-top:6px;">&#9888; Critical tickets bypass the waiting queue and go directly to Open.</div>' +
+    '</div>' +
+
+    // § 3 — Department
+    '<div class="sf-section">' +
+      '<div class="sf-section-hdr">' +
+        '<div class="sf-step-num">3</div>' +
+        '<div class="sf-section-title">Department</div>' +
+        '<div class="sf-section-sel" id="sf-sel-dept"></div>' +
+      '</div>' +
+      '<div class="sel-btn-grid cols-3" id="sf-dept-grid">' +
+        '<div style="color:var(--text-tertiary);font-size:12px;grid-column:1/-1;">Loading equipment data…</div>' +
+      '</div>' +
+      '<div id="sf-no-equip-note" style="display:none;" class="sf-no-equip-note"></div>' +
+    '</div>' +
+
+    // § 4 — Section (hidden until dept selected)
+    '<div class="sf-section" id="sf-sec-level2" style="display:none;">' +
+      '<div class="sf-section-hdr">' +
+        '<div class="sf-step-num">4</div>' +
+        '<div class="sf-section-title">Section</div>' +
+        '<div class="sf-section-sel" id="sf-sel-level2"></div>' +
+      '</div>' +
+      '<div class="sel-btn-grid cols-3" id="sf-level2-grid"></div>' +
+    '</div>' +
+
+    // § 5 — Equipment (hidden until section selected)
+    '<div class="sf-section" id="sf-sec-level3" style="display:none;">' +
+      '<div class="sf-section-hdr">' +
+        '<div class="sf-step-num">5</div>' +
+        '<div class="sf-section-title">Equipment</div>' +
+        '<div class="sf-section-sel" id="sf-sel-level3"></div>' +
+      '</div>' +
+      '<div class="sel-btn-grid cols-3" id="sf-level3-grid"></div>' +
+    '</div>' +
+
+    // § 6 — Sub-Item (hidden, only shown when level4 data exists)
+    '<div class="sf-section" id="sf-sec-level4" style="display:none;">' +
+      '<div class="sf-section-hdr">' +
+        '<div class="sf-step-num">6</div>' +
+        '<div class="sf-section-title">Sub-Item</div>' +
+        '<div class="sf-section-sel" id="sf-sel-level4"></div>' +
+      '</div>' +
+      '<div class="sel-btn-grid cols-3" id="sf-level4-grid"></div>' +
+    '</div>' +
+
+    // § 7 — Location
+    '<div class="sf-section">' +
+      '<div class="sf-section-hdr">' +
+        '<div class="sf-step-num">7</div>' +
+        '<div class="sf-section-title">Location</div>' +
+      '</div>' +
+      '<div class="form-row cols-2">' +
+        '<div class="form-group">' +
+          '<label class="form-label">Building / Zone</label>' +
+          '<select class="form-select" id="sf-zone" onchange="_sfUpdatePreview_()"><option value="">— Select zone —</option></select>' +
         '</div>' +
-        '<div class="form-row cols-2">' +
-          '<div class="form-group">' +
-            '<label class="form-label">Equipment Type <span class="req">*</span></label>' +
-            '<select class="form-select" id="sf-etype" disabled onchange="_sfCascadeEtype_()"><option value="">— Select type —</option></select>' +
-          '</div>' +
-          '<div class="form-group">' +
-            '<label class="form-label">Specific Equipment</label>' +
-            '<select class="form-select" id="sf-equip" disabled onchange="_sfCascadeEquip_()"><option value="">— Select equipment —</option></select>' +
-          '</div>' +
-        '</div>' +
-        '<div id="sf-equip-msg" style="display:none;margin-top:-4px;margin-bottom:8px;padding:8px 12px;background:var(--status-info-bg);border:1px solid var(--status-info);border-radius:6px;font-size:12px;color:var(--status-info);line-height:1.4;"></div>' +
-        '<div id="sf-etype-manual-wrapper" style="display:none;margin-top:-4px;margin-bottom:8px;">' +
-          '<div class="form-group">' +
-            '<label class="form-label">Equipment / Area Description <span class="req">*</span></label>' +
-            '<input type="text" class="form-input" id="sf-etype-manual" placeholder="e.g. Panel B circuit 12, Roof HVAC unit, Building A lighting…" oninput="_sfUpdatePreview_()" />' +
-            '<span class="form-hint" style="display:block;margin-top:3px;">No equipment found in the registry for this department. Describe the equipment or area being worked on.</span>' +
-          '</div>' +
-        '</div>' +
-        '<div id="sf-routing-banner" style="display:none;margin-top:4px;margin-bottom:8px;padding:7px 12px;background:var(--bg-subtle);border:1px solid var(--border-default);border-radius:6px;font-size:11.5px;color:var(--text-secondary);"></div>' +
-        '<div class="form-row cols-2">' +
-          '<div class="form-group">' +
-            '<label class="form-label">Building / Zone</label>' +
-            '<select class="form-select" id="sf-zone" onchange="_sfUpdatePreview_()"><option value="">— Select zone —</option></select>' +
-          '</div>' +
-          '<div class="form-group">' +
-            '<label class="form-label">Line #</label>' +
-            '<input type="text" class="form-input" id="sf-line" placeholder="e.g. L-04" oninput="_sfUpdatePreview_()">' +
-          '</div>' +
+        '<div class="form-group">' +
+          '<label class="form-label">Line #</label>' +
+          '<input type="text" class="form-input" id="sf-line" placeholder="e.g. L-04" oninput="_sfUpdatePreview_()">' +
         '</div>' +
       '</div>' +
-      '<div class="submit-footer">' +
-        '<div></div>' +
-        '<button class="btn btn-primary" onclick="submitStep1Next()">' +
-          'Next — Ticket Details ' +
-          '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"/></svg>' +
+    '</div>' +
+
+    // § 8 — Problem Details
+    '<div class="sf-section">' +
+      '<div class="sf-section-hdr">' +
+        '<div class="sf-step-num">8</div>' +
+        '<div class="sf-section-title">Problem Details</div>' +
+      '</div>' +
+      '<div class="form-row cols-2">' +
+        '<div class="form-group">' +
+          '<label class="form-label">Problem Type <span class="req">*</span></label>' +
+          '<select class="form-select" id="sf-probtype" onchange="_sfUpdateRoutingBanner_();_sfUpdatePreview_()"><option value="">— Select type —</option></select>' +
+        '</div>' +
+        '<div class="form-group">' +
+          '<label class="form-label">Downtime Type</label>' +
+          '<select class="form-select" id="sf-downtime" onchange="_sfUpdatePreview_()">' +
+            '<option value="UNPLANNED">UNPLANNED</option><option value="PLANNED">PLANNED</option>' +
+          '</select>' +
+        '</div>' +
+      '</div>' +
+      '<div class="form-row">' +
+        '<div class="form-group">' +
+          '<label class="form-label">Problem Description <span class="req">*</span></label>' +
+          '<textarea class="form-textarea" id="sf-desc" placeholder="Describe the problem in detail…" rows="3" oninput="_sfUpdatePreview_()"></textarea>' +
+        '</div>' +
+      '</div>' +
+      '<div class="form-row">' +
+        '<div class="form-group">' +
+          '<label class="form-label">Observations <span style="font-weight:400;color:var(--text-tertiary)">(optional)</span></label>' +
+          '<textarea class="form-textarea" id="sf-obs" placeholder="Any additional observations or context…" rows="2"></textarea>' +
+        '</div>' +
+      '</div>' +
+      '<div id="sf-routing-banner" style="display:none;margin-top:4px;padding:7px 12px;background:var(--bg-subtle);border:1px solid var(--border-default);border-radius:6px;font-size:11.5px;color:var(--text-secondary);"></div>' +
+    '</div>' +
+
+    // § 9 — Photos
+    '<div class="sf-section">' +
+      '<div class="sf-section-hdr">' +
+        '<div class="sf-step-num">9</div>' +
+        '<div class="sf-section-title">Photos</div>' +
+        '<div style="font-size:11px;color:var(--text-tertiary);margin-left:auto;">(optional — up to 6)</div>' +
+      '</div>' +
+      '<div class="sf-photo-btns">' +
+        '<button type="button" class="sf-photo-btn sf-camera-btn" onclick="_sfOpenCamera_()">' +
+          '<svg viewBox="0 0 24 24" style="width:16px;height:16px;fill:#fff;flex-shrink:0"><path d="M9 2L7.17 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2h-3.17L15 2H9zm3 15a5 5 0 1 1 0-10 5 5 0 0 1 0 10z"/></svg>' +
+          ' Take Photo' +
+        '</button>' +
+        '<button type="button" class="sf-photo-btn sf-upload-btn" onclick="_sfOpenUpload_()">' +
+          '<svg viewBox="0 0 24 24" style="width:16px;height:16px;fill:#fff;flex-shrink:0"><path d="M9 16h6v-6h4l-7-7-7 7h4zm-4 2h14v2H5z"/></svg>' +
+          ' Upload File' +
         '</button>' +
       '</div>' +
+      '<input type="file" accept="image/*" capture="environment" id="sf-fileInput" style="display:none" onchange="_sfHandleFileCapture_(this)"/>' +
+      '<input type="file" accept="image/*,application/pdf" multiple id="sf-uploadInput" style="display:none" onchange="_sfHandleFileCapture_(this)"/>' +
+      '<div class="sf-photo-previews" id="sf-photoPreviews"></div>' +
+    '</div>' +
+
+    // Submit
+    '<div class="sf-section">' +
+      '<div class="form-row cols-2" style="margin-bottom:16px;align-items:center;">' +
+        '<div class="form-group">' +
+          '<label class="form-label">Estimated Hours</label>' +
+          '<div class="sf-hrs-wrap">' +
+            '<button type="button" class="sf-hrs-btn" onclick="_sfAdjHours_(-0.5)">−</button>' +
+            '<div class="sf-hrs-val" id="sf-hrs-val">1</div>' +
+            '<span class="sf-hrs-unit">hrs</span>' +
+            '<button type="button" class="sf-hrs-btn" onclick="_sfAdjHours_(0.5)">+</button>' +
+          '</div>' +
+        '</div>' +
+        '<div class="form-group" style="justify-content:flex-end;padding-top:18px;">' +
+          '<label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px;font-weight:500;">' +
+            '<input type="checkbox" id="sf-parts" style="width:15px;height:15px;cursor:pointer;"> Parts Required' +
+          '</label>' +
+        '</div>' +
+      '</div>' +
+      '<button class="btn btn-primary" id="submit-btn" onclick="submitTicket()" style="width:100%;height:44px;font-size:14px;justify-content:center;">' +
+        '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg> Submit Ticket' +
+      '</button>' +
     '</div>';
 
-  // Step 2 — Ticket Details
-  var step2 =
-    '<div id="submit-step-2" style="display:none;">' +
-      '<div class="submit-card">' +
-        '<div class="submit-card-title">Ticket Details</div>' +
-        '<div class="submit-card-sub">Set priority, describe the issue, and capture downtime impact.</div>' +
-        '<div class="form-row">' +
-          '<div class="form-group">' +
-            '<label class="form-label">Priority <span class="req">*</span></label>' +
-            '<div class="priority-grid" id="sf-priority-grid">' +
-              '<div class="priority-card p-low"      id="pcard-LOW"      onclick="selectPriority(\'LOW\')"><div class="p-label">LOW</div><div class="p-sub">Scheduled</div></div>' +
-              '<div class="priority-card p-medium selected" id="pcard-MEDIUM"   onclick="selectPriority(\'MEDIUM\')"><div class="p-label">MEDIUM</div><div class="p-sub">Soon</div></div>' +
-              '<div class="priority-card p-high"     id="pcard-HIGH"     onclick="selectPriority(\'HIGH\')"><div class="p-label">HIGH</div><div class="p-sub">Urgent</div></div>' +
-              '<div class="priority-card p-critical" id="pcard-CRITICAL" onclick="selectPriority(\'CRITICAL\')"><div class="p-label">CRITICAL</div><div class="p-sub">Immediate</div></div>' +
-            '</div>' +
-            '<div class="form-hint" id="critical-hint" style="display:none;color:var(--status-critical);font-weight:600;margin-top:6px;">⚠ Critical tickets bypass the waiting queue and go directly to Open.</div>' +
-          '</div>' +
-        '</div>' +
-        '<div class="form-row cols-2">' +
-          '<div class="form-group">' +
-            '<label class="form-label">Problem Type <span class="req">*</span></label>' +
-            '<select class="form-select" id="sf-probtype" onchange="_sfUpdatePreview_()"><option value="">— Select type —</option></select>' +
-          '</div>' +
-          '<div class="form-group">' +
-            '<label class="form-label">Downtime Type</label>' +
-            '<select class="form-select" id="sf-downtime" onchange="_sfUpdatePreview_()">' +
-              '<option value="UNPLANNED">UNPLANNED</option><option value="PLANNED">PLANNED</option>' +
-            '</select>' +
-          '</div>' +
-        '</div>' +
-        '<div class="form-row">' +
-          '<div class="form-group">' +
-            '<label class="form-label">Problem Description <span class="req">*</span></label>' +
-            '<textarea class="form-textarea" id="sf-desc" placeholder="Describe the problem in detail…" rows="3" oninput="_sfUpdatePreview_()"></textarea>' +
-          '</div>' +
-        '</div>' +
-        '<div class="form-row">' +
-          '<div class="form-group">' +
-            '<label class="form-label">Observations <span style="font-weight:400;color:var(--text-tertiary)">(optional)</span></label>' +
-            '<textarea class="form-textarea" id="sf-obs" placeholder="Any additional observations or context…" rows="2"></textarea>' +
-          '</div>' +
-        '</div>' +
-        '<div class="form-row cols-2">' +
-          '<div class="form-group">' +
-            '<label class="form-label">Added By <span class="req">*</span></label>' +
-            '<select class="form-select" id="sf-addedby" onchange="_sfUpdatePreview_()"></select>' +
-          '</div>' +
-          '<div class="form-group" style="justify-content:flex-end;padding-top:18px;">' +
-            '<label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px;font-weight:500;">' +
-              '<input type="checkbox" id="sf-parts" style="width:15px;height:15px;cursor:pointer;"> Parts Required' +
-            '</label>' +
-          '</div>' +
-        '</div>' +
-        '<div class="form-row">' +
-          '<div class="form-group">' +
-            '<label class="form-label">Photos <span style="font-weight:400;color:var(--text-tertiary)">(optional — up to 6)</span></label>' +
-            '<div class="sf-photo-btns">' +
-              '<button type="button" class="sf-photo-btn sf-camera-btn" onclick="_sfOpenCamera_()">' +
-                '<svg viewBox="0 0 24 24" style="width:16px;height:16px;fill:#fff;flex-shrink:0"><path d="M9 2L7.17 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2h-3.17L15 2H9zm3 15a5 5 0 1 1 0-10 5 5 0 0 1 0 10z"/></svg>' +
-                ' Take Photo' +
-              '</button>' +
-              '<button type="button" class="sf-photo-btn sf-upload-btn" onclick="_sfOpenUpload_()">' +
-                '<svg viewBox="0 0 24 24" style="width:16px;height:16px;fill:#fff;flex-shrink:0"><path d="M9 16h6v-6h4l-7-7-7 7h4zm-4 2h14v2H5z"/></svg>' +
-                ' Upload File' +
-              '</button>' +
-            '</div>' +
-            '<input type="file" accept="image/*" capture="environment" id="sf-fileInput" style="display:none" onchange="_sfHandleFileCapture_(this)"/>' +
-            '<input type="file" accept="image/*,application/pdf" multiple id="sf-uploadInput" style="display:none" onchange="_sfHandleFileCapture_(this)"/>' +
-            '<div class="sf-photo-previews" id="sf-photoPreviews"></div>' +
-          '</div>' +
-        '</div>' +
-      '</div>' +
-      '<div class="submit-footer">' +
-        '<button class="btn btn-ghost" onclick="submitGoStep(1)">' +
-          '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"/></svg> Back' +
-        '</button>' +
-        '<button class="btn btn-primary" onclick="submitStep2Next()">' +
-          'Review &amp; Submit <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"/></svg>' +
-        '</button>' +
-      '</div>' +
-    '</div>';
-
-  // Step 3 — Review
-  var step3 =
-    '<div id="submit-step-3" style="display:none;">' +
-      '<div class="submit-card" id="submit-review-card"></div>' +
-      '<div class="submit-footer">' +
-        '<button class="btn btn-ghost" onclick="submitGoStep(2)">' +
-          '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"/></svg> Back' +
-        '</button>' +
-        '<button class="btn btn-primary" id="submit-btn" onclick="submitTicket()">' +
-          '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg> Submit Ticket' +
-        '</button>' +
-      '</div>' +
-    '</div>';
-
-  // Right column: live preview + heads-up
   var preview =
     '<div class="submit-preview-card">' +
       '<div class="preview-hdr">' +
@@ -380,7 +348,7 @@ function _buildSubmitHTML_() {
   return (
     header +
     '<div class="submit-layout">' +
-      '<div class="submit-left">' + step1 + step2 + step3 + '</div>' +
+      '<div class="submit-left">' + leftCol + '</div>' +
       '<div class="submit-right">' + preview + headsup + '</div>' +
     '</div>'
   );
@@ -389,19 +357,9 @@ function _buildSubmitHTML_() {
 // ── Form population ───────────────────────────────────────────────────────────
 
 function _sfPopulate_(d) {
-  var deptSel = document.getElementById('sf-dept');
-  if (!deptSel) return;
+  _sfRows = d.equipRows || [];
+  _sfRenderDeptGrid_();
 
-  // Departments
-  deptSel.innerHTML = '<option value="">— Select department —</option>';
-  (d.departments || []).forEach(function(dept) {
-    var opt = document.createElement('option');
-    opt.value = dept; opt.textContent = dept;
-    if (d.userOwnedDepts && d.userOwnedDepts.length > 0 && dept === d.userOwnedDepts[0]) opt.selected = true;
-    deptSel.appendChild(opt);
-  });
-
-  // Building / Zone
   var zoneSel = document.getElementById('sf-zone');
   if (zoneSel) {
     zoneSel.innerHTML = '<option value="">— Select zone —</option>';
@@ -411,7 +369,6 @@ function _sfPopulate_(d) {
     });
   }
 
-  // Problem types
   var ptSel = document.getElementById('sf-probtype');
   if (ptSel) {
     ptSel.innerHTML = '<option value="">— Select type —</option>';
@@ -421,7 +378,6 @@ function _sfPopulate_(d) {
     });
   }
 
-  // Added by — current user first
   var abSel = document.getElementById('sf-addedby');
   if (abSel) {
     abSel.innerHTML = '';
@@ -437,7 +393,6 @@ function _sfPopulate_(d) {
     });
   }
 
-  // A7: Lock priority grid for non-managers — techs cannot change priority
   if (!d.userIsManager) {
     var grid = document.getElementById('sf-priority-grid');
     if (grid) {
@@ -455,135 +410,174 @@ function _sfPopulate_(d) {
     }
   }
 
-  // Wire problem type change to routing banner update
-  var ptSel2 = document.getElementById('sf-probtype');
-  if (ptSel2) {
-    var origChange = ptSel2.onchange;
-    ptSel2.onchange = function() { if (origChange) origChange(); _sfUpdateRoutingBanner_(); _sfUpdatePreview_(); };
-  }
-
-  // Pre-trigger cascade if a dept was pre-selected
-  if (deptSel.value) _sfCascadeDept_();
-}
-
-// ── Cascade helpers — use _sfData directly to avoid closure issues ────────────
-
-// Returns the canonical dept for a raw name using the server-side deptMapping.
-function getDeptGroupClient_(dept) {
-  if (!_sfData || !_sfData.deptMapping) return String(dept || '').toUpperCase().trim();
-  var d = String(dept || '').toUpperCase().trim();
-  return _sfData.deptMapping[d] || d;
-}
-
-function _sfCascadeDept_() {
-  var hier = _sfData && _sfData.equipHierarchy;
-  var dept = document.getElementById('sf-dept');
-  var eSel = document.getElementById('sf-etype');
-  var eqSel= document.getElementById('sf-equip');
-  var msg  = document.getElementById('sf-equip-msg');
-  if (!dept || !eSel || !eqSel) return;
-
-  var dv = dept.value;
-  eSel.innerHTML  = '<option value="">— Select type —</option>';
-  eqSel.innerHTML = '<option value="">— Select equipment —</option>';
-  eqSel.disabled  = true;
-  _sfAggTypes_    = null;
-  _sfEquipCode    = ''; _sfEquipSpec = '';
-  if (msg) msg.style.display = 'none';
-  var manualWrapper = document.getElementById('sf-etype-manual-wrapper');
-  var manualInput   = document.getElementById('sf-etype-manual');
-  if (manualWrapper) { manualWrapper.style.display = 'none'; }
-  if (manualInput)   { manualInput.value = ''; }
-  _sfUpdateRoutingBanner_();
-
-  if (!dv) { eSel.disabled = true; _sfUpdatePreview_(); return; }
-
-  // A2+A3: cross-group scan — aggregate all hierarchy keys that map to the
-  // same canonical dept (handles legacy Sage names like "METAL" → "METALS")
-  var aggTypes = {};
-  if (hier) {
-    var canonDv = getDeptGroupClient_(dv);
-    Object.keys(hier).forEach(function(k) {
-      if (getDeptGroupClient_(k) === canonDv) {
-        Object.keys(hier[k]).forEach(function(eType) {
-          if (!aggTypes[eType]) aggTypes[eType] = [];
-          hier[k][eType].forEach(function(item) { aggTypes[eType].push(item); });
-        });
-      }
-    });
-  }
-
-  if (!Object.keys(aggTypes).length) {
-    eSel.disabled = true;
-    // ELECTRICAL and FACILITIES often work on infrastructure with no equipment register entries.
-    // Show a free-text fallback input instead of blocking ticket creation for these depts.
-    var isNoEquipDept = (dv === 'ELECTRICAL' || dv === 'FACILITIES');
-    if (isNoEquipDept && manualWrapper) {
-      if (msg) {
-        msg.innerHTML =
-          '<strong>' + esc(dv) + '</strong> has no equipment in the registry. ' +
-          'Enter a description of the equipment or area below to continue.';
-        msg.style.display = '';
-      }
-      manualWrapper.style.display = '';
-    } else {
-      if (msg) {
-        msg.innerHTML =
-          '<strong>No equipment data for ' + esc(dv) + '.</strong> ' +
-          'Ask your administrator to run <em>Refresh Equipment Cache</em> in Settings, ' +
-          'or verify that the equipment register contains entries for this department.';
-        msg.style.display = '';
+  // Auto-select first owned dept
+  if (d.userOwnedDepts && d.userOwnedDepts.length > 0) {
+    var firstDept = d.userOwnedDepts[0];
+    var dg = document.getElementById('sf-dept-grid');
+    if (dg) {
+      var btns = dg.querySelectorAll('.sel-btn');
+      for (var bi = 0; bi < btns.length; bi++) {
+        if (btns[bi].getAttribute('data-val') === firstDept) {
+          _sfSelectDept_(btns[bi], firstDept);
+          break;
+        }
       }
     }
-    _sfUpdatePreview_(); return;
   }
-
-  _sfAggTypes_ = aggTypes;
-  eSel.disabled = false;
-  Object.keys(aggTypes).sort().forEach(function(eType) {
-    var opt = document.createElement('option');
-    opt.value = eType; opt.textContent = eType;
-    eSel.appendChild(opt);
-  });
-  _sfUpdatePreview_();
 }
 
-function _sfCascadeEtype_() {
-  var eSel = document.getElementById('sf-etype');
-  var eqSel= document.getElementById('sf-equip');
-  if (!eSel || !eqSel) return;
+// ── Dept grid ────────────────────────────────────────────────────────────────
 
-  var tv = eSel.value;
-  eqSel.innerHTML = '<option value="">— Select equipment —</option>';
-  _sfEquipCode = ''; _sfEquipSpec = '';
-
-  if (!tv || !_sfAggTypes_ || !_sfAggTypes_[tv]) {
-    eqSel.disabled = true; _sfUpdatePreview_(); return;
+function _sfRenderDeptGrid_() {
+  var grid = document.getElementById('sf-dept-grid');
+  if (!grid) return;
+  var depts = _sfGetUnique_('dept', {});
+  if (!depts.length) {
+    grid.innerHTML = '<div style="color:var(--text-tertiary);font-size:12px;grid-column:1/-1;padding:8px 0;">No equipment data found. Ask your administrator to run Refresh Equipment Cache in Settings.</div>';
+    return;
   }
-  eqSel.disabled = false;
-  _sfAggTypes_[tv].forEach(function(e) {
-    var opt = document.createElement('option');
-    opt.value = e.code || e.specific;
-    opt.textContent = e.specific + (e.code ? ' (' + e.code + ')' : '');
-    opt.setAttribute('data-code',     e.code     || '');
-    opt.setAttribute('data-specific', e.specific || '');
-    eqSel.appendChild(opt);
-  });
-  _sfUpdatePreview_();
+  grid.innerHTML = depts.map(function(d) {
+    var safe = d.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+    return '<button type="button" class="sel-btn" data-val="' + esc(d) + '" onclick="_sfSelectDept_(this,\'' + safe + '\')">' + esc(d) + '</button>';
+  }).join('');
 }
 
-function _sfCascadeEquip_() {
-  var eqSel = document.getElementById('sf-equip');
-  if (!eqSel) return;
-  var sel = eqSel.options[eqSel.selectedIndex];
-  if (sel && sel.value) {
-    _sfEquipCode = sel.getAttribute('data-code')     || sel.value;
-    _sfEquipSpec = sel.getAttribute('data-specific') || sel.textContent;
+// ── Cascade helpers ───────────────────────────────────────────────────────────
+
+// Returns unique non-empty values for `col`, filtered by the given selections.
+// Pass {} as selOverride to bypass all filters (get all unique depts).
+// Pass undefined / omit to use current _sfSel.
+function _sfGetUnique_(col, selOverride) {
+  var sel = selOverride !== undefined ? selOverride : _sfSel;
+  var seen = {}, result = [];
+  for (var i = 0; i < _sfRows.length; i++) {
+    var row = _sfRows[i];
+    if (sel.dept   !== undefined && sel.dept   && row.dept   !== sel.dept)   continue;
+    if (sel.level2 !== undefined && sel.level2 && row.level2 !== sel.level2) continue;
+    if (sel.level3 !== undefined && sel.level3 && row.level3 !== sel.level3) continue;
+    if (sel.level4 !== undefined && sel.level4 && row.level4 !== sel.level4) continue;
+    var v = row[col];
+    if (v && !seen[v]) { seen[v] = true; result.push(v); }
+  }
+  return result.sort();
+}
+
+// Find next cascade column after `prevCol` that has unique options.
+function _sfNextCol_(prevCol) {
+  var order = ['level2', 'level3', 'level4'];
+  var start = prevCol === 'dept' ? 0 : prevCol === 'level2' ? 1 : prevCol === 'level3' ? 2 : 3;
+  for (var i = start; i < order.length; i++) {
+    if (_sfGetUnique_(order[i]).length > 0) return order[i];
+  }
+  return null;
+}
+
+// Dept button click — resets entire cascade, then advances.
+function _sfSelectDept_(btn, dept) {
+  _sfSel = { dept: dept, level2: '', level3: '', level4: '' };
+  _sfResolvedCode = ''; _sfEquipCode = ''; _sfEquipSpec = '';
+
+  var dg = document.getElementById('sf-dept-grid');
+  if (dg) {
+    var bs = dg.querySelectorAll('.sel-btn');
+    for (var i = 0; i < bs.length; i++) bs[i].classList.toggle('active', bs[i] === btn);
+  }
+  var selEl = document.getElementById('sf-sel-dept');
+  if (selEl) selEl.textContent = dept;
+
+  ['sf-sec-level2','sf-sec-level3','sf-sec-level4'].forEach(function(id) {
+    var el = document.getElementById(id);
+    if (el) el.style.display = 'none';
+  });
+  ['sf-sel-level2','sf-sel-level3','sf-sel-level4'].forEach(function(id) {
+    var el = document.getElementById(id);
+    if (el) el.textContent = '';
+  });
+
+  var noteEl  = document.getElementById('sf-no-equip-note');
+  var nextCol = _sfNextCol_('dept');
+  if (nextCol) {
+    if (noteEl) noteEl.style.display = 'none';
+    _sfRenderLevel_(nextCol);
   } else {
-    _sfEquipCode = ''; _sfEquipSpec = '';
+    if (noteEl) {
+      var hasData = _sfRows.some(function(r) { return r.dept === dept; });
+      if (hasData) {
+        noteEl.style.display = 'none';
+      } else {
+        noteEl.innerHTML = 'No equipment registered for <strong>' + esc(dept) + '</strong>. You can still submit — describe the equipment in the Problem Description. Ask your administrator to refresh the equipment cache if equipment is missing.';
+        noteEl.style.display = '';
+      }
+    }
+    _sfResolveCode_();
+  }
+
+  _sfUpdateRoutingBanner_();
+  _sfUpdatePreview_();
+}
+
+// Level button click (level2, level3, level4).
+function _sfSelectLevel_(col, btn, value) {
+  _sfSel[col] = value;
+
+  // Clear selections below this level
+  var order = ['level2','level3','level4'];
+  var idx   = order.indexOf(col);
+  for (var i = idx + 1; i < order.length; i++) {
+    _sfSel[order[i]] = '';
+    var badge = document.getElementById('sf-sel-' + order[i]);
+    if (badge) badge.textContent = '';
+    var sec = document.getElementById('sf-sec-' + order[i]);
+    if (sec) sec.style.display = 'none';
+  }
+  _sfResolvedCode = ''; _sfEquipCode = ''; _sfEquipSpec = '';
+
+  var grid = document.getElementById('sf-' + col + '-grid');
+  if (grid) {
+    var bs = grid.querySelectorAll('.sel-btn');
+    for (var i = 0; i < bs.length; i++) bs[i].classList.toggle('active', bs[i] === btn);
+  }
+  var selEl = document.getElementById('sf-sel-' + col);
+  if (selEl) selEl.textContent = value;
+
+  var nextCol = _sfNextCol_(col);
+  if (nextCol) {
+    _sfRenderLevel_(nextCol);
+  } else {
+    _sfResolveCode_();
   }
   _sfUpdatePreview_();
   _sfUpdateHeadsUp_();
+}
+
+// Render a button grid for a cascade level and reveal its section.
+function _sfRenderLevel_(col) {
+  var opts = _sfGetUnique_(col);
+  if (!opts.length) return;
+  var sec  = document.getElementById('sf-sec-' + col);
+  var grid = document.getElementById('sf-' + col + '-grid');
+  if (!sec || !grid) return;
+  sec.style.display = '';
+  grid.innerHTML = opts.map(function(opt) {
+    var safe = opt.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+    return '<button type="button" class="sel-btn" data-val="' + esc(opt) + '" onclick="_sfSelectLevel_(\'' + col + '\',this,\'' + safe + '\')">' + esc(opt) + '</button>';
+  }).join('');
+}
+
+// Resolve equipment code from current cascade selections.
+function _sfResolveCode_() {
+  var matches = _sfRows.filter(function(row) {
+    if (_sfSel.dept   && row.dept   !== _sfSel.dept)   return false;
+    if (_sfSel.level2 && row.level2 !== _sfSel.level2) return false;
+    if (_sfSel.level3 && row.level3 !== _sfSel.level3) return false;
+    if (_sfSel.level4 && row.level4 !== _sfSel.level4) return false;
+    return true;
+  });
+  if (matches.length >= 1) {
+    _sfResolvedCode = matches[0].code;
+    _sfEquipCode    = matches[0].code;
+    _sfEquipSpec    = [_sfSel.level4, _sfSel.level3, _sfSel.level2].filter(Boolean)[0] || matches[0].code;
+  }
 }
 
 // ── Priority selection ────────────────────────────────────────────────────────
@@ -594,17 +588,27 @@ function selectPriority(p) {
     var el = document.getElementById('pcard-' + pr);
     if (el) el.classList.toggle('selected', pr === p);
   });
+  var selEl = document.getElementById('sf-sel-priority');
+  if (selEl) selEl.textContent = p;
   var hint = document.getElementById('critical-hint');
   if (hint) hint.style.display = p === 'CRITICAL' ? 'block' : 'none';
   _sfUpdatePreview_();
 }
 
-// ── Routing banner (A6) ───────────────────────────────────────────────────────
+// ── Est. hours stepper ────────────────────────────────────────────────────────
+
+function _sfAdjHours_(delta) {
+  _sfEstHours = Math.round(Math.max(0.5, Math.min(16, _sfEstHours + delta)) * 2) / 2;
+  var el = document.getElementById('sf-hrs-val');
+  if (el) el.textContent = _sfEstHours % 1 === 0 ? String(_sfEstHours) : _sfEstHours.toFixed(1);
+}
+
+// ── Routing banner ────────────────────────────────────────────────────────────
 
 function _sfUpdateRoutingBanner_() {
   var banner = document.getElementById('sf-routing-banner');
   if (!banner || !_sfData) return;
-  var dept = (document.getElementById('sf-dept') || {}).value || '';
+  var dept = _sfSel.dept || '';
   if (!dept) { banner.style.display = 'none'; return; }
   var pt      = (document.getElementById('sf-probtype') || {}).value || '';
   var tracker = _sfComputeTracker_(dept, pt);
@@ -630,7 +634,7 @@ function _sfComputeTracker_(dept, problemType) {
   return dg;
 }
 
-// ── Photo capture ────────────────────────────────────────────────────────────
+// ── Photo capture ─────────────────────────────────────────────────────────────
 
 function _sfOpenCamera_() {
   if (_sfPhotos_.length >= 6) { showToast('Maximum 6 photos allowed.', 'error'); return; }
@@ -694,54 +698,38 @@ function _sfRenderPhotoPreviews_() {
   }).join('');
 }
 
-// Legacy stub kept so any cached HTML calling the old function doesn't error
-function _sfUpdatePhotoPreview_() {
-  var inp  = document.getElementById('sf-photo');
-  var link = document.getElementById('sf-photo-link');
-  if (!inp || !link) return;
-  var v = inp.value.trim();
-  if (v && (v.indexOf('http://') === 0 || v.indexOf('https://') === 0)) {
-    link.href = v;
-    link.style.display = '';
-  } else {
-    link.style.display = 'none';
-  }
-}
-
 // ── Live preview ──────────────────────────────────────────────────────────────
 
 function _sfUpdatePreview_() {
   var body = document.getElementById('sf-preview-body');
   if (!body) return;
-
   function val(id) { var e = document.getElementById(id); return e ? e.value : ''; }
 
   var priority    = _sfPriority || 'MEDIUM';
   var status      = priority === 'CRITICAL' ? 'OPEN' : 'WAITING';
-  var equipName   = _sfEquipSpec || null;
-  var equipCode   = _sfEquipCode || null;
+  var equipName   = _sfEquipSpec || _sfSel.level3 || _sfSel.level2 || null;
+  var equipCode   = _sfResolvedCode || _sfEquipCode || null;
   var zone        = val('sf-zone');
   var probType    = val('sf-probtype');
   var desc        = (val('sf-desc') || '').trim();
   var descPreview = desc.length > 130 ? desc.substring(0, 130) + '…' : desc;
   var downtime    = val('sf-downtime') || 'UNPLANNED';
   var addedBy     = val('sf-addedby') || (typeof USER !== 'undefined' ? USER.displayName : '—');
+  var dept        = _sfSel.dept || '';
 
-  var hasContent = equipName || probType || desc;
+  var hasContent = dept || equipName || probType || desc;
   if (!hasContent) {
     body.innerHTML = '<div style="color:var(--text-tertiary);font-size:12px;">Fill in the form to see a preview of this ticket.</div>';
     return;
   }
 
-  var priClass = 'pri-' + priority;
-  var staClass = 'stat-' + status;
-
   body.innerHTML =
     '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px;">' +
-      '<span class="pri-badge ' + priClass + '">' + esc(priority) + '</span>' +
-      '<span class="stat-badge ' + staClass + '">' + esc(status) + '</span>' +
+      '<span class="pri-badge pri-' + esc(priority) + '">' + esc(priority) + '</span>' +
+      '<span class="stat-badge stat-' + esc(status) + '">' + esc(status) + '</span>' +
       '<span style="font-size:10px;color:var(--text-tertiary);font-family:var(--font-mono);margin-left:auto;align-self:center;">auto-numbered</span>' +
     '</div>' +
+    (dept ? '<div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--text-secondary);margin-bottom:3px;">' + esc(dept) + '</div>' : '') +
     '<div style="font-size:13px;font-weight:600;color:var(--text-primary);margin-bottom:2px;">' + esc(equipName || '—') + '</div>' +
     '<div style="font-size:11px;color:var(--text-secondary);margin-bottom:8px;">' +
       (equipCode ? '<span style="font-family:var(--font-mono);">' + esc(equipCode) + '</span>' : '') +
@@ -765,12 +753,12 @@ function _sfUpdatePreview_() {
 function _sfUpdateHeadsUp_() {
   var el = document.getElementById('sf-headsup-text');
   if (!el) return;
-  if (!_sfEquipCode) {
+  var code = _sfResolvedCode || _sfEquipCode;
+  if (!code) {
     el.innerHTML = 'Select specific equipment above to see recent ticket context.';
     return;
   }
-  el.innerHTML = '<span style="color:var(--text-tertiary);">Loading history for ' + esc(_sfEquipCode) + '…</span>';
-  var code = _sfEquipCode;
+  el.innerHTML = '<span style="color:var(--text-tertiary);">Loading history for ' + esc(code) + '…</span>';
   fetch(WORKER_URL + '/api/submit/equip-stats?equipCode=' + encodeURIComponent(code), {
     headers: { 'X-User-Email': USER ? USER.email : '' }
   })
@@ -794,143 +782,50 @@ function _sfUpdateHeadsUp_() {
     });
 }
 
-// ── Step navigation ───────────────────────────────────────────────────────────
-
-var _SF_STEP_NAMES_ = { 1: 'Select Equipment', 2: 'Ticket Details', 3: 'Review & Submit' };
-
-function submitGoStep(n) {
-  _sfStep = n;
-  [1, 2, 3].forEach(function(i) {
-    var el     = document.getElementById('submit-step-' + i);
-    var circle = document.getElementById('step-circle-' + i);
-    var label  = document.getElementById('step-label-' + i);
-    var conn   = document.getElementById('step-conn-' + i);
-    if (el)     el.style.display = i === n ? '' : 'none';
-    if (circle) { circle.className = 'step-circle ' + (i < n ? 'done' : i === n ? 'active' : 'pending'); circle.textContent = i < n ? '✓' : String(i); }
-    if (label)  label.className   = 'step-label' + (i < n ? ' done' : i === n ? ' active' : '');
-    if (conn)   conn.className    = 'step-connector' + (i < n ? ' done' : '');
-  });
-  var sub = document.getElementById('sf-step-sub');
-  if (sub) sub.textContent = 'FRM-030-001 · Step ' + n + ' of 3 — ' + (_SF_STEP_NAMES_[n] || '');
-}
-
-function submitStep1Next() {
-  var dept  = (document.getElementById('sf-dept')  || {}).value || '';
-  var eType = (document.getElementById('sf-etype') || {}).value || '';
-  // For ELECTRICAL / FACILITIES with no cache: read free-text fallback
-  var manualWrapper = document.getElementById('sf-etype-manual-wrapper');
-  var manualInput   = document.getElementById('sf-etype-manual');
-  var usingManual   = manualWrapper && manualWrapper.style.display !== 'none';
-  if (usingManual) {
-    eType = (manualInput && manualInput.value.trim()) || '';
-  }
-  if (!dept)  { showToast('Please select a department', 'error'); return; }
-  if (!eType) {
-    showToast(usingManual
-      ? 'Please enter an equipment or area description'
-      : 'Please select an equipment type', 'error');
-    return;
-  }
-  _sfCascadeEquip_();
-  submitGoStep(2);
-}
-
-function submitStep2Next() {
-  var desc = ((document.getElementById('sf-desc') || {}).value || '').trim();
-  if (!desc)         { showToast('Problem description is required', 'error'); return; }
-  if (desc.length < 10) { showToast('Description must be at least 10 characters', 'error'); return; }
-  if (!((document.getElementById('sf-probtype') || {}).value || '')) { showToast('Please select a problem type', 'error'); return; }
-  renderReview();
-  submitGoStep(3);
-}
-
-// ── Review rendering ──────────────────────────────────────────────────────────
-
-function renderReview() {
-  function val(id) { return ((document.getElementById(id) || {}).value || ''); }
-  var dept  = val('sf-dept');
-  var mw    = document.getElementById('sf-etype-manual-wrapper');
-  var mi    = document.getElementById('sf-etype-manual');
-  var eType = (mw && mw.style.display !== 'none' && mi && mi.value.trim())
-    ? mi.value.trim()
-    : val('sf-etype');
-  var zone     = val('sf-zone');
-  var line     = val('sf-line').trim();
-  var probType = val('sf-probtype');
-  var downtime = val('sf-downtime');
-  var desc     = val('sf-desc').trim();
-  var obs      = val('sf-obs').trim();
-  var addedBy  = val('sf-addedby');
-  var parts    = (document.getElementById('sf-parts') || {}).checked;
-
-  var card = document.getElementById('submit-review-card');
-  if (!card) return;
-  card.innerHTML =
-    '<div class="submit-card-title">Review &amp; Confirm</div>' +
-    '<div class="submit-card-sub">Please verify the details below before submitting.</div>' +
-    '<div class="review-section">' +
-      '<div class="review-section-title">Equipment</div>' +
-      '<div class="review-grid">' +
-        _rf_('Department', dept) + _rf_('Equipment Type', eType) +
-        _rf_('Specific Equipment', _sfEquipSpec || '—') + _rf_('Equipment Code', _sfEquipCode || '—') +
-        _rf_('Building / Zone', zone || '—') + _rf_('Line #', line || '—') +
-      '</div>' +
-    '</div>' +
-    '<div class="review-section">' +
-      '<div class="review-section-title">Ticket Details</div>' +
-      '<div class="review-grid">' +
-        _rf_('Priority', '<span class="rf-value" style="color:' + _priColor_(_sfPriority) + '">' + _sfPriority + '</span>', true) +
-        _rf_('Problem Type', probType) + _rf_('Downtime Type', downtime) + _rf_('Added By', addedBy) +
-        _rf_('Description', desc, true, true) +
-        (obs   ? _rf_('Observations', obs, true, true) : '') +
-        (parts ? _rf_('Parts Required', 'Yes') : '') +
-      '</div>' +
-    '</div>' +
-    (_sfPriority === 'CRITICAL'
-      ? '<div style="padding:10px 12px;background:var(--status-critical-bg);border:1px solid var(--status-critical);border-radius:6px;font-size:12.5px;color:var(--status-critical);font-weight:600;">⚠ CRITICAL — ticket placed in Open immediately, no manager approval required.</div>'
-      : '');
-}
-
-function _rf_(label, value, raw, full) {
-  var isEmpty = !value || value === '—';
-  var vHtml = raw ? value : '<span class="rf-value' + (isEmpty ? ' empty' : '') + '">' + esc(String(value)) + '</span>';
-  return '<div class="review-field' + (full ? ' full' : '') + '"><span class="rf-label">' + esc(label) + '</span>' + vHtml + '</div>';
-}
-
-function _priColor_(p) {
-  return ({LOW:'var(--status-low)',MEDIUM:'var(--status-medium)',HIGH:'var(--status-high)',CRITICAL:'var(--status-critical)'})[p] || 'var(--text-primary)';
-}
-
 // ── Submission ────────────────────────────────────────────────────────────────
 
 function submitTicket() {
+  if (!_sfSel.dept) {
+    showToast('Please select a department.', 'error');
+    var s = document.getElementById('sf-sec-dept') || document.querySelector('.sel-btn-grid');
+    if (s) s.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    return;
+  }
+  var probType = ((document.getElementById('sf-probtype') || {}).value || '');
+  if (!probType) { showToast('Please select a problem type.', 'error'); return; }
+  var desc = ((document.getElementById('sf-desc') || {}).value || '').trim();
+  if (!desc) { showToast('Problem description is required.', 'error'); return; }
+  if (desc.length < 10) { showToast('Description must be at least 10 characters.', 'error'); return; }
+  var addedBy = ((document.getElementById('sf-addedby') || {}).value || '');
+  if (!addedBy) { showToast('Please select who is submitting this ticket.', 'error'); return; }
+
   var btn = document.getElementById('submit-btn');
   if (btn) { btn.disabled = true; btn.textContent = 'Submitting…'; }
 
   function val(id) { return ((document.getElementById(id) || {}).value || ''); }
 
-  var mw = document.getElementById('sf-etype-manual-wrapper');
-  var mi = document.getElementById('sf-etype-manual');
-  var resolvedEtype = (mw && mw.style.display !== 'none' && mi && mi.value.trim())
-    ? mi.value.trim()
-    : val('sf-etype');
+  var equipDesc = [_sfSel.level2, _sfSel.level3, _sfSel.level4].filter(Boolean).join(' / ');
 
   var payload = {
-    dept:          val('sf-dept'),
-    equipType:     resolvedEtype,
-    equipCode:     _sfEquipCode,
-    specificEquip: _sfEquipSpec || resolvedEtype,
-    equipDesc:     _sfEquipSpec || resolvedEtype,
+    dept:          _sfSel.dept,
+    equipType:     _sfSel.level2 || '',
+    equipCode:     _sfResolvedCode || _sfEquipCode || '',
+    specificEquip: _sfEquipSpec || equipDesc || _sfSel.level2 || '',
+    equipDesc:     equipDesc || _sfSel.level2 || '',
+    level2:        _sfSel.level2 || '',
+    level3:        _sfSel.level3 || '',
+    level4:        _sfSel.level4 || '',
     buildingZone:  val('sf-zone'),
     lineNo:        val('sf-line').trim(),
     priority:      _sfPriority,
-    problemType:   val('sf-probtype'),
-    downtimeType:  val('sf-downtime'),
-    description:   val('sf-desc').trim(),
-    problemDesc:   val('sf-desc').trim(),
+    problemType:   probType,
+    downtimeType:  val('sf-downtime') || 'UNPLANNED',
+    description:   desc,
+    problemDesc:   desc,
     observations:  val('sf-obs').trim(),
-    addedBy:       val('sf-addedby'),
-    partsNeeded:   !!((document.getElementById('sf-parts') || {}).checked)
+    addedBy:       addedBy,
+    partsNeeded:   !!((document.getElementById('sf-parts') || {}).checked),
+    estHours:      _sfEstHours || 1,
   };
 
   if (_sfPhotos_.length === 0) {
@@ -938,7 +833,6 @@ function submitTicket() {
     return;
   }
 
-  // Photos present: reserve ticket ID first so filenames include it
   if (btn) btn.textContent = 'Preparing…';
   fetch(WORKER_URL + '/api/submit/reserve-id?dept=' + encodeURIComponent(payload.dept), {
     headers: { 'X-User-Email': USER ? USER.email : '' }
@@ -1043,7 +937,9 @@ function copyTicketNo(tn) {
 }
 
 function submitAnotherTicket() {
-  _sfStep = 1; _sfPriority = 'MEDIUM'; _sfEquipCode = ''; _sfEquipSpec = ''; _sfPhotos_ = [];
+  _sfPriority = 'MEDIUM'; _sfEquipCode = ''; _sfEquipSpec = ''; _sfPhotos_ = [];
+  _sfSel = { dept: '', level2: '', level3: '', level4: '' };
+  _sfRows = []; _sfResolvedCode = ''; _sfEstHours = 1;
   var container = document.getElementById('page-submit');
   if (!container) { navigate('submit'); return; }
   container.innerHTML = _buildSubmitHTML_();
@@ -1054,9 +950,13 @@ function submitAnotherTicket() {
       headers: { 'X-User-Email': USER ? USER.email : '' }
     })
       .then(function(r) { return r.json(); })
-      .then(function(d) { if (d.error) throw new Error(d.error); _sfData = d; _sfPopulate_(d); _sfUpdatePreview_(); })
+      .then(function(d) {
+        if (d.error) throw new Error(d.error);
+        _sfData = d;
+        _sfPopulate_(d);
+        _sfUpdatePreview_();
+      })
       .catch(function(e) { showToast('Error reloading form: ' + esc(String(e.message || e)), 'error'); });
   }
-  _sfUpdatePreview_();
 }
 </script>
