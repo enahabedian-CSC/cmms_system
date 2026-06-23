@@ -159,7 +159,7 @@ async function getAccessToken(env) {
   const now = Math.floor(Date.now() / 1000);
   const jwt = await signRS256({
     iss:   env.GOOGLE_SA_EMAIL,
-    scope: 'https://www.googleapis.com/auth/spreadsheets',
+    scope: 'https://www.googleapis.com/auth/spreadsheets https://www.googleapis.com/auth/drive',
     aud:   'https://oauth2.googleapis.com/token',
     iat:   now,
     exp:   now + 3600,
@@ -1361,7 +1361,7 @@ async function handleUploadPhoto(env, userEmail, body) {
   const isTech = (userEmail || '').trim().toLowerCase().endsWith('@cscmfg.com');
   if (!isTech) return jsonResponse({ error: 'Access required' }, 403);
 
-  const folderId = env.PHOTO_FOLDER_ID || '';
+  const folderId = (env.PHOTO_FOLDER_ID || '').replace(/^﻿/, '').trim();
   if (!folderId) return jsonResponse({ ok: false, error: 'Photo storage not configured (PHOTO_FOLDER_ID missing)' }, 500);
 
   const token     = await getAccessToken(env);
