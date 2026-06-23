@@ -673,8 +673,11 @@ async function appendMasterLog(token, env, opts) {
   if (opts.equipType     !== undefined) row[ML.EQUIP_TYPE     - 1] = opts.equipType     || '';
   if (opts.description   !== undefined) row[ML.DESCRIPTION    - 1] = opts.description   || '';
   if (opts.problemType   !== undefined) row[ML.PROBLEM_TYPE   - 1] = opts.problemType   || '';
-  if (opts.partsNeeded   !== undefined) row[ML.PARTS_NEEDED   - 1] = opts.partsNeeded   || '';
+  if (opts.partsNeeded   !== undefined) row[ML.PARTS_NEEDED   - 1] = opts.partsNeeded   ? 'Y' : '';
   if (opts.equipTagStatus!== undefined) row[ML.EQUIP_TAG_STATUS-1] = opts.equipTagStatus|| '';
+  if (opts.downtimeType  !== undefined) row[ML.DOWNTIME_TYPE  - 1] = opts.downtimeType  || '';
+  if (opts.dateOpened    !== undefined) row[ML.DATE_OPENED    - 1] = opts.dateOpened    || '';
+  if (opts.lineNo        !== undefined) row[ML.LINE_NO        - 1] = opts.lineNo        || '';
   await appendSheetRow(token, env.SPREADSHEET_ID, SH.MASTER_LOG, row);
 }
 
@@ -1444,9 +1447,22 @@ async function handleAddTicket(env, userEmail, body) {
   await appendMasterLog(token, env, {
     ticketNo, now, action: isCritical ? 'TICKET CREATED — CRITICAL (bypass)' : 'TICKET CREATED',
     status, dept,
-    updatedBy: addedBy,
-    notes:    (body.description || '') + (body.observations ? ' | ' + body.observations : ''),
-    photoUrl: photoCell,
+    equipCode:     body.equipCode     || '',
+    specificEquip: body.specificEquip || '',
+    equipType:     body.equipType     || '',
+    buildingZone:  body.buildingZone  || '',
+    lineNo:        body.lineNo        || '',
+    priority:      body.priority      || 'LOW',
+    problemType:   body.problemType   || '',
+    description:   body.description   || '',
+    downtimeType:  body.downtimeType  || '',
+    partsNeeded:   !!body.partsNeeded,
+    estHours:      body.estHours      || '',
+    addedBy:       addedBy,
+    updatedBy:     addedBy,
+    dateOpened:    fmtDate(now),
+    notes:         body.observations  || '',
+    photoUrl:      photoCell,
   });
   // Extended ML fields via batch write on the newly-appended row (best-effort)
   await appendTicketHistory(token, env, ticketNo, 'CREATED', '', status, addedBy,
