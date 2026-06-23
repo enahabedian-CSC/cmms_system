@@ -254,7 +254,7 @@ function allowed(user, dept) {
 // ── Handlers ──────────────────────────────────────────────────────────────────
 
 function handleVersion(env) {
-  return jsonResponse({ version: env.APP_VERSION || '2.5' });
+  return jsonResponse({ version: env.APP_VERSION || '3.01' });
 }
 
 async function handleMe(env, userEmail) {
@@ -619,6 +619,7 @@ async function appendMasterLog(token, env, opts) {
   if (opts.verifiedDate  !== undefined) row[ML.VERIFIED_DATE  - 1] = opts.verifiedDate  || '';
   if (opts.dateClosed    !== undefined) row[ML.DATE_CLOSED    - 1] = opts.dateClosed    || '';
   if (opts.sqfChecklist  !== undefined) row[ML.VERIFICATION_CHECKLIST - 1] = opts.sqfChecklist || '';
+  if (opts.photoUrl      !== undefined) row[ML.PHOTO_URL       - 1] = opts.photoUrl      || '';
   if (opts.jointDepts    !== undefined) row[ML.JOINT_DEPTS    - 1] = opts.jointDepts    || '';
   if (opts.jointSignoffs !== undefined) row[ML.JOINT_SIGNOFFS - 1] = opts.jointSignoffs || '';
   if (opts.pendingJointDepts !== undefined) row[ML.PENDING_JOINT_DEPTS - 1] = opts.pendingJointDepts || '';
