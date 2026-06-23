@@ -221,7 +221,6 @@ function _tfRenderRows_(list) {
   }
   var today = new Date(); today.setHours(0,0,0,0);
   tbody.innerHTML = list.map(function(t) {
-    var staCls = 'stat-' + t.status.replace(/\s+/g, '-');
     var isPastDue = t.status === 'PAST DUE';
     // Compute days to re-inspect from nextDue
     var daysCell = '—';
