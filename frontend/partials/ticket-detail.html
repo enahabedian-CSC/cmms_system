@@ -84,6 +84,30 @@
   body.printing-sr .td-modal{box-shadow:none;width:auto;max-width:100%;max-height:none;overflow:visible;}
   body.printing-sr .td-modal .modal-actions{display:none !important;}
 }
+/* ── Service Report printable document (Maintenance Repair Record FRM-030-003) ──
+   Rendered from the report data on print so the output is a clean record, not
+   the editable form. Layout adapted from Izzy's MaintenanceRepairRecord.html. */
+.sr-print-area{display:none;}
+.sr-doc{font-family:Arial,Helvetica,sans-serif;color:#111;max-width:780px;margin:0 auto;font-size:12px;line-height:1.4;}
+.sr-doc .doc-header{display:flex;align-items:center;justify-content:space-between;border-bottom:2px solid #1C4D8E;padding-bottom:8px;}
+.sr-doc .doc-header h1{font-size:18px;margin:0;color:#1C4D8E;}
+.sr-doc .doc-co{font-size:11px;color:#555;margin-top:2px;}
+.sr-doc .doc-meta{font-size:10px;color:#333;text-align:right;}
+.sr-doc .doc-meta div{margin:1px 0;}
+.sr-doc .sec-head{background:#1C4D8E;color:#fff;font-size:10px;font-weight:bold;letter-spacing:.06em;text-transform:uppercase;padding:4px 8px;margin:14px 0 0;}
+.sr-doc .grid{display:grid;grid-template-columns:1fr 1fr 1fr;border:1px solid #ccc;border-top:0;}
+.sr-doc .cell{padding:5px 8px;border-right:1px solid #eee;border-top:1px solid #eee;}
+.sr-doc .cell.full{grid-column:1/-1;}
+.sr-doc .cell .l{font-size:8.5px;text-transform:uppercase;letter-spacing:.04em;color:#777;}
+.sr-doc .cell .v{font-size:12px;color:#111;margin-top:2px;white-space:pre-wrap;}
+.sr-doc .clr-item{display:flex;justify-content:space-between;padding:4px 8px;border:1px solid #eee;border-top:0;font-size:11px;}
+.sr-doc .sig{display:grid;grid-template-columns:1fr 1fr;gap:28px;margin-top:22px;}
+.sr-doc .sig .line{border-top:1px solid #333;padding-top:3px;font-size:9px;color:#555;}
+@media print {
+  body.printing-srdoc *{visibility:hidden !important;}
+  body.printing-srdoc #sr-print-area, body.printing-srdoc #sr-print-area *{visibility:visible !important;}
+  body.printing-srdoc #sr-print-area{display:block !important;position:absolute;left:0;top:0;width:100%;padding:14px;}
+}
 </style>
 
 <div id="td-overlay">
@@ -831,17 +855,85 @@ function _srDateVal_(s) {
   return d.getFullYear() + '-' + (m.length < 2 ? '0' + m : m) + '-' + (day.length < 2 ? '0' + day : day);
 }
 
-// Print only the service-report modal (see .printing-sr @media print rules).
+// Build a clean Maintenance Repair Record (FRM-030-003) from the open service
+// report form + ticket data, so the printed output is a formatted document
+// instead of the raw editable form. Layout adapted from Izzy's template.
+function _srBuildPrintDoc_() {
+  var t = _tdTicket || {};
+  function v(id) {
+    var el = document.getElementById(id);
+    if (!el) return '';
+    return el.type === 'checkbox' ? (el.checked ? 'Yes' : 'No') : (el.value || '');
+  }
+  function cell(l, val, full) {
+    return '<div class="cell' + (full ? ' full' : '') + '"><div class="l">' + esc(l) +
+      '</div><div class="v">' + esc(val || '—') + '</div></div>';
+  }
+  function clr(l, val) {
+    return '<div class="clr-item"><span>' + esc(l) + '</span><strong>' + esc(val || '—') + '</strong></div>';
+  }
+  var docRef = (typeof docLabel === 'function') ? docLabel('serviceReport') : 'FRM-030-003';
+  var company = (window.COMPANY || 'Container Supply Co.');
+  return '<div class="sr-doc">' +
+    '<div class="doc-header">' +
+      '<div><h1>Maintenance Repair Record</h1><div class="doc-co">' + esc(company) + ' · Garden Grove, CA</div></div>' +
+      '<div class="doc-meta"><div><strong>' + esc(docRef) + '</strong></div>' +
+        '<div>Work Order #: ' + esc(t.ticketNo || '—') + '</div>' +
+        '<div>Printed: ' + esc(new Date().toLocaleDateString()) + '</div></div>' +
+    '</div>' +
+    '<div class="sec-head">Equipment &amp; Ticket Information</div>' +
+    '<div class="grid">' +
+      cell('Work Order #', t.ticketNo) + cell('Department', t.dept) + cell('Priority', t.priority) +
+      cell('Equipment Code', t.equipCode) + cell('Building / Zone', t.buildingZone) + cell('Service Date', v('sr-service-date')) +
+      cell('Equipment Description', t.specificEquip, true) +
+    '</div>' +
+    '<div class="sec-head">Failure &amp; Repair Record</div>' +
+    '<div class="grid">' +
+      cell('Technician', v('sr-completed-by')) + cell('Labor Hours', v('sr-hours')) + cell('Restricted Activity', v('sr-restricted')) +
+      cell('Problem / Fault Description', t.description, true) +
+      cell('Work Performed', v('sr-work-summary'), true) +
+      cell('Parts Used', v('sr-parts-used'), true) +
+    '</div>' +
+    '<div class="sec-head">Corrective &amp; Preventive Action (CAPA)</div>' +
+    '<div class="grid">' +
+      cell('Root Cause', v('sr-root-cause'), true) +
+      cell('Corrective Action', v('sr-corrective-act'), true) +
+      cell('Preventive Action', v('sr-preventive-act'), true) +
+      cell('Recommendations', v('sr-recommendations'), true) +
+    '</div>' +
+    '<div class="sec-head">Post-Repair Clearance (SQF 2.14.3-.4)</div>' +
+      clr('Maintenance / repair complete?', v('sr-clr-complete')) +
+      clr('All tools removed?', v('sr-clr-tools')) +
+      clr('Area cleaned &amp; sanitized — no residual lubricants/chemicals?', v('sr-clr-clean')) +
+      clr('Sanitation / QA inspection required?', v('sr-clr-qa')) +
+    '<div class="sig">' +
+      '<div class="line">Facility Contact: ' + esc(v('sr-fac-contact') || '') + '<br>Signature / Date' +
+        (v('sr-fac-date') ? ' — ' + esc(v('sr-fac-date')) : '') + '</div>' +
+      '<div class="line">Verified By — Manager Signature / Date</div>' +
+    '</div>' +
+  '</div>';
+}
+
+// Render the formatted record into a print-only area and print just that.
 function _srPrint_() {
-  document.body.classList.add('printing-sr');
+  var area = document.getElementById('sr-print-area');
+  if (!area) {
+    area = document.createElement('div');
+    area.id = 'sr-print-area';
+    area.className = 'sr-print-area';
+    document.body.appendChild(area);
+  }
+  area.innerHTML = _srBuildPrintDoc_();
+  document.body.classList.add('printing-srdoc');
   function _done_() {
-    document.body.classList.remove('printing-sr');
+    document.body.classList.remove('printing-srdoc');
+    area.innerHTML = '';
     window.removeEventListener('afterprint', _done_);
   }
   window.addEventListener('afterprint', _done_);
   window.print();
   // Fallback for browsers that don't fire afterprint.
-  setTimeout(_done_, 1000);
+  setTimeout(_done_, 1500);
 }
 
 function _tdSaveServiceReport_() {
