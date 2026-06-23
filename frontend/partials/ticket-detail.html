@@ -38,6 +38,7 @@
 .btn-complete  {background:var(--status-success);color:#fff;}
 .btn-verify    {background:var(--status-success);color:#fff;}
 .btn-void      {background:var(--status-low-bg);color:var(--text-secondary);border:1px solid var(--border-strong);}
+.btn-danger    {background:#DC2626;color:#fff;border:1px solid #B91C1C;}
 .btn-assign    {background:var(--bg-subtle);color:var(--text-primary);border:1px solid var(--border-default);}
 .btn-tempfix   {background:var(--status-warn-bg);color:var(--status-warn);border:1px solid #FDE68A;}
 .btn-transfer  {background:var(--bg-subtle);color:var(--text-primary);border:1px solid var(--border-default);}
@@ -196,7 +197,6 @@ function _renderDetail_(result) {
     }
     if (t.status !== 'CLOSED' && t.status !== 'VOIDED') {
       actions += '<button class="btn-action btn-transfer" onclick="_tdTransfer_()">Attach Dept</button>';
-      actions += '<button class="btn-action btn-void" onclick="_tdVoid_()">Void Ticket</button>';
     }
     if (t.status === 'CLOSED') {
       actions += '<button class="btn-action btn-update" onclick="_tdServiceReport_()">📝 Service Report</button>';
@@ -243,6 +243,9 @@ function _renderDetail_(result) {
   if (t.status !== 'CLOSED' && t.status !== 'VOIDED') {
     actions += '<button class="btn-action btn-parts" onclick="_tdRequestParts_()">🔩 Request Parts</button>';
     actions += '<button class="btn-action btn-update" onclick="_tdUpdate_()">Update Ticket</button>';
+    if (canAct) {
+      actions += '<button class="btn-action btn-danger" onclick="_tdVoid_()">Void Ticket</button>';
+    }
   }
 
   // ── Info grid ──────────────────────────────────────────────────────────────
