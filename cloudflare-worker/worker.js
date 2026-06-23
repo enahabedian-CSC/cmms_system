@@ -474,7 +474,7 @@ async function handleDashboardPanels(env, userEmail) {
         sub: dept + (code ? ' · ' + code : '') + (prio ? ' · ' + prio + ' priority' : '') + ' — awaiting approval',
         action: 'Approve', pageTarget: 'waiting',
       });
-    } else if (status === 'PENDING VERIFICATION' && verifyItems.length < 8) {
+    } else if (status === 'COMPLETE' && verifyItems.length < 8) {
       verifyItems.push({
         kind: 'complete', ticketNo: tn,
         title: equip || desc || tn,
