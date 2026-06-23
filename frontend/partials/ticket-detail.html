@@ -142,6 +142,22 @@ function _canActOnTicket_(t) {
   return USER.isAdmin || ((USER.ownedDepts || []).indexOf(t.dept) >= 0);
 }
 
+// ── Joint-ticket role helpers (two-step workflow) ──────────────────────────────
+// Owner dept = the dept that opened the ticket (t.dept) — verifies & closes.
+// Fixer dept = a dept added to t.jointDepts — performs the repair + CAPA.
+function _isOwnerDept_(t) {
+  return USER.isAdmin || (USER.ownedDepts || []).indexOf(t.dept) >= 0;
+}
+function _isJoint_(t) {
+  return !!(t.jointDepts && String(t.jointDepts).trim());
+}
+function _isFixerDept_(t) {
+  if (USER.isAdmin) return true;
+  var jd   = String(t.jointDepts || '').split(',').map(function(d) { return d.trim(); }).filter(Boolean);
+  var mine = USER.ownedDepts || [];
+  return jd.some(function(d) { return mine.indexOf(d) >= 0; });
+}
+
 // ── Public API ────────────────────────────────────────────────────────────────
 
 function openTicketDetail(ticketNo) {
@@ -202,58 +218,40 @@ function _renderDetail_(result) {
 
   // ── Action buttons ─────────────────────────────────────────────────────────
   var actions = '';
-  var canAct  = isManager && _canActOnTicket_(t);
+  var isOwner   = _isOwnerDept_(t);
+  var isFixer   = _isFixerDept_(t);
+  var isJoint   = _isJoint_(t);
+  // Two-step segmentation: the work-doer (fixer on joint tickets, owner on
+  // single-dept tickets) performs the repair + CAPA; the owner verifies & closes.
+  var canWork   = isManager && (isJoint ? isFixer : isOwner);
+  var canVerify = isManager && isOwner;
+  var canManage = isManager && isOwner;
 
-  if (canAct) {
-    if (t.status === 'WAITING') {
-      actions += '<button class="btn-action btn-approve" onclick="_tdApprove_()">✓ Approve → Open</button>';
+  if (t.status === 'WAITING' && canManage) {
+    actions += '<button class="btn-action btn-approve" onclick="_tdApprove_()">✓ Approve → Open</button>';
+  }
+  if ((t.status === 'OPEN' || t.status === 'PENDING PARTS') && canWork) {
+    actions += '<button class="btn-action btn-complete" onclick="_tdComplete_()">✓ Mark Work Complete</button>';
+    if (!t.tempFixFlag) {
+      actions += '<button class="btn-action btn-tempfix" onclick="_tdFlagTF_()">Flag Temp Fix</button>';
     }
-    if (t.status === 'OPEN' || t.status === 'PENDING PARTS') {
-      actions += '<button class="btn-action btn-complete" onclick="_tdComplete_()">✓ Mark Work Complete</button>';
-      if (!t.tempFixFlag) {
-        actions += '<button class="btn-action btn-tempfix" onclick="_tdFlagTF_()">Flag Temp Fix</button>';
-      }
-      actions += '<button class="btn-action btn-void" onclick="_tdIssueTag_()">🏷 Issue Hold Tag</button>';
-    }
-    if (t.status === 'PENDING VERIFICATION') {
-      actions += '<button class="btn-action btn-verify" onclick="_tdVerifyClose_()">✓ Verify &amp; Close</button>';
-    }
-    if (t.status !== 'CLOSED' && t.status !== 'VOIDED') {
-      actions += '<button class="btn-action btn-transfer" onclick="_tdTransfer_()">Attach Dept</button>';
-      actions += '<button class="btn-action btn-void" onclick="_tdVoid_()">Void Ticket</button>';
-    }
+    actions += '<button class="btn-action btn-void" onclick="_tdIssueTag_()">🏷 Issue Hold Tag</button>';
+  }
+  if (t.status === 'PENDING VERIFICATION' && canVerify) {
+    actions += '<button class="btn-action btn-verify" onclick="_tdVerifyClose_()">✓ Verify &amp; Close</button>';
+  }
+  if (t.status !== 'CLOSED' && t.status !== 'VOIDED' && canManage) {
+    actions += '<button class="btn-action btn-transfer" onclick="_tdTransfer_()">🔗 Add Joint Department</button>';
+    actions += '<button class="btn-action btn-void" onclick="_tdVoid_()">Void Ticket</button>';
   }
 
   // Service Report is a record/print output available for ANY closed ticket a
-  // manager can view — not restricted to owned departments (previously gated by
-  // canAct, which hid it on closed tickets outside the manager's own depts).
+  // manager can view — not restricted to owned departments.
   if (isManager && t.status === 'CLOSED') {
     actions += '<button class="btn-action btn-update" onclick="_tdServiceReport_()">📝 Service Report</button>';
   }
 
-  // Dept sign-off: joint dept manager can sign off when ticket is PENDING VERIFICATION
-  if (isManager && !canAct && t.status === 'PENDING VERIFICATION' && t.jointDepts) {
-    var jdList   = t.jointDepts.split(',').map(function(d) { return d.trim(); }).filter(Boolean);
-    var myDepts  = USER.ownedDepts || [];
-    var inJoint  = false;
-    for (var ji = 0; ji < jdList.length; ji++) {
-      if (myDepts.indexOf(jdList[ji]) >= 0) { inJoint = true; break; }
-    }
-    if (inJoint) {
-      var jSigns = {};
-      if (t.jointSignoffs) { try { jSigns = JSON.parse(t.jointSignoffs); } catch(e) {} }
-      var alreadySigned = false;
-      for (var ui = 0; ui < myDepts.length; ui++) {
-        if (jSigns[myDepts[ui]]) { alreadySigned = true; break; }
-      }
-      if (!alreadySigned) {
-        actions += '<button class="btn-action btn-verify" onclick="_tdDeptSignOff_()">✓ Dept Sign Off</button>';
-      } else {
-        actions += '<span style="display:inline-flex;align-items:center;gap:6px;height:34px;padding:0 14px;border-radius:6px;font-size:12.5px;font-weight:600;background:#D1FAE5;color:#065F46;">✓ Your dept signed off</span>';
-      }
-    }
-  }
-  // Pending joint request: receiving dept manager can Accept or Reject
+  // Pending joint request: receiving (fixer) dept manager can Accept or Decline
   if (isManager && t.pendingJointDepts) {
     var pjList  = t.pendingJointDepts.split(',').map(function(d) { return d.trim(); }).filter(Boolean);
     var myDepts = USER.ownedDepts || [];
@@ -435,10 +433,8 @@ function _tdComplete_() {
     '<div class="form-group"><label>Actual Hours</label><input id="mc-hours" type="number" min="0" step="0.5" /></div>' +
     '<div class="form-group"><label>Downtime Duration (minutes)</label><input id="mc-downtime" type="number" min="0" step="1" placeholder="How long was the equipment down?" /></div>' +
     '<div style="background:#E8F5E9;border:1px solid #A5D6A7;border-radius:6px;padding:9px 12px;margin:6px 0 4px;font-size:11.5px;color:#1B5E20;">' +
-      '<strong>Post-Repair Clearance (SQF 2.14.3)</strong> — confirm the area is clean, sanitary, and safe before handing the equipment back.</div>' +
+      '<strong>Post-Repair Clearance (SQF 2.14.3):</strong> confirm you removed all of your tools. The owning department verifies cleaning &amp; sanitation at close.</div>' +
     '<div class="form-group"><label>All tools removed? *</label><select id="mc-clr-tools"><option value=""></option><option>Yes</option><option>No</option></select></div>' +
-    '<div class="form-group"><label>Area cleaned &amp; sanitized — no residual lubricants/chemicals? *</label><select id="mc-clr-clean"><option value=""></option><option>Yes</option><option>No</option></select></div>' +
-    '<div class="form-group"><label>Sanitation / QA inspection required?</label><select id="mc-clr-qa"><option value=""></option><option>Yes</option><option>No</option><option>N/A</option></select></div>' +
     '<div class="form-group" style="display:flex;align-items:center;gap:8px;">' +
     '<input type="checkbox" id="mc-tf" style="width:auto;" /><label for="mc-tf" style="margin:0;cursor:pointer;">Flag as Temp Fix (requires follow-up inspection)</label></div>',
     function() {
@@ -446,12 +442,10 @@ function _tdComplete_() {
       var rootCause     = document.getElementById('mc-root').value.trim();
       var preventiveAct = document.getElementById('mc-summary').value.trim();
       var clrTools      = document.getElementById('mc-clr-tools').value;
-      var clrClean      = document.getElementById('mc-clr-clean').value;
       if (!correctiveAct) { alert('Corrective Action is required (SQF 13.2.8).'); return; }
       if (!rootCause)     { alert('Root Cause is required (SQF 13.2.8).'); return; }
       if (!preventiveAct) { alert('Preventive Action is required (SQF 13.2.8).'); return; }
       if (!clrTools)      { alert('Post-Repair Clearance: confirm whether all tools were removed (SQF 2.14.3).'); return; }
-      if (!clrClean)      { alert('Post-Repair Clearance: confirm the area is cleaned & sanitized (SQF 2.14.3).'); return; }
       var data = {
         ticketNo:         t.ticketNo,
         correctiveAct:    correctiveAct,
@@ -461,8 +455,6 @@ function _tdComplete_() {
         actualHours:      document.getElementById('mc-hours').value,
         downtimeDuration: document.getElementById('mc-downtime').value,
         clrToolsRemoved:  clrTools,
-        clrAreaClean:     clrClean,
-        clrQaRequired:    document.getElementById('mc-clr-qa').value,
         tempFixFlag:      document.getElementById('mc-tf').checked,
         updatedBy:        USER.displayName
       };
@@ -495,6 +487,15 @@ function _tdVerifyClose_() {
     '<div style="background:var(--status-info-bg);border:1px solid var(--status-info);border-radius:6px;padding:9px 12px;margin-bottom:12px;font-size:12px;color:var(--status-info);">Closing this ticket is permanent. Confirm the repair has been completed and verified before proceeding.</div>' +
     '<div class="form-group"><label>Verified By</label><input id="vc-verifier" value="' + esc(USER.displayName) + '" /></div>' +
     '<div class="form-group"><label>Closing Notes (optional)</label><textarea id="vc-notes"></textarea></div>' +
+    '<div style="background:#E8F5E9;border:1px solid #A5D6A7;border-radius:6px;padding:9px 12px;margin:6px 0;font-size:11.5px;color:#1B5E20;">' +
+      '<strong>Post-Repair Clearance — Owner Confirmation (SQF 2.14.3):</strong> ' +
+      (_isJoint_(t)
+        ? 'the fixer reported tools removed: <strong>' + esc(t.clrToolsRemoved || '—') + '</strong>. Independently confirm the equipment is clean, sanitary, and safe to return to service.'
+        : 'confirm the equipment is clean, sanitary, and safe to return to service.') +
+    '</div>' +
+    _srYN_('vc-clr-tools', 'All tools removed (confirmed)?', false, t.clrToolsRemoved) +
+    _srYN_('vc-clr-clean', 'Area cleaned &amp; sanitized — no residual lubricants/chemicals?', false, t.clrAreaClean) +
+    _srYN_('vc-clr-qa',    'Sanitation / QA inspection required?', true, t.clrQaRequired) +
     '<div class="form-group" style="margin-top:10px;">' +
       '<label style="font-size:11.5px;font-weight:700;color:var(--text-primary);margin-bottom:6px;display:block;">SQF Verification Checklist</label>' +
       '<label style="display:flex;align-items:center;gap:8px;margin-bottom:7px;cursor:pointer;font-size:12.5px;">' +
@@ -519,12 +520,18 @@ function _tdVerifyClose_() {
       if ((document.getElementById('sqf-check-3') || {}).checked) sqfItems.push('Corrective action verified');
       if ((document.getElementById('sqf-check-4') || {}).checked) sqfItems.push('Area cleaned and sanitized - no food-safety risk');
       if (sqfItems.length < 4) { alert('All four SQF verification items must be confirmed before closing (work summary, root cause, corrective action, and sanitation / food-safety).'); return; }
+      var clrTools = (document.getElementById('vc-clr-tools') || {}).value;
+      var clrClean = (document.getElementById('vc-clr-clean') || {}).value;
+      if (!clrTools || !clrClean) { alert('Confirm the Post-Repair Clearance (tools removed + area cleaned & sanitized) before closing (SQF 2.14.3).'); return; }
       var data = {
         ticketNo:     t.ticketNo,
         verifiedBy:   document.getElementById('vc-verifier').value.trim() || USER.displayName,
         notes:        document.getElementById('vc-notes').value,
         updatedBy:    USER.displayName,
-        sqfChecklist: sqfItems.join(' | ')
+        sqfChecklist: sqfItems.join(' | '),
+        clrToolsRemoved: clrTools,
+        clrAreaClean:    clrClean,
+        clrQaRequired:   (document.getElementById('vc-clr-qa') || {}).value
       };
       var clearEl = document.getElementById('vc-cleartf');
       if (clearEl) {
@@ -993,23 +1000,23 @@ function _tdTransfer_() {
   var t = _tdTicket;
   if (!t) return;
   var depts = ['ELECTRICAL','MACHINE SHOP','FACILITIES','PLASTICS','METALS','LITHO'];
-  _showModal_('Attach Department — ' + esc(t.ticketNo),
+  _showModal_('Add Joint Department — ' + esc(t.ticketNo),
     '<div style="background:var(--status-info-bg);border:1px solid var(--status-info);border-radius:6px;padding:9px 12px;margin-bottom:12px;font-size:12px;color:var(--status-info);">' +
-      'This makes the ticket <strong>joint</strong> — primary ownership stays with ' + esc(t.dept) + '. ' +
-      'The attached department will see it in their Joint Tickets tracker and must sign off before the ticket can close.' +
+      'This makes the ticket <strong>joint</strong> instead of transferring it — ' + esc(t.dept) + ' keeps ownership and full visibility for the whole lifecycle. ' +
+      'The added department performs the repair and the CAPA (Mark Work Complete); ' + esc(t.dept) + ' then verifies cleaning &amp; sanitation and closes it.' +
     '</div>' +
-    '<div class="form-group"><label>Attach Department</label>' +
+    '<div class="form-group"><label>Add Department (performs the fix)</label>' +
     '<select id="tr-dept">' + depts.map(function(d) {
       return '<option' + (d === t.dept ? ' disabled' : '') + ' value="' + esc(d) + '">' + esc(d) + '</option>';
     }).join('') + '</select></div>' +
-    '<div class="form-group"><label>Reason (optional)</label><textarea id="tr-reason"></textarea></div>',
+    '<div class="form-group"><label>Reason / scope of work (optional)</label><textarea id="tr-reason"></textarea></div>',
     function() {
       var toDept = document.getElementById('tr-dept').value;
       if (!toDept || toDept === t.dept) { alert('Select a different department.'); return; }
       var data = { ticketNo: t.ticketNo, fromDept: t.dept, toDept: toDept,
                    reason: document.getElementById('tr-reason').value, updatedBy: USER.displayName };
-      _tdRunAction_(transferTicket, data, 'Department Attached');
-    }, 'Attach');
+      _tdRunAction_(transferTicket, data, 'Joint Department Added');
+    }, 'Add Joint Department');
 }
 
 // ── Action runner ─────────────────────────────────────────────────────────────
