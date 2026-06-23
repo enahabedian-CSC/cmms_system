@@ -217,6 +217,46 @@ async function readSheet(token, spreadsheetId, sheetName, range) {
   return (await res.json()).values || [];
 }
 
+// ── Ticket ID generation — sequential, matches CSC Hub format ────────────────
+// Format: MT-{deptCode}-{YYMMDD}-{NNN}  (monthly sequence, resets each month)
+function maxSeqFor(ids, monthPrefix) {
+  let max = 0;
+  for (const id of ids) {
+    if (typeof id === 'string' && id.startsWith(monthPrefix)) {
+      const n = parseInt(id.slice(id.lastIndexOf('-') + 1), 10);
+      if (!isNaN(n) && n > max) max = n;
+    }
+  }
+  return max;
+}
+
+async function generateTicketNo(token, env, dept) {
+  const DEPT_CODES = {
+    METALS:         '001',
+    ELECTRICAL:     '002',
+    PLASTICS:       '003',
+    LITHO:          '004',
+    'PLASTIC DEC':  '006',
+    QA:             '007',
+    'MACHINE SHOP': '008',
+    'S/R':          '009',
+    SALES:          '030',
+    'G&A':          '031',
+  };
+  const code = DEPT_CODES[(dept || '').toUpperCase().trim()] || '000';
+  const now  = new Date();
+  const yy   = String(now.getFullYear()).slice(2);
+  const mm   = String(now.getMonth() + 1).padStart(2, '0');
+  const dd   = String(now.getDate()).padStart(2, '0');
+  const monthPrefix = `MT-${code}-${yy}${mm}`;
+  const idPrefix    = `MT-${code}-${yy}${mm}${dd}-`;
+  const rows = await readSheet(token, env.SPREADSHEET_ID, SH.MASTER_LOG, 'B2:B');
+  const ids  = rows.map(r => String(r[0] || '').trim());
+  const seq  = maxSeqFor(ids, monthPrefix);
+  if (seq >= 999) throw new Error('Monthly ticket limit (999) reached for this department.');
+  return idPrefix + String(seq + 1).padStart(3, '0');
+}
+
 // ── User / role resolution ────────────────────────────────────────────────────
 
 async function resolveUser(token, env, userEmail) {
@@ -287,7 +327,7 @@ async function handleMe(env, userEmail) {
   const isCorpUser = domain.toLowerCase() === 'cscmfg.com';
   const role = isAdmin ? 'admin' : isManager ? 'manager' : isCorpUser ? 'tech' : 'noaccess';
 
-  if (isAdmin) ownedDepts = ['ELECTRICAL', 'MACHINE SHOP', 'FACILITIES', 'PLASTICS', 'METALS', 'LITHO'];
+  if (isAdmin) ownedDepts = ['METALS','ELECTRICAL','PLASTICS','LITHO','PLASTIC DEC','QA','MACHINE SHOP','S/R','SALES','G&A'];
 
   if (!displayName) {
     displayName = email.split('@')[0]
@@ -1186,19 +1226,25 @@ async function handleFormData(env, userEmail) {
   if (people.length === 0) (lists['Technicians'] || []).forEach(addPerson);
   managerRows.forEach(r => { const n = String(r[0] || '').trim(); if (n) addPerson(n); });
 
-  const departments = ['ELECTRICAL', 'MACHINE SHOP', 'FACILITIES', 'PLASTICS', 'METALS', 'LITHO'];
+  const departments = ['METALS','ELECTRICAL','PLASTICS','LITHO','PLASTIC DEC','QA','MACHINE SHOP','S/R','SALES','G&A'];
 
   let routingRules = [];
   try { routingRules = JSON.parse(config['Routing Override Rules'] || '[]'); } catch { routingRules = []; }
   if (!routingRules.length) routingRules = [
     { keyword: 'ELECTRICAL', matchOn: 'PROBLEM_TYPE', routeTo: 'ELECTRICAL' },
-    { keyword: 'FACILITY',   matchOn: 'EQUIP_DESC',   routeTo: 'FACILITIES' },
   ];
 
   const deptMapping = {
-    'ELECTRICAL':   'ELECTRICAL', 'FACILITIES': 'FACILITIES', 'LITHO': 'LITHO',
-    'MACHINE SHOP': 'MACHINE SHOP', 'METALS': 'METALS', 'PLASTICS': 'PLASTICS',
-    'FACILTIIES': 'FACILITIES', 'METAL': 'METALS', 'PLASTIC': 'PLASTICS',
+    'METALS': 'METALS', 'METAL': 'METALS',
+    'ELECTRICAL': 'ELECTRICAL',
+    'PLASTICS': 'PLASTICS', 'PLASTIC': 'PLASTICS',
+    'LITHO': 'LITHO',
+    'PLASTIC DEC': 'PLASTIC DEC',
+    'QA': 'QA',
+    'MACHINE SHOP': 'MACHINE SHOP', 'M/S': 'MACHINE SHOP',
+    'S/R': 'S/R',
+    'SALES': 'SALES',
+    'G&A': 'G&A',
   };
 
   // Build equipRows (flat, csc-hub style) and equipHierarchy from cache.
@@ -1303,17 +1349,9 @@ async function handleEquipQuickStats(env, userEmail, equipCode) {
 async function handleReserveTicketId(env, userEmail, searchParams) {
   const isTech = (userEmail || '').trim().toLowerCase().endsWith('@cscmfg.com');
   if (!isTech) return jsonResponse({ error: 'Access required' }, 403);
-  const dept = (searchParams.get('dept') || '').toUpperCase().trim();
-  const DEPT_CODES = { ELECTRICAL: 'EL', 'MACHINE SHOP': 'MS', FACILITIES: 'FAC', PLASTICS: 'PL', METALS: 'MTL', LITHO: 'LTH' };
-  const prefix = DEPT_CODES[dept] || 'TK';
-  const now    = new Date();
-  const stamp  = String(now.getFullYear()) +
-                 String(now.getMonth() + 1).padStart(2, '0') +
-                 String(now.getDate()).padStart(2, '0');
-  const ticketNo = prefix + '-' + stamp + '-' +
-                   String(now.getHours()).padStart(2, '0') +
-                   String(now.getMinutes()).padStart(2, '0') +
-                   String(now.getSeconds()).padStart(2, '0');
+  const dept   = (searchParams.get('dept') || '').toUpperCase().trim();
+  const token  = await getAccessToken(env);
+  const ticketNo = await generateTicketNo(token, env, dept);
   return jsonResponse({ ticketNo });
 }
 
@@ -1391,13 +1429,10 @@ async function handleAddTicket(env, userEmail, body) {
   const addedBy    = body.addedBy || user.displayName;
 
   // Use pre-reserved ticketNo if provided (photos were uploaded before this call),
-  // otherwise generate one now from the current timestamp.
-  const DEPT_CODES = { ELECTRICAL: 'EL', 'MACHINE SHOP': 'MS', FACILITIES: 'FAC', PLASTICS: 'PL', METALS: 'MTL', LITHO: 'LTH' };
+  // otherwise generate a sequential ID now (same format as CSC Hub: MT-{code}-{YYMMDD}-{NNN}).
   let ticketNo = String(body.ticketNo || '').trim();
   if (!ticketNo) {
-    const prefix = DEPT_CODES[dept] || 'TK';
-    const stamp  = String(now.getFullYear()) + String(now.getMonth()+1).padStart(2,'0') + String(now.getDate()).padStart(2,'0');
-    ticketNo     = prefix + '-' + stamp + '-' + String(now.getHours()).padStart(2,'0') + String(now.getMinutes()).padStart(2,'0');
+    ticketNo = await generateTicketNo(token, env, dept);
   }
 
   // Build photo cell: join any uploaded Drive links with newline
@@ -1416,7 +1451,7 @@ async function handleAddTicket(env, userEmail, body) {
     isCritical ? 'Critical — bypassed waiting queue' : 'Created → Waiting Queue');
 
   // Determine tracker name
-  const TRACKERS = { ELECTRICAL: 'Electrical', 'MACHINE SHOP': 'Machine Shop', FACILITIES: 'Facilities', PLASTICS: 'Plastics', METALS: 'Metals', LITHO: 'Litho' };
+  const TRACKERS = { METALS: 'Metals', ELECTRICAL: 'Electrical', PLASTICS: 'Plastics', LITHO: 'Litho', 'PLASTIC DEC': 'Plastic Dec', QA: 'QA', 'MACHINE SHOP': 'Machine Shop', 'S/R': 'S/R', SALES: 'Sales', 'G&A': 'G&A' };
   const tracker  = '📋 Tracker — ' + (TRACKERS[dept] || dept);
   return jsonResponse({ success: true, ticketNo, status, tracker });
 }
@@ -2004,7 +2039,7 @@ async function handleEquipCacheStatus(env, userEmail) {
   }
   if (!resolvedSheetId && configSheetUrl.length >= 25 && !/[/ ]/.test(configSheetUrl)) resolvedSheetId = configSheetUrl;
   const configTabName  = config['Equipment Inventory Tab Name'] || '';
-  const canonicalDepts  = ['ELECTRICAL','MACHINE SHOP','FACILITIES','PLASTICS','METALS','LITHO'];
+  const canonicalDepts  = ['METALS','ELECTRICAL','PLASTICS','LITHO','PLASTIC DEC','QA','MACHINE SHOP','S/R','SALES','G&A'];
 
   let cacheRows = 0, parsedItemCount = 0, rawHeaders = [], mappedCols = {}, unmappedHdrs = [];
   let lastRefreshed = 'Never', deptSummary = [];
