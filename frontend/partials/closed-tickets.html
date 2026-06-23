@@ -73,7 +73,7 @@ function _loadClosedPage_(container) {
 }
 
 function _renderClosed_(tickets, container) {
-  _ctData_ = tickets || [];
+  _ctData_ = _asArray_(tickets);
 
   var statuses = [];
   var depts = [];

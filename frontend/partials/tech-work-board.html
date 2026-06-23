@@ -85,8 +85,9 @@ function _loadTechBoard_(container) {
 function _renderTechBoard_(data, container) {
   _twbData_   = data;
   _twbSearch_ = '';
+  data = data || {};
   var isManager = data.isManager;
-  var tickets   = data.tickets || [];
+  var tickets   = _asArray_(data.tickets);
 
   container.innerHTML =
     '<div class="twb-wrap">' +

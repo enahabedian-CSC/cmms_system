@@ -117,9 +117,9 @@ function _loadEquipInventory_(container) {
 }
 
 function _renderEquipInventory_(data, container) {
-  _eiData_   = data;
+  _eiData_   = data || {};
   _eiSearch_ = '';
-  var equip  = data.equipment || [];
+  var equip  = _asArray_(data && data.equipment);
 
   // Summary KPIs across all equipment
   var totalItems   = equip.length;
@@ -221,7 +221,7 @@ function _eiRenderTable_(list) {
 function _eiOpenDetail_(equipCode) {
   if (!equipCode || !_eiData_) return;
   var equip = null;
-  (_eiData_.equipment || []).forEach(function(e) { if (e.code === equipCode) equip = e; });
+  _asArray_(_eiData_ && _eiData_.equipment).forEach(function(e) { if (e.code === equipCode) equip = e; });
   if (!equip) return;
 
   document.getElementById('ei-detail-code').textContent = equip.code || '—';

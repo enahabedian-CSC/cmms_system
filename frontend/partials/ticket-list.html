@@ -63,8 +63,8 @@ function _loadListPage_(queueType, deptFilter, container) {
   fetch(_qtUrl, { headers: { 'X-User-Email': USER ? USER.email : '' } })
     .then(function(r) { return r.json(); })
     .then(function(tickets) {
-      if (tickets.error) throw new Error(tickets.error);
-      _renderList_(tickets, queueType, deptFilter, container);
+      if (tickets && tickets.error) throw new Error(tickets.error);
+      _renderList_(_asArray_(tickets), queueType, deptFilter, container);
     })
     .catch(function(err) {
       container.innerHTML = '<div class="tl-empty">Error loading tickets: ' + esc(String(err.message || err)) + '</div>';

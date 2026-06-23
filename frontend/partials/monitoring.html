@@ -157,7 +157,7 @@ function _loadTfPage_(container) {
 }
 
 function _renderTf_(items, container) {
-  _tfData_ = items || [];
+  _tfData_ = _asArray_(items);
   container.innerHTML =
     '<div class="mon-wrap">' +
     '<div class="mon-toolbar">' +
@@ -456,7 +456,7 @@ function _loadEhlPage_(container, includeCleared) {
 }
 
 function _renderEhl_(items, container) {
-  _ehlData_ = items || [];
+  _ehlData_ = _asArray_(items);
   container.innerHTML =
     '<div class="mon-wrap">' +
     '<div class="mon-toolbar">' +
@@ -666,7 +666,7 @@ function _loadPnPage_(container) {
 }
 
 function _renderPn_(items, container) {
-  _pnData_ = items || [];
+  _pnData_ = _asArray_(items);
 
   container.innerHTML =
     '<div class="mon-wrap">' +
