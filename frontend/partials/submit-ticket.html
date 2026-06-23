@@ -114,7 +114,7 @@
 <script>
 // ── Module state ──────────────────────────────────────────────────────────────
 var _sfData         = null;
-var _sfPriority     = 'MEDIUM';
+var _sfPriority     = 'LOW';
 var _sfEquipCode    = '';
 var _sfEquipSpec    = '';
 var _sfPhotos_      = [];
@@ -126,7 +126,7 @@ var _sfEstHours     = 1;
 window.PAGES = window.PAGES || {};
 
 PAGES['submit'] = function(container) {
-  _sfPriority = 'MEDIUM'; _sfEquipCode = ''; _sfEquipSpec = ''; _sfPhotos_ = [];
+  _sfPriority = 'LOW'; _sfEquipCode = ''; _sfEquipSpec = ''; _sfPhotos_ = [];
   _sfSel = { dept: '', level2: '', level3: '', level4: '' };
   _sfRows = []; _sfResolvedCode = ''; _sfEstHours = 1;
   container.innerHTML = _buildSubmitHTML_();
@@ -178,11 +178,11 @@ function _buildSubmitHTML_() {
       '<div class="sf-section-hdr">' +
         '<div class="sf-step-num">2</div>' +
         '<div class="sf-section-title">Priority</div>' +
-        '<div class="sf-section-sel" id="sf-sel-priority">MEDIUM</div>' +
+        '<div class="sf-section-sel" id="sf-sel-priority">LOW</div>' +
       '</div>' +
       '<div class="priority-grid" id="sf-priority-grid">' +
-        '<div class="priority-card p-low"      id="pcard-LOW"      onclick="selectPriority(\'LOW\')"><div class="p-label">LOW</div><div class="p-sub">Scheduled</div></div>' +
-        '<div class="priority-card p-medium selected" id="pcard-MEDIUM" onclick="selectPriority(\'MEDIUM\')"><div class="p-label">MEDIUM</div><div class="p-sub">Soon</div></div>' +
+        '<div class="priority-card p-low selected" id="pcard-LOW"      onclick="selectPriority(\'LOW\')"><div class="p-label">LOW</div><div class="p-sub">Scheduled</div></div>' +
+        '<div class="priority-card p-medium"     id="pcard-MEDIUM" onclick="selectPriority(\'MEDIUM\')"><div class="p-label">MEDIUM</div><div class="p-sub">Soon</div></div>' +
         '<div class="priority-card p-high"     id="pcard-HIGH"     onclick="selectPriority(\'HIGH\')"><div class="p-label">HIGH</div><div class="p-sub">Urgent</div></div>' +
         '<div class="priority-card p-critical" id="pcard-CRITICAL" onclick="selectPriority(\'CRITICAL\')"><div class="p-label">CRITICAL</div><div class="p-sub">Immediate</div></div>' +
       '</div>' +
@@ -705,7 +705,7 @@ function _sfUpdatePreview_() {
   if (!body) return;
   function val(id) { var e = document.getElementById(id); return e ? e.value : ''; }
 
-  var priority    = _sfPriority || 'MEDIUM';
+  var priority    = _sfPriority || 'LOW';
   var status      = priority === 'CRITICAL' ? 'OPEN' : 'WAITING';
   var equipName   = _sfEquipSpec || _sfSel.level3 || _sfSel.level2 || null;
   var equipCode   = _sfResolvedCode || _sfEquipCode || null;
@@ -937,7 +937,7 @@ function copyTicketNo(tn) {
 }
 
 function submitAnotherTicket() {
-  _sfPriority = 'MEDIUM'; _sfEquipCode = ''; _sfEquipSpec = ''; _sfPhotos_ = [];
+  _sfPriority = 'LOW'; _sfEquipCode = ''; _sfEquipSpec = ''; _sfPhotos_ = [];
   _sfSel = { dept: '', level2: '', level3: '', level4: '' };
   _sfRows = []; _sfResolvedCode = ''; _sfEstHours = 1;
   var container = document.getElementById('page-submit');
