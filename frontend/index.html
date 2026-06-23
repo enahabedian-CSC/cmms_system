@@ -593,6 +593,20 @@ function esc(s) {
   return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 
+// Coerce a list-endpoint response into an array. The deployed Worker may return
+// a bare array (main's contract) or wrap it in an object (e.g. {tickets:[...]}),
+// depending on which Worker build is live. This keeps the list screens working
+// across that version skew instead of throwing "x.slice/forEach is not a function".
+function _asArray_(r) {
+  if (Array.isArray(r)) return r;
+  if (r && typeof r === 'object') {
+    var keys = ['tickets', 'rows', 'data', 'items', 'results', 'records', 'list'];
+    for (var i = 0; i < keys.length; i++) { if (Array.isArray(r[keys[i]])) return r[keys[i]]; }
+    for (var k in r) { if (Array.isArray(r[k])) return r[k]; }
+  }
+  return [];
+}
+
 // ── Home page renderer ────────────────────────────────────────────────────────
 window.PAGES['home'] = function(container) {
   var roleLabel = { admin: 'System Admin', manager: 'Manager', tech: 'Technician' }[USER.role] || USER.role;
