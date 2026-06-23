@@ -454,7 +454,7 @@ async function handleDashboardPanels(env, userEmail) {
     (prioOrder[cellStr(b, ML.PRIORITY).toUpperCase()] ?? 4)
   );
 
-  const attentionItems = [], openTickets = [];
+  const reviewItems = [], verifyItems = [], tempItems = [], openTickets = [];
   const OPEN_STS = new Set(['OPEN', 'PENDING PARTS', 'ON HOLD', 'PENDING VERIFICATION']);
 
   allTickets.forEach(r => {
@@ -467,15 +467,15 @@ async function handleDashboardPanels(env, userEmail) {
     const desc   = cellStr(r, ML.DESCRIPTION);
     const opened = fmtDate(cellDate(r, ML.DATE_OPENED));
 
-    if (status === 'WAITING' && attentionItems.length < 8) {
-      attentionItems.push({
+    if (status === 'WAITING' && reviewItems.length < 8) {
+      reviewItems.push({
         kind: 'review', ticketNo: tn,
         title: equip || desc || tn,
         sub: dept + (code ? ' · ' + code : '') + (prio ? ' · ' + prio + ' priority' : '') + ' — awaiting approval',
         action: 'Approve', pageTarget: 'waiting',
       });
-    } else if (status === 'PENDING VERIFICATION' && attentionItems.length < 8) {
-      attentionItems.push({
+    } else if (status === 'PENDING VERIFICATION' && verifyItems.length < 8) {
+      verifyItems.push({
         kind: 'complete', ticketNo: tn,
         title: equip || desc || tn,
         sub: dept + (code ? ' · ' + code : '') + ' — awaiting your verification & service-report signoff',
@@ -500,16 +500,18 @@ async function handleDashboardPanels(env, userEmail) {
     const dept   = cellStr(r, TF.DEPT);
     if (!tempId || !allowed(user, dept)) return;
     if (cellStr(r, TF.STATUS).toUpperCase() !== 'PAST DUE') return;
-    if (attentionItems.length >= 8) return;
+    if (tempItems.length >= 8) return;
     const equip = cellStr(r, TF.SPECIFIC_EQUIP);
     const due   = fmtDate(cellDate(r, TF.NEXT_DUE));
-    attentionItems.push({
+    tempItems.push({
       kind: 'temp', ticketNo: cellStr(r, TF.TICKET_NO),
       title: tempId + (equip ? ' — ' + equip : ''),
       sub: dept + ' · Temp fix PAST DUE' + (due ? ' (due ' + due + ')' : '') + ' — Maintenance Program 030',
       action: 'Inspect', pageTarget: 'tempfix',
     });
   });
+
+  const attentionItems = [...reviewItems, ...verifyItems, ...tempItems];
 
   // Equipment hold tags
   const holdTags = [];
