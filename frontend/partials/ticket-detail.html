@@ -46,12 +46,21 @@
 .btn-action:hover{filter:brightness(.93);}
 .btn-action:disabled{opacity:.45;cursor:default;}
 
-/* Photo link */
+/* Photo link (kept for backwards compat) */
 .photo-link{display:inline-flex;align-items:center;gap:5px;padding:5px 12px;border-radius:6px;
   background:var(--status-info-bg);border:1px solid var(--status-info);color:var(--status-info);
   font-size:12px;font-weight:600;text-decoration:none;cursor:pointer;margin-right:6px;}
 .photo-link:hover{background:#DBEAFE;text-decoration:none;}
 .photo-link svg{flex-shrink:0;}
+
+/* Photo thumbnail grid */
+.photo-grid{display:flex;flex-wrap:wrap;gap:10px;margin-top:4px;}
+.photo-card{display:inline-flex;flex-direction:column;align-items:center;border:1px solid var(--border-default);border-radius:8px;overflow:hidden;text-decoration:none;background:var(--bg-subtle);transition:box-shadow .15s,border-color .15s;}
+.photo-card:hover{box-shadow:var(--shadow-sm);border-color:var(--brand-navy);}
+.photo-card img{width:160px;height:120px;object-fit:cover;display:block;}
+.photo-card-lbl{font-size:11px;color:var(--brand-navy);font-weight:600;padding:5px 8px;text-align:center;}
+.photo-card--err img{display:none !important;}
+.photo-card--err{width:160px;min-height:96px;justify-content:center;}
 
 /* History timeline */
 .th-list{list-style:none;margin:0;padding:0;}
@@ -285,13 +294,7 @@ function _renderDetail_(result) {
     (t.photoUrl ? (
     '<div class="td-section">' +
       '<div class="td-section-title">Photo</div>' +
-      '<div style="display:flex;align-items:center;gap:10px;">' +
-        '<a href="' + esc(t.photoUrl) + '" target="_blank" rel="noopener" style="display:inline-flex;align-items:center;gap:7px;padding:7px 14px;background:var(--bg-subtle);border:1px solid var(--border-default);border-radius:6px;font-size:12.5px;font-weight:600;color:var(--brand-navy);text-decoration:none;" title="View attached photo">' +
-          '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>' +
-          'View Photo' +
-        '</a>' +
-        '<span style="font-size:11.5px;color:var(--text-tertiary);word-break:break-all;">' + esc(t.photoUrl) + '</span>' +
-      '</div>' +
+      _renderPhotoGrid_([t.photoUrl]) +
     '</div>') : '') +
 
     (t.sqfChecklist ? (
@@ -938,20 +941,34 @@ function _parsePhotoLinks_(raw) {
   return { text: raw, urls: [] };
 }
 
+function _driveThumbUrl_(url, sz) {
+  sz = sz || 'w300';
+  var m = (url || '').match(/\/d\/([a-zA-Z0-9_-]+)/);
+  if (!m) m = (url || '').match(/[?&]id=([a-zA-Z0-9_-]+)/);
+  if (m) return 'https://drive.google.com/thumbnail?id=' + m[1] + '&sz=' + sz;
+  return url;
+}
+
+function _renderPhotoGrid_(urls) {
+  return '<div class="photo-grid">' +
+    urls.map(function(url, i) {
+      var label = urls.length > 1 ? 'Photo ' + (i + 1) : 'View Photo';
+      var thumb = _driveThumbUrl_(url);
+      return '<a href="' + esc(url) + '" target="_blank" rel="noopener" class="photo-card" title="' + esc(label) + '">' +
+        '<img src="' + esc(thumb) + '" alt="' + esc(label) + '" loading="lazy" ' +
+        'onerror="this.parentNode.classList.add(\'photo-card--err\')" />' +
+        '<span class="photo-card-lbl">' + esc(label) + '</span>' +
+      '</a>';
+    }).join('') +
+  '</div>';
+}
+
 function _renderNotes_(raw) {
   var parsed = _parsePhotoLinks_(raw);
   var out = '';
   if (parsed.urls.length > 0) {
-    var cameraIcon =
-      '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">' +
-      '<path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z"/>' +
-      '<circle cx="12" cy="13" r="4"/></svg>';
-    var links = parsed.urls.map(function(url, i) {
-      var label = parsed.urls.length > 1 ? 'Photo ' + (i + 1) : 'View Photo';
-      return '<a href="' + url + '" target="_blank" rel="noopener" class="photo-link">' +
-        cameraIcon + label + '</a>';
-    }).join('');
-    out += '<div class="td-field"><label>Photos</label><div class="val">' + links + '</div></div>';
+    var photoLbl = parsed.urls.length > 1 ? 'Photos (' + parsed.urls.length + ')' : 'Photo';
+    out += '<div class="td-field"><label>' + photoLbl + '</label>' + _renderPhotoGrid_(parsed.urls) + '</div>';
   }
   if (parsed.text) {
     out += '<div class="td-field"><label>Notes / Observations</label>' +
