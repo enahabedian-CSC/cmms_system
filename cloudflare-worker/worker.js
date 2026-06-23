@@ -1630,12 +1630,36 @@ async function handleApproveTicket(env, userEmail, body) {
   return jsonResponse({ success: true, ticketNo });
 }
 
+// Collapse a ticket's latest state from the Master Log (last non-empty per col).
+async function _ticketState_(token, env, ticketNo) {
+  const rows = (await readSheet(token, env.SPREADSHEET_ID, SH.MASTER_LOG, 'A2:AT'))
+    .filter(r => cellStr(r, ML.TICKET_NO) === ticketNo);
+  if (!rows.length) return null;
+  const best = rows[0].slice();
+  for (let i = 1; i < rows.length; i++) rows[i].forEach((v, c) => { if (v != null && v !== '') best[c] = v; });
+  return best;
+}
+function _normDepts_(s) {
+  return String(s || '').split(',').map(d => d.trim().toUpperCase()).filter(Boolean);
+}
+
 async function handleCompleteTicket(env, userEmail, body) {
   const token = await getAccessToken(env);
   const user  = await resolveUser(token, env, userEmail);
   if (!user.isManager) return jsonResponse({ error: 'Manager access required' }, 403);
   const ticketNo  = String(body.ticketNo  || '').trim();
   if (!ticketNo) return jsonResponse({ error: 'ticketNo required' }, 400);
+
+  // Two-step joint workflow: the fixer dept (a JOINT_DEPTS member) performs the
+  // repair + CAPA on a joint ticket; on a single-dept ticket the owner does it.
+  const best = await _ticketState_(token, env, ticketNo);
+  if (!best) return jsonResponse({ error: 'Ticket not found: ' + ticketNo }, 404);
+  const owner = String(cellStr(best, ML.DEPT)).toUpperCase().trim();
+  const joint = _normDepts_(cellStr(best, ML.JOINT_DEPTS));
+  const mine  = (user.ownedDepts || []).map(d => d.toUpperCase().trim());
+  const canWork = user.isAdmin || (joint.length ? joint.some(d => mine.indexOf(d) >= 0) : mine.indexOf(owner) >= 0);
+  if (!canWork) return jsonResponse({ error: 'On a joint ticket, only the assigned (fixer) department can mark work complete.' }, 403);
+
   const updatedBy = String(body.updatedBy || user.displayName).trim();
   await appendMasterLog(token, env, {
     ticketNo, now: new Date(), action: 'WORK COMPLETE', status: 'PENDING VERIFICATION',
@@ -1669,12 +1693,26 @@ async function handleVerifyClose(env, userEmail, body) {
     return jsonResponse({ error: 'Verification checklist incomplete — all four items (work summary, root cause, corrective action, sanitation / food-safety) must be confirmed before closing.' }, 400);
   }
 
+  // Two-step joint workflow: only the owning department (the dept that opened the
+  // ticket) verifies cleaning/sanitation and closes — on joint tickets the fixer
+  // dept cannot self-close their own work.
+  const best = await _ticketState_(token, env, ticketNo);
+  if (!best) return jsonResponse({ error: 'Ticket not found: ' + ticketNo }, 404);
+  const owner = String(cellStr(best, ML.DEPT)).toUpperCase().trim();
+  const mine  = (user.ownedDepts || []).map(d => d.toUpperCase().trim());
+  if (!(user.isAdmin || mine.indexOf(owner) >= 0)) {
+    return jsonResponse({ error: 'Only the owning department (' + owner + ') can verify & close this ticket.' }, 403);
+  }
+
   const updatedBy = String(body.updatedBy || user.displayName).trim();
   const now       = new Date();
   await appendMasterLog(token, env, {
     ticketNo, now, action: 'VERIFIED & CLOSED', status: 'CLOSED',
     verifiedBy: body.verifiedBy || updatedBy, verifiedDate: fmtDate(now),
     dateClosed: fmtDate(now), sqfChecklist: body.sqfChecklist || '',
+    // Owner's Post-Repair Clearance confirmation (SQF 2.14.3)
+    clrToolsRemoved: body.clrToolsRemoved || '', clrAreaClean: body.clrAreaClean || '',
+    clrQaRequired: body.clrQaRequired || '',
     updatedBy, notes: body.notes || '',
   });
   await appendTicketHistory(token, env, ticketNo, 'VERIFIED & CLOSED', 'PENDING VERIFICATION', 'CLOSED', updatedBy, body.notes || '');
@@ -1766,12 +1804,18 @@ async function handleTransferTicket(env, userEmail, body) {
   if (!ticketNo) return jsonResponse({ error: 'ticketNo required' }, 400);
   if (!toDept)   return jsonResponse({ error: 'toDept required' }, 400);
   const updatedBy = String(body.updatedBy || user.displayName).trim();
+  // Joint tickets replace transfers: add the dept to JOINT_DEPTS immediately so
+  // both departments have visibility for the whole lifecycle (no pending hand-off,
+  // and append-only logs can't reliably clear a pending field anyway).
+  const best  = await _ticketState_(token, env, ticketNo);
+  const joint = best ? _normDepts_(cellStr(best, ML.JOINT_DEPTS)) : [];
+  if (joint.indexOf(toDept) < 0) joint.push(toDept);
   await appendMasterLog(token, env, {
-    ticketNo, now: new Date(), action: 'JOINT ATTACHMENT SENT',
-    pendingJointDepts: toDept, updatedBy, notes: body.reason || '',
+    ticketNo, now: new Date(), action: 'JOINT DEPT ADDED',
+    jointDepts: joint.join(', '), updatedBy, notes: body.reason || '',
   });
-  await appendTicketHistory(token, env, ticketNo, 'JOINT ATTACHMENT SENT', '', '', updatedBy,
-    'Attachment request sent to ' + toDept + (body.reason ? ': ' + body.reason : ''));
+  await appendTicketHistory(token, env, ticketNo, 'JOINT DEPT ADDED', '', '', updatedBy,
+    'Joint department added: ' + toDept + (body.reason ? ' — ' + body.reason : ''));
   return jsonResponse({ success: true, ticketNo });
 }
 
