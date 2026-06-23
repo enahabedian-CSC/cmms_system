@@ -90,9 +90,9 @@ function _loadListPage_(queueType, deptFilter, container) {
 
 // Maps tracker dept → formal display title matching PAGE_TITLES in index.html
 var _TRACKER_TITLES_ = {
-  'METALS':       'Metals Tracker',
+  'METAL':        'Metal Tracker',
   'ELECTRICAL':   'Electrical Tracker',
-  'PLASTICS':     'Plastics Tracker',
+  'PLASTIC':      'Plastic Tracker',
   'LITHO':        'Litho Tracker',
   'PLASTIC DEC':  'Plastic Dec Tracker',
   'QA':           'QA Tracker',
@@ -639,9 +639,9 @@ PAGES['open']    = function(c) { _loadListPage_('open',    null, c); };
 // Tracker pages registered for all depts (nav only shows owned depts,
 // but all are registered so deep-linking works without role checks on the client).
 var _TRACKER_DEPTS_ = [
-  { id: 'tracker-metals',       dept: 'METALS'       },
+  { id: 'tracker-metal',        dept: 'METAL'        },
   { id: 'tracker-electrical',   dept: 'ELECTRICAL'   },
-  { id: 'tracker-plastics',     dept: 'PLASTICS'     },
+  { id: 'tracker-plastic',      dept: 'PLASTIC'      },
   { id: 'tracker-litho',        dept: 'LITHO'        },
   { id: 'tracker-plastic-dec',  dept: 'PLASTIC DEC'  },
   { id: 'tracker-qa',           dept: 'QA'           },

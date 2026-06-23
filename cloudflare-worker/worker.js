@@ -232,9 +232,9 @@ function maxSeqFor(ids, monthPrefix) {
 
 async function generateTicketNo(token, env, dept) {
   const DEPT_CODES = {
-    METALS:         '001',
+    METAL:          '001',
     ELECTRICAL:     '002',
-    PLASTICS:       '003',
+    PLASTIC:        '003',
     LITHO:          '004',
     'PLASTIC DEC':  '006',
     QA:             '007',
@@ -327,7 +327,7 @@ async function handleMe(env, userEmail) {
   const isCorpUser = domain.toLowerCase() === 'cscmfg.com';
   const role = isAdmin ? 'admin' : isManager ? 'manager' : isCorpUser ? 'tech' : 'noaccess';
 
-  if (isAdmin) ownedDepts = ['METALS','ELECTRICAL','PLASTICS','LITHO','PLASTIC DEC','QA','MACHINE SHOP','S/R','SALES','G&A'];
+  if (isAdmin) ownedDepts = ['METAL','ELECTRICAL','PLASTIC','LITHO','PLASTIC DEC','QA','MACHINE SHOP','S/R','SALES','G&A'];
 
   if (!displayName) {
     displayName = email.split('@')[0]
@@ -1228,7 +1228,7 @@ async function handleFormData(env, userEmail) {
   if (people.length === 0) (lists['Technicians'] || []).forEach(addPerson);
   managerRows.forEach(r => { const n = String(r[0] || '').trim(); if (n) addPerson(n); });
 
-  const departments = ['METALS','ELECTRICAL','PLASTICS','LITHO','PLASTIC DEC','QA','MACHINE SHOP','S/R','SALES','G&A'];
+  const departments = ['METAL','ELECTRICAL','PLASTIC','LITHO','PLASTIC DEC','QA','MACHINE SHOP','S/R','SALES','G&A'];
 
   let routingRules = [];
   try { routingRules = JSON.parse(config['Routing Override Rules'] || '[]'); } catch { routingRules = []; }
@@ -1237,9 +1237,9 @@ async function handleFormData(env, userEmail) {
   ];
 
   const deptMapping = {
-    'METALS': 'METALS', 'METAL': 'METALS',
+    'METAL': 'METAL', 'METALS': 'METAL',
     'ELECTRICAL': 'ELECTRICAL',
-    'PLASTICS': 'PLASTICS', 'PLASTIC': 'PLASTICS',
+    'PLASTIC': 'PLASTIC', 'PLASTICS': 'PLASTIC',
     'LITHO': 'LITHO',
     'PLASTIC DEC': 'PLASTIC DEC',
     'QA': 'QA',
@@ -1453,7 +1453,7 @@ async function handleAddTicket(env, userEmail, body) {
     isCritical ? 'Critical — bypassed waiting queue' : 'Created → Waiting Queue');
 
   // Determine tracker name
-  const TRACKERS = { METALS: 'Metals', ELECTRICAL: 'Electrical', PLASTICS: 'Plastics', LITHO: 'Litho', 'PLASTIC DEC': 'Plastic Dec', QA: 'QA', 'MACHINE SHOP': 'Machine Shop', 'S/R': 'S/R', SALES: 'Sales', 'G&A': 'G&A' };
+  const TRACKERS = { METAL: 'Metal', ELECTRICAL: 'Electrical', PLASTIC: 'Plastic', LITHO: 'Litho', 'PLASTIC DEC': 'Plastic Dec', QA: 'QA', 'MACHINE SHOP': 'Machine Shop', 'S/R': 'S/R', SALES: 'Sales', 'G&A': 'G&A' };
   const tracker  = '📋 Tracker — ' + (TRACKERS[dept] || dept);
   return jsonResponse({ success: true, ticketNo, status, tracker });
 }
@@ -2041,7 +2041,7 @@ async function handleEquipCacheStatus(env, userEmail) {
   }
   if (!resolvedSheetId && configSheetUrl.length >= 25 && !/[/ ]/.test(configSheetUrl)) resolvedSheetId = configSheetUrl;
   const configTabName  = config['Equipment Inventory Tab Name'] || '';
-  const canonicalDepts  = ['METALS','ELECTRICAL','PLASTICS','LITHO','PLASTIC DEC','QA','MACHINE SHOP','S/R','SALES','G&A'];
+  const canonicalDepts  = ['METAL','ELECTRICAL','PLASTIC','LITHO','PLASTIC DEC','QA','MACHINE SHOP','S/R','SALES','G&A'];
 
   let cacheRows = 0, parsedItemCount = 0, rawHeaders = [], mappedCols = {}, unmappedHdrs = [];
   let lastRefreshed = 'Never', deptSummary = [];
