@@ -86,26 +86,36 @@ const SH = {
 // Cache tab layout: row 4 = headers (A4), row 5+ = data.  Always read from A4.
 // Matching strategy: exact lowercase match (same as GAS indexOf approach).
 const EQUIP_COL_MAP = {
-  dept:     ['department','dept','dept.','department name','dept name',
-             'area','division','plant','facility','location','cost center',
-             'work center','workcenter','shop','building'],
-  eType:    ['equipment type','equip type','type','asset type','machine type',
-             'category','class','equipment class','asset class','object type',
-             'machine class'],
-  code:     ['equipment code','equip code','code','asset code',
-             'job #','job no','job no.','job number',
-             'id','asset id','asset #','asset no','asset no.','asset number',
-             'machine code','machine #','machine id','machine no','machine no.',
-             'equip id','equip #','equip no','equip no.','equip number',
-             'equipment #','equipment id','equipment no','equipment no.',
-             'equipment number','plant no','plant #','plant no.','no.','number',
-             'serial','serial #','serial no','serial number'],
-  specific: ['specific equipment','equipment name','name','description',
-             'asset name','equipment description','machine name','equip name',
-             'item','item name','equipment','machine','asset description',
-             'short text','desc','long description','full name','title'],
-  status:   ['status','active','state','asset status','equip status',
-             'condition','in service','active/inactive'],
+  dept:        ['department','dept','dept.','department name','dept name',
+                'area','division','plant','facility','location','cost center',
+                'work center','workcenter','shop','building'],
+  deptCode:    ['dept code','dept. code','deptcode','department code','dept cd',
+                'dept_code','dpt code','dptcode'],
+  line:        ['line #','line#','line','section','line number','line no','line no.',
+                'line num','production line','prod line','cell','work cell'],
+  eType:       ['equipment type','equip type','type','asset type','machine type',
+                'category','class','equipment class','asset class','object type',
+                'machine class'],
+  code:        ['equipment code','equip code','code','asset code',
+                'job #','job no','job no.','job number',
+                'id','asset id','asset #','asset no','asset no.','asset number',
+                'machine code','machine #','machine id','machine no','machine no.',
+                'equip id','equip #','equip no','equip no.','equip number',
+                'equipment #','equipment id','equipment no','equipment no.',
+                'equipment number','plant no','plant #','plant no.','no.','number',
+                'serial','serial #','serial no','serial number'],
+  specific:    ['specific equipment','equipment name','name','description',
+                'asset name','equipment description','machine name','equip name',
+                'item','item name','equipment','machine','asset description',
+                'short text','desc','long description','full name','title'],
+  status:      ['status','active','state','asset status','equip status',
+                'condition','in service','active/inactive'],
+  installDate: ['installation date','install date','date installed','installed',
+                'commission date','commissioned','in service date'],
+  retiredDate: ['retired date','retire date','decommission date','decommissioned',
+                'retired','end date','removal date','out of service date'],
+  notes:       ['additional notes','notes','note','comments','comment',
+                'remarks','remark','memo'],
 };
 
 // Build colIdx map from a header row array (0-based indices, exact match).
@@ -1113,7 +1123,7 @@ async function handleQueueTickets(env, userEmail, queueType, deptFilter) {
 
   const mlRows = await readSheet(token, env.SPREADSHEET_ID, SH.MASTER_LOG, 'A2:AQ');
   const tickets = mergeAndFilter(mlRows, statusFilter, deptFilter || null);
-  return jsonResponse(tickets.slice(0, 500));
+  return jsonResponse({ tickets: tickets.slice(0, 500), userOwnedDepts: user.ownedDepts || [] });
 }
 
 async function handleTicketDetail(env, userEmail, ticketNo) {
@@ -1244,7 +1254,7 @@ async function handleClosedTickets(env, userEmail) {
 
   tickets.sort((a, b) => b._closeTs - a._closeTs);
   tickets.forEach(t => delete t._closeTs);
-  return jsonResponse(tickets.slice(0, 500));
+  return jsonResponse({ tickets: tickets.slice(0, 500), userOwnedDepts: user.ownedDepts || [] });
 }
 
 async function handleEquipTicketHistory(env, userEmail, equipCode) {
@@ -1341,11 +1351,13 @@ async function handleFormData(env, userEmail) {
     'FACILTIIES': 'FACILITIES', 'METAL': 'METALS', 'PLASTIC': 'PLASTICS',
   };
 
-  // Build equipHierarchy from the Equipment Inventory Cache tab.
-  // We read from A4 so cacheData[0] = header row, cacheData[1+] = data rows.
+  // Build equipRows (flat, csc-hub style) and equipHierarchy from cache.
+  // cacheData[0] = header row, cacheData[1+] = data rows (read from A4).
   const equipHierarchy = {};
+  const equipRows      = [];
   if (cacheData.length > 1) {
-    const colIdx = buildEquipColIdx(cacheData[0] || []);
+    const colIdx  = buildEquipColIdx(cacheData[0] || []);
+    const seenKeys = new Set();
     for (let i = 1; i < cacheData.length; i++) {
       const row = cacheData[i]; if (!row || !row.length) continue;
       const col = k => colIdx[k] !== undefined ? String(row[colIdx[k]] || '').trim() : '';
@@ -1354,12 +1366,34 @@ async function handleFormData(env, userEmail) {
       const rawDept = col('dept').toUpperCase();
       const code    = col('code');
       if (!rawDept || !code) continue;
-      const dept  = deptMapping[rawDept] || rawDept;
-      const eType = col('eType') || 'Other';
-      const name  = col('specific') || code;
+      const dept   = deptMapping[rawDept] || rawDept;
+      const eType  = col('eType') || 'Other';
+      const name   = col('specific') || code;
+      // Legacy nested hierarchy (kept for backwards compat)
       if (!equipHierarchy[dept]) equipHierarchy[dept] = {};
       if (!equipHierarchy[dept][eType]) equipHierarchy[dept][eType] = [];
       equipHierarchy[dept][eType].push({ code, name });
+      // Flat rows for csc-hub-style cascading button grid
+      // Level order: dept → Line # (section) → eType → specific name
+      // If no Line # on the row, fall back to: dept → eType → specific name
+      const deptCode = col('deptCode') || '';
+      const line     = col('line')     || '';
+      const specific = col('specific') || '';
+      let level2, level3, level4;
+      if (line) {
+        level2 = line;
+        level3 = eType || specific || code;
+        level4 = eType ? (specific || '') : '';
+      } else {
+        level2 = eType || '';
+        level3 = specific || code;
+        level4 = '';
+      }
+      const rowKey  = dept + '|' + level2 + '|' + level3 + '|' + level4 + '|' + code;
+      if (!seenKeys.has(rowKey)) {
+        seenKeys.add(rowKey);
+        equipRows.push({ dept, deptCode, level2, level3, level4, code });
+      }
     }
   }
 
@@ -1369,6 +1403,7 @@ async function handleFormData(env, userEmail) {
     revision:       config['Revision'] || '0',
     departments,
     equipHierarchy,
+    equipRows,
     buildingZones:  lists['Building / Zone'] || [],
     priorities:     lists['Priorities'] || ['LOW', 'MEDIUM', 'HIGH', 'CRITICAL'],
     problemTypes:   lists['Problem Types'] || [],
@@ -2422,7 +2457,7 @@ async function handleTechWorkBoard(env, userEmail) {
     const pa = prioOrder[a.priority] ?? 4, pb = prioOrder[b.priority] ?? 4;
     return pa !== pb ? pa - pb : (b.dateOpened || '').localeCompare(a.dateOpened || '');
   });
-  return jsonResponse({ isManager: user.isManager, userDisplayName: user.displayName, tickets });
+  return jsonResponse({ isManager: user.isManager, userDisplayName: user.displayName, tickets, userOwnedDepts: user.ownedDepts || [] });
 }
 
 // ── Equipment inventory handler ───────────────────────────────────────────────

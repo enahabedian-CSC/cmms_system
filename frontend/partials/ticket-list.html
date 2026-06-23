@@ -49,6 +49,21 @@
 .tl-card-title{font-size:13px;font-weight:700;color:var(--text-primary);flex:1;}
 .tl-card-sub{font-size:11px;color:var(--text-secondary);}
 .tl-watch-empty{padding:24px 16px;text-align:center;color:var(--text-secondary);font-size:12px;}
+/* ── Filter panel (shared across all ticket views) ───────────────────── */
+.fp-toggle{height:30px;padding:0 12px;border:1px solid var(--border-default);border-radius:6px;background:#fff;font-size:12px;cursor:pointer;color:var(--text-secondary);display:inline-flex;align-items:center;gap:5px;white-space:nowrap;}
+.fp-toggle.fp-active{border-color:var(--brand-navy);color:var(--brand-navy);background:rgba(0,31,79,.06);}
+.fp-badge{display:inline-flex;align-items:center;justify-content:center;min-width:16px;height:16px;border-radius:8px;background:var(--brand-navy);color:#fff;font-size:9px;font-weight:700;padding:0 3px;}
+.fp-bar{background:var(--bg-subtle);border:1px solid var(--border-default);border-radius:8px;padding:12px 16px;margin-bottom:14px;display:none;}
+.fp-bar.fp-open{display:block;}
+.fp-row{display:flex;flex-wrap:wrap;gap:20px;align-items:flex-start;}
+.fp-group{display:flex;flex-direction:column;gap:6px;}
+.fp-glabel{font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--text-secondary);}
+.fp-checks{display:flex;flex-wrap:wrap;gap:4px;}
+.fp-chip{display:inline-flex;align-items:center;gap:4px;padding:3px 8px;border:1px solid var(--border-default);border-radius:4px;font-size:12px;cursor:pointer;user-select:none;background:#fff;color:var(--text-primary);transition:border-color .1s,background .1s;}
+.fp-chip input[type=checkbox]{width:12px;height:12px;cursor:pointer;margin:0;accent-color:var(--brand-navy);}
+.fp-chip.fp-checked{border-color:var(--brand-navy);background:rgba(0,31,79,.07);color:var(--brand-navy);font-weight:600;}
+.fp-reset{font-size:11px;color:var(--brand-navy);background:none;border:none;padding:0;cursor:pointer;text-decoration:underline;align-self:flex-start;margin-top:2px;}
+.fp-atsel{height:28px;padding:0 8px;border:1px solid var(--border-default);border-radius:4px;font-size:12px;background:#fff;color:var(--text-primary);outline:none;min-width:120px;}
 </style>
 
 <script>
@@ -62,9 +77,11 @@ function _loadListPage_(queueType, deptFilter, container) {
                  (deptFilter ? '&dept=' + encodeURIComponent(deptFilter) : '');
   fetch(_qtUrl, { headers: { 'X-User-Email': USER ? USER.email : '' } })
     .then(function(r) { return r.json(); })
-    .then(function(tickets) {
-      if (tickets && tickets.error) throw new Error(tickets.error);
-      _renderList_(_asArray_(tickets), queueType, deptFilter, container);
+    .then(function(data) {
+      var tickets        = Array.isArray(data) ? data : (data.tickets || []);
+      var userOwnedDepts = Array.isArray(data) ? [] : (data.userOwnedDepts || []);
+      if (data.error) throw new Error(data.error);
+      _renderList_(tickets, queueType, deptFilter, container, userOwnedDepts);
     })
     .catch(function(err) {
       container.innerHTML = '<div class="tl-empty">Error loading tickets: ' + esc(String(err.message || err)) + '</div>';
@@ -122,59 +139,100 @@ function _tlSortBy_(group, field) {
   _tlFilter_(group);
 }
 
-function _renderList_(tickets, queueType, deptFilter, container) {
+function _renderList_(tickets, queueType, deptFilter, container, userOwnedDepts) {
+  userOwnedDepts = userOwnedDepts || [];
+
   var title = queueType === 'waiting' ? 'Waiting Queue'
             : queueType === 'open'    ? 'Open Tickets'
             : queueType === 'tracker' ? (_TRACKER_TITLES_[deptFilter] || (deptFilter ? deptFilter.charAt(0) + deptFilter.slice(1).toLowerCase() + ' Tracker' : 'Dept Tracker'))
             : (deptFilter || 'Dept Tracker');
+
+  // Build unique depts and statuses from data
+  var allDepts = [], allStas = [];
+  tickets.forEach(function(t) {
+    if (t.dept   && allDepts.indexOf(t.dept)   < 0) allDepts.push(t.dept);
+    if (t.status && allStas.indexOf(t.status) < 0) allStas.push(t.status);
+  });
+  allDepts.sort(); allStas.sort();
+
+  // Normalize owned depts for comparison; fallback = all depts
+  var normOwned    = userOwnedDepts.map(function(d) { return d.toUpperCase().trim(); });
+  var defaultDepts = normOwned.length ? normOwned : allDepts.map(function(d) { return d.toUpperCase().trim(); });
+
+  // Dept filter panel only when there are multiple depts and not already dept-scoped
+  var showDeptFP = allDepts.length > 1 && queueType !== 'tracker';
 
   // For tracker: split primary-owned vs joint vs pending-joint tickets
   var myTickets      = queueType === 'tracker' ? tickets.filter(function(t) { return !t.isJoint && !t.isPendingJoint; }) : tickets;
   var jointTickets   = queueType === 'tracker' ? tickets.filter(function(t) { return  t.isJoint; }) : [];
   var pendingTickets = queueType === 'tracker' ? tickets.filter(function(t) { return  t.isPendingJoint; }) : [];
 
-  // Build filter state
   var _filtered = tickets.slice();
+  var qt = queueType;
 
   function applyFilters() {
-    var q   = document.getElementById('tl-search-' + queueType);
-    var pf  = document.getElementById('tl-pri-' + queueType);
-    var sf  = document.getElementById('tl-sta-' + queueType);
-    var qv  = q  ? q.value.toLowerCase()  : '';
-    var pfv = pf ? pf.value.toUpperCase() : '';
-    var sfv = sf ? sf.value.toUpperCase() : '';
-    var matchFn = function(t) {
-      if (pfv && t.priority !== pfv) return false;
-      if (sfv && t.status   !== sfv) return false;
+    var q = document.getElementById('tl-search-' + qt);
+    var qv = q ? q.value.toLowerCase() : '';
+
+    var deptCbs = document.querySelectorAll('.fp-cb-dept[data-fp="' + qt + '"]');
+    var priCbs  = document.querySelectorAll('.fp-cb-pri[data-fp="'  + qt + '"]');
+    var staCbs  = document.querySelectorAll('.fp-cb-sta[data-fp="'  + qt + '"]');
+
+    var checkedDepts = [], checkedPris = [], checkedStas = [];
+    deptCbs.forEach(function(cb) { if (cb.checked) checkedDepts.push(cb.value.toUpperCase().trim()); });
+    priCbs.forEach(function(cb)  { if (cb.checked) checkedPris.push(cb.value); });
+    staCbs.forEach(function(cb)  { if (cb.checked) checkedStas.push(cb.value); });
+
+    _filtered = tickets.filter(function(t) {
+      if (checkedDepts.length && checkedDepts.indexOf((t.dept || '').toUpperCase().trim()) < 0) return false;
+      if (checkedPris.length  && checkedPris.indexOf(t.priority) < 0) return false;
+      if (checkedStas.length  && checkedStas.indexOf(t.status)   < 0) return false;
       if (qv) {
         var hay = (t.ticketNo + ' ' + t.specificEquip + ' ' + t.description + ' ' +
                    t.assignedTo + ' ' + t.dept + ' ' + t.equipCode + ' ' + t.addedBy).toLowerCase();
         if (hay.indexOf(qv) < 0) return false;
       }
       return true;
-    };
-    _filtered = tickets.filter(matchFn);
-    var _ss = _tlSortState_[queueType];
+    });
+
+    var _ss     = _tlSortState_[qt];
     var _sorted = _ss && _ss.field ? _tlSorted_(_filtered, _ss.field, _ss.dir) : _filtered;
-    if (queueType === 'tracker') {
-      renderRows(_sorted.filter(function(t) { return !t.isJoint && !t.isPendingJoint; }), 'tl-tbody-tracker-my',      false);
-      renderRows(_sorted.filter(function(t) { return  t.isJoint; }),                      'tl-tbody-tracker-joint',   true);
-      renderPendingRows(_sorted.filter(function(t) { return t.isPendingJoint; }),          'tl-tbody-tracker-pending');
-      var cntEl = document.getElementById('tl-cnt-' + queueType);
+
+    if (qt === 'tracker') {
+      var myF      = _sorted.filter(function(t) { return !t.isJoint && !t.isPendingJoint; });
+      var jointF   = _sorted.filter(function(t) { return  t.isJoint; });
+      var pendingF = _sorted.filter(function(t) { return  t.isPendingJoint; });
+      renderRows(myF,      'tl-tbody-tracker-my',      false);
+      renderRows(jointF,   'tl-tbody-tracker-joint',   true);
+      renderPendingRows(pendingF, 'tl-tbody-tracker-pending');
+      var cntEl = document.getElementById('tl-cnt-' + qt);
       if (cntEl) cntEl.textContent = _sorted.length + ' ticket' + (_sorted.length !== 1 ? 's' : '');
+      var jCard  = document.getElementById('tl-joint-card');
+      var pjCard = document.getElementById('tl-pending-joint-card');
+      if (jCard)  jCard.style.display  = jointF.length   > 0 ? '' : 'none';
+      if (pjCard) pjCard.style.display = pendingF.length > 0 ? '' : 'none';
     } else {
       renderRows(_sorted);
     }
+
+    // Update filter toggle badge
+    var nActive = 0;
+    if (deptCbs.length && checkedDepts.length < deptCbs.length)              nActive++;
+    if (checkedPris.length > 0 && checkedPris.length < 4)                   nActive++;
+    if (staCbs.length && checkedStas.length < staCbs.length)                nActive++;
+    if (qv)                                                       nActive++;
+    var btn   = document.getElementById('fp-toggle-' + qt);
+    var badge = document.getElementById('fp-badge-'  + qt);
+    if (btn)   btn.classList.toggle('fp-active', nActive > 0);
+    if (badge) { badge.textContent = nActive; badge.style.display = nActive > 0 ? '' : 'none'; }
   }
 
-  // tbodyId: optional override for the tbody element id.
-  // showDept: optional bool to force-show/hide the Dept column (null = auto).
   function renderRows(list, tbodyId, showDept) {
-    var tbody = document.getElementById(tbodyId || ('tl-tbody-' + queueType));
+    var tbody = document.getElementById(tbodyId || ('tl-tbody-' + qt));
     if (!tbody) return;
-    var deptCol = (showDept !== undefined && showDept !== null) ? showDept : (queueType !== 'tracker');
+    var deptCol = (showDept !== undefined && showDept !== null) ? showDept : (qt !== 'tracker');
     if (!tbodyId) {
-      var cntEl = document.getElementById('tl-cnt-' + queueType);
+      var cntEl = document.getElementById('tl-cnt-' + qt);
       if (cntEl) cntEl.textContent = list.length + ' ticket' + (list.length !== 1 ? 's' : '');
     }
     var colSpan = deptCol ? 8 : 7;
@@ -201,47 +259,97 @@ function _renderList_(tickets, queueType, deptFilter, container) {
     }).join('');
   }
 
-  // Collect unique status values for filter
-  var statuses = [];
-  tickets.forEach(function(t) { if (statuses.indexOf(t.status) < 0) statuses.push(t.status); });
+  var showDept = qt !== 'tracker';
 
-  var showDept = queueType !== 'tracker';
+  // Build filter panel HTML
+  function buildDeptChips() {
+    return allDepts.map(function(d) {
+      var checked = defaultDepts.indexOf(d.toUpperCase().trim()) >= 0;
+      return '<label class="fp-chip' + (checked ? ' fp-checked' : '') + '">' +
+        '<input type="checkbox" value="' + esc(d) + '" data-fp="' + qt + '" class="fp-cb-dept"' +
+        (checked ? ' checked' : '') + ' onchange="_fpChip_(this);_tlFilter_(\'' + qt + '\')">' +
+        esc(d) + '</label>';
+    }).join('');
+  }
+
+  function buildPriChips() {
+    return ['CRITICAL','HIGH','MEDIUM','LOW'].map(function(p) {
+      return '<label class="fp-chip">' +
+        '<input type="checkbox" value="' + p + '" data-fp="' + qt + '" class="fp-cb-pri"' +
+        ' onchange="_fpChip_(this);_tlFilter_(\'' + qt + '\')">' +
+        p + '</label>';
+    }).join('');
+  }
+
+  function buildStaChips() {
+    return allStas.map(function(s) {
+      return '<label class="fp-chip fp-checked">' +
+        '<input type="checkbox" value="' + esc(s) + '" data-fp="' + qt + '" class="fp-cb-sta" checked' +
+        ' onchange="_fpChip_(this);_tlFilter_(\'' + qt + '\')">' +
+        esc(s) + '</label>';
+    }).join('');
+  }
+
+  var fpHtml =
+    '<div class="fp-bar" id="fp-bar-' + qt + '">' +
+      '<div class="fp-row">' +
+        (showDeptFP
+          ? '<div class="fp-group">' +
+              '<div class="fp-glabel">Department</div>' +
+              '<div class="fp-checks">' + buildDeptChips() + '</div>' +
+              '<div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:2px;">' +
+                (normOwned.length
+                  ? '<button class="fp-reset" onclick="_fpResetDepts_(\'' + qt + '\')">Reset to my depts</button>'
+                  : '') +
+                '<button class="fp-reset" onclick="_fpSelectAllDepts_(\'' + qt + '\')">Select all</button>' +
+                '<button class="fp-reset" onclick="_fpDeselectAllDepts_(\'' + qt + '\')">Deselect all</button>' +
+              '</div>' +
+            '</div>'
+          : '') +
+        '<div class="fp-group">' +
+          '<div class="fp-glabel">Priority</div>' +
+          '<div class="fp-checks">' + buildPriChips() + '</div>' +
+        '</div>' +
+        (allStas.length > 1
+          ? '<div class="fp-group">' +
+              '<div class="fp-glabel">Status</div>' +
+              '<div class="fp-checks">' + buildStaChips() + '</div>' +
+            '</div>'
+          : '') +
+      '</div>' +
+    '</div>';
+
   container.innerHTML =
     '<div class="tl-wrap">' +
     '<div class="tl-toolbar">' +
       '<span class="tl-title">' + esc(title) + '</span>' +
-      '<span class="tl-count" id="tl-cnt-' + queueType + '">' + tickets.length + ' tickets</span>' +
-      '<input class="tl-search" id="tl-search-' + queueType + '" placeholder="Search…" oninput="_tlFilter_(\'' + queueType + '\')" />' +
-      '<select class="tl-filter-select" id="tl-pri-' + queueType + '" onchange="_tlFilter_(\'' + queueType + '\')">' +
-        '<option value="">All priorities</option>' +
-        ['CRITICAL','HIGH','MEDIUM','LOW'].map(function(p){return '<option>' + p + '</option>';}).join('') +
-      '</select>' +
-      (statuses.length > 1 ?
-        '<select class="tl-filter-select" id="tl-sta-' + queueType + '" onchange="_tlFilter_(\'' + queueType + '\')">' +
-          '<option value="">All statuses</option>' +
-          statuses.map(function(s){return '<option>' + esc(s) + '</option>';}).join('') +
-        '</select>' : '') +
-      (queueType === 'tracker' && USER.isManager
+      '<span class="tl-count" id="tl-cnt-' + qt + '">' + tickets.length + ' tickets</span>' +
+      '<input class="tl-search" id="tl-search-' + qt + '" placeholder="Search…" oninput="_tlFilter_(\'' + qt + '\')" />' +
+      '<button class="fp-toggle" id="fp-toggle-' + qt + '" onclick="_tlToggleFP_(\'' + qt + '\')">' +
+        '&#8862; Filters <span class="fp-badge" id="fp-badge-' + qt + '" style="display:none">0</span>' +
+      '</button>' +
+      (qt === 'tracker' && USER.isManager
         ? '<button onclick="_tlRollover_(\'' + esc(deptFilter||'') + '\')" style="height:30px;padding:0 10px;border:1px solid var(--border-default);border-radius:6px;background:#fff;font-size:12px;cursor:pointer;color:var(--text-secondary);" title="Remove CLOSED and VOIDED rows from the tracker sheet">Roll Up Closed</button>'
         : '') +
-      '<button onclick="_refreshQueuePage_(\'' + queueType + '\', \'' + (deptFilter||'') + '\')" style="height:30px;padding:0 10px;border:1px solid var(--border-default);border-radius:6px;background:#fff;font-size:12px;cursor:pointer;color:var(--text-secondary);" title="Refresh">↻</button>' +
+      '<button onclick="_refreshQueuePage_(\'' + qt + '\', \'' + (deptFilter||'') + '\')" style="height:30px;padding:0 10px;border:1px solid var(--border-default);border-radius:6px;background:#fff;font-size:12px;cursor:pointer;color:var(--text-secondary);" title="Refresh">&#8635;</button>' +
     '</div>' +
-    (queueType === 'tracker' ? _tlKpiBar_(tickets) : '') +
-    (queueType === 'tracker' ? _tlWatchList_(tickets) : '') +
-    (queueType !== 'tracker' ?
+    fpHtml +
+    (qt === 'tracker' ? _tlKpiBar_(tickets) : '') +
+    (qt === 'tracker' ? _tlWatchList_(tickets) : '') +
+    (qt !== 'tracker' ?
       // ── Non-tracker: single flat table ─────────────────────────────────────
       '<div class="tl-table-wrap"><table class="tl-table">' +
         '<thead><tr>' +
-          _tlTh_(queueType,'ticketNo','Ticket #') +
-          _tlTh_(queueType,'priority','Priority') +
-          _tlTh_(queueType,'status','Status') +
-          (showDept ? _tlTh_(queueType,'dept','Dept') : '') +
-          _tlTh_(queueType,'specificEquip','Equipment') +
-          _tlTh_(queueType,'description','Description') +
-          _tlTh_(queueType,'assignedTo','Assigned To') +
-          _tlTh_(queueType,'dateOpened','Date Opened') +
+          _tlTh_(qt,'ticketNo','Ticket #') +
+          _tlTh_(qt,'priority','Priority') +
+          _tlTh_(qt,'status','Status') +
+          (showDept ? _tlTh_(qt,'dept','Dept') : '') +
+          _tlTh_(qt,'specificEquip','Equipment') +
+          _tlTh_(qt,'description','Description') +
+          _tlTh_(qt,'assignedTo','Assigned To') +
+          _tlTh_(qt,'dateOpened','Date Opened') +
         '</tr></thead>' +
-        '<tbody id="tl-tbody-' + queueType + '"></tbody>' +
+        '<tbody id="tl-tbody-' + qt + '"></tbody>' +
       '</table></div>'
     :
       // ── Tracker: "My Tickets" card ──────────────────────────────────────────
@@ -266,9 +374,9 @@ function _renderList_(tickets, queueType, deptFilter, container) {
       // ── Tracker: "Joint Tickets" card ──────────────────────────────────────────
       '<div class="tl-card" id="tl-joint-card" style="margin-top:14px;' + (jointTickets.length === 0 ? 'display:none;' : '') + '">' +
         '<div class="tl-card-header">' +
-          '<span style="font-size:13px;margin-right:6px;">🔗</span>' +
+          '<span style="font-size:13px;margin-right:6px;">&#128279;</span>' +
           '<span class="tl-card-title">Joint Tickets</span>' +
-          '<span class="tl-card-sub">' + jointTickets.length + ' ticket' + (jointTickets.length !== 1 ? 's' : '') + ' — primary dept shown</span>' +
+          '<span class="tl-card-sub">' + jointTickets.length + ' ticket' + (jointTickets.length !== 1 ? 's' : '') + ' &#8212; primary dept shown</span>' +
         '</div>' +
         '<div class="tl-table-wrap" style="border:0;border-radius:0;box-shadow:none;"><table class="tl-table">' +
           '<thead><tr>' +
@@ -287,9 +395,9 @@ function _renderList_(tickets, queueType, deptFilter, container) {
       // ── Tracker: "Pending Joint Requests" card (hidden when empty) ────────────
       '<div class="tl-card" id="tl-pending-joint-card" style="margin-top:14px;' + (pendingTickets.length === 0 ? 'display:none;' : '') + '">' +
         '<div class="tl-card-header" style="background:#F3E5F5;">' +
-          '<span style="font-size:13px;margin-right:6px;">📩</span>' +
+          '<span style="font-size:13px;margin-right:6px;">&#128233;</span>' +
           '<span class="tl-card-title" style="color:#4A148C;">Pending Joint Requests</span>' +
-          '<span class="tl-card-sub">' + pendingTickets.length + ' pending — accept or reject</span>' +
+          '<span class="tl-card-sub">' + pendingTickets.length + ' pending &#8212; accept or reject</span>' +
         '</div>' +
         '<div class="tl-table-wrap" style="border:0;border-radius:0;box-shadow:none;"><table class="tl-table">' +
           '<thead><tr><th>Ticket #</th><th>Priority</th><th>Status</th><th>Primary Dept</th><th>Equipment</th><th>Description</th><th style="text-align:center;">Action</th></tr></thead>' +
@@ -299,23 +407,11 @@ function _renderList_(tickets, queueType, deptFilter, container) {
     ) +
     '</div>';
 
-  // Store filter function reference on window so oninput can call it
-  window['_tlFilterData_' + queueType] = { tickets: tickets, applyFilters: applyFilters };
-  if (queueType === 'tracker') {
-    var _ss0 = _tlSortState_['tracker'];
-    var _init = _ss0 && _ss0.field ? _tlSorted_(tickets, _ss0.field, _ss0.dir) : tickets;
-    renderRows(_init.filter(function(t) { return !t.isJoint && !t.isPendingJoint; }), 'tl-tbody-tracker-my',      false);
-    renderRows(_init.filter(function(t) { return  t.isJoint; }),                      'tl-tbody-tracker-joint',   true);
-    renderPendingRows(_init.filter(function(t) { return t.isPendingJoint; }),          'tl-tbody-tracker-pending');
-    // Show/hide cards based on content
-    var jCard  = document.getElementById('tl-joint-card');
-    var pjCard = document.getElementById('tl-pending-joint-card');
-    if (jCard)  jCard.style.display  = jointTickets.length   > 0 ? '' : 'none';
-    if (pjCard) pjCard.style.display = pendingTickets.length > 0 ? '' : 'none';
-  } else {
-    var _ss0 = _tlSortState_[queueType];
-    renderRows(_ss0 && _ss0.field ? _tlSorted_(tickets, _ss0.field, _ss0.dir) : tickets);
-  }
+  // Store filter closure per queue type (used by _tlFilter_ and _fpResetDepts_)
+  window['_tlFilterData_' + qt] = { tickets: tickets, applyFilters: applyFilters, userOwnedDepts: normOwned };
+
+  // Apply initial filters — defaults dept checkboxes to user's owned depts
+  applyFilters();
 }
 
 function _tlWatchList_(tickets) {
@@ -338,9 +434,9 @@ function _tlWatchList_(tickets) {
       }).join('');
   return '<div class="tl-card">' +
     '<div class="tl-card-header">' +
-      '<span style="color:var(--status-high);font-size:13px;margin-right:4px;">⚠</span>' +
+      '<span style="color:var(--status-high);font-size:13px;margin-right:4px;">&#9888;</span>' +
       '<span class="tl-card-title">Priority Watch List</span>' +
-      '<span class="tl-card-sub">Critical &amp; High · ' + watchlist.length + ' ticket' + (watchlist.length !== 1 ? 's' : '') + '</span>' +
+      '<span class="tl-card-sub">Critical &amp; High &middot; ' + watchlist.length + ' ticket' + (watchlist.length !== 1 ? 's' : '') + '</span>' +
     '</div>' +
     '<div style="overflow-x:auto;"><table class="tl-table">' +
       '<thead><tr><th>Ticket #</th><th>Priority</th><th>Status</th><th>Equipment</th><th>Description</th><th>Assigned To</th></tr></thead>' +
@@ -399,9 +495,9 @@ function renderPendingRows(list, tbodyId) {
       '<td class="col-desc" title="' + esc(t.description) + '">' + esc(t.description || '—') + '</td>' +
       '<td style="text-align:center;white-space:nowrap;">' +
         '<button onclick="_tlAcceptJoint_(\'' + esc(t.ticketNo) + '\')" ' +
-          'style="height:26px;padding:0 10px;border:1px solid #2E7D32;border-radius:4px;font-size:11.5px;font-weight:600;background:#E8F5E9;color:#2E7D32;cursor:pointer;margin-right:4px;">✓ Accept</button>' +
+          'style="height:26px;padding:0 10px;border:1px solid #2E7D32;border-radius:4px;font-size:11.5px;font-weight:600;background:#E8F5E9;color:#2E7D32;cursor:pointer;margin-right:4px;">&#10003; Accept</button>' +
         '<button onclick="_tlRejectJoint_(\'' + esc(t.ticketNo) + '\')" ' +
-          'style="height:26px;padding:0 10px;border:1px solid #C62828;border-radius:4px;font-size:11.5px;font-weight:600;background:#FFEBEE;color:#C62828;cursor:pointer;">✗ Reject</button>' +
+          'style="height:26px;padding:0 10px;border:1px solid #C62828;border-radius:4px;font-size:11.5px;font-weight:600;background:#FFEBEE;color:#C62828;cursor:pointer;">&#10007; Reject</button>' +
       '</td>' +
       '</tr>';
   }).join('');
@@ -417,7 +513,7 @@ function _tlAcceptJoint_(ticketNo) {
     .then(function(r) { return r.json(); })
     .then(function(r) {
       if (r && r.success) {
-        showToast('✓ Joint request accepted for ' + ticketNo, 'success');
+        showToast('&#10003; Joint request accepted for ' + ticketNo, 'success');
         var activePageEl = document.querySelector('[id^="page-tracker-"]');
         if (activePageEl) {
           var deptMatch = activePageEl.id.replace('page-tracker-', '');
@@ -487,6 +583,46 @@ function _refreshQueuePage_(queueType, deptFilter) {
   var pageEl = document.getElementById('page-' + queueType);
   if (!pageEl) return;
   _loadListPage_(queueType, deptFilter || null, pageEl);
+}
+
+// ── Filter panel helpers (global — used by all ticket views) ─────────────────
+
+window._fpChip_ = function(cb) {
+  var l = cb.parentNode;
+  if (l) l.classList.toggle('fp-checked', cb.checked);
+};
+
+function _tlToggleFP_(queueType) {
+  var bar = document.getElementById('fp-bar-' + queueType);
+  var btn = document.getElementById('fp-toggle-' + queueType);
+  if (!bar) return;
+  bar.classList.toggle('fp-open');
+  if (btn) btn.classList.toggle('fp-active', bar.classList.contains('fp-open'));
+}
+
+function _fpResetDepts_(queueType) {
+  var ref   = window['_tlFilterData_' + queueType];
+  var owned = (ref && ref.userOwnedDepts) || [];
+  document.querySelectorAll('.fp-cb-dept[data-fp="' + queueType + '"]').forEach(function(cb) {
+    var shouldCheck = !owned.length || owned.indexOf(cb.value.toUpperCase().trim()) >= 0;
+    cb.checked = shouldCheck;
+    window._fpChip_(cb);
+  });
+  _tlFilter_(queueType);
+}
+
+function _fpSelectAllDepts_(queueType) {
+  document.querySelectorAll('.fp-cb-dept[data-fp="' + queueType + '"]').forEach(function(cb) {
+    cb.checked = true; window._fpChip_(cb);
+  });
+  _tlFilter_(queueType);
+}
+
+function _fpDeselectAllDepts_(queueType) {
+  document.querySelectorAll('.fp-cb-dept[data-fp="' + queueType + '"]').forEach(function(cb) {
+    cb.checked = false; window._fpChip_(cb);
+  });
+  _tlFilter_(queueType);
 }
 
 // ── PAGES registry ────────────────────────────────────────────────────────────
