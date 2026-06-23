@@ -38,6 +38,7 @@
 .btn-complete  {background:var(--status-success);color:#fff;}
 .btn-verify    {background:var(--status-success);color:#fff;}
 .btn-void      {background:var(--status-low-bg);color:var(--text-secondary);border:1px solid var(--border-strong);}
+.btn-danger    {background:#DC2626;color:#fff;border:1px solid #B91C1C;}
 .btn-assign    {background:var(--bg-subtle);color:var(--text-primary);border:1px solid var(--border-default);}
 .btn-tempfix   {background:var(--status-warn-bg);color:var(--status-warn);border:1px solid #FDE68A;}
 .btn-transfer  {background:var(--bg-subtle);color:var(--text-primary);border:1px solid var(--border-default);}
@@ -145,12 +146,6 @@ window.PAGES = window.PAGES || {};
 var _tdTicketNo = null;
 var _tdTicket   = null;
 
-// Returns true if the current user can take action on this ticket.
-// Managers from other depts can VIEW but not act (unless the ticket is joint and they own a joint dept).
-function _canActOnTicket_(t) {
-  return USER.isAdmin || ((USER.ownedDepts || []).indexOf(t.dept) >= 0);
-}
-
 // ── Joint-ticket role helpers (two-step workflow) ──────────────────────────────
 // Owner dept = the dept that opened the ticket (t.dept) — verifies & closes.
 // Fixer dept = a dept added to t.jointDepts — performs the repair + CAPA.
@@ -251,7 +246,7 @@ function _renderDetail_(result) {
   }
   if (t.status !== 'CLOSED' && t.status !== 'VOIDED' && canManage) {
     actions += '<button class="btn-action btn-transfer" onclick="_tdTransfer_()">🔗 Add Joint Department</button>';
-    actions += '<button class="btn-action btn-void" onclick="_tdVoid_()">Void Ticket</button>';
+    actions += '<button class="btn-action btn-danger" onclick="_tdVoid_()">Void Ticket</button>';
   }
 
   // Service Report is a record/print output available for ANY closed ticket a
@@ -329,7 +324,7 @@ function _renderDetail_(result) {
     (t.photoUrl ? (
     '<div class="td-section">' +
       '<div class="td-section-title">Photo</div>' +
-      _renderPhotoGrid_([t.photoUrl]) +
+      _renderPhotoGrid_(t.photoUrl.split(/[\n,]/).map(function(u){return u.trim();}).filter(Boolean)) +
     '</div>') : '') +
 
     (t.sqfChecklist ? (
@@ -1002,7 +997,7 @@ function _tdSaveServiceReport_() {
 function _tdTransfer_() {
   var t = _tdTicket;
   if (!t) return;
-  var depts = ['ELECTRICAL','MACHINE SHOP','FACILITIES','PLASTICS','METALS','LITHO'];
+  var depts = ['METAL','ELECTRICAL','PLASTIC','LITHO','PLASTIC DEC','QA','MACHINE SHOP','S/R','SALES','G&A'];
   _showModal_('Add Joint Department — ' + esc(t.ticketNo),
     '<div style="background:var(--status-info-bg);border:1px solid var(--status-info);border-radius:6px;padding:9px 12px;margin-bottom:12px;font-size:12px;color:var(--status-info);">' +
       'This makes the ticket <strong>joint</strong> instead of transferring it — ' + esc(t.dept) + ' keeps ownership and full visibility for the whole lifecycle. ' +
