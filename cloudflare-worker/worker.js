@@ -170,7 +170,7 @@ async function getAccessToken(env) {
   const now = Math.floor(Date.now() / 1000);
   const jwt = await signRS256({
     iss:   env.GOOGLE_SA_EMAIL,
-    scope: 'https://www.googleapis.com/auth/spreadsheets',
+    scope: 'https://www.googleapis.com/auth/spreadsheets https://www.googleapis.com/auth/drive',
     aud:   'https://oauth2.googleapis.com/token',
     iat:   now,
     exp:   now + 3600,
@@ -228,6 +228,46 @@ async function readSheet(token, spreadsheetId, sheetName, range) {
   return (await res.json()).values || [];
 }
 
+// ── Ticket ID generation — sequential, matches CSC Hub format ────────────────
+// Format: MT-{deptCode}-{YYMMDD}-{NNN}  (monthly sequence, resets each month)
+function maxSeqFor(ids, monthPrefix) {
+  let max = 0;
+  for (const id of ids) {
+    if (typeof id === 'string' && id.startsWith(monthPrefix)) {
+      const n = parseInt(id.slice(id.lastIndexOf('-') + 1), 10);
+      if (!isNaN(n) && n > max) max = n;
+    }
+  }
+  return max;
+}
+
+async function generateTicketNo(token, env, dept) {
+  const DEPT_CODES = {
+    METAL:          '001',
+    ELECTRICAL:     '002',
+    PLASTIC:        '003',
+    LITHO:          '004',
+    'PLASTIC DEC':  '006',
+    QA:             '007',
+    'MACHINE SHOP': '008',
+    'S/R':          '009',
+    SALES:          '030',
+    'G&A':          '031',
+  };
+  const code = DEPT_CODES[(dept || '').toUpperCase().trim()] || '000';
+  const now  = new Date();
+  const yy   = String(now.getFullYear()).slice(2);
+  const mm   = String(now.getMonth() + 1).padStart(2, '0');
+  const dd   = String(now.getDate()).padStart(2, '0');
+  const monthPrefix = `MT-${code}-${yy}${mm}`;
+  const idPrefix    = `MT-${code}-${yy}${mm}${dd}-`;
+  const rows = await readSheet(token, env.SPREADSHEET_ID, SH.MASTER_LOG, 'B2:B');
+  const ids  = rows.map(r => String(r[0] || '').trim());
+  const seq  = maxSeqFor(ids, monthPrefix);
+  if (seq >= 999) throw new Error('Monthly ticket limit (999) reached for this department.');
+  return idPrefix + String(seq + 1).padStart(3, '0');
+}
+
 // ── User / role resolution ────────────────────────────────────────────────────
 
 async function resolveUser(token, env, userEmail) {
@@ -265,7 +305,7 @@ function allowed(user, dept) {
 // ── Handlers ──────────────────────────────────────────────────────────────────
 
 function handleVersion(env) {
-  return jsonResponse({ version: env.APP_VERSION || '2.5' });
+  return jsonResponse({ version: env.APP_VERSION || '3.01' });
 }
 
 async function handleMe(env, userEmail) {
@@ -298,7 +338,7 @@ async function handleMe(env, userEmail) {
   const isCorpUser = domain.toLowerCase() === 'cscmfg.com';
   const role = isAdmin ? 'admin' : isManager ? 'manager' : isCorpUser ? 'tech' : 'noaccess';
 
-  if (isAdmin) ownedDepts = ['ELECTRICAL', 'MACHINE SHOP', 'FACILITIES', 'PLASTICS', 'METALS', 'LITHO'];
+  if (isAdmin) ownedDepts = ['METAL','ELECTRICAL','PLASTIC','LITHO','PLASTIC DEC','QA','MACHINE SHOP','S/R','SALES','G&A'];
 
   if (!displayName) {
     displayName = email.split('@')[0]
@@ -460,7 +500,7 @@ async function handleDashboardPanels(env, userEmail) {
     (prioOrder[cellStr(b, ML.PRIORITY).toUpperCase()] ?? 4)
   );
 
-  const attentionItems = [], openTickets = [];
+  const reviewItems = [], verifyItems = [], tempItems = [], openTickets = [];
   const OPEN_STS = new Set(['OPEN', 'PENDING PARTS', 'ON HOLD', 'PENDING VERIFICATION']);
 
   allTickets.forEach(r => {
@@ -473,15 +513,15 @@ async function handleDashboardPanels(env, userEmail) {
     const desc   = cellStr(r, ML.DESCRIPTION);
     const opened = fmtDate(cellDate(r, ML.DATE_OPENED));
 
-    if (status === 'WAITING' && attentionItems.length < 8) {
-      attentionItems.push({
+    if (status === 'WAITING' && reviewItems.length < 8) {
+      reviewItems.push({
         kind: 'review', ticketNo: tn,
         title: equip || desc || tn,
         sub: dept + (code ? ' · ' + code : '') + (prio ? ' · ' + prio + ' priority' : '') + ' — awaiting approval',
         action: 'Approve', pageTarget: 'waiting',
       });
-    } else if (status === 'PENDING VERIFICATION' && attentionItems.length < 8) {
-      attentionItems.push({
+    } else if (status === 'COMPLETE' && verifyItems.length < 8) {
+      verifyItems.push({
         kind: 'complete', ticketNo: tn,
         title: equip || desc || tn,
         sub: dept + (code ? ' · ' + code : '') + ' — awaiting your verification & service-report signoff',
@@ -506,16 +546,18 @@ async function handleDashboardPanels(env, userEmail) {
     const dept   = cellStr(r, TF.DEPT);
     if (!tempId || !allowed(user, dept)) return;
     if (cellStr(r, TF.STATUS).toUpperCase() !== 'PAST DUE') return;
-    if (attentionItems.length >= 8) return;
+    if (tempItems.length >= 8) return;
     const equip = cellStr(r, TF.SPECIFIC_EQUIP);
     const due   = fmtDate(cellDate(r, TF.NEXT_DUE));
-    attentionItems.push({
+    tempItems.push({
       kind: 'temp', ticketNo: cellStr(r, TF.TICKET_NO),
       title: tempId + (equip ? ' — ' + equip : ''),
       sub: dept + ' · Temp fix PAST DUE' + (due ? ' (due ' + due + ')' : '') + ' — Maintenance Program 030',
       action: 'Inspect', pageTarget: 'tempfix',
     });
   });
+
+  const attentionItems = [...reviewItems, ...verifyItems, ...tempItems];
 
   // Equipment hold tags
   const holdTags = [];
@@ -665,6 +707,7 @@ async function appendMasterLog(token, env, opts) {
   if (opts.verifiedDate  !== undefined) row[ML.VERIFIED_DATE  - 1] = opts.verifiedDate  || '';
   if (opts.dateClosed    !== undefined) row[ML.DATE_CLOSED    - 1] = opts.dateClosed    || '';
   if (opts.sqfChecklist  !== undefined) row[ML.VERIFICATION_CHECKLIST - 1] = opts.sqfChecklist || '';
+  if (opts.photoUrl      !== undefined) row[ML.PHOTO_URL       - 1] = opts.photoUrl      || '';
   if (opts.jointDepts    !== undefined) row[ML.JOINT_DEPTS    - 1] = opts.jointDepts    || '';
   if (opts.jointSignoffs !== undefined) row[ML.JOINT_SIGNOFFS - 1] = opts.jointSignoffs || '';
   if (opts.pendingJointDepts !== undefined) row[ML.PENDING_JOINT_DEPTS - 1] = opts.pendingJointDepts || '';
@@ -679,8 +722,11 @@ async function appendMasterLog(token, env, opts) {
   if (opts.equipType     !== undefined) row[ML.EQUIP_TYPE     - 1] = opts.equipType     || '';
   if (opts.description   !== undefined) row[ML.DESCRIPTION    - 1] = opts.description   || '';
   if (opts.problemType   !== undefined) row[ML.PROBLEM_TYPE   - 1] = opts.problemType   || '';
-  if (opts.partsNeeded   !== undefined) row[ML.PARTS_NEEDED   - 1] = opts.partsNeeded   || '';
+  if (opts.partsNeeded   !== undefined) row[ML.PARTS_NEEDED   - 1] = opts.partsNeeded   ? 'Y' : '';
   if (opts.equipTagStatus!== undefined) row[ML.EQUIP_TAG_STATUS-1] = opts.equipTagStatus|| '';
+  if (opts.downtimeType  !== undefined) row[ML.DOWNTIME_TYPE  - 1] = opts.downtimeType  || '';
+  if (opts.dateOpened    !== undefined) row[ML.DATE_OPENED    - 1] = opts.dateOpened    || '';
+  if (opts.lineNo        !== undefined) row[ML.LINE_NO        - 1] = opts.lineNo        || '';
   await appendSheetRow(token, env.SPREADSHEET_ID, SH.MASTER_LOG, row);
 }
 
@@ -1336,19 +1382,25 @@ async function handleFormData(env, userEmail) {
   if (people.length === 0) (lists['Technicians'] || []).forEach(addPerson);
   managerRows.forEach(r => { const n = String(r[0] || '').trim(); if (n) addPerson(n); });
 
-  const departments = ['ELECTRICAL', 'MACHINE SHOP', 'FACILITIES', 'PLASTICS', 'METALS', 'LITHO'];
+  const departments = ['METAL','ELECTRICAL','PLASTIC','LITHO','PLASTIC DEC','QA','MACHINE SHOP','S/R','SALES','G&A'];
 
   let routingRules = [];
   try { routingRules = JSON.parse(config['Routing Override Rules'] || '[]'); } catch { routingRules = []; }
   if (!routingRules.length) routingRules = [
     { keyword: 'ELECTRICAL', matchOn: 'PROBLEM_TYPE', routeTo: 'ELECTRICAL' },
-    { keyword: 'FACILITY',   matchOn: 'EQUIP_DESC',   routeTo: 'FACILITIES' },
   ];
 
   const deptMapping = {
-    'ELECTRICAL':   'ELECTRICAL', 'FACILITIES': 'FACILITIES', 'LITHO': 'LITHO',
-    'MACHINE SHOP': 'MACHINE SHOP', 'METALS': 'METALS', 'PLASTICS': 'PLASTICS',
-    'FACILTIIES': 'FACILITIES', 'METAL': 'METALS', 'PLASTIC': 'PLASTICS',
+    'METAL': 'METAL', 'METALS': 'METAL',
+    'ELECTRICAL': 'ELECTRICAL',
+    'PLASTIC': 'PLASTIC', 'PLASTICS': 'PLASTIC',
+    'LITHO': 'LITHO',
+    'PLASTIC DEC': 'PLASTIC DEC',
+    'QA': 'QA',
+    'MACHINE SHOP': 'MACHINE SHOP', 'M/S': 'MACHINE SHOP',
+    'S/R': 'S/R',
+    'SALES': 'SALES',
+    'G&A': 'G&A',
   };
 
   // Build equipRows (flat, csc-hub style) and equipHierarchy from cache.
@@ -1453,17 +1505,9 @@ async function handleEquipQuickStats(env, userEmail, equipCode) {
 async function handleReserveTicketId(env, userEmail, searchParams) {
   const isTech = (userEmail || '').trim().toLowerCase().endsWith('@cscmfg.com');
   if (!isTech) return jsonResponse({ error: 'Access required' }, 403);
-  const dept = (searchParams.get('dept') || '').toUpperCase().trim();
-  const DEPT_CODES = { ELECTRICAL: 'EL', 'MACHINE SHOP': 'MS', FACILITIES: 'FAC', PLASTICS: 'PL', METALS: 'MTL', LITHO: 'LTH' };
-  const prefix = DEPT_CODES[dept] || 'TK';
-  const now    = new Date();
-  const stamp  = String(now.getFullYear()) +
-                 String(now.getMonth() + 1).padStart(2, '0') +
-                 String(now.getDate()).padStart(2, '0');
-  const ticketNo = prefix + '-' + stamp + '-' +
-                   String(now.getHours()).padStart(2, '0') +
-                   String(now.getMinutes()).padStart(2, '0') +
-                   String(now.getSeconds()).padStart(2, '0');
+  const dept   = (searchParams.get('dept') || '').toUpperCase().trim();
+  const token  = await getAccessToken(env);
+  const ticketNo = await generateTicketNo(token, env, dept);
   return jsonResponse({ ticketNo });
 }
 
@@ -1471,7 +1515,7 @@ async function handleUploadPhoto(env, userEmail, body) {
   const isTech = (userEmail || '').trim().toLowerCase().endsWith('@cscmfg.com');
   if (!isTech) return jsonResponse({ error: 'Access required' }, 403);
 
-  const folderId = env.PHOTO_FOLDER_ID || '';
+  const folderId = (env.PHOTO_FOLDER_ID || '').replace(/^﻿/, '').trim();
   if (!folderId) return jsonResponse({ ok: false, error: 'Photo storage not configured (PHOTO_FOLDER_ID missing)' }, 500);
 
   const token     = await getAccessToken(env);
@@ -1541,13 +1585,10 @@ async function handleAddTicket(env, userEmail, body) {
   const addedBy    = body.addedBy || user.displayName;
 
   // Use pre-reserved ticketNo if provided (photos were uploaded before this call),
-  // otherwise generate one now from the current timestamp.
-  const DEPT_CODES = { ELECTRICAL: 'EL', 'MACHINE SHOP': 'MS', FACILITIES: 'FAC', PLASTICS: 'PL', METALS: 'MTL', LITHO: 'LTH' };
+  // otherwise generate a sequential ID now (same format as CSC Hub: MT-{code}-{YYMMDD}-{NNN}).
   let ticketNo = String(body.ticketNo || '').trim();
   if (!ticketNo) {
-    const prefix = DEPT_CODES[dept] || 'TK';
-    const stamp  = String(now.getFullYear()) + String(now.getMonth()+1).padStart(2,'0') + String(now.getDate()).padStart(2,'0');
-    ticketNo     = prefix + '-' + stamp + '-' + String(now.getHours()).padStart(2,'0') + String(now.getMinutes()).padStart(2,'0');
+    ticketNo = await generateTicketNo(token, env, dept);
   }
 
   // Build photo cell: join any uploaded Drive links with newline
@@ -1557,16 +1598,29 @@ async function handleAddTicket(env, userEmail, body) {
   await appendMasterLog(token, env, {
     ticketNo, now, action: isCritical ? 'TICKET CREATED — CRITICAL (bypass)' : 'TICKET CREATED',
     status, dept,
-    updatedBy: addedBy,
-    notes:    (body.description || '') + (body.observations ? ' | ' + body.observations : ''),
-    photoUrl: photoCell,
+    equipCode:     body.equipCode     || '',
+    specificEquip: body.specificEquip || '',
+    equipType:     body.equipType     || '',
+    buildingZone:  body.buildingZone  || '',
+    lineNo:        body.lineNo        || '',
+    priority:      body.priority      || 'LOW',
+    problemType:   body.problemType   || '',
+    description:   body.description   || '',
+    downtimeType:  body.downtimeType  || '',
+    partsNeeded:   !!body.partsNeeded,
+    estHours:      body.estHours      || '',
+    addedBy:       addedBy,
+    updatedBy:     addedBy,
+    dateOpened:    fmtDate(now),
+    notes:         body.observations  || '',
+    photoUrl:      photoCell,
   });
   // Extended ML fields via batch write on the newly-appended row (best-effort)
   await appendTicketHistory(token, env, ticketNo, 'CREATED', '', status, addedBy,
     isCritical ? 'Critical — bypassed waiting queue' : 'Created → Waiting Queue');
 
   // Determine tracker name
-  const TRACKERS = { ELECTRICAL: 'Electrical', 'MACHINE SHOP': 'Machine Shop', FACILITIES: 'Facilities', PLASTICS: 'Plastics', METALS: 'Metals', LITHO: 'Litho' };
+  const TRACKERS = { METAL: 'Metal', ELECTRICAL: 'Electrical', PLASTIC: 'Plastic', LITHO: 'Litho', 'PLASTIC DEC': 'Plastic Dec', QA: 'QA', 'MACHINE SHOP': 'Machine Shop', 'S/R': 'S/R', SALES: 'Sales', 'G&A': 'G&A' };
   const tracker  = '📋 Tracker — ' + (TRACKERS[dept] || dept);
   return jsonResponse({ success: true, ticketNo, status, tracker });
 }
@@ -2310,7 +2364,7 @@ async function handleEquipCacheStatus(env, userEmail) {
   }
   if (!resolvedSheetId && configSheetUrl.length >= 25 && !/[/ ]/.test(configSheetUrl)) resolvedSheetId = configSheetUrl;
   const configTabName  = config['Equipment Inventory Tab Name'] || '';
-  const canonicalDepts  = ['ELECTRICAL','MACHINE SHOP','FACILITIES','PLASTICS','METALS','LITHO'];
+  const canonicalDepts  = ['METAL','ELECTRICAL','PLASTIC','LITHO','PLASTIC DEC','QA','MACHINE SHOP','S/R','SALES','G&A'];
 
   let cacheRows = 0, parsedItemCount = 0, rawHeaders = [], mappedCols = {}, unmappedHdrs = [];
   let lastRefreshed = 'Never', deptSummary = [];

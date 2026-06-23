@@ -90,12 +90,16 @@ function _loadListPage_(queueType, deptFilter, container) {
 
 // Maps tracker dept → formal display title matching PAGE_TITLES in index.html
 var _TRACKER_TITLES_ = {
+  'METAL':        'Metal Tracker',
   'ELECTRICAL':   'Electrical Tracker',
+  'PLASTIC':      'Plastic Tracker',
+  'LITHO':        'Litho Tracker',
+  'PLASTIC DEC':  'Plastic Dec Tracker',
+  'QA':           'QA Tracker',
   'MACHINE SHOP': 'Machine Shop Tracker',
-  'FACILITIES':   'Facilities Tracker',
-  'PLASTICS':     'Plastics Tracker',
-  'METALS':       'Metals Tracker',
-  'LITHO':        'Litho Tracker'
+  'S/R':          'S/R Tracker',
+  'SALES':        'Sales Tracker',
+  'G&A':          'G&A Tracker'
 };
 
 // ── Sort utility (shared with closed-tickets + tech-work-board) ───────────────
@@ -632,15 +636,19 @@ window.PAGES = window.PAGES || {};
 PAGES['waiting'] = function(c) { _loadListPage_('waiting', null, c); };
 PAGES['open']    = function(c) { _loadListPage_('open',    null, c); };
 
-// Tracker pages registered for all six depts (nav only shows owned depts,
+// Tracker pages registered for all depts (nav only shows owned depts,
 // but all are registered so deep-linking works without role checks on the client).
 var _TRACKER_DEPTS_ = [
+  { id: 'tracker-metal',        dept: 'METAL'        },
   { id: 'tracker-electrical',   dept: 'ELECTRICAL'   },
+  { id: 'tracker-plastic',      dept: 'PLASTIC'      },
+  { id: 'tracker-litho',        dept: 'LITHO'        },
+  { id: 'tracker-plastic-dec',  dept: 'PLASTIC DEC'  },
+  { id: 'tracker-qa',           dept: 'QA'           },
   { id: 'tracker-machine-shop', dept: 'MACHINE SHOP' },
-  { id: 'tracker-facilities',   dept: 'FACILITIES'   },
-  { id: 'tracker-plastics',     dept: 'PLASTICS'     },
-  { id: 'tracker-metals',       dept: 'METALS'       },
-  { id: 'tracker-litho',        dept: 'LITHO'        }
+  { id: 'tracker-s-r',          dept: 'S/R'          },
+  { id: 'tracker-sales',        dept: 'SALES'        },
+  { id: 'tracker-g-a',          dept: 'G&A'          }
 ];
 _TRACKER_DEPTS_.forEach(function(td) {
   (function(id, dept) {

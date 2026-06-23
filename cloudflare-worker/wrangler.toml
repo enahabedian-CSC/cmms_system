@@ -16,5 +16,5 @@ compatibility_date = "2024-09-23"
 #                           (share the folder with the service account email)
 #
 # ── Optional vars ─────────────────────────────────────────────────────────────
-# [vars]
-# APP_VERSION = "2.5"     # bumped by deploy.ps1; can also be a secret
+[vars]
+APP_VERSION = "3.01"     # bumped by deploy.ps1; can also be a secret
