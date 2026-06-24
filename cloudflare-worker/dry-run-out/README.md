@@ -1,0 +1,1 @@
+This folder contains the built output assets for the worker "cmms-worker" generated at 2026-06-24T21:17:43.222Z.
