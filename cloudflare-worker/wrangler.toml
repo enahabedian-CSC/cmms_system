@@ -1,6 +1,6 @@
 name = "cmms-worker"
 main = "worker.js"
-compatibility_date = "2024-09-23"
+compatibility_date = "2025-01-01"
 
 # ── Required secrets ──────────────────────────────────────────────────────────
 # Set each with:  wrangler secret put <NAME>
