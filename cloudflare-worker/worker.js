@@ -208,8 +208,11 @@ async function signRS256(payload, pem) {
 }
 
 function pemToDer(pem) {
-  // Handle literal \n from JSON key files (two chars: backslash + n → real newline)
-  const b64 = pem.replace(/\\n/g, '\n').replace(/-----[^-]+-----/g, '').replace(/\s/g, '');
+  // Strip PEM headers, handle literal \n from JSON key files, then drop any non-base64 chars
+  const b64 = pem
+    .replace(/\\n/g, '\n')
+    .replace(/-----[^-]+-----/g, '')
+    .replace(/[^A-Za-z0-9+/=]/g, '');
   const bin = atob(b64);
   const buf = new Uint8Array(bin.length);
   for (let i = 0; i < bin.length; i++) buf[i] = bin.charCodeAt(i);
