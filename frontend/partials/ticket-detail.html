@@ -94,6 +94,9 @@
   body.printing-sr .td-modal{box-shadow:none;width:auto;max-width:100%;max-height:none;overflow:visible;}
   body.printing-sr .td-modal .modal-actions{display:none !important;}
 }
+/* ── Section edit button ─────────────────────────────────────────────────── */
+.td-sec-edit-btn{background:transparent;border:1px solid var(--border-default);border-radius:4px;padding:2px 8px;font-size:11px;color:var(--text-secondary);cursor:pointer;display:inline-flex;align-items:center;gap:4px;font-family:inherit;font-weight:600;}
+.td-sec-edit-btn:hover{background:var(--bg-hover);border-color:var(--brand-navy);color:var(--brand-navy);}
 /* ── Service Report printable document (Maintenance Repair Record FRM-030-003) ──
    Rendered from the report data on print so the output is a clean record, not
    the editable form. Layout adapted from Izzy's MaintenanceRepairRecord.html. */
@@ -213,6 +216,15 @@ function _renderDetail_(result) {
   var techs  = result.techs     || [];
   var isManager = USER.isManager;
 
+  // Section edit button helper (manager-only pencil icon)
+  var _editBtn_ = function(s) {
+    return !isManager ? '' :
+      '<button class="td-sec-edit-btn" onclick="_tdEditSection_(\'' + s + '\')" title="Edit this section">' +
+      '<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">' +
+      '<path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/>' +
+      '<path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg> Edit</button>';
+  };
+
   // Update header badges
   document.getElementById('td-status-badge').innerHTML =
     '<span class="stat-badge stat-' + esc(t.status.replace(/\s+/g, '-')) + '">' + esc(t.status) + '</span>';
@@ -285,7 +297,7 @@ function _renderDetail_(result) {
     (actions ? '<div class="td-actions">' + actions + '</div>' : '') +
 
     '<div class="td-section">' +
-      '<div class="td-section-title">Ticket Overview</div>' +
+      '<div class="td-section-title" style="display:flex;align-items:center;justify-content:space-between;">Ticket Overview' + _editBtn_('overview') + '</div>' +
       '<div class="td-grid">' +
         field('Ticket #',      t.ticketNo,    'mono') +
         field('Status',        t.status) +
@@ -302,7 +314,7 @@ function _renderDetail_(result) {
     '</div>' +
 
     '<div class="td-section">' +
-      '<div class="td-section-title">Equipment</div>' +
+      '<div class="td-section-title" style="display:flex;align-items:center;justify-content:space-between;">Equipment' + _editBtn_('equipment') + '</div>' +
       '<div class="td-grid">' +
         field('Type',          t.equipType) +
         field('Equipment Code',t.equipCode,   'mono') +
@@ -313,7 +325,7 @@ function _renderDetail_(result) {
     '</div>' +
 
     '<div class="td-section">' +
-      '<div class="td-section-title">Problem</div>' +
+      '<div class="td-section-title" style="display:flex;align-items:center;justify-content:space-between;">Problem' + _editBtn_('problem') + '</div>' +
       '<div class="td-grid" style="grid-template-columns:1fr;">' +
         field('Problem Type',  t.problemType) +
         '<div class="td-field"><label>Description</label><div class="val desc">' + esc(t.description || '—') + '</div></div>' +
@@ -341,7 +353,7 @@ function _renderDetail_(result) {
 
     (t.workSummary || t.correctiveAct || t.rootCause || t.preventiveAct ? (
     '<div class="td-section">' +
-      '<div class="td-section-title">CAPA / Work Summary</div>' +
+      '<div class="td-section-title" style="display:flex;align-items:center;justify-content:space-between;">CAPA / Work Summary' + _editBtn_('capa') + '</div>' +
       '<div class="td-grid" style="grid-template-columns:1fr;">' +
         (t.correctiveAct ? '<div class="td-field"><label>Corrective Action</label><div class="val desc">' + esc(t.correctiveAct) + '</div></div>' : '') +
         (t.rootCause     ? '<div class="td-field"><label>Root Cause</label><div class="val desc">'        + esc(t.rootCause)     + '</div></div>' : '') +
@@ -727,6 +739,105 @@ function _tdUpdate_() {
     });
 }
 
+// ── Direct field edit — opens a section-scoped modal for managers ─────────────
+function _tdEditSection_(section) {
+  var t = _tdTicket;
+  if (!t || !USER.isManager) return;
+  var title, body;
+
+  if (section === 'overview') {
+    title = 'Edit Overview — ' + esc(t.ticketNo);
+    body =
+      '<div class="form-group"><label>Priority</label><select id="ef-priority">' +
+      ['LOW','MEDIUM','HIGH','CRITICAL'].map(function(p) {
+        return '<option value="' + p + '"' + (p === t.priority ? ' selected' : '') + '>' + p + '</option>';
+      }).join('') + '</select></div>' +
+      '<div class="form-group"><label>Assigned To</label><select id="ef-assignedTo">' +
+      '<option value="">— Unassigned —</option>' +
+      (window._tdTechs_ || []).map(function(n) {
+        return '<option value="' + esc(n) + '"' + (n === t.assignedTo ? ' selected' : '') + '>' + esc(n) + '</option>';
+      }).join('') + '</select></div>' +
+      '<div class="form-group"><label>Est. Hours</label>' +
+      '<input id="ef-estHours" type="number" min="0" step="0.5" value="' + esc(String(t.estHours || '')) + '" /></div>' +
+      '<div class="form-group"><label>Actual Hours</label>' +
+      '<input id="ef-actualHours" type="number" min="0" step="0.5" value="' + esc(String(t.actualHours || '')) + '" /></div>' +
+      '<div class="form-group"><label>Downtime Type</label><select id="ef-downtimeType">' +
+      ['UNPLANNED','PLANNED'].map(function(d) {
+        return '<option value="' + d + '"' + (d === t.downtimeType ? ' selected' : '') + '>' + d + '</option>';
+      }).join('') + '</select></div>';
+
+  } else if (section === 'equipment') {
+    title = 'Edit Equipment — ' + esc(t.ticketNo);
+    body =
+      '<div class="form-group"><label>Equipment Type</label>' +
+      '<input id="ef-equipType" value="' + esc(t.equipType || '') + '" /></div>' +
+      '<div class="form-group"><label>Equipment Code</label>' +
+      '<input id="ef-equipCode" value="' + esc(t.equipCode || '') + '" /></div>' +
+      '<div class="form-group"><label>Equipment Description</label>' +
+      '<input id="ef-specificEquip" value="' + esc(t.specificEquip || '') + '" /></div>' +
+      '<div class="form-group"><label>Building / Zone</label>' +
+      '<input id="ef-buildingZone" value="' + esc(t.buildingZone || '') + '" /></div>' +
+      '<div class="form-group"><label>Line #</label>' +
+      '<input id="ef-lineNo" value="' + esc(t.lineNo || '') + '" /></div>';
+
+  } else if (section === 'problem') {
+    title = 'Edit Problem — ' + esc(t.ticketNo);
+    body =
+      '<div class="form-group"><label>Problem Type</label>' +
+      '<input id="ef-problemType" value="' + esc(t.problemType || '') + '" /></div>' +
+      '<div class="form-group"><label>Description</label>' +
+      '<textarea id="ef-description">' + esc(t.description || '') + '</textarea></div>';
+
+  } else if (section === 'capa') {
+    title = 'Edit CAPA — ' + esc(t.ticketNo);
+    body =
+      '<div class="form-group"><label>Corrective Action</label>' +
+      '<textarea id="ef-correctiveAct">' + esc(t.correctiveAct || '') + '</textarea></div>' +
+      '<div class="form-group"><label>Root Cause</label>' +
+      '<textarea id="ef-rootCause">' + esc(t.rootCause || '') + '</textarea></div>' +
+      '<div class="form-group"><label>Preventive Action</label>' +
+      '<textarea id="ef-preventiveAct">' + esc(t.preventiveAct || t.workSummary || '') + '</textarea></div>' +
+      '<div class="form-group"><label>Fix Type</label><select id="ef-fixType">' +
+      '<option value="">—</option>' +
+      ['Permanent','Temporary'].map(function(v) {
+        return '<option value="' + v + '"' + (v === t.fixType ? ' selected' : '') + '>' + v + '</option>';
+      }).join('') + '</select></div>' +
+      '<div class="form-group"><label>Permanent Fix Plan</label>' +
+      '<textarea id="ef-permFixPlan">' + esc(t.permFixPlan || '') + '</textarea></div>' +
+      '<div class="form-group"><label>Target Fix Date</label>' +
+      '<input id="ef-permFixDate" type="date" value="' + esc(_srDateVal_(t.permFixDate || '')) + '" /></div>';
+
+  } else { return; }
+
+  _showModal_(title, body, function() {
+    var data = { ticketNo: t.ticketNo, section: section, updatedBy: USER.displayName };
+    if (section === 'overview') {
+      data.priority     = document.getElementById('ef-priority').value;
+      data.assignedTo   = document.getElementById('ef-assignedTo').value;
+      data.estHours     = document.getElementById('ef-estHours').value;
+      data.actualHours  = document.getElementById('ef-actualHours').value;
+      data.downtimeType = document.getElementById('ef-downtimeType').value;
+    } else if (section === 'equipment') {
+      data.equipType    = document.getElementById('ef-equipType').value.trim();
+      data.equipCode    = document.getElementById('ef-equipCode').value.trim();
+      data.specificEquip = document.getElementById('ef-specificEquip').value.trim();
+      data.buildingZone = document.getElementById('ef-buildingZone').value.trim();
+      data.lineNo       = document.getElementById('ef-lineNo').value.trim();
+    } else if (section === 'problem') {
+      data.problemType  = document.getElementById('ef-problemType').value.trim();
+      data.description  = document.getElementById('ef-description').value.trim();
+    } else if (section === 'capa') {
+      data.correctiveAct = document.getElementById('ef-correctiveAct').value.trim();
+      data.rootCause     = document.getElementById('ef-rootCause').value.trim();
+      data.preventiveAct = document.getElementById('ef-preventiveAct').value.trim();
+      data.fixType       = document.getElementById('ef-fixType').value;
+      data.permFixPlan   = document.getElementById('ef-permFixPlan').value.trim();
+      data.permFixDate   = document.getElementById('ef-permFixDate').value;
+    }
+    _tdRunAction_(editTicketFields, data, 'Ticket updated');
+  }, 'Save Changes');
+}
+
 function _tdIssueTag_() {
   var t = _tdTicket;
   if (!t) return;
@@ -1034,6 +1145,7 @@ var _tdActionUrls_ = {
   rejectJointRequest:   '/api/tickets/reject-joint',
   issueEquipHoldTag:    '/api/monitoring/hold-tags/issue',
   saveServiceReport:    '/api/tickets/service-report',
+  editTicketFields:     '/api/tickets/edit-fields',
 };
 
 function _tdRunAction_(serverFn, data, successLabel) {
@@ -1267,4 +1379,5 @@ function confirmJointRequest(d)  {}
 function rejectJointRequest(d)   {}
 function issueEquipHoldTag(d)    {}
 function saveServiceReport(d)    {}
+function editTicketFields(d)     {}
 </script>

@@ -1931,6 +1931,40 @@ async function handleUpdateTicket(env, userEmail, body) {
   return jsonResponse({ success: true, ticketNo });
 }
 
+async function handleEditTicketFields(env, userEmail, body) {
+  const token = await getAccessToken(env);
+  const user  = await resolveUser(token, env, userEmail);
+  if (!user.isManager) return jsonResponse({ error: 'Manager access required' }, 403);
+  const ticketNo  = String(body.ticketNo || '').trim();
+  if (!ticketNo) return jsonResponse({ error: 'ticketNo required' }, 400);
+  const updatedBy = String(body.updatedBy || user.displayName).trim();
+  const section   = String(body.section   || 'fields');
+
+  const opts = {
+    ticketNo, now: new Date(),
+    action: 'DIRECT EDIT — ' + section,
+    updatedBy,
+    notes: 'Direct edit (' + section + ') by ' + updatedBy,
+  };
+
+  // Apply only the fields that were submitted for this section
+  const editable = [
+    'priority','assignedTo','estHours','actualHours','downtimeType',
+    'equipType','equipCode','specificEquip','buildingZone','lineNo',
+    'problemType','description',
+    'correctiveAct','rootCause','preventiveAct','fixType','permFixPlan','permFixDate',
+  ];
+  const changed = [];
+  editable.forEach(f => {
+    if (body[f] !== undefined) { opts[f] = body[f]; changed.push(f); }
+  });
+
+  await appendMasterLog(token, env, opts);
+  await appendTicketHistory(token, env, ticketNo, 'DIRECT EDIT', '', '', updatedBy,
+    'Edited: ' + changed.join(', '));
+  return jsonResponse({ success: true, ticketNo });
+}
+
 async function handleIssueHoldTag(env, userEmail, body) {
   const token    = await getAccessToken(env);
   const user     = await resolveUser(token, env, userEmail);
@@ -2703,6 +2737,7 @@ export default {
       else if (p === '/api/tickets/request-parts'       && method === 'POST')res = await handleRequestParts(env, userEmail, body);
       else if (p === '/api/tickets/update'              && method === 'POST')res = await handleUpdateTicket(env, userEmail, body);
       else if (p === '/api/tickets/service-report'      && method === 'POST')res = await handleServiceReport(env, userEmail, body);
+      else if (p === '/api/tickets/edit-fields'         && method === 'POST')res = await handleEditTicketFields(env, userEmail, body);
       else if (p === '/api/tickets/service-report'      && method === 'GET') res = await handleGetServiceReport(env, userEmail, url.searchParams.get('ticketNo') || '');
       else if (p === '/api/tickets/dept-sign-off'       && method === 'POST')res = await handleDeptSignOff(env, userEmail, body);
       else if (p === '/api/monitoring/hold-tags/issue'  && method === 'POST')res = await handleIssueHoldTag(env, userEmail, body);
