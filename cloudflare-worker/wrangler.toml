@@ -17,4 +17,4 @@ compatibility_date = "2024-09-23"
 #
 # ── Optional vars ─────────────────────────────────────────────────────────────
 [vars]
-APP_VERSION = "3.02"
+APP_VERSION = "3.03"
