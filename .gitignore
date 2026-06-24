@@ -1,0 +1,10 @@
+# Dependencies
+node_modules/
+
+# Cloudflare Wrangler local state & build output
+# (the cache holds your CF account id/name — must never be committed)
+.wrangler/
+dist/
+
+# Local secrets for `wrangler dev` — never commit real values
+.dev.vars

@@ -1,0 +1,24 @@
+# Template for the Worker's runtime secrets.
+#
+# LOCAL TESTING:  copy this file to `.dev.vars` and fill in real values, then
+#                 run `npm run dev` (wrangler dev). `.dev.vars` is gitignored.
+# PRODUCTION:     do NOT use this file — set each on the deployed Worker with
+#                 `wrangler secret put <NAME>` (values persist across deploys).
+
+# The CMMS Google Sheet ID (the long string between /d/ and /edit in its URL).
+SPREADSHEET_ID=
+
+# Service-account "client_email" from the Google Cloud JSON key.
+GOOGLE_SA_EMAIL=
+
+# Service-account "private_key" from the JSON key — the FULL PEM block.
+# In .dev.vars, wrap it in double quotes and keep the \n escapes, e.g.:
+#   GOOGLE_SA_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\nMIIE...\n-----END PRIVATE KEY-----\n"
+GOOGLE_SA_PRIVATE_KEY=
+
+# CORS origin allowed to call this Worker (your GitHub Pages site).
+ALLOWED_ORIGIN=https://your-org.github.io
+
+# Google Drive folder ID for ticket photo uploads.
+# Share that folder with GOOGLE_SA_EMAIL (Editor).
+PHOTO_FOLDER_ID=
