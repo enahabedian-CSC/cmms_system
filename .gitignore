@@ -4,3 +4,11 @@
 !.dev.vars.example
 .env*
 !.env.example
+
+# Block rogue root-level wrangler config (use cloudflare-worker/wrangler.toml only)
+/wrangler.toml
+/wrangler.json
+/wrangler.jsonc
+
+# Dry-run build artifacts
+cloudflare-worker/dry-run-out/
