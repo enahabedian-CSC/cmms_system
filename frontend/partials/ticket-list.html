@@ -36,7 +36,8 @@
 .stat-VOIDED             {background:var(--bg-subtle);color:var(--text-tertiary);}
 .flag-tf{display:inline-block;font-size:10px;background:#FFF3E0;color:#E65100;border:1px solid #FFCCBC;border-radius:3px;padding:1px 5px;margin-left:4px;}
 .stat-ON-HOLD{background:var(--status-warn-bg);color:var(--status-warn);}
-.clip-icon{display:inline-block;margin-left:5px;font-size:11px;opacity:.6;vertical-align:middle;flex-shrink:0;}
+.tl-table .col-photo{width:42px;text-align:center;white-space:nowrap;}
+.clip-icon{font-size:13px;opacity:.55;}
 .sort-th{cursor:pointer;user-select:none;}
 .sort-th:hover{color:var(--text-primary);}
 .sort-th::after{content:' ⇅';opacity:.35;font-size:10px;}
@@ -240,7 +241,7 @@ function _renderList_(tickets, queueType, deptFilter, container, userOwnedDepts)
       var cntEl = document.getElementById('tl-cnt-' + qt);
       if (cntEl) cntEl.textContent = list.length + ' ticket' + (list.length !== 1 ? 's' : '');
     }
-    var colSpan = deptCol ? 8 : 7;
+    var colSpan = deptCol ? 9 : 8;
     if (list.length === 0) {
       tbody.innerHTML = '<tr><td colspan="' + colSpan + '" class="tl-empty">No tickets match.</td></tr>';
       return;
@@ -257,7 +258,8 @@ function _renderList_(tickets, queueType, deptFilter, container, userOwnedDepts)
         '<td class="col-equip" title="' + esc(t.equipCode ? t.equipCode + ' — ' + t.specificEquip : t.specificEquip) + '">' +
           (t.equipCode ? '<span style="font-family:var(--font-mono);font-size:11px;color:var(--text-secondary);">' + esc(t.equipCode) + '</span> ' : '') +
           esc(t.specificEquip) + '</td>' +
-        '<td class="col-desc" title="' + esc(t.description) + '">' + esc(t.description) + (t.photoUrl ? '<span class="clip-icon" title="Has photo">&#128206;</span>' : '') + '</td>' +
+        '<td class="col-desc" title="' + esc(t.description) + '">' + esc(t.description) + '</td>' +
+        '<td class="col-photo">' + (t.photoUrl ? '<span class="clip-icon" title="Has photo">&#128206;</span>' : '') + '</td>' +
         '<td>' + esc(t.assignedTo || '—') + '</td>' +
         '<td style="color:var(--text-tertiary);font-size:11.5px;">' + esc(t.dateOpened) + '</td>' +
         '</tr>';
@@ -351,6 +353,7 @@ function _renderList_(tickets, queueType, deptFilter, container, userOwnedDepts)
           (showDept ? _tlTh_(qt,'dept','Dept') : '') +
           _tlTh_(qt,'specificEquip','Equipment') +
           _tlTh_(qt,'description','Description') +
+          '<th class="col-photo">Photo</th>' +
           _tlTh_(qt,'assignedTo','Assigned To') +
           _tlTh_(qt,'dateOpened','Date Opened') +
         '</tr></thead>' +
@@ -370,6 +373,7 @@ function _renderList_(tickets, queueType, deptFilter, container, userOwnedDepts)
             _tlTh_('tracker','status','Status') +
             _tlTh_('tracker','specificEquip','Equipment') +
             _tlTh_('tracker','description','Description') +
+            '<th class="col-photo">Photo</th>' +
             _tlTh_('tracker','assignedTo','Assigned To') +
             _tlTh_('tracker','dateOpened','Date Opened') +
           '</tr></thead>' +
@@ -391,6 +395,7 @@ function _renderList_(tickets, queueType, deptFilter, container, userOwnedDepts)
             _tlTh_('tracker','dept','Primary Dept') +
             _tlTh_('tracker','specificEquip','Equipment') +
             _tlTh_('tracker','description','Description') +
+            '<th class="col-photo">Photo</th>' +
             _tlTh_('tracker','assignedTo','Assigned To') +
             _tlTh_('tracker','dateOpened','Date Opened') +
           '</tr></thead>' +
