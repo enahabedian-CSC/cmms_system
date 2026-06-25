@@ -241,7 +241,7 @@ function _renderList_(tickets, queueType, deptFilter, container, userOwnedDepts)
       var cntEl = document.getElementById('tl-cnt-' + qt);
       if (cntEl) cntEl.textContent = list.length + ' ticket' + (list.length !== 1 ? 's' : '');
     }
-    var colSpan = deptCol ? 9 : 8;
+    var colSpan = deptCol ? 11 : 10;
     if (list.length === 0) {
       tbody.innerHTML = '<tr><td colspan="' + colSpan + '" class="tl-empty">No tickets match.</td></tr>';
       return;
@@ -251,6 +251,7 @@ function _renderList_(tickets, queueType, deptFilter, container, userOwnedDepts)
       var staCls = 'stat-' + t.status.replace(/\s+/g, '-');
       return '<tr onclick="openTicketDetail(\'' + esc(t.ticketNo) + '\')">' +
         '<td class="col-ticket">' + esc(t.ticketNo) + '</td>' +
+        '<td style="color:var(--text-tertiary);font-size:11.5px;">' + esc(t.dateOpened) + '</td>' +
         '<td><span class="pri-badge ' + priCls + '">' + esc(t.priority || '—') + '</span></td>' +
         '<td><span class="stat-badge ' + staCls + '">' + esc(t.status) + '</span>' +
           (t.tempFixFlag ? '<span class="flag-tf">TF</span>' : '') + '</td>' +
@@ -260,8 +261,8 @@ function _renderList_(tickets, queueType, deptFilter, container, userOwnedDepts)
           esc(t.specificEquip) + '</td>' +
         '<td class="col-desc" title="' + esc(t.description) + '">' + esc(t.description) + '</td>' +
         '<td class="col-photo">' + (t.photoUrl ? '<span class="clip-icon" title="Has photo">&#128206;</span>' : '') + '</td>' +
+        '<td>' + esc(t.addedBy || '—') + '</td>' +
         '<td>' + esc(t.assignedTo || '—') + '</td>' +
-        '<td style="color:var(--text-tertiary);font-size:11.5px;">' + esc(t.dateOpened) + '</td>' +
         '</tr>';
     }).join('');
   }
@@ -348,14 +349,15 @@ function _renderList_(tickets, queueType, deptFilter, container, userOwnedDepts)
       '<div class="tl-table-wrap"><table class="tl-table">' +
         '<thead><tr>' +
           _tlTh_(qt,'ticketNo','Ticket #') +
+          _tlTh_(qt,'dateOpened','Date Opened') +
           _tlTh_(qt,'priority','Priority') +
           _tlTh_(qt,'status','Status') +
           (showDept ? _tlTh_(qt,'dept','Dept') : '') +
           _tlTh_(qt,'specificEquip','Equipment') +
           _tlTh_(qt,'description','Description') +
           '<th class="col-photo">Photo</th>' +
+          _tlTh_(qt,'addedBy','Added By') +
           _tlTh_(qt,'assignedTo','Assigned To') +
-          _tlTh_(qt,'dateOpened','Date Opened') +
         '</tr></thead>' +
         '<tbody id="tl-tbody-' + qt + '"></tbody>' +
       '</table></div>'
@@ -369,13 +371,14 @@ function _renderList_(tickets, queueType, deptFilter, container, userOwnedDepts)
         '<div class="tl-table-wrap" style="border:0;border-radius:0;box-shadow:none;"><table class="tl-table">' +
           '<thead><tr>' +
             _tlTh_('tracker','ticketNo','Ticket #') +
+            _tlTh_('tracker','dateOpened','Date Opened') +
             _tlTh_('tracker','priority','Priority') +
             _tlTh_('tracker','status','Status') +
             _tlTh_('tracker','specificEquip','Equipment') +
             _tlTh_('tracker','description','Description') +
             '<th class="col-photo">Photo</th>' +
+            _tlTh_('tracker','addedBy','Added By') +
             _tlTh_('tracker','assignedTo','Assigned To') +
-            _tlTh_('tracker','dateOpened','Date Opened') +
           '</tr></thead>' +
           '<tbody id="tl-tbody-tracker-my"></tbody>' +
         '</table></div>' +
@@ -390,14 +393,15 @@ function _renderList_(tickets, queueType, deptFilter, container, userOwnedDepts)
         '<div class="tl-table-wrap" style="border:0;border-radius:0;box-shadow:none;"><table class="tl-table">' +
           '<thead><tr>' +
             _tlTh_('tracker','ticketNo','Ticket #') +
+            _tlTh_('tracker','dateOpened','Date Opened') +
             _tlTh_('tracker','priority','Priority') +
             _tlTh_('tracker','status','Status') +
             _tlTh_('tracker','dept','Primary Dept') +
             _tlTh_('tracker','specificEquip','Equipment') +
             _tlTh_('tracker','description','Description') +
             '<th class="col-photo">Photo</th>' +
+            _tlTh_('tracker','addedBy','Added By') +
             _tlTh_('tracker','assignedTo','Assigned To') +
-            _tlTh_('tracker','dateOpened','Date Opened') +
           '</tr></thead>' +
           '<tbody id="tl-tbody-tracker-joint"></tbody>' +
         '</table></div>' +
