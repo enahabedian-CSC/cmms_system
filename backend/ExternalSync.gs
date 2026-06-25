@@ -107,7 +107,8 @@ function syncExternalTickets() {
         lineNo:        lineNo,
         addedBy:       addedBy,
         updatedBy:     'External Sync',
-        notes:         photoLinks ? 'Photos: ' + photoLinks : ''
+        notes:         '',
+        photoUrl:      photoLinks
       });
 
       // Mark as imported before the sheet writes so a partial failure doesn't
@@ -142,7 +143,8 @@ function syncExternalTickets() {
         estHours:      estHours,
         lineNo:        lineNo,
         partsNeeded:   false,
-        notes:         photoLinks ? 'Photos: ' + photoLinks : ''
+        photoUrl:      photoLinks,
+        notes:         ''
       };
       writeTicketToSheet_(ss, SH.WAITING, ticketNo, ticketData, 'WAITING', dept, ticketDate, addedBy);
       writeTicketToSheet_(ss, tracker,    ticketNo, ticketData, 'WAITING', dept, ticketDate, addedBy);
