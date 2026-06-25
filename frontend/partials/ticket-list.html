@@ -38,6 +38,18 @@
 .stat-ON-HOLD{background:var(--status-warn-bg);color:var(--status-warn);}
 .tl-table .col-photo{width:42px;text-align:center;white-space:nowrap;}
 .clip-icon{font-size:13px;opacity:.55;}
+.tl-table .col-action{width:36px;text-align:center;white-space:nowrap;}
+.tl-assign-btn{background:none;border:1px solid var(--border-default);border-radius:5px;padding:3px 6px;cursor:pointer;font-size:12px;color:var(--text-secondary);line-height:1;transition:background .1s,border-color .1s;}
+.tl-assign-btn:hover{background:var(--bg-hover);border-color:var(--border-strong);color:var(--text-primary);}
+.tl-assign-pop{position:fixed;z-index:9999;background:#fff;border:1px solid var(--border-strong);border-radius:8px;box-shadow:0 4px 16px rgba(0,0,0,.13);padding:10px;display:flex;flex-direction:column;gap:7px;min-width:200px;}
+.tl-assign-pop select{height:30px;padding:0 8px;border:1px solid var(--border-default);border-radius:5px;font-size:12.5px;color:var(--text-primary);background:#fff;outline:none;width:100%;}
+.tl-assign-pop select:focus{border-color:var(--brand-navy);}
+.tl-assign-pop-btns{display:flex;gap:6px;}
+.tl-assign-pop-btns button{flex:1;height:28px;border-radius:5px;font-size:12px;font-weight:600;cursor:pointer;border:none;}
+.tl-ap-confirm{background:var(--brand-navy);color:#fff;}
+.tl-ap-confirm:hover{background:var(--brand-navy-soft);}
+.tl-ap-cancel{background:var(--bg-subtle);color:var(--text-secondary);}
+.tl-ap-cancel:hover{background:var(--bg-hover);}
 .sort-th{cursor:pointer;user-select:none;}
 .sort-th:hover{color:var(--text-primary);}
 .sort-th::after{content:' ⇅';opacity:.35;font-size:10px;}
@@ -241,7 +253,7 @@ function _renderList_(tickets, queueType, deptFilter, container, userOwnedDepts)
       var cntEl = document.getElementById('tl-cnt-' + qt);
       if (cntEl) cntEl.textContent = list.length + ' ticket' + (list.length !== 1 ? 's' : '');
     }
-    var colSpan = deptCol ? 11 : 10;
+    var colSpan = deptCol ? 12 : 11;
     if (list.length === 0) {
       tbody.innerHTML = '<tr><td colspan="' + colSpan + '" class="tl-empty">No tickets match.</td></tr>';
       return;
@@ -262,7 +274,8 @@ function _renderList_(tickets, queueType, deptFilter, container, userOwnedDepts)
         '<td class="col-desc" title="' + esc(t.description) + '">' + esc(t.description) + '</td>' +
         '<td class="col-photo">' + (t.photoUrl ? '<span class="clip-icon" title="Has photo">&#128206;</span>' : '') + '</td>' +
         '<td>' + esc(t.addedBy || '—') + '</td>' +
-        '<td>' + esc(t.assignedTo || '—') + '</td>' +
+        '<td class="tl-assignee-cell" data-ticket="' + esc(t.ticketNo) + '">' + esc(t.assignedTo || '—') + '</td>' +
+        '<td class="col-action" onclick="event.stopPropagation()"><button class="tl-assign-btn" onclick="_tlShowAssignPop_(this,\'' + esc(t.ticketNo) + '\')" title="Assign technician">&#128100;</button></td>' +
         '</tr>';
     }).join('');
   }
@@ -358,6 +371,7 @@ function _renderList_(tickets, queueType, deptFilter, container, userOwnedDepts)
           '<th class="col-photo">Photo</th>' +
           _tlTh_(qt,'addedBy','Added By') +
           _tlTh_(qt,'assignedTo','Assigned To') +
+          '<th class="col-action"></th>' +
         '</tr></thead>' +
         '<tbody id="tl-tbody-' + qt + '"></tbody>' +
       '</table></div>'
@@ -379,6 +393,7 @@ function _renderList_(tickets, queueType, deptFilter, container, userOwnedDepts)
             '<th class="col-photo">Photo</th>' +
             _tlTh_('tracker','addedBy','Added By') +
             _tlTh_('tracker','assignedTo','Assigned To') +
+            '<th class="col-action"></th>' +
           '</tr></thead>' +
           '<tbody id="tl-tbody-tracker-my"></tbody>' +
         '</table></div>' +
@@ -402,6 +417,7 @@ function _renderList_(tickets, queueType, deptFilter, container, userOwnedDepts)
             '<th class="col-photo">Photo</th>' +
             _tlTh_('tracker','addedBy','Added By') +
             _tlTh_('tracker','assignedTo','Assigned To') +
+            '<th class="col-action"></th>' +
           '</tr></thead>' +
           '<tbody id="tl-tbody-tracker-joint"></tbody>' +
         '</table></div>' +
@@ -665,4 +681,77 @@ _TRACKER_DEPTS_.forEach(function(td) {
     PAGES[id] = function(c) { _loadListPage_('tracker', dept, c); };
   })(td.id, td.dept);
 });
+
+// ── Quick-assign popover ──────────────────────────────────────────────────────
+var _tlTechs_   = null;   // cached people list
+var _tlActivePop_ = null; // currently open popover element
+
+function _tlClosePop_() {
+  if (_tlActivePop_) { _tlActivePop_.remove(); _tlActivePop_ = null; }
+}
+
+document.addEventListener('click', function(e) {
+  if (_tlActivePop_ && !_tlActivePop_.contains(e.target)) _tlClosePop_();
+});
+
+function _tlShowAssignPop_(btn, ticketNo) {
+  _tlClosePop_();
+
+  function _renderPop_(techs) {
+    var pop = document.createElement('div');
+    pop.className = 'tl-assign-pop';
+    var opts = '<option value="">— Unassign —</option>' +
+      techs.map(function(n) { return '<option>' + esc(n) + '</option>'; }).join('');
+    pop.innerHTML =
+      '<div style="font-size:11px;font-weight:600;color:var(--text-secondary);margin-bottom:2px;">Assign: ' + esc(ticketNo) + '</div>' +
+      '<select id="tl-pop-sel">' + opts + '</select>' +
+      '<div class="tl-assign-pop-btns">' +
+        '<button class="tl-ap-confirm" onclick="_tlConfirmAssign_(\'' + esc(ticketNo) + '\')">Assign</button>' +
+        '<button class="tl-ap-cancel" onclick="_tlClosePop_()">Cancel</button>' +
+      '</div>';
+
+    var rect = btn.getBoundingClientRect();
+    pop.style.top  = (rect.bottom + 4) + 'px';
+    pop.style.left = Math.max(4, rect.right - 210) + 'px';
+    document.body.appendChild(pop);
+    _tlActivePop_ = pop;
+    pop.querySelector('select').focus();
+  }
+
+  if (_tlTechs_) { _renderPop_(_tlTechs_); return; }
+
+  fetch(WORKER_URL + '/api/submit/form-data', { headers: { 'X-User-Email': USER ? USER.email : '' } })
+    .then(function(r) { return r.json(); })
+    .then(function(d) {
+      _tlTechs_ = Array.isArray(d.peopleList) ? d.peopleList : [];
+      _renderPop_(_tlTechs_);
+    })
+    .catch(function() { _tlTechs_ = []; _renderPop_([]); });
+}
+
+function _tlConfirmAssign_(ticketNo) {
+  var sel = document.getElementById('tl-pop-sel');
+  if (!sel) return;
+  var tech = sel.value.trim();
+  var btn  = _tlActivePop_ ? _tlActivePop_.querySelector('.tl-ap-confirm') : null;
+  if (btn) { btn.disabled = true; btn.textContent = '…'; }
+
+  fetch(WORKER_URL + '/api/tickets/assign', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-User-Email': USER ? USER.email : '' },
+    body: JSON.stringify({ ticketNo: ticketNo, assignedTo: tech, updatedBy: USER ? (USER.name || USER.email) : '' })
+  })
+  .then(function(r) { return r.json(); })
+  .then(function(d) {
+    if (d.error) throw new Error(d.error);
+    // update the assignee cell in the row without a full reload
+    var cell = document.querySelector('.tl-assignee-cell[data-ticket="' + ticketNo + '"]');
+    if (cell) cell.textContent = tech || '—';
+    _tlClosePop_();
+  })
+  .catch(function(err) {
+    alert('Assignment failed: ' + (err.message || err));
+    if (btn) { btn.disabled = false; btn.textContent = 'Assign'; }
+  });
+}
 </script>
