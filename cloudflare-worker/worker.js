@@ -1144,6 +1144,7 @@ function mergeAndFilter(mlRows, statusFilter, deptFilter) {
       actualHours:  r[ML.ACTUAL_HOURS - 1] || '',
       fixType:      cellStr(r, ML.FIX_TYPE),
       verifiedBy:   cellStr(r, ML.VERIFIED_BY),
+      photoUrl:     cellStr(r, ML.PHOTO_URL),
       jointDepts:   jointStr, isJoint, pendingJointDepts: pendingStr, isPendingJoint,
     });
   });
