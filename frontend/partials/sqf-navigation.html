@@ -1,0 +1,94 @@
+<!-- ╔══════════════════════════════════════════════════════════════════╗ -->
+<!-- ║  SQF Navigation — directory of SQF/FRM forms.  An auditor names a  ║ -->
+<!-- ║  form (e.g. FRM-029-002); the manager finds it here and clicks to  ║ -->
+<!-- ║  jump straight to where that record lives in the console.          ║ -->
+<!-- ╚══════════════════════════════════════════════════════════════════╝ -->
+<style>
+.sqf-wrap{padding:18px 22px;max-width:1040px;}
+.sqf-intro{font-size:13px;color:var(--text-secondary);margin-bottom:14px;line-height:1.55;}
+.sqf-search{width:100%;max-width:480px;height:36px;padding:0 12px;border:1px solid var(--border-default);border-radius:8px;font-size:13px;font-family:inherit;margin-bottom:16px;}
+.sqf-search:focus{outline:none;border-color:var(--brand-navy);box-shadow:0 0 0 2px rgba(21,101,192,.15);}
+.sqf-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:12px;}
+.sqf-card{display:flex;flex-direction:column;gap:6px;background:var(--bg-surface);border:1px solid var(--border-default);border-radius:10px;padding:14px 16px;box-shadow:var(--shadow-sm);cursor:pointer;transition:border-color .15s,box-shadow .15s;text-align:left;font-family:inherit;width:100%;}
+.sqf-card:hover{border-color:var(--brand-navy);box-shadow:var(--shadow-md);}
+.sqf-code{font-family:var(--font-mono);font-size:12px;font-weight:700;color:#fff;background:var(--brand-navy);border-radius:5px;padding:2px 8px;align-self:flex-start;}
+.sqf-name{font-size:13.5px;font-weight:700;color:var(--text-primary);}
+.sqf-clause{font-size:11px;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:.04em;}
+.sqf-desc{font-size:12px;color:var(--text-secondary);line-height:1.45;}
+.sqf-go{margin-top:4px;font-size:11.5px;font-weight:600;color:var(--brand-navy);}
+.sqf-empty{color:var(--text-tertiary);font-size:13px;padding:18px 0;}
+</style>
+<script>
+window.PAGES = window.PAGES || {};
+
+// SQF / FRM form directory → where each record lives in the console.
+// `page` is a nav pageId; optional `anchor` scrolls to a section on that page.
+var _SQF_FORMS_ = [
+  { code:'FRM-030-001', name:'Maintenance / Repair Request', clause:'Ticket intake', page:'submit',
+    desc:'Raise a maintenance ticket. The New Ticket form is the digital Maintenance/Repair Request.' },
+  { code:'FRM-030-003', name:'Maintenance Repair Record (Service Report)', clause:'SQF 2.13', page:'closed',
+    desc:'Open a closed ticket and click "Service Report" to view / print the signed repair record.' },
+  { code:'FRM-030-002', name:'Equipment Maintenance Repair Log (EMRL)', clause:'SQF 13.2.8', page:'reports', anchor:'emrl-section',
+    desc:'Searchable equipment repair history. Lives at the bottom of the Reports tab.' },
+  { code:'FRM-029-001', name:'Non-Conforming Equipment Register', clause:'SQF 2.3–2.6', page:'equipment-hold',
+    desc:'Register of held / non-conforming equipment — CAPA #, disposition and release authorization.' },
+  { code:'FRM-029-002', name:'Equipment Quality Hold Tag', clause:'SQF 2.4', page:'equipment-hold',
+    desc:'Printable hold tag. Open Equipment Hold and click "Print Tag" on any active hold.' },
+  { code:'FRM-017-001', name:'Corrective Action Request (CAPA)', clause:'SQF 2.4.2', page:'ticket-log',
+    desc:'CAPA detail is recorded on the ticket. Search a ticket here to view its CAPA / work summary.' },
+  { code:'SQF 13.2.8', name:'Reports & Analytics', clause:'Maintenance review', page:'reports',
+    desc:'KPIs, equipment-risk heatmaps, team workload and the SQF compliance pack.' }
+];
+
+window.PAGES['sqf-nav'] = function(container) { _renderSqfNav_(container); };
+
+function _renderSqfNav_(container) {
+  container.innerHTML =
+    '<div class="sqf-wrap">' +
+      '<div class="sqf-intro">Search for an SQF form code or name (e.g. <strong>FRM-029-002</strong>) and click it — ' +
+        'the console jumps straight to where that record lives.</div>' +
+      '<input class="sqf-search" id="sqf-search" placeholder="Search form code or name… e.g. FRM-029-002, hold tag, EMRL" oninput="_sqfFilter_()" />' +
+      '<div class="sqf-grid" id="sqf-grid"></div>' +
+    '</div>';
+  _sqfRender_(_SQF_FORMS_);
+}
+
+function _sqfRender_(list) {
+  var grid = document.getElementById('sqf-grid');
+  if (!grid) return;
+  if (!list.length) { grid.innerHTML = '<div class="sqf-empty">No matching SQF forms.</div>'; return; }
+  grid.innerHTML = list.map(function(f) {
+    return '<button class="sqf-card" onclick="_sqfGo_(' + _SQF_FORMS_.indexOf(f) + ')">' +
+      '<span class="sqf-code">' + esc(f.code) + '</span>' +
+      '<span class="sqf-name">' + esc(f.name) + '</span>' +
+      '<span class="sqf-clause">' + esc(f.clause) + '</span>' +
+      '<span class="sqf-desc">' + esc(f.desc) + '</span>' +
+      '<span class="sqf-go">Go to ' + esc((typeof PAGE_TITLES !== 'undefined' && PAGE_TITLES[f.page]) || f.page) + ' →</span>' +
+    '</button>';
+  }).join('');
+}
+
+function _sqfFilter_() {
+  var q = (document.getElementById('sqf-search').value || '').toLowerCase();
+  if (!q) { _sqfRender_(_SQF_FORMS_); return; }
+  _sqfRender_(_SQF_FORMS_.filter(function(f) {
+    return (f.code + ' ' + f.name + ' ' + f.clause + ' ' + f.desc).toLowerCase().indexOf(q) >= 0;
+  }));
+}
+
+function _sqfGo_(idx) {
+  var f = _SQF_FORMS_[idx];
+  if (!f) return;
+  navigate(f.page);
+  if (f.anchor) {
+    // Best-effort scroll to the target section once the page has rendered.
+    var tries = 0;
+    var timer = setInterval(function() {
+      var el = document.getElementById(f.anchor) || document.querySelector('.' + f.anchor);
+      tries++;
+      if (el) { el.scrollIntoView({ behavior: 'smooth', block: 'start' }); clearInterval(timer); }
+      else if (tries > 20) { clearInterval(timer); }
+    }, 150);
+  }
+}
+</script>

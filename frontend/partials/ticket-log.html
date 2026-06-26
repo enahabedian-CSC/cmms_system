@@ -1,0 +1,127 @@
+<!-- ╔══════════════════════════════════════════════════════════════════╗ -->
+<!-- ║  Ticket Detail (full ticket log) — searchable list of ALL         ║ -->
+<!-- ║  tickets.  Lives under the Tickets section.  Row click opens the   ║ -->
+<!-- ║  editable ticket-detail overlay.  Relocated out of Reports.        ║ -->
+<!-- ╚══════════════════════════════════════════════════════════════════╝ -->
+<style>
+.tlog-wrap{padding:18px 22px;}
+.tlog-toolbar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:12px;}
+.tlog-title{font-size:15px;font-weight:700;color:var(--brand-navy);}
+.tlog-search{flex:1;min-width:220px;max-width:460px;height:34px;padding:0 12px;border:1px solid var(--border-default);border-radius:7px;font-size:13px;font-family:inherit;}
+.tlog-search:focus{outline:none;border-color:var(--brand-navy);box-shadow:0 0 0 2px rgba(21,101,192,.15);}
+.tlog-days{height:34px;padding:0 8px;border:1px solid var(--border-default);border-radius:7px;font-size:12.5px;font-family:inherit;}
+.tlog-meta{font-size:12px;color:var(--text-secondary);margin-bottom:10px;}
+.tlog-table-wrap{background:var(--bg-surface);border:1px solid var(--border-default);border-radius:10px;overflow:auto;box-shadow:var(--shadow-sm);}
+.tlog-table{width:100%;border-collapse:collapse;font-size:12.5px;}
+.tlog-table th{text-align:left;padding:9px 12px;background:var(--bg-subtle);color:var(--text-secondary);font-weight:600;font-size:11px;text-transform:uppercase;letter-spacing:.04em;border-bottom:1px solid var(--border-default);white-space:nowrap;}
+.tlog-table td{padding:8px 12px;border-bottom:1px solid var(--border-default);}
+.tlog-table tbody tr{cursor:pointer;}
+.tlog-table tbody tr:hover{background:var(--bg-hover);}
+.tlog-empty{text-align:center;color:var(--text-tertiary);padding:22px;}
+</style>
+<script>
+window.PAGES = window.PAGES || {};
+var _tlogData_ = null;
+var _tlogDays_ = 365;
+
+window.PAGES['ticket-log'] = function(container) { _loadTicketLog_(container, _tlogDays_); };
+
+function _loadTicketLog_(container, daysBack) {
+  _tlogDays_ = daysBack || 365;
+  container.innerHTML =
+    '<div class="loading-overlay"><div class="spinner"></div><span>Loading tickets…</span></div>';
+  fetch(WORKER_URL + '/api/reports/data?daysBack=' + _tlogDays_, {
+    headers: { 'X-User-Email': (USER && USER.email) || '' }
+  })
+  .then(function(r) { return r.json(); })
+  .then(function(data) {
+    if (data && data.error) {
+      var msg = data.error;
+      container.innerHTML = (msg.indexOf('Manager') >= 0 || msg.indexOf('required') >= 0)
+        ? '<div class="tlog-wrap"><div class="tlog-empty">The full ticket log is only available to managers.</div></div>'
+        : '<div class="tlog-wrap"><div class="tlog-empty">Error loading tickets: ' + esc(msg) + '</div></div>';
+      return;
+    }
+    if (!data || !data.tickets) {
+      container.innerHTML = '<div class="tlog-wrap"><div class="tlog-empty">No ticket data available.</div></div>';
+      return;
+    }
+    _renderTicketLog_(data, container);
+  })
+  .catch(function(err) {
+    container.innerHTML = '<div class="tlog-wrap"><div class="tlog-empty">Error: ' + esc(err.message || String(err)) + '</div></div>';
+  });
+}
+
+function _renderTicketLog_(data, container) {
+  _tlogData_ = data;
+  container.innerHTML =
+    '<div class="tlog-wrap">' +
+      '<div class="tlog-toolbar">' +
+        '<span class="tlog-title">Ticket Detail</span>' +
+        '<input class="tlog-search" id="tlog-search" placeholder="Search any ticket — #, dept, equipment, description, assignee…" oninput="_tlogApply_()" />' +
+        '<select class="tlog-days" id="tlog-days" onchange="_tlogChangeDays_()">' +
+          [90, 180, 365, 1095, 3650].map(function(d) {
+            var lbl = d >= 365 ? (d / 365) + ' yr' : d + ' days';
+            return '<option value="' + d + '"' + (d === _tlogDays_ ? ' selected' : '') + '>Last ' + lbl + '</option>';
+          }).join('') +
+        '</select>' +
+      '</div>' +
+      '<div class="tlog-meta" id="tlog-meta"></div>' +
+      '<div class="tlog-table-wrap">' +
+        '<table class="tlog-table"><thead><tr>' +
+          '<th>Ticket #</th><th>Priority</th><th>Status</th><th>Dept</th>' +
+          '<th>Equipment</th><th>Description</th><th>Assigned</th>' +
+          '<th>Opened</th><th>Closed</th><th>Hrs</th>' +
+        '</tr></thead><tbody id="tlog-tbody"></tbody></table>' +
+      '</div>' +
+    '</div>';
+  _tlogRenderRows_(data.tickets);
+}
+
+function _tlogApply_() {
+  if (!_tlogData_) return;
+  var q = document.getElementById('tlog-search');
+  var s = q ? q.value.toLowerCase() : '';
+  var filtered = _tlogData_.tickets.filter(function(t) {
+    if (!s) return true;
+    var hay = (t.ticketNo + ' ' + t.dept + ' ' + t.specificEquip + ' ' +
+               t.description + ' ' + t.assignedTo + ' ' + t.addedBy + ' ' + t.status).toLowerCase();
+    return hay.indexOf(s) >= 0;
+  });
+  _tlogRenderRows_(filtered);
+}
+
+function _tlogChangeDays_() {
+  var sel = document.getElementById('tlog-days');
+  var d = sel ? parseInt(sel.value, 10) : 365;
+  _loadTicketLog_(document.getElementById('page-ticket-log'), d);
+}
+
+function _tlogRenderRows_(list) {
+  var tbody = document.getElementById('tlog-tbody');
+  if (!tbody) return;
+  var meta = document.getElementById('tlog-meta');
+  if (meta) meta.textContent = list.length + ' ticket' + (list.length !== 1 ? 's' : '') + ' — click a row to open & edit';
+  if (!list.length) {
+    tbody.innerHTML = '<tr><td colspan="10" class="tlog-empty">No tickets match.</td></tr>';
+    return;
+  }
+  tbody.innerHTML = list.map(function(t) {
+    var priCls = 'pri-' + (t.priority || '');
+    var staCls = 'stat-' + String(t.status).replace(/\s+/g, '-');
+    return '<tr onclick="openTicketDetail(\'' + esc(t.ticketNo) + '\')">' +
+      '<td style="font-family:var(--font-mono);font-weight:600;color:var(--brand-navy);">' + esc(t.ticketNo) + '</td>' +
+      '<td><span class="pri-badge ' + priCls + '">' + esc(t.priority || '—') + '</span></td>' +
+      '<td><span class="stat-badge ' + staCls + '">' + esc(t.status) + '</span></td>' +
+      '<td>' + esc(t.dept) + '</td>' +
+      '<td style="max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + esc(t.specificEquip) + '</td>' +
+      '<td style="max-width:240px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="' + esc(t.description) + '">' + esc(t.description) + '</td>' +
+      '<td>' + esc(t.assignedTo || '—') + '</td>' +
+      '<td style="font-size:11.5px;color:var(--text-tertiary);">' + esc(t.dateOpened) + '</td>' +
+      '<td style="font-size:11.5px;color:var(--text-tertiary);">' + esc(t.dateClosed || '—') + '</td>' +
+      '<td style="font-size:11.5px;color:var(--text-secondary);">' + esc(String(t.actualHours || '—')) + '</td>' +
+    '</tr>';
+  }).join('');
+}
+</script>

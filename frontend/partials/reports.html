@@ -86,7 +86,6 @@
 window.PAGES = window.PAGES || {};
 
 var _rptData_   = null;
-var _rptSearch_ = '';
 
 PAGES['reports'] = function(c) { _loadReportPage_(c, 30); };
 
@@ -114,7 +113,6 @@ function _loadReportPage_(container, daysBack) {
 
 function _renderReport_(data, container) {
   _rptData_   = data;
-  _rptSearch_ = '';
   var daysBack = data.daysBack || 30;
 
   container.innerHTML =
@@ -126,7 +124,6 @@ function _renderReport_(data, container) {
           return '<option value="' + d + '"' + (d === daysBack ? ' selected' : '') + '>Last ' + d + ' days</option>';
         }).join('') +
       '</select>' +
-      '<input class="rpt-search" id="rpt-search" placeholder="Search tickets…" oninput="_rptApply_()" />' +
       '<button class="rpt-btn" onclick="window.print()">🖨 Print / Export PDF</button>' +
       '<button class="rpt-btn" onclick="_rptExportActive_()">⬇ Export Active Tickets (CSV)</button>' +
     '</div>' +
@@ -155,18 +152,7 @@ function _renderReport_(data, container) {
     '<div id="rpt-analytics"></div>' +
     '<div id="rpt-trend"></div>' +
 
-    // Ticket table
-    '<div class="rpt-table-wrap">' +
-      '<div class="rpt-section-hdr">Ticket Detail — <span id="rpt-cnt">' + data.tickets.length + ' tickets</span></div>' +
-      '<table class="rpt-table">' +
-        '<thead><tr>' +
-          '<th>Ticket #</th><th>Priority</th><th>Status</th><th>Dept</th>' +
-          '<th>Equipment</th><th>Description</th><th>Assigned</th>' +
-          '<th>Opened</th><th>Closed</th><th>Hrs</th>' +
-        '</tr></thead>' +
-        '<tbody id="rpt-tbody"></tbody>' +
-      '</table>' +
-    '</div>' +
+    // The full per-ticket log lives under Tickets ▸ Ticket Detail now (declutter).
 
     // EMRL search panel
     '<div class="emrl-section">' +
@@ -197,7 +183,6 @@ function _renderReport_(data, container) {
 
     '</div>';
 
-  _rptRenderRows_(data.tickets);
   _rptRenderKpiBar_(data);
   _rptAnalytics_(data);
 }
@@ -247,46 +232,6 @@ function _rptStatRow_(label, val, cls) {
     '<span class="rpt-stat-label">' + esc(label) + '</span>' +
     '<span class="rpt-stat-val ' + esc(cls) + '">' + esc(String(val)) + '</span>' +
   '</div>';
-}
-
-function _rptApply_() {
-  var q = document.getElementById('rpt-search');
-  _rptSearch_ = q ? q.value.toLowerCase() : '';
-  if (!_rptData_) return;
-  var filtered = _rptData_.tickets.filter(function(t) {
-    if (!_rptSearch_) return true;
-    var hay = (t.ticketNo + ' ' + t.dept + ' ' + t.specificEquip + ' ' +
-               t.description + ' ' + t.assignedTo + ' ' + t.addedBy).toLowerCase();
-    return hay.indexOf(_rptSearch_) >= 0;
-  });
-  _rptRenderRows_(filtered);
-}
-
-function _rptRenderRows_(list) {
-  var tbody = document.getElementById('rpt-tbody');
-  if (!tbody) return;
-  var cntEl = document.getElementById('rpt-cnt');
-  if (cntEl) cntEl.textContent = list.length + ' ticket' + (list.length !== 1 ? 's' : '');
-  if (list.length === 0) {
-    tbody.innerHTML = '<tr><td colspan="10" class="rpt-empty">No tickets match.</td></tr>';
-    return;
-  }
-  tbody.innerHTML = list.map(function(t) {
-    var priCls = 'pri-' + (t.priority || '');
-    var staCls = 'stat-' + t.status.replace(/\s+/g, '-');
-    return '<tr onclick="openTicketDetail(\'' + esc(t.ticketNo) + '\')">' +
-      '<td class="col-ticket">' + esc(t.ticketNo) + '</td>' +
-      '<td><span class="pri-badge ' + priCls + '">' + esc(t.priority || '—') + '</span></td>' +
-      '<td><span class="stat-badge ' + staCls + '">' + esc(t.status) + '</span></td>' +
-      '<td>' + esc(t.dept) + '</td>' +
-      '<td style="max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + esc(t.specificEquip) + '</td>' +
-      '<td class="col-desc" title="' + esc(t.description) + '">' + esc(t.description) + '</td>' +
-      '<td>' + esc(t.assignedTo || '—') + '</td>' +
-      '<td style="font-size:11.5px;color:var(--text-tertiary);">' + esc(t.dateOpened) + '</td>' +
-      '<td style="font-size:11.5px;color:var(--text-tertiary);">' + esc(t.dateClosed || '—') + '</td>' +
-      '<td style="font-size:11.5px;color:var(--text-secondary);">' + esc(String(t.actualHours || '—')) + '</td>' +
-    '</tr>';
-  }).join('');
 }
 
 // ── KPI bar (8.1 Operations Health) ──────────────────────────────────────────
