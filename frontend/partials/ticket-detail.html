@@ -408,6 +408,7 @@ function _renderDetail_(result) {
 function _tdApprove_() {
   var t = _tdTicket;
   if (!t) return;
+  _tdEnsureTechs_(function() {
   _showModal_('Approve Ticket — ' + esc(t.ticketNo),
     '<div class="form-group"><label>Priority</label>' +
     '<select id="ma-priority"><option value="LOW">LOW</option><option value="MEDIUM" selected>MEDIUM</option><option value="HIGH">HIGH</option><option value="CRITICAL">CRITICAL</option></select></div>' +
@@ -426,6 +427,7 @@ function _tdApprove_() {
       };
       _tdRunAction_(approveTicket, data, 'Approved');
     });
+  });
 }
 
 function _tdComplete_() {
@@ -571,6 +573,7 @@ function _tdVoid_() {
 function _tdAssign_(techsJson) {
   var t = _tdTicket;
   if (!t) return;
+  _tdEnsureTechs_(function() {
   _showModal_('Assign Technician — ' + esc(t.ticketNo),
     '<div class="form-group"><label>Assign To</label>' +
     '<select id="as-tech"><option value="">— Unassigned —</option>' + _techOptions_() + '</select></div>' +
@@ -584,6 +587,7 @@ function _tdAssign_(techsJson) {
       };
       _tdRunAction_(assignTicket, data, 'Assigned');
     });
+  });
 }
 
 function _tdFlagTF_() {
@@ -693,6 +697,7 @@ function _rpAddPart_() {
 function _tdUpdate_() {
   var t = _tdTicket;
   if (!t) return;
+  _tdEnsureTechs_(function() {
   var isManager = USER.isManager;
   var canChangeStatus = ['OPEN', 'ON HOLD', 'PENDING PARTS'].indexOf(t.status) >= 0;
 
@@ -739,12 +744,18 @@ function _tdUpdate_() {
       }
       _tdRunAction_(updateTicket, data, 'Updated');
     });
+  });
 }
 
 // ── Direct field edit — opens a section-scoped modal for managers ─────────────
 function _tdEditSection_(section) {
   var t = _tdTicket;
   if (!t || !USER.isManager) return;
+  _tdEnsureTechs_(function() { _tdEditSectionImpl_(section); });
+}
+function _tdEditSectionImpl_(section) {
+  var t = _tdTicket;
+  if (!t) return;
   var title, body;
 
   if (section === 'overview') {
@@ -1223,11 +1234,17 @@ function _closeModal_() {
 }
 
 function _techOptions_() {
-  if (!_tdTicket) return '';
-  // We don't have techs list after initial load; store it from last getTicketDetail call
   return (window._tdTechs_ || []).map(function(t) {
     return '<option value="' + esc(t) + '">' + esc(t) + '</option>';
   }).join('');
+}
+
+function _tdEnsureTechs_(cb) {
+  if (window._tdTechs_ && window._tdTechs_.length) { cb(); return; }
+  fetch(WORKER_URL + '/api/submit/form-data', { headers: { 'X-User-Email': USER ? USER.email : '' } })
+    .then(function(r) { return r.json(); })
+    .then(function(d) { window._tdTechs_ = Array.isArray(d.peopleList) ? d.peopleList : []; cb(); })
+    .catch(function() { window._tdTechs_ = []; cb(); });
 }
 
 // Override _renderDetail_ to also cache techs list
