@@ -262,9 +262,11 @@ function docLabel(key) {
 <?!= include_('frontend/partials/submit-ticket') ?>
 <?!= include_('frontend/partials/ticket-list') ?>
 <?!= include_('frontend/partials/ticket-detail') ?>
+<?!= include_('frontend/partials/ticket-log') ?>
 <?!= include_('frontend/partials/closed-tickets') ?>
 <?!= include_('frontend/partials/monitoring') ?>
 <?!= include_('frontend/partials/reports') ?>
+<?!= include_('frontend/partials/sqf-navigation') ?>
 <?!= include_('frontend/partials/tech-work-board') ?>
 <?!= include_('frontend/partials/equipment-inventory') ?>
 <?!= include_('frontend/partials/admin') ?>
@@ -328,7 +330,9 @@ function getNavDef() {
         { id: 'open',      label: 'Open Tickets',   icon: 'open',     badgeId: 'badge-open'    },
         { id: 'tech-board',label: 'Work Board',     icon: 'tracker'                             },
         { id: 'closed',    label: 'Closed Tickets', icon: 'closed'                              }
-      ]
+      ].concat(isManager
+        ? [{ id: 'ticket-log', label: 'Ticket Detail', icon: 'open' }]
+        : [])
     }
   ];
 
@@ -357,9 +361,10 @@ function getNavDef() {
 
   if (isManager) {
     nav.push({
-      section: 'Reports', icon: 'reports',
+      section: 'Reports & SQF', icon: 'reports',
       items: [
-        { id: 'reports', label: 'Reports', icon: 'reports' }
+        { id: 'reports',  label: 'Reports',         icon: 'reports' },
+        { id: 'sqf-nav',  label: 'SQF Navigation',  icon: 'reports' }
       ]
     });
   }
@@ -502,7 +507,9 @@ var PAGE_TITLES = {
   'equipment-hold':        'Equipment Hold',
   'parts':                 'Parts & Inventory',
   'equipment-inventory':   'Equipment Inventory',
+  'ticket-log':            'Ticket Detail',
   'reports':               'Reports',
+  'sqf-nav':               'SQF Navigation',
   'admin-config':          'Configuration',
   'admin-access':          'Access & Roles',
   'admin-deptmap':         'Dept Map',
