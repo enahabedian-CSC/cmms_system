@@ -280,7 +280,7 @@ function _renderList_(tickets, queueType, deptFilter, container, userOwnedDepts)
         '<td class="tl-assignee-cell" data-ticket="' + esc(t.ticketNo) + '">' + esc(t.assignedTo || '—') + '</td>' +
         '<td class="col-action" onclick="event.stopPropagation()">' +
           '<button class="tl-assign-btn" onclick="_tlShowAssignPop_(this,\'' + esc(t.ticketNo) + '\')" title="Assign technician">&#128100;</button>' +
-          (qt === 'waiting' && USER && USER.isManager ? '<button class="tl-quickapprove-btn" onclick="_tlQuickApprove_(this,\'' + esc(t.ticketNo) + '\')" title="Approve & assign to my dept">&#10003;</button>' : '') +
+          (qt === 'waiting' && USER && USER.isManager ? '<button class="tl-quickapprove-btn" onclick="_tlQuickApprove_(this,\'' + esc(t.ticketNo) + '\')" title="Approve ticket">&#10003;</button>' : '') +
         '</td>' +
         '</tr>';
     }).join('');
@@ -444,7 +444,7 @@ function _renderList_(tickets, queueType, deptFilter, container, userOwnedDepts)
     '</div>';
 
   // Store filter closure per queue type (used by _tlFilter_ and _fpResetDepts_)
-  window['_tlFilterData_' + qt] = { tickets: tickets, applyFilters: applyFilters, userOwnedDepts: normOwned, ownedDeptsOrig: userOwnedDepts };
+  window['_tlFilterData_' + qt] = { tickets: tickets, applyFilters: applyFilters, userOwnedDepts: normOwned };
 
   // Apply initial filters — defaults dept checkboxes to user's owned depts
   applyFilters();
@@ -763,15 +763,13 @@ function _tlConfirmAssign_(ticketNo) {
 
 // ── Quick-approve (Waiting → Open, assign to manager's dept) ─────────────────
 function _tlQuickApprove_(btn, ticketNo) {
-  var ref  = window['_tlFilterData_waiting'] || {};
-  var dept = (ref.ownedDeptsOrig && ref.ownedDeptsOrig.length) ? ref.ownedDeptsOrig[0] : '';
   btn.disabled = true;
   btn.textContent = '…';
 
   fetch(WORKER_URL + '/api/tickets/approve', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'X-User-Email': USER ? USER.email : '' },
-    body: JSON.stringify({ ticketNo: ticketNo, assignedTo: dept, updatedBy: USER ? (USER.name || USER.email) : '' })
+    body: JSON.stringify({ ticketNo: ticketNo, updatedBy: USER ? (USER.name || USER.email) : '' })
   })
   .then(function(r) { return r.json(); })
   .then(function(d) {
@@ -782,7 +780,7 @@ function _tlQuickApprove_(btn, ticketNo) {
       row.style.opacity = '0';
       setTimeout(function() { row.remove(); }, 260);
     }
-    showToast('&#10003; ' + ticketNo + ' approved' + (dept ? ' → ' + dept : ''), 'success');
+    showToast('&#10003; ' + ticketNo + ' approved', 'success');
     var bd = document.getElementById('badge-waiting');
     if (bd) { var n = parseInt(bd.textContent, 10) - 1; if (n <= 0) bd.style.display = 'none'; else bd.textContent = n; }
     var cntEl = document.getElementById('tl-cnt-waiting');
