@@ -258,7 +258,6 @@ function _renderDetail_(result) {
   }
   if (t.status !== 'CLOSED' && t.status !== 'VOIDED' && canManage) {
     actions += '<button class="btn-action btn-transfer" onclick="_tdTransfer_()">🔗 Add Joint Department</button>';
-    actions += '<button class="btn-action btn-danger" onclick="_tdVoid_()">Void Ticket</button>';
   }
 
   // Service Report is a record/print output available for ANY closed ticket a
@@ -281,10 +280,13 @@ function _renderDetail_(result) {
         '<button class="btn-action btn-void"   onclick="_tdRejectJoint_()">✗ Reject Joint Request</button>';
     }
   }
-  // Parts request + Update: all roles, any non-terminal status
+  // Parts request: all roles, any non-terminal status
   if (t.status !== 'CLOSED' && t.status !== 'VOIDED') {
     actions += '<button class="btn-action btn-parts" onclick="_tdRequestParts_()">🔩 Request Parts</button>';
-    actions += '<button class="btn-action btn-update" onclick="_tdUpdate_()">Update Ticket</button>';
+  }
+  // Void sits on the far right of the action row (margin-left:auto pushes it there).
+  if (t.status !== 'CLOSED' && t.status !== 'VOIDED' && canManage) {
+    actions += '<button class="btn-action btn-danger" style="margin-left:auto;" onclick="_tdVoid_()">Void Ticket</button>';
   }
 
   // ── Info grid ──────────────────────────────────────────────────────────────
