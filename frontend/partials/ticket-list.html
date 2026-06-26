@@ -38,9 +38,12 @@
 .stat-ON-HOLD{background:var(--status-warn-bg);color:var(--status-warn);}
 .tl-table .col-photo{width:42px;text-align:center;white-space:nowrap;}
 .clip-icon{font-size:13px;opacity:.55;}
-.tl-table .col-action{width:36px;text-align:center;white-space:nowrap;}
+.tl-table .col-action{width:72px;text-align:center;white-space:nowrap;}
 .tl-assign-btn{background:none;border:1px solid var(--border-default);border-radius:5px;padding:3px 6px;cursor:pointer;font-size:12px;color:var(--text-secondary);line-height:1;transition:background .1s,border-color .1s;}
 .tl-assign-btn:hover{background:var(--bg-hover);border-color:var(--border-strong);color:var(--text-primary);}
+.tl-quickapprove-btn{background:none;border:1px solid #BBF7D0;border-radius:5px;padding:3px 6px;cursor:pointer;font-size:12px;color:#166534;line-height:1;transition:background .1s,border-color .1s;margin-left:3px;}
+.tl-quickapprove-btn:hover{background:#DCFCE7;border-color:#86EFAC;}
+.tl-quickapprove-btn:disabled{opacity:.5;cursor:default;}
 .tl-assign-pop{position:fixed;z-index:9999;background:#fff;border:1px solid var(--border-strong);border-radius:8px;box-shadow:0 4px 16px rgba(0,0,0,.13);padding:10px;display:flex;flex-direction:column;gap:7px;min-width:200px;}
 .tl-assign-pop select{height:30px;padding:0 8px;border:1px solid var(--border-default);border-radius:5px;font-size:12.5px;color:var(--text-primary);background:#fff;outline:none;width:100%;}
 .tl-assign-pop select:focus{border-color:var(--brand-navy);}
@@ -275,7 +278,10 @@ function _renderList_(tickets, queueType, deptFilter, container, userOwnedDepts)
         '<td class="col-photo">' + (t.photoUrl ? '<span class="clip-icon" title="Has photo">&#128206;</span>' : '') + '</td>' +
         '<td>' + esc(t.addedBy || '—') + '</td>' +
         '<td class="tl-assignee-cell" data-ticket="' + esc(t.ticketNo) + '">' + esc(t.assignedTo || '—') + '</td>' +
-        '<td class="col-action" onclick="event.stopPropagation()"><button class="tl-assign-btn" onclick="_tlShowAssignPop_(this,\'' + esc(t.ticketNo) + '\')" title="Assign technician">&#128100;</button></td>' +
+        '<td class="col-action" onclick="event.stopPropagation()">' +
+          '<button class="tl-assign-btn" onclick="_tlShowAssignPop_(this,\'' + esc(t.ticketNo) + '\')" title="Assign technician">&#128100;</button>' +
+          (qt === 'waiting' && USER && USER.isManager ? '<button class="tl-quickapprove-btn" onclick="_tlQuickApprove_(this,\'' + esc(t.ticketNo) + '\')" title="Approve & assign to my dept">&#10003;</button>' : '') +
+        '</td>' +
         '</tr>';
     }).join('');
   }
@@ -438,7 +444,7 @@ function _renderList_(tickets, queueType, deptFilter, container, userOwnedDepts)
     '</div>';
 
   // Store filter closure per queue type (used by _tlFilter_ and _fpResetDepts_)
-  window['_tlFilterData_' + qt] = { tickets: tickets, applyFilters: applyFilters, userOwnedDepts: normOwned };
+  window['_tlFilterData_' + qt] = { tickets: tickets, applyFilters: applyFilters, userOwnedDepts: normOwned, ownedDeptsOrig: userOwnedDepts };
 
   // Apply initial filters — defaults dept checkboxes to user's owned depts
   applyFilters();
@@ -752,6 +758,40 @@ function _tlConfirmAssign_(ticketNo) {
   .catch(function(err) {
     alert('Assignment failed: ' + (err.message || err));
     if (btn) { btn.disabled = false; btn.textContent = 'Assign'; }
+  });
+}
+
+// ── Quick-approve (Waiting → Open, assign to manager's dept) ─────────────────
+function _tlQuickApprove_(btn, ticketNo) {
+  var ref  = window['_tlFilterData_waiting'] || {};
+  var dept = (ref.ownedDeptsOrig && ref.ownedDeptsOrig.length) ? ref.ownedDeptsOrig[0] : '';
+  btn.disabled = true;
+  btn.textContent = '…';
+
+  fetch(WORKER_URL + '/api/tickets/approve', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-User-Email': USER ? USER.email : '' },
+    body: JSON.stringify({ ticketNo: ticketNo, assignedTo: dept, updatedBy: USER ? (USER.name || USER.email) : '' })
+  })
+  .then(function(r) { return r.json(); })
+  .then(function(d) {
+    if (d.error) throw new Error(d.error);
+    var row = btn.closest('tr');
+    if (row) {
+      row.style.transition = 'opacity .25s';
+      row.style.opacity = '0';
+      setTimeout(function() { row.remove(); }, 260);
+    }
+    showToast('&#10003; ' + ticketNo + ' approved' + (dept ? ' → ' + dept : ''), 'success');
+    var bd = document.getElementById('badge-waiting');
+    if (bd) { var n = parseInt(bd.textContent, 10) - 1; if (n <= 0) bd.style.display = 'none'; else bd.textContent = n; }
+    var cntEl = document.getElementById('tl-cnt-waiting');
+    if (cntEl) { var m = cntEl.textContent.match(/(\d+)/); if (m) { var c = Math.max(0, parseInt(m[1], 10) - 1); cntEl.textContent = c + ' ticket' + (c !== 1 ? 's' : ''); } }
+  })
+  .catch(function(err) {
+    alert('Approval failed: ' + (err.message || err));
+    btn.disabled = false;
+    btn.textContent = '✓';
   });
 }
 </script>
