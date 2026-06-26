@@ -1953,7 +1953,7 @@ async function handleEditTicketFields(env, userEmail, body) {
 
   // Apply only the fields that were submitted for this section
   const editable = [
-    'priority','assignedTo','estHours','actualHours','downtimeType',
+    'priority','assignedTo','estHours','actualHours','downtimeType','dept',
     'equipType','equipCode','specificEquip','buildingZone','lineNo',
     'problemType','description',
     'correctiveAct','rootCause','preventiveAct','fixType','permFixPlan','permFixDate',

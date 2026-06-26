@@ -766,6 +766,10 @@ function _tdEditSection_(section) {
       '<div class="form-group"><label>Downtime Type</label><select id="ef-downtimeType">' +
       ['UNPLANNED','PLANNED'].map(function(d) {
         return '<option value="' + d + '"' + (d === t.downtimeType ? ' selected' : '') + '>' + d + '</option>';
+      }).join('') + '</select></div>' +
+      '<div class="form-group"><label>Department</label><select id="ef-dept">' +
+      ['METAL','ELECTRICAL','PLASTIC','LITHO','PLASTIC DEC','QA','MACHINE SHOP','S/R','SALES','G&A'].map(function(d) {
+        return '<option value="' + d + '"' + (d === (t.dept || '').toUpperCase().trim() ? ' selected' : '') + '>' + d + '</option>';
       }).join('') + '</select></div>';
 
   } else if (section === 'equipment') {
@@ -819,6 +823,7 @@ function _tdEditSection_(section) {
       data.estHours     = document.getElementById('ef-estHours').value;
       data.actualHours  = document.getElementById('ef-actualHours').value;
       data.downtimeType = document.getElementById('ef-downtimeType').value;
+      data.dept         = document.getElementById('ef-dept').value;
     } else if (section === 'equipment') {
       data.equipType    = document.getElementById('ef-equipType').value.trim();
       data.equipCode    = document.getElementById('ef-equipCode').value.trim();
