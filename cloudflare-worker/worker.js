@@ -1383,7 +1383,6 @@ async function handleFormData(env, userEmail) {
     const name = String(r[0] || '').trim();
     if (name && String(r[3] ?? 'Y').trim().toUpperCase() !== 'N') addPerson(name);
   });
-  if (people.length === 0) (lists['Technicians'] || []).forEach(addPerson);
   managerRows.forEach(r => { const n = String(r[0] || '').trim(); if (n) addPerson(n); });
 
   const departments = ['METAL','ELECTRICAL','PLASTIC','LITHO','PLASTIC DEC','QA','MACHINE SHOP','S/R','SALES','G&A'];

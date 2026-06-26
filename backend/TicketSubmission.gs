@@ -235,7 +235,7 @@ function logPartsNeeded_(ticketNo, dept, partsList, requestedBy, now) {
 // ═══════════════════════════════════════════════════════════════════════════════
 
 function getPeopleList_() {
-  var techs   = getDataList('Technicians') || [];
+  var techs   = getTechDirectory().map(function(t) { return t.name; });
   var techSet = {};
   techs.forEach(function(t) { techSet[t.toLowerCase().trim()] = true; });
   var result  = techs.slice();

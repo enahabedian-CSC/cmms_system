@@ -644,45 +644,26 @@ function getManagersForDept_(dept) {
 // ═══════════════════════════════════════════════════════════════════════════════
 //  TECH DIRECTORY READER
 //  Reads from 👷 Tech Directory tab (cols: Tech Name, Email, Department, Active).
-//  Falls back to flat 📋 Data Lists 'Technicians' column when tab is absent.
-//  Returns [{name, email, dept, active}] — email/dept are '' in fallback mode.
+//  Returns [{name, email, dept, active}].
 // ═══════════════════════════════════════════════════════════════════════════════
 
 function getTechDirectory() {
   try {
     var tdSh = getBoundSS_().getSheetByName(SH.TECH_DIR);
-    if (tdSh && tdSh.getLastRow() >= 2) {
-      return tdSh.getRange(2, 1, tdSh.getLastRow() - 1, 4).getValues()
-        .filter(function(r) {
-          return String(r[0] || '').trim() !== '' &&
-                 String(r[3] !== undefined ? r[3] : 'Y').trim().toUpperCase() !== 'N';
-        })
-        .map(function(r) {
-          return {
-            name:  String(r[0] || '').trim(),
-            email: String(r[1] || '').trim().toLowerCase(),
-            dept:  normalizeDept(String(r[2] || '').trim()),
-            active: true
-          };
-        });
-    }
-  } catch (e) {
-    Logger.log('getTechDirectory (new tab) error: ' + e.message);
-  }
-  // Fallback: flat list from 📋 Data Lists
-  try {
-    var sh = getBoundSS_().getSheetByName(SH.DATA_VALID);
-    if (!sh || sh.getLastRow() < 2) return [];
-    var hdrs    = sh.getRange(1, 1, 1, sh.getLastColumn()).getValues()[0];
-    var techCol = -1;
-    for (var i = 0; i < hdrs.length; i++) {
-      if (String(hdrs[i]).trim().toUpperCase() === 'TECHNICIANS') { techCol = i; break; }
-    }
-    if (techCol === -1) return [];
-    return sh.getRange(2, techCol + 1, sh.getLastRow() - 1, 1).getValues()
-      .map(function(r) { return String(r[0] || '').trim(); })
-      .filter(function(v) { return v !== ''; })
-      .map(function(name) { return { name: name, email: '', dept: '', active: true }; });
+    if (!tdSh || tdSh.getLastRow() < 2) return [];
+    return tdSh.getRange(2, 1, tdSh.getLastRow() - 1, 4).getValues()
+      .filter(function(r) {
+        return String(r[0] || '').trim() !== '' &&
+               String(r[3] !== undefined ? r[3] : 'Y').trim().toUpperCase() !== 'N';
+      })
+      .map(function(r) {
+        return {
+          name:  String(r[0] || '').trim(),
+          email: String(r[1] || '').trim().toLowerCase(),
+          dept:  normalizeDept(String(r[2] || '').trim()),
+          active: true
+        };
+      });
   } catch (e) {
     Logger.log('getTechDirectory error: ' + e.message);
     return [];
