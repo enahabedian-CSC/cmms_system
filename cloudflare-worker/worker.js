@@ -2185,6 +2185,20 @@ async function handleReportData(env, userEmail, daysBack) {
   const deptStats = {};
   const ptCount = {}, equipCount = {}, teamMap = {};
 
+  // Heatmap accumulators (8.3 dept × equip-type, 8.4 building × zone).
+  // buildingZone is a single combined value per ticket; split it on the first
+  // recognised delimiter so it renders as a 2-D building × zone grid. If there
+  // is no delimiter the whole value is the building and the zone collapses to
+  // "General" — the grid still degrades gracefully to a single column.
+  const equipHM = {}, equipHMDepts = {}, equipHMTypes = {};
+  const bldgHM = {}, bldgHMBuildings = {}, bldgHMZones = {};
+  const splitBuildingZone = (bz) => {
+    const s = String(bz || '').trim();
+    if (!s) return null;
+    const m = s.match(/^(.*?)\s*(?:\/|·|\||–|:|\s-\s)\s*(.+)$/);
+    return m ? [m[1].trim() || s, m[2].trim()] : [s, 'General'];
+  };
+
   Object.values(byTicket).forEach(r => {
     const doDate = cellDate(r, ML.DATE_OPENED);
     if (!doDate) return;
@@ -2215,6 +2229,24 @@ async function handleReportData(env, userEmail, daysBack) {
     if (code) {
       if (!equipCount[code]) equipCount[code] = { equipCode: code, specificEquip: equip, dept, count: 0 };
       equipCount[code].count++;
+    }
+
+    // 8.3 Equipment Risk Heatmap: dept × equipment type
+    const eType = cellStr(r, ML.EQUIP_TYPE);
+    if (dept && eType) {
+      const k = dept + '||' + eType;
+      equipHM[k] = (equipHM[k] || 0) + 1;
+      equipHMDepts[dept] = true;
+      equipHMTypes[eType] = true;
+    }
+
+    // 8.4 Building & Zone Hotspots: building × zone
+    const bz = splitBuildingZone(cellStr(r, ML.BUILDING_ZONE));
+    if (bz) {
+      const k = bz[0] + '||' + bz[1];
+      bldgHM[k] = (bldgHM[k] || 0) + 1;
+      bldgHMBuildings[bz[0]] = true;
+      bldgHMZones[bz[1]] = true;
     }
 
     const tech = cellStr(r, ML.ASSIGNED_TO);
@@ -2298,8 +2330,16 @@ async function handleReportData(env, userEmail, daysBack) {
   return jsonResponse({
     daysBack: daysBack || 30, generatedAt: new Date().toISOString(),
     tickets, summary, kpis, statusFunnel, problemTypes, equipHotspots,
-    equipHeatmap: { depts:[], types:[], matrix:{} },
-    buildingHeatmap: { buildings:[], zones:[], matrix:{} },
+    equipHeatmap: {
+      depts:  Object.keys(equipHMDepts).sort(),
+      types:  Object.keys(equipHMTypes).sort(),
+      matrix: equipHM,
+    },
+    buildingHeatmap: {
+      buildings: Object.keys(bldgHMBuildings).sort(),
+      zones:     Object.keys(bldgHMZones).sort(),
+      matrix:    bldgHM,
+    },
     teamWorkload, sqfPack, trend,
   });
 }
