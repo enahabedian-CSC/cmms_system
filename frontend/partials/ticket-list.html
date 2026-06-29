@@ -780,7 +780,7 @@ function _tlQuickApprove_(btn, ticketNo) {
       row.style.opacity = '0';
       setTimeout(function() { row.remove(); }, 260);
     }
-    showToast('&#10003; ' + ticketNo + ' approved', 'success');
+    showToast('✓ ' + ticketNo + ' approved', 'success');
     var bd = document.getElementById('badge-waiting');
     if (bd) { var n = parseInt(bd.textContent, 10) - 1; if (n <= 0) bd.style.display = 'none'; else bd.textContent = n; }
     var cntEl = document.getElementById('tl-cnt-waiting');
