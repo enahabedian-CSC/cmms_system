@@ -652,6 +652,7 @@ window.PAGES['home'] = function(container) {
 
     // Three collapsible category sections (Module 10 — declutter to 3 categories)
     '<div style="padding:0 24px 24px;display:flex;flex-direction:column;gap:14px;">' +
+      _homeCatCard_('cat-joint',  '🔗', 'Joint Tickets',          'var(--status-warn)',    'open')    +
       _homeCatCard_('cat-verify', '✅', 'Awaiting Verification',  'var(--status-success)', 'open')    +
       _homeCatCard_('cat-temp',   '🔧', 'Temp Fix Alerts',        'var(--status-high)',    'tempfix') +
       _homeCatCard_('cat-assign', '📋', 'Awaiting Assignment',   'var(--status-info)',    'waiting') +
@@ -671,13 +672,13 @@ window.PAGES['home'] = function(container) {
     }).then(function(r) { return r.json(); })
       .then(function(panels) { _homeRenderPanels_(panels); })
       .catch(function() {
-        ['cat-assign','cat-verify','cat-temp'].forEach(function(id) {
+        ['cat-joint','cat-assign','cat-verify','cat-temp'].forEach(function(id) {
           var el = document.getElementById(id + '-body');
           if (el) el.innerHTML = '<div style="padding:10px 0;color:var(--text-tertiary);font-size:12px;">Unable to load.</div>';
         });
       });
   } else {
-    ['cat-assign','cat-verify','cat-temp'].forEach(function(id) {
+    ['cat-joint','cat-assign','cat-verify','cat-temp'].forEach(function(id) {
       var el = document.getElementById(id + '-body');
       if (el) el.innerHTML = '<div style="padding:10px 0;color:var(--text-tertiary);font-size:12px;">Dashboard categories are available to managers.</div>';
     });
@@ -761,6 +762,7 @@ function _homeRenderPanels_(panels) {
   var attn    = panels.attentionItems || [];
   // review → Awaiting Assignment (WAITING), complete → Awaiting Verification
   // (PENDING VERIFICATION), temp → Temp Fix Alerts (past-due temp fixes).
+  _homeFillCat_('cat-joint',  panels.jointItems || [],                                    'No active joint tickets.');
   _homeFillCat_('cat-assign', attn.filter(function(i){ return i.kind === 'review';   }), 'No tickets awaiting assignment.');
   _homeFillCat_('cat-verify', attn.filter(function(i){ return i.kind === 'complete'; }), 'No tickets awaiting verification.');
   _homeFillCat_('cat-temp',   attn.filter(function(i){ return i.kind === 'temp';     }), 'No past-due temp fixes.');

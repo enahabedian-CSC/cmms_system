@@ -607,6 +607,42 @@ async function handleDashboardPanels(env, userEmail) {
     action: 'Review',
   }));
 
+  // Joint tickets: tickets where this manager's dept is listed in JOINT_DEPTS
+  // but the primary dept is not theirs (two-pass: find ticket nos, then merge full rows).
+  const jointTicketNos = new Set();
+  mlRows.forEach(r => {
+    const tn = cellStr(r, ML.TICKET_NO);
+    const jointStr = cellStr(r, ML.JOINT_DEPTS);
+    if (!tn || !jointStr || byTicket[tn]) return;
+    const jointList = jointStr.split(',').map(d => d.trim().toUpperCase()).filter(Boolean);
+    const isJoined = user.isAdmin || (user.ownedDepts || []).some(d => jointList.indexOf(d) >= 0);
+    if (isJoined) jointTicketNos.add(tn);
+  });
+  const jointByTicket = {};
+  mlRows.forEach(r => {
+    const tn = cellStr(r, ML.TICKET_NO);
+    if (!tn || !jointTicketNos.has(tn)) return;
+    if (!jointByTicket[tn]) { jointByTicket[tn] = r.slice(); return; }
+    r.forEach((v, i) => { if (v != null && v !== '') jointByTicket[tn][i] = v; });
+  });
+  const jointItems = [];
+  Object.values(jointByTicket).forEach(r => {
+    const status = cellStr(r, ML.STATUS).toUpperCase();
+    if (status === 'CLOSED' || status === 'VOIDED') return;
+    if (jointItems.length >= 8) return;
+    const tn   = cellStr(r, ML.TICKET_NO);
+    const equip = cellStr(r, ML.SPECIFIC_EQUIP);
+    const desc  = cellStr(r, ML.DESCRIPTION);
+    const dept  = cellStr(r, ML.DEPT);
+    const code  = cellStr(r, ML.EQUIP_CODE);
+    jointItems.push({
+      kind: 'joint', ticketNo: tn,
+      title: equip || desc || tn,
+      sub: dept + (code ? ' · ' + code : '') + ' — joint with your dept · ' + status.toLowerCase(),
+      action: 'View', pageTarget: 'open',
+    });
+  });
+
   // Chronic equipment: 3+ distinct tickets in last 90 days
   const CHRONIC_THRESHOLD = 3;
   const cutoff90 = new Date(); cutoff90.setDate(cutoff90.getDate() - 90);
@@ -633,7 +669,7 @@ async function handleDashboardPanels(env, userEmail) {
       action: 'View Open', pageTarget: 'open', count,
     }));
 
-  return jsonResponse({ attentionItems, openTickets, holdTags, pendingJointRequests, chronicEquipment });
+  return jsonResponse({ attentionItems, openTickets, holdTags, pendingJointRequests, jointItems, chronicEquipment });
 }
 
 // ── Sheets write helpers ──────────────────────────────────────────────────────
