@@ -865,7 +865,10 @@ function _runApp_(version) {
       '</div>';
   }
 
+  var _signingIn_ = false;
+
   function startWithEmail(email) {
+    _signingIn_ = true;
     fetch(WORKER_URL + '/api/me', { headers: { 'X-User-Email': email } })
       .then(function(r) { return r.json(); })
       .then(function(data) {
@@ -901,7 +904,7 @@ function _runApp_(version) {
       },
     });
     google.accounts.id.prompt(function(notification) {
-      if (notification.isNotDisplayed() || notification.isSkippedMoment()) {
+      if (!_signingIn_ && (notification.isNotDisplayed() || notification.isSkippedMoment())) {
         // One-tap not available — render a standard sign-in button
         document.body.innerHTML =
           '<div style="display:flex;align-items:center;justify-content:center;height:100vh;">' +
