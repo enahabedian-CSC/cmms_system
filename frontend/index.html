@@ -336,18 +336,7 @@ function getNavDef() {
     }
   ];
 
-  // Dept trackers — show only owned depts (admin sees all)
-  if (depts.length > 0) {
-    var deptItems = depts.map(function(dept) {
-      return {
-        id:      'tracker-' + deptSlug(dept),
-        label:   dept,
-        iconHtml: DEPT_ICONS[dept] || ICONS.tracker,
-        dept:    dept
-      };
-    });
-    nav.push({ section: 'Dept Trackers', icon: 'tracker', items: deptItems });
-  }
+  // Dept trackers hidden
 
   nav.push({
     section: 'Monitoring', icon: 'tempfix',
