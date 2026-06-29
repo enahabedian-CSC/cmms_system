@@ -296,6 +296,8 @@ function _renderDetail_(result) {
     actions += '<button class="btn-action btn-parts" onclick="_tdRequestParts_()">🔩 Request Parts</button>';
     actions += '<button class="btn-action btn-update" onclick="_tdAddPhoto_()">📷 Add Photo</button>';
   }
+  // Refresh button — always shown, reloads ticket data from server.
+  actions += '<button class="btn-action btn-update" onclick="openTicketDetail(\'' + esc(t.ticketNo) + '\')" title="Reload ticket from server">&#8635; Refresh</button>';
   // Void sits on the far right of the action row (margin-left:auto pushes it there).
   if (t.status !== 'CLOSED' && t.status !== 'VOIDED' && canManage) {
     actions += '<button class="btn-action btn-danger" style="margin-left:auto;" onclick="_tdVoid_()">Void Ticket</button>';
