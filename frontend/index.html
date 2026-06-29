@@ -594,7 +594,11 @@ function showToast(msg, type, durationMs) {
 // ── Sign out ──────────────────────────────────────────────────────────────────
 function signOut() {
   if (confirm('Sign out of CSC Maintenance Console?')) {
-    window.location.href = 'https://accounts.google.com/Logout';
+    sessionStorage.removeItem('cmms_email');
+    if (typeof google !== 'undefined' && google.accounts && google.accounts.id) {
+      google.accounts.id.disableAutoSelect();
+    }
+    location.reload();
   }
 }
 
