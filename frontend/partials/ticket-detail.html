@@ -97,6 +97,13 @@
   body.printing-sr .td-modal{box-shadow:none;width:auto;max-width:100%;max-height:none;overflow:visible;}
   body.printing-sr .td-modal .modal-actions{display:none !important;}
 }
+/* sel-btn-grid used by equipment edit cascade (mirrors submit-ticket styles) */
+.sel-btn-grid{display:grid;gap:8px;}
+.sel-btn-grid.cols-3{grid-template-columns:1fr 1fr 1fr;}
+@media(max-width:480px){.sel-btn-grid.cols-3{grid-template-columns:1fr 1fr;}}
+.sel-btn{border:2px solid var(--border-default);border-radius:10px;padding:10px 8px;min-height:44px;display:flex;align-items:center;justify-content:center;text-align:center;cursor:pointer;font-size:12.5px;font-weight:500;color:var(--text-primary);background:#fff;transition:all .15s;user-select:none;width:100%;box-sizing:border-box;line-height:1.3;}
+.sel-btn:hover{border-color:var(--brand-navy);color:var(--brand-navy);}
+.sel-btn.active{border-color:var(--brand-navy);background:var(--brand-navy);color:#fff;}
 /* ── Section edit button ─────────────────────────────────────────────────── */
 .td-sec-edit-btn{background:transparent;border:1px solid var(--border-default);border-radius:4px;padding:2px 8px;font-size:11px;color:var(--text-secondary);cursor:pointer;display:inline-flex;align-items:center;gap:4px;font-family:inherit;font-weight:600;}
 .td-sec-edit-btn:hover{background:var(--bg-hover);border-color:var(--brand-navy);color:var(--brand-navy);}
@@ -797,16 +804,14 @@ function _tdEditSectionImpl_(section) {
   } else if (section === 'equipment') {
     title = 'Edit Equipment — ' + esc(t.ticketNo);
     body =
-      '<div class="form-group"><label>Equipment Type</label>' +
-      '<input id="ef-equipType" value="' + esc(t.equipType || '') + '" /></div>' +
-      '<div class="form-group"><label>Equipment Code</label>' +
-      '<input id="ef-equipCode" value="' + esc(t.equipCode || '') + '" /></div>' +
-      '<div class="form-group"><label>Equipment Description</label>' +
-      '<input id="ef-specificEquip" value="' + esc(t.specificEquip || '') + '" /></div>' +
-      '<div class="form-group"><label>Building / Zone</label>' +
-      '<input id="ef-buildingZone" value="' + esc(t.buildingZone || '') + '" /></div>' +
-      '<div class="form-group"><label>Line #</label>' +
-      '<input id="ef-lineNo" value="' + esc(t.lineNo || '') + '" /></div>';
+      (t.equipCode ? '<div style="font-size:11.5px;color:var(--text-secondary);padding:8px 12px;background:var(--bg-subtle);border:1px solid var(--border-default);border-radius:6px;margin-bottom:10px;">Current: <strong style="font-family:var(--font-mono);color:var(--brand-navy);">' + esc(t.equipCode) + '</strong>' + (t.specificEquip ? ' — ' + esc(t.specificEquip) : '') + '</div>' : '') +
+      '<div class="form-group"><label>Department</label><div id="ee-dept-grid" class="sel-btn-grid cols-3" style="margin-top:6px;"><div style="color:var(--text-tertiary);font-size:12px;grid-column:1/-1;">Loading…</div></div></div>' +
+      '<div id="ee-sec-level2" style="display:none;"><div class="form-group"><label>Section</label><div id="ee-level2-grid" class="sel-btn-grid cols-3" style="margin-top:6px;"></div></div></div>' +
+      '<div id="ee-sec-level3" style="display:none;"><div class="form-group"><label>Equipment</label><div id="ee-level3-grid" class="sel-btn-grid cols-3" style="margin-top:6px;"></div></div></div>' +
+      '<div id="ee-sec-level4" style="display:none;"><div class="form-group"><label>Sub-Item</label><div id="ee-level4-grid" class="sel-btn-grid cols-3" style="margin-top:6px;"></div></div></div>' +
+      '<div id="ee-resolved-bar" style="display:none;padding:8px 12px;background:#EFF6FF;border:1px solid #BFDBFE;border-radius:6px;margin-bottom:10px;"><span style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--text-secondary);">Selected: </span><span id="ee-resolved-val" style="font-size:13px;color:var(--brand-navy);font-weight:600;margin-left:4px;"></span></div>' +
+      '<div class="form-group"><label>Building / Zone</label><input id="ef-buildingZone" value="' + esc(t.buildingZone || '') + '" /></div>' +
+      '<div class="form-group"><label>Line #</label><input id="ef-lineNo" value="' + esc(t.lineNo || '') + '" /></div>';
 
   } else if (section === 'problem') {
     title = 'Edit Problem — ' + esc(t.ticketNo);
@@ -847,9 +852,11 @@ function _tdEditSectionImpl_(section) {
       data.downtimeType = document.getElementById('ef-downtimeType').value;
       data.dept         = document.getElementById('ef-dept').value;
     } else if (section === 'equipment') {
-      data.equipType    = document.getElementById('ef-equipType').value.trim();
-      data.equipCode    = document.getElementById('ef-equipCode').value.trim();
-      data.specificEquip = document.getElementById('ef-specificEquip').value.trim();
+      if (_eeCode) {
+        data.equipType     = _eeType || '';
+        data.equipCode     = _eeCode;
+        data.specificEquip = _eeSpec || '';
+      }
       data.buildingZone = document.getElementById('ef-buildingZone').value.trim();
       data.lineNo       = document.getElementById('ef-lineNo').value.trim();
     } else if (section === 'problem') {
@@ -865,6 +872,11 @@ function _tdEditSectionImpl_(section) {
     }
     _tdRunAction_(editTicketFields, data, 'Ticket updated');
   }, 'Save Changes');
+  if (section === 'equipment') {
+    _eeSel  = { dept: '', level2: '', level3: '', level4: '' };
+    _eeCode = ''; _eeSpec = ''; _eeType = '';
+    _eeLoadData_(t.dept || '');
+  }
 }
 
 function _tdIssueTag_() {
@@ -1353,6 +1365,139 @@ function _tdHandlePhotoFile_(input) {
     });
   };
   reader.readAsDataURL(file);
+}
+
+// ── Equipment Edit Cascade ────────────────────────────────────────────────────
+var _eeRows  = null;
+var _eeSel   = { dept: '', level2: '', level3: '', level4: '' };
+var _eeCode  = '';
+var _eeSpec  = '';
+var _eeType  = '';
+
+function _eeGetUnique_(col, selOverride) {
+  var sel = selOverride || _eeSel;
+  return ((_eeRows || []).filter(function(r) {
+    if (col === 'dept')   return true;
+    if (col === 'level2') return sel.dept   && r.dept   === sel.dept;
+    if (col === 'level3') return sel.dept   && r.dept   === sel.dept   && sel.level2 && r.level2 === sel.level2;
+    if (col === 'level4') return sel.dept   && r.dept   === sel.dept   && sel.level2 && r.level2 === sel.level2 && sel.level3 && r.level3 === sel.level3;
+    return false;
+  }).map(function(r) { return r[col]; }).filter(function(v) { return v && v.trim(); })
+    .filter(function(v, i, a) { return a.indexOf(v) === i; }).sort());
+}
+
+function _eeNextCol_(prevCol) {
+  var order = ['dept','level2','level3','level4'];
+  var i = order.indexOf(prevCol);
+  for (var j = i + 1; j < order.length; j++) {
+    if (_eeGetUnique_(order[j]).length) return order[j];
+  }
+  return null;
+}
+
+function _eeRenderLevel_(col) {
+  var vals = _eeGetUnique_(col);
+  var labels = { dept: 'Department', level2: 'Section', level3: 'Equipment', level4: 'Sub-Item' };
+  var gridId = col === 'dept' ? 'ee-dept-grid' : 'ee-' + col + '-grid';
+  var secId  = col === 'dept' ? null : 'ee-sec-' + col;
+  if (secId) {
+    var sec = document.getElementById(secId);
+    if (sec) sec.style.display = vals.length ? '' : 'none';
+  }
+  var grid = document.getElementById(gridId);
+  if (!grid) return;
+  grid.innerHTML = vals.map(function(v) {
+    var active = _eeSel[col] === v ? ' active' : '';
+    return '<button class="sel-btn' + active + '" onclick="_eeSelectLevel_(\'' + col + '\',this,' + JSON.stringify(v) + ')">' + v + '</button>';
+  }).join('');
+}
+
+function _eeSelectDept_(btn, dept) {
+  _eeSel = { dept: dept, level2: '', level3: '', level4: '' };
+  _eeCode = ''; _eeSpec = ''; _eeType = '';
+  document.querySelectorAll('#ee-dept-grid .sel-btn').forEach(function(b) { b.classList.remove('active'); });
+  btn.classList.add('active');
+  ['level2','level3','level4'].forEach(function(col) {
+    var sec = document.getElementById('ee-sec-' + col);
+    if (sec) { sec.style.display = 'none'; document.getElementById('ee-' + col + '-grid').innerHTML = ''; }
+  });
+  var next = _eeNextCol_('dept');
+  if (next) _eeRenderLevel_(next); else { _eeResolveCode_(); _eeUpdateResolved_(); }
+}
+
+function _eeSelectLevel_(col, btn, value) {
+  _eeSel[col] = value;
+  var order = ['dept','level2','level3','level4'];
+  var idx = order.indexOf(col);
+  for (var k = idx + 1; k < order.length; k++) {
+    _eeSel[order[k]] = '';
+    var sec = document.getElementById('ee-sec-' + order[k]);
+    if (sec) { sec.style.display = 'none'; document.getElementById('ee-' + order[k] + '-grid').innerHTML = ''; }
+  }
+  _eeCode = ''; _eeSpec = ''; _eeType = '';
+  var gridId = col === 'dept' ? 'ee-dept-grid' : 'ee-' + col + '-grid';
+  document.querySelectorAll('#' + gridId + ' .sel-btn').forEach(function(b) { b.classList.remove('active'); });
+  btn.classList.add('active');
+  var next = _eeNextCol_(col);
+  if (next) { _eeRenderLevel_(next); } else { _eeResolveCode_(); _eeUpdateResolved_(); }
+}
+
+function _eeResolveCode_() {
+  var match = (_eeRows || []).filter(function(r) {
+    return r.dept === _eeSel.dept &&
+      (!_eeSel.level2 || r.level2 === _eeSel.level2) &&
+      (!_eeSel.level3 || r.level3 === _eeSel.level3) &&
+      (!_eeSel.level4 || r.level4 === _eeSel.level4);
+  });
+  if (match.length) {
+    _eeCode = match[0].code  || '';
+    _eeSpec = match[0].level3 || match[0].level2 || match[0].dept || '';
+    _eeType = match[0].level2 || match[0].dept || '';
+  } else {
+    _eeCode = ''; _eeSpec = ''; _eeType = '';
+  }
+}
+
+function _eeUpdateResolved_() {
+  var bar = document.getElementById('ee-resolved-bar');
+  var val = document.getElementById('ee-resolved-val');
+  if (!bar || !val) return;
+  if (_eeCode) {
+    val.textContent = _eeCode + (_eeSpec ? ' — ' + _eeSpec : '');
+    bar.style.display = '';
+  } else {
+    bar.style.display = 'none';
+  }
+}
+
+function _eeLoadData_(preDept) {
+  if (_eeRows) { _eePopulate_(preDept); return; }
+  fetch(WORKER_URL + '/api/submit/form-data', {
+    headers: { 'X-User-Email': USER ? USER.email : '' }
+  })
+  .then(function(r) { return r.json(); })
+  .then(function(d) {
+    _eeRows = (d && d.equipRows) ? d.equipRows : [];
+    _eePopulate_(preDept);
+  })
+  .catch(function() {
+    _eeRows = [];
+    var g = document.getElementById('ee-dept-grid');
+    if (g) g.innerHTML = '<div style="color:var(--error);font-size:12px;grid-column:1/-1;">Failed to load equipment list.</div>';
+  });
+}
+
+function _eePopulate_(preDept) {
+  var depts = _eeGetUnique_('dept');
+  var grid  = document.getElementById('ee-dept-grid');
+  if (!grid) return;
+  grid.innerHTML = depts.map(function(d) {
+    return '<button class="sel-btn" onclick="_eeSelectDept_(this,' + JSON.stringify(d) + ')">' + d + '</button>';
+  }).join('');
+  if (preDept && depts.indexOf(preDept) !== -1) {
+    var btn = Array.prototype.slice.call(grid.querySelectorAll('.sel-btn')).find(function(b) { return b.textContent === preDept; });
+    if (btn) _eeSelectDept_(btn, preDept);
+  }
 }
 
 function _renderNotes_(raw) {
