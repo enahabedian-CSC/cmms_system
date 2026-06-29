@@ -364,13 +364,13 @@ function _renderDetail_(result) {
       '</div>' +
     '</div>') : '') +
 
-    (t.workSummary || t.correctiveAct || t.rootCause || t.preventiveAct ? (
+    (t.status !== 'CLOSED' && t.status !== 'VOIDED' || t.workSummary || t.correctiveAct || t.rootCause || t.preventiveAct ? (
     '<div class="td-section">' +
       '<div class="td-section-title" style="display:flex;align-items:center;justify-content:space-between;">CAPA / Work Summary' + _editBtn_('capa') + '</div>' +
       '<div class="td-grid" style="grid-template-columns:1fr;">' +
-        (t.correctiveAct ? '<div class="td-field"><label>Corrective Action</label><div class="val desc">' + esc(t.correctiveAct) + '</div></div>' : '') +
-        (t.rootCause     ? '<div class="td-field"><label>Root Cause</label><div class="val desc">'        + esc(t.rootCause)     + '</div></div>' : '') +
-        (t.preventiveAct || t.workSummary ? '<div class="td-field"><label>Preventive Action</label><div class="val desc">' + esc(t.preventiveAct || t.workSummary) + '</div></div>' : '') +
+        '<div class="td-field"><label>Corrective Action</label><div class="val desc">' + esc(t.correctiveAct || '—') + '</div></div>' +
+        '<div class="td-field"><label>Root Cause</label><div class="val desc">'        + esc(t.rootCause     || '—') + '</div></div>' +
+        '<div class="td-field"><label>Preventive Action</label><div class="val desc">' + esc(t.preventiveAct || t.workSummary || '—') + '</div></div>' +
         field('Fix Type',           t.fixType) +
         field('Temp Fix Flag',      t.tempFixFlag ? 'YES' : 'NO') +
         (t.permFixPlan  ? '<div class="td-field"><label>Permanent Fix Plan</label><div class="val desc">' + esc(t.permFixPlan) + '</div></div>' : '') +
