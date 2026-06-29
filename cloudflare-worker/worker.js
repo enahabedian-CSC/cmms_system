@@ -1969,6 +1969,24 @@ async function handleEditTicketFields(env, userEmail, body) {
   return jsonResponse({ success: true, ticketNo });
 }
 
+async function handleAddTicketPhoto(env, userEmail, body) {
+  const token  = await getAccessToken(env);
+  const user   = await resolveUser(token, env, userEmail);
+  const isTech = (userEmail || '').trim().toLowerCase().endsWith('@cscmfg.com');
+  if (!user.isManager && !isTech) return jsonResponse({ error: 'Access required' }, 403);
+  const ticketNo = String(body.ticketNo  || '').trim();
+  if (!ticketNo) return jsonResponse({ error: 'ticketNo required' }, 400);
+  const photoUrl = String(body.photoUrl  || '').trim();
+  if (!photoUrl) return jsonResponse({ error: 'photoUrl required' }, 400);
+  const updatedBy = String(body.updatedBy || user.displayName || userEmail).trim();
+  await appendMasterLog(token, env, {
+    ticketNo, now: new Date(), action: 'PHOTO ADDED', updatedBy, photoUrl,
+    notes: 'Photo added by ' + updatedBy,
+  });
+  await appendTicketHistory(token, env, ticketNo, 'PHOTO ADDED', '', '', updatedBy, 'Photo attached');
+  return jsonResponse({ success: true, ticketNo });
+}
+
 async function handleIssueHoldTag(env, userEmail, body) {
   const token    = await getAccessToken(env);
   const user     = await resolveUser(token, env, userEmail);
@@ -2782,6 +2800,7 @@ export default {
       else if (p === '/api/tickets/update'              && method === 'POST')res = await handleUpdateTicket(env, userEmail, body);
       else if (p === '/api/tickets/service-report'      && method === 'POST')res = await handleServiceReport(env, userEmail, body);
       else if (p === '/api/tickets/edit-fields'         && method === 'POST')res = await handleEditTicketFields(env, userEmail, body);
+      else if (p === '/api/tickets/add-photo'           && method === 'POST')res = await handleAddTicketPhoto(env, userEmail, body);
       else if (p === '/api/tickets/service-report'      && method === 'GET') res = await handleGetServiceReport(env, userEmail, url.searchParams.get('ticketNo') || '');
       else if (p === '/api/tickets/dept-sign-off'       && method === 'POST')res = await handleDeptSignOff(env, userEmail, body);
       else if (p === '/api/monitoring/hold-tags/issue'  && method === 'POST')res = await handleIssueHoldTag(env, userEmail, body);
