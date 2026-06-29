@@ -1408,7 +1408,7 @@ function _eeRenderLevel_(col) {
   if (!grid) return;
   grid.innerHTML = vals.map(function(v) {
     var active = _eeSel[col] === v ? ' active' : '';
-    return '<button class="sel-btn' + active + '" onclick="_eeSelectLevel_(\'' + col + '\',this,' + JSON.stringify(v) + ')">' + v + '</button>';
+    return '<button class="sel-btn' + active + '" onclick="_eeSelectLevel_(\'' + col + '\',this,\'' + v.replace(/'/g, "\\'") + '\')">' + v + '</button>';
   }).join('');
 }
 
@@ -1492,7 +1492,7 @@ function _eePopulate_(preDept) {
   var grid  = document.getElementById('ee-dept-grid');
   if (!grid) return;
   grid.innerHTML = depts.map(function(d) {
-    return '<button class="sel-btn" onclick="_eeSelectDept_(this,' + JSON.stringify(d) + ')">' + d + '</button>';
+    return '<button class="sel-btn" onclick="_eeSelectDept_(this,\'' + d.replace(/'/g, "\\'") + '\')">' + d + '</button>';
   }).join('');
   if (preDept && depts.indexOf(preDept) !== -1) {
     var btn = Array.prototype.slice.call(grid.querySelectorAll('.sel-btn')).find(function(b) { return b.textContent === preDept; });
