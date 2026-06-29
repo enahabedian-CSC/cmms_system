@@ -486,12 +486,15 @@ async function handleDashboardPanels(env, userEmail) {
     readSheet(token, env.SPREADSHEET_ID, SH.EQUIP_HOLD_LOG, `A${dataStart}:N`),
   ]);
 
-  // Collapse ML rows per ticket; latest non-empty value wins
+  // Collapse ML rows per ticket; latest non-empty value wins.
+  // Only gate on dept for unseen tickets — update rows (CLOSED, photo, etc.)
+  // often have empty dept and must still be applied to already-tracked tickets.
   const byTicket = {};
   mlRows.forEach(r => {
     const tn   = cellStr(r, ML.TICKET_NO);
+    if (!tn) return;
     const dept = cellStr(r, ML.DEPT);
-    if (!tn || !allowed(user, dept)) return;
+    if (!byTicket[tn] && !allowed(user, dept)) return;
     if (!byTicket[tn]) { byTicket[tn] = r.slice(); return; }
     const cur = byTicket[tn];
     r.forEach((v, i) => { if (v != null && v !== '') cur[i] = v; });
