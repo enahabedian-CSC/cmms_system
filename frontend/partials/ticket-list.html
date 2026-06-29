@@ -277,7 +277,7 @@ function _renderList_(tickets, queueType, deptFilter, container, userOwnedDepts)
         '<td class="col-desc" title="' + esc(t.description) + '">' + esc(t.description) + '</td>' +
         '<td class="col-photo">' + (t.photoUrl ? '<span class="clip-icon" title="Has photo">&#128206;</span>' : '') + '</td>' +
         '<td>' + esc(t.addedBy || '—') + '</td>' +
-        '<td class="tl-assignee-cell" data-ticket="' + esc(t.ticketNo) + '">' + esc(t.assignedTo || '—') + '</td>' +
+        (qt !== 'waiting' ? '<td class="tl-assignee-cell" data-ticket="' + esc(t.ticketNo) + '">' + esc(t.assignedTo || '—') + '</td>' : '') +
         '<td class="col-action" onclick="event.stopPropagation()">' +
           '<button class="tl-assign-btn" onclick="_tlShowAssignPop_(this,\'' + esc(t.ticketNo) + '\')" title="Assign technician">&#128100;</button>' +
           (qt === 'waiting' && USER && USER.isManager ? '<button class="tl-quickapprove-btn" onclick="_tlQuickApprove_(this,\'' + esc(t.ticketNo) + '\')" title="Approve ticket">&#10003;</button>' : '') +
@@ -376,7 +376,7 @@ function _renderList_(tickets, queueType, deptFilter, container, userOwnedDepts)
           _tlTh_(qt,'description','Description') +
           '<th class="col-photo">Photo</th>' +
           _tlTh_(qt,'addedBy','Added By') +
-          _tlTh_(qt,'assignedTo','Assigned To') +
+          (qt !== 'waiting' ? _tlTh_(qt,'assignedTo','Assigned To') : '') +
           '<th class="col-action"></th>' +
         '</tr></thead>' +
         '<tbody id="tl-tbody-' + qt + '"></tbody>' +
