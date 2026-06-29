@@ -595,6 +595,7 @@ function showToast(msg, type, durationMs) {
 function signOut() {
   if (confirm('Sign out of CSC Maintenance Console?')) {
     sessionStorage.removeItem('cmms_email');
+    sessionStorage.setItem('cmms_signed_out', '1');
     if (typeof google !== 'undefined' && google.accounts && google.accounts.id) {
       google.accounts.id.disableAutoSelect();
     }
@@ -897,9 +898,11 @@ function _runApp_(version) {
   // No stored session — use Google Identity Services to identify the user.
   // GOOGLE_CLIENT_ID must be set at the top of this script.
   function _initGSI_() {
+    var justSignedOut = !!sessionStorage.getItem('cmms_signed_out');
+    sessionStorage.removeItem('cmms_signed_out');
     google.accounts.id.initialize({
       client_id:             GOOGLE_CLIENT_ID,
-      auto_select:           true,
+      auto_select:           !justSignedOut,
       cancel_on_tap_outside: false,
       callback: function(response) {
         var parts   = response.credential.split('.');
