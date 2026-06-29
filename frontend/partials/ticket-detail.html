@@ -284,9 +284,10 @@ function _renderDetail_(result) {
         '<button class="btn-action btn-void"   onclick="_tdRejectJoint_()">✗ Reject Joint Request</button>';
     }
   }
-  // Parts request: all roles, any non-terminal status
+  // Parts request + photo: all roles, any non-terminal status
   if (t.status !== 'CLOSED' && t.status !== 'VOIDED') {
     actions += '<button class="btn-action btn-parts" onclick="_tdRequestParts_()">🔩 Request Parts</button>';
+    actions += '<button class="btn-action btn-update" onclick="_tdAddPhoto_()">📷 Add Photo</button>';
   }
   // Void sits on the far right of the action row (margin-left:auto pushes it there).
   if (t.status !== 'CLOSED' && t.status !== 'VOIDED' && canManage) {
