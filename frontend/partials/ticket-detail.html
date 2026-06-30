@@ -264,7 +264,7 @@ function _renderDetail_(result) {
     }
     actions += '<button class="btn-action btn-void" onclick="_tdIssueTag_()">🏷 Issue Hold Tag</button>';
   }
-  if (t.status === 'PENDING VERIFICATION' && canVerify) {
+  if ((t.status === 'COMPLETE' || t.status === 'PENDING VERIFICATION') && canVerify) {
     actions += '<button class="btn-action btn-verify" onclick="_tdVerifyClose_()">✓ Verify &amp; Close</button>';
   }
   if (t.status !== 'CLOSED' && t.status !== 'VOIDED' && canManage) {

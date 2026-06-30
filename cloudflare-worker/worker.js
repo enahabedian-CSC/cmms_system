@@ -463,7 +463,7 @@ async function handleDashboardCounts(env, userEmail) {
                    // Airtight system-wide unique totals (all departments).
                    openAll: 0, waitingAll: 0, criticalAll: 0 };
 
-  const OPEN_STS = new Set(['OPEN', 'PENDING PARTS', 'ON HOLD', 'PENDING VERIFICATION']);
+  const OPEN_STS = new Set(['OPEN', 'PENDING PARTS', 'ON HOLD', 'COMPLETE', 'PENDING VERIFICATION']);
 
   // System-wide unique totals (each ticket counted once, joint-safe).
   Object.keys(gStatus).forEach(tn => {
@@ -537,7 +537,7 @@ async function handleDashboardPanels(env, userEmail) {
   );
 
   const reviewItems = [], verifyItems = [], tempItems = [], openTickets = [];
-  const OPEN_STS = new Set(['OPEN', 'PENDING PARTS', 'ON HOLD', 'PENDING VERIFICATION']);
+  const OPEN_STS = new Set(['OPEN', 'PENDING PARTS', 'ON HOLD', 'COMPLETE', 'PENDING VERIFICATION']);
 
   allTickets.forEach(r => {
     const tn     = cellStr(r, ML.TICKET_NO);
@@ -556,7 +556,7 @@ async function handleDashboardPanels(env, userEmail) {
         sub: dept + (code ? ' · ' + code : '') + (prio ? ' · ' + prio + ' priority' : '') + ' — awaiting approval',
         action: 'Approve', pageTarget: 'waiting',
       });
-    } else if (status === 'PENDING VERIFICATION' && verifyItems.length < 8) {
+    } else if ((status === 'COMPLETE' || status === 'PENDING VERIFICATION') && verifyItems.length < 8) {
       verifyItems.push({
         kind: 'complete', ticketNo: tn,
         title: equip || desc || tn,
@@ -1235,8 +1235,8 @@ async function handleQueueTickets(env, userEmail, queueType, deptFilter) {
   let statusFilter;
   switch (queueType) {
     case 'waiting': statusFilter = ['WAITING']; break;
-    case 'open':    statusFilter = ['OPEN', 'PENDING VERIFICATION', 'PENDING PARTS', 'ON HOLD']; break;
-    case 'tracker': statusFilter = ['WAITING', 'OPEN', 'PENDING VERIFICATION', 'PENDING PARTS', 'ON HOLD']; break;
+    case 'open':    statusFilter = ['OPEN', 'COMPLETE', 'PENDING VERIFICATION', 'PENDING PARTS', 'ON HOLD']; break;
+    case 'tracker': statusFilter = ['WAITING', 'OPEN', 'COMPLETE', 'PENDING VERIFICATION', 'PENDING PARTS', 'ON HOLD']; break;
     default:        statusFilter = ['WAITING', 'OPEN']; break;
   }
 
@@ -1788,7 +1788,7 @@ async function handleCompleteTicket(env, userEmail, body) {
 
   const updatedBy = String(body.updatedBy || user.displayName).trim();
   await appendMasterLog(token, env, {
-    ticketNo, now: new Date(), action: 'WORK COMPLETE', status: 'PENDING VERIFICATION',
+    ticketNo, now: new Date(), action: 'WORK COMPLETE', status: 'COMPLETE',
     correctiveAct: body.correctiveAct || '', rootCause: body.rootCause || '',
     preventiveAct: body.preventiveAct || '', fixType: body.fixType || '',
     actualHours: body.actualHours || '', downtimeDuration: body.downtimeDuration || '',
@@ -1797,7 +1797,7 @@ async function handleCompleteTicket(env, userEmail, body) {
     clrToolsRemoved: body.clrToolsRemoved || '', clrAreaClean: body.clrAreaClean || '',
     clrQaRequired: body.clrQaRequired || '',
   });
-  await appendTicketHistory(token, env, ticketNo, 'WORK COMPLETE', 'OPEN', 'PENDING VERIFICATION', updatedBy, '');
+  await appendTicketHistory(token, env, ticketNo, 'WORK COMPLETE', 'OPEN', 'COMPLETE', updatedBy, '');
   return jsonResponse({ success: true, ticketNo });
 }
 
@@ -1841,7 +1841,7 @@ async function handleVerifyClose(env, userEmail, body) {
     clrQaRequired: body.clrQaRequired || '',
     updatedBy, notes: body.notes || '',
   });
-  await appendTicketHistory(token, env, ticketNo, 'VERIFIED & CLOSED', 'PENDING VERIFICATION', 'CLOSED', updatedBy, body.notes || '');
+  await appendTicketHistory(token, env, ticketNo, 'VERIFIED & CLOSED', 'COMPLETE', 'CLOSED', updatedBy, body.notes || '');
   return jsonResponse({ success: true, ticketNo });
 }
 
@@ -2218,7 +2218,7 @@ async function handleActiveTickets(env, userEmail) {
     r.forEach((v, i) => { if (v != null && v !== '') cur[i] = v; });
   });
 
-  const ACTIVE = new Set(['WAITING', 'OPEN', 'PENDING VERIFICATION', 'PENDING PARTS', 'ON HOLD']);
+  const ACTIVE = new Set(['WAITING', 'OPEN', 'COMPLETE', 'PENDING VERIFICATION', 'PENDING PARTS', 'ON HOLD']);
   const tickets = [];
   Object.keys(byTicket).forEach(tn => {
     const r  = byTicket[tn];
@@ -2265,7 +2265,7 @@ async function handleReportData(env, userEmail, daysBack) {
     r.forEach((v, i) => { if (v != null && v !== '') byTicket[tn][i] = v; });
   });
 
-  const ACTIVE = ['WAITING','OPEN','PENDING VERIFICATION','PENDING PARTS','ON HOLD'];
+  const ACTIVE = ['WAITING','OPEN','COMPLETE','PENDING VERIFICATION','PENDING PARTS','ON HOLD'];
   const tickets = [];
   const statusFunnel = { waiting:0, open:0, pendingVerify:0, pendingParts:0, closed:0 };
   const deptStats = {};
@@ -2300,7 +2300,7 @@ async function handleReportData(env, userEmail, daysBack) {
     const ds = deptStats[dept];
     if (status === 'WAITING') { statusFunnel.waiting++; ds.waiting++; }
     else if (status === 'CLOSED' || status === 'COMPLETE') { statusFunnel.closed++; ds.closed++; }
-    else if (status === 'PENDING VERIFICATION') statusFunnel.pendingVerify++;
+    else if (status === 'COMPLETE' || status === 'PENDING VERIFICATION') statusFunnel.pendingVerify++;
     else if (status === 'PENDING PARTS')        statusFunnel.pendingParts++;
     else { statusFunnel.open++; ds.open++; }
     if (cellStr(r, ML.PRIORITY).toUpperCase() === 'CRITICAL') ds.critical++;
@@ -2687,7 +2687,7 @@ async function handleTechWorkBoard(env, userEmail) {
   if (!user.isManager && !isTech) return jsonResponse({ error: 'Access required' }, 403);
 
   const mlRows = await readSheet(token, env.SPREADSHEET_ID, SH.MASTER_LOG, 'A2:AQ');
-  const ACTIVE = ['WAITING','OPEN','PENDING VERIFICATION','PENDING PARTS','ON HOLD'];
+  const ACTIVE = ['WAITING','OPEN','COMPLETE','PENDING VERIFICATION','PENDING PARTS','ON HOLD'];
   const byTicket = {};
   mlRows.forEach(r => {
     const tn = cellStr(r, ML.TICKET_NO); if (!tn) return;
