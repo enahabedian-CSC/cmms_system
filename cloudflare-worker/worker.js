@@ -300,16 +300,20 @@ async function resolveUser(token, env, userEmail) {
 
   // Tech directory read is non-fatal: if the sheet is missing or mis-named
   // auth still works — nobody gets the tech role via directory.
-  let isTech = false;
+  let isTech = false, techDept = '', techManager = '';
   if (!isAdmin && !isManager) {
     try {
-      const techDirRows = await readSheet(token, env.SPREADSHEET_ID, SH.TECH_DIR, 'B2:B200');
-      const techEmails  = techDirRows.map(r => String(r[0] || '').trim().toLowerCase()).filter(Boolean);
-      isTech = techEmails.includes(email);
+      const techDirRows = await readSheet(token, env.SPREADSHEET_ID, SH.TECH_DIR, 'B2:D200');
+      const match = techDirRows.find(r => String(r[0] || '').trim().toLowerCase() === email);
+      if (match) {
+        isTech      = true;
+        techDept    = String(match[1] || '').trim().toUpperCase();
+        techManager = String(match[2] || '').trim();
+      }
     } catch (_) { /* sheet unavailable — isTech stays false */ }
   }
 
-  return { email, isAdmin, isManager, ownedDepts, displayName, isTech };
+  return { email, isAdmin, isManager, ownedDepts, displayName, isTech, techDept, techManager };
 }
 
 function allowed(user, dept) {
@@ -348,13 +352,21 @@ async function handleMe(env, userEmail) {
     ownedDepts  = String(r[4] || '').split(',').map(d => d.trim().toUpperCase()).filter(Boolean);
   });
 
-  let isTech = false;
+  let isTech = false, techDept = '', techManager = '';
   if (!isAdmin && !isManager) {
     try {
-      const techDirRows = await readSheet(token, env.SPREADSHEET_ID, SH.TECH_DIR, 'B2:B200');
-      const techEmails  = techDirRows.map(r => String(r[0] || '').trim().toLowerCase()).filter(Boolean);
-      isTech = techEmails.includes(email);
+      const techDirRows = await readSheet(token, env.SPREADSHEET_ID, SH.TECH_DIR, 'B2:D200');
+      const match = techDirRows.find(r => String(r[0] || '').trim().toLowerCase() === email);
+      if (match) {
+        isTech      = true;
+        techDept    = String(match[1] || '').trim().toUpperCase();
+        techManager = String(match[2] || '').trim();
+      }
     } catch (_) { /* sheet unavailable — isTech stays false */ }
+  }
+  // Give techs their dept as an owned dept so the rest of the app can scope to it
+  if (isTech && techDept && !ownedDepts.length) {
+    ownedDepts = techDept.split(',').map(d => d.trim().toUpperCase()).filter(Boolean);
   }
   const role = isAdmin ? 'admin' : isManager ? 'manager' : isTech ? 'tech' : 'noaccess';
 
@@ -369,7 +381,8 @@ async function handleMe(env, userEmail) {
     .map(w => w[0] || '').join('').substring(0, 2).toUpperCase() || '?';
 
   const user = { email, displayName, initials, role,
-                 isAdmin, isManager: isManager || isAdmin, ownedDepts, teamEmails };
+                 isAdmin, isManager: isManager || isAdmin, ownedDepts, teamEmails,
+                 techDept, techManager };
 
   // Replicate getDocControlMap_() from Config.gs
   function pick(noKey, revKey, dateKey, dNo, dRev, dDate) {
