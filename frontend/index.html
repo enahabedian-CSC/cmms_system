@@ -887,7 +887,9 @@ function _runApp_(version) {
         COMPANY     = data.company     || 'Container Supply Co.';
         DOC_CONTROL = data.docControl  || {};
         sessionStorage.setItem(STORAGE_KEY, email);
-        _runApp_(data.version);
+        // Isolate _runApp_ from the fetch .catch so a DOM error there
+        // doesn't masquerade as a network failure.
+        try { _runApp_(data.version); } catch(e) { location.reload(); }
       })
       .catch(_loadError_);
   }
@@ -911,15 +913,20 @@ function _runApp_(version) {
       },
     });
     google.accounts.id.prompt(function(notification) {
-      if (!_signingIn_ && (notification.isNotDisplayed() || notification.isSkippedMoment())) {
-        // One-tap not available — render a standard sign-in button
-        document.body.innerHTML =
-          '<div style="display:flex;align-items:center;justify-content:center;height:100vh;">' +
-          '<div id="_gsi_btn_"></div></div>';
-        google.accounts.id.renderButton(
-          document.getElementById('_gsi_btn_'),
-          { theme: 'outline', size: 'large', text: 'signin_with', logo_alignment: 'left' }
-        );
+      if (notification.isNotDisplayed() || notification.isSkippedMoment()) {
+        // auto_select fires its credential callback slightly after the notification.
+        // Delay replacing the body so auto_select wins the race; if _signingIn_
+        // is set by then, the body replacement is skipped entirely.
+        setTimeout(function() {
+          if (_signingIn_) return;
+          document.body.innerHTML =
+            '<div style="display:flex;align-items:center;justify-content:center;height:100vh;">' +
+            '<div id="_gsi_btn_"></div></div>';
+          google.accounts.id.renderButton(
+            document.getElementById('_gsi_btn_'),
+            { theme: 'outline', size: 'large', text: 'signin_with', logo_alignment: 'left' }
+          );
+        }, 1500);
       }
     });
   }
