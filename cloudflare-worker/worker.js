@@ -276,10 +276,9 @@ async function generateTicketNo(token, env, dept) {
 async function resolveUser(token, env, userEmail) {
   const email = (userEmail || '').trim().toLowerCase();
 
-  const [configRows, managerRows, techDirRows] = await Promise.all([
+  const [configRows, managerRows] = await Promise.all([
     readSheet(token, env.SPREADSHEET_ID, SH.CONFIG,         'C2:D30'),
     readSheet(token, env.SPREADSHEET_ID, SH.MANAGER_ACCESS, 'A4:E200'),
-    readSheet(token, env.SPREADSHEET_ID, SH.TECH_DIR,       'B2:B200'),
   ]);
 
   const config = {};
@@ -299,8 +298,16 @@ async function resolveUser(token, env, userEmail) {
       .map(d => d.trim().toUpperCase()).filter(Boolean);
   });
 
-  const techEmails = techDirRows.map(r => String(r[0] || '').trim().toLowerCase()).filter(Boolean);
-  const isTech = !isAdmin && !isManager && techEmails.includes(email);
+  // Tech directory read is non-fatal: if the sheet is missing or mis-named
+  // auth still works — nobody gets the tech role via directory.
+  let isTech = false;
+  if (!isAdmin && !isManager) {
+    try {
+      const techDirRows = await readSheet(token, env.SPREADSHEET_ID, SH.TECH_DIR, 'B2:B200');
+      const techEmails  = techDirRows.map(r => String(r[0] || '').trim().toLowerCase()).filter(Boolean);
+      isTech = techEmails.includes(email);
+    } catch (_) { /* sheet unavailable — isTech stays false */ }
+  }
 
   return { email, isAdmin, isManager, ownedDepts, displayName, isTech };
 }
@@ -318,10 +325,9 @@ function handleVersion(env) {
 async function handleMe(env, userEmail) {
   const token = await getAccessToken(env);
 
-  const [configRows, managerRows, techDirRows] = await Promise.all([
+  const [configRows, managerRows] = await Promise.all([
     readSheet(token, env.SPREADSHEET_ID, SH.CONFIG,         'C2:D50'),
     readSheet(token, env.SPREADSHEET_ID, SH.MANAGER_ACCESS, 'A4:E200'),
-    readSheet(token, env.SPREADSHEET_ID, SH.TECH_DIR,       'B2:B200'),
   ]);
 
   const config = {};
@@ -342,8 +348,14 @@ async function handleMe(env, userEmail) {
     ownedDepts  = String(r[4] || '').split(',').map(d => d.trim().toUpperCase()).filter(Boolean);
   });
 
-  const techEmails = techDirRows.map(r => String(r[0] || '').trim().toLowerCase()).filter(Boolean);
-  const isTech = !isAdmin && !isManager && techEmails.includes(email);
+  let isTech = false;
+  if (!isAdmin && !isManager) {
+    try {
+      const techDirRows = await readSheet(token, env.SPREADSHEET_ID, SH.TECH_DIR, 'B2:B200');
+      const techEmails  = techDirRows.map(r => String(r[0] || '').trim().toLowerCase()).filter(Boolean);
+      isTech = techEmails.includes(email);
+    } catch (_) { /* sheet unavailable — isTech stays false */ }
+  }
   const role = isAdmin ? 'admin' : isManager ? 'manager' : isTech ? 'tech' : 'noaccess';
 
   if (isAdmin) ownedDepts = ['METAL','ELECTRICAL','PLASTIC','LITHO','PLASTIC DEC','QA','MACHINE SHOP','S/R','SALES','G&A'];
