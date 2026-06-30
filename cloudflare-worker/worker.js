@@ -2506,6 +2506,43 @@ async function handleEMRLData(env, userEmail, params) {
 
 // ── Admin handlers ────────────────────────────────────────────────────────────
 
+async function handleAdminTechDir(env, userEmail, body) {
+  const token = await getAccessToken(env);
+  const user  = await resolveUser(token, env, userEmail);
+  if (!user.isAdmin) return jsonResponse({ error: 'Admin access required' }, 403);
+
+  const action = String(body.action || '').trim();
+
+  if (action === 'add') {
+    const name    = String(body.name    || '').trim();
+    const email   = String(body.email   || '').trim().toLowerCase();
+    const dept    = normalizeDept(body.dept || '');
+    const manager = String(body.manager || '').trim();
+    if (!email || !dept) return jsonResponse({ error: 'Email and department are required' }, 400);
+    const existing = await readSheet(token, env.SPREADSHEET_ID, SH.TECH_DIR, 'B2:B200');
+    if (existing.find(r => String(r[0] || '').trim().toLowerCase() === email)) {
+      return jsonResponse({ error: '"' + email + '" is already in the directory.' }, 409);
+    }
+    await appendSheetRow(token, env.SPREADSHEET_ID, SH.TECH_DIR, [name, email, dept, manager]);
+    return jsonResponse({ ok: true });
+  }
+
+  if (action === 'delete') {
+    const email = String(body.email || '').trim().toLowerCase();
+    if (!email) return jsonResponse({ error: 'email required' }, 400);
+    const rows = await readSheet(token, env.SPREADSHEET_ID, SH.TECH_DIR, 'A2:D200');
+    const idx  = rows.findIndex(r => String(r[1] || '').trim().toLowerCase() === email);
+    if (idx === -1) return jsonResponse({ error: 'Technician not found' }, 404);
+    await writeSheetCells(token, env.SPREADSHEET_ID, SH.TECH_DIR, idx + 2, [
+      { col: 1, value: '' }, { col: 2, value: '' },
+      { col: 3, value: '' }, { col: 4, value: '' },
+    ]);
+    return jsonResponse({ ok: true });
+  }
+
+  return jsonResponse({ error: 'Unknown action' }, 400);
+}
+
 async function handleAdminDeptAliases(env, userEmail, body) {
   const token = await getAccessToken(env);
   const user  = await resolveUser(token, env, userEmail);
@@ -2567,6 +2604,18 @@ async function handleAdminView(env, userEmail, view) {
       const result = rows.filter(r => r[0]).map(r => ({ src: String(r[0]).trim(), dest: String(r[1] ?? '').trim() }));
       return jsonResponse({ view, rows: result, sheetUrl });
     } catch (_) { return jsonResponse({ view, rows: [], sheetUrl }); }
+  }
+  if (view === 'techdir') {
+    try {
+      const rows   = await readSheet(token, env.SPREADSHEET_ID, SH.TECH_DIR, 'A2:D200');
+      const result = rows.filter(r => r[0] || r[1]).map(r => ({
+        name:    String(r[0] || '').trim(),
+        email:   String(r[1] || '').trim().toLowerCase(),
+        dept:    String(r[2] || '').trim().toUpperCase(),
+        manager: String(r[3] || '').trim(),
+      }));
+      return jsonResponse({ view, techs: result, sheetUrl });
+    } catch (_) { return jsonResponse({ view, techs: [], sheetUrl }); }
   }
   return jsonResponse({ error: 'Unknown view: ' + view }, 400);
 }
@@ -2941,6 +2990,7 @@ export default {
       else if (p === '/api/reports/active-tickets'       && method === 'GET') res = await handleActiveTickets(env, userEmail);
       else if (p === '/api/reports/emrl'                && method === 'GET') res = await handleEMRLData(env, userEmail, Object.fromEntries(url.searchParams));
       // Admin
+      else if (p === '/api/admin/tech-dir'               && method === 'POST')res = await handleAdminTechDir(env, userEmail, body);
       else if (p === '/api/admin/dept-aliases'           && method === 'POST')res = await handleAdminDeptAliases(env, userEmail, body);
       else if (p === '/api/admin/view'                  && method === 'GET') res = await handleAdminView(env, userEmail, url.searchParams.get('view') || '');
       else if (p === '/api/admin/equip-cache'           && method === 'GET') res = await handleEquipCacheStatus(env, userEmail);

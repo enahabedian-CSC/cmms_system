@@ -138,6 +138,40 @@ function _renderAdminView_(data, container) {
       '</div>';
   }
 
+  else if (data.view === 'techdir') {
+    html +=
+      '<div class="adm-header"><span class="adm-title">👷 Tech Directory</span>' + sheetLink + '</div>' +
+      '<div class="adm-notice">Technicians listed here can sign in and access tickets scoped to their department. Email must match their Google account exactly.</div>' +
+      '<div class="adm-table-wrap"><table class="adm-table" id="adm-techdir-tbl">' +
+        '<thead><tr><th>Name</th><th>Email</th><th>Department</th><th>Manager</th><th style="width:60px;"></th></tr></thead><tbody>';
+    if (data.techs && data.techs.length > 0) {
+      data.techs.forEach(function(t) {
+        var emailEsc = esc(t.email).replace(/'/g, "\\'");
+        html +=
+          '<tr>' +
+          '<td style="font-weight:600;">' + esc(t.name || '—') + '</td>' +
+          '<td class="val-col mono">' + esc(t.email) + '</td>' +
+          '<td><span class="adm-role-badge">' + esc(t.dept || '—') + '</span></td>' +
+          '<td class="val-col">' + esc(t.manager || '—') + '</td>' +
+          '<td><button class="adm-del-btn" onclick="_deleteTechDirEntry_(\'' + emailEsc + '\',this)">Remove</button></td>' +
+          '</tr>';
+      });
+    } else {
+      html += '<tr><td colspan="5" class="adm-empty">No technicians in the directory. Add one below.</td></tr>';
+    }
+    html +=
+      '</tbody></table>' +
+      '<div class="adm-alias-form" style="flex-wrap:wrap;gap:6px;">' +
+        '<input id="adm-td-name"    placeholder="Name"       style="width:130px;" />' +
+        '<input id="adm-td-email"   placeholder="Email *"    style="width:190px;" />' +
+        '<input id="adm-td-dept"    placeholder="Dept *"     style="width:110px;text-transform:uppercase;" />' +
+        '<input id="adm-td-manager" placeholder="Manager"    style="width:140px;" />' +
+        '<button class="adm-add-btn" onclick="_addTechDirEntry_()">+ Add Tech</button>' +
+      '</div>' +
+      '<div id="adm-techdir-msg" class="adm-alias-msg"></div>' +
+      '</div>';
+  }
+
   else {
     html += '<div class="adm-empty">Unknown view: ' + esc(data.view) + '</div>';
   }
@@ -149,6 +183,7 @@ function _renderAdminView_(data, container) {
 PAGES['admin-config']  = function(c) { _loadAdminPage_('config',  'Configuration',  c); };
 PAGES['admin-access']  = function(c) { _loadAdminPage_('access',  'Manager Access', c); };
 PAGES['admin-deptmap'] = function(c) { _loadAdminPage_('deptmap', 'Dept Map',       c); };
+PAGES['admin-techdir'] = function(c) { _loadAdminPage_('techdir', 'Tech Directory', c); };
 
 // ── Dept-map alias management ─────────────────────────────────────────────────
 
@@ -200,6 +235,60 @@ function _deleteDeptAlias_(src, btn) {
     _deptAliasMsg_('Alias deleted.', 'ok');
   })
   .catch(function(e) { _deptAliasMsg_(e.message || 'Request failed', 'err'); btn.disabled = false; });
+}
+
+// ── Tech Directory management ─────────────────────────────────────────────────
+
+function _techDirMsg_(text, type) {
+  var el = document.getElementById('adm-techdir-msg');
+  if (!el) return;
+  el.textContent = text;
+  el.className = 'adm-alias-msg ' + type;
+  if (type === 'ok') setTimeout(function() { if (el) { el.className = 'adm-alias-msg'; el.textContent = ''; } }, 3000);
+}
+
+function _addTechDirEntry_() {
+  var name    = (document.getElementById('adm-td-name')    || {}).value || '';
+  var email   = (document.getElementById('adm-td-email')   || {}).value || '';
+  var dept    = (document.getElementById('adm-td-dept')    || {}).value || '';
+  var manager = (document.getElementById('adm-td-manager') || {}).value || '';
+  email = email.trim().toLowerCase();
+  dept  = dept.trim().toUpperCase();
+  if (!email || !dept) { _techDirMsg_('Email and department are required.', 'err'); return; }
+  fetch(WORKER_URL + '/api/admin/tech-dir', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-User-Email': USER ? USER.email : '' },
+    body: JSON.stringify({ action: 'add', name: name.trim(), email: email, dept: dept, manager: manager.trim() }),
+  })
+  .then(function(r) { return r.json(); })
+  .then(function(d) {
+    if (d.error) { _techDirMsg_(d.error, 'err'); return; }
+    ['adm-td-name','adm-td-email','adm-td-dept','adm-td-manager'].forEach(function(id) {
+      var el = document.getElementById(id); if (el) el.value = '';
+    });
+    _techDirMsg_('Technician added.', 'ok');
+    var c = document.getElementById('adm-techdir-msg').closest('.adm-wrap').parentElement;
+    if (c) PAGES['admin-techdir'](c);
+  })
+  .catch(function(e) { _techDirMsg_(e.message || 'Request failed', 'err'); });
+}
+
+function _deleteTechDirEntry_(email, btn) {
+  if (!confirm('Remove "' + email + '" from the tech directory?')) return;
+  btn.disabled = true;
+  fetch(WORKER_URL + '/api/admin/tech-dir', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-User-Email': USER ? USER.email : '' },
+    body: JSON.stringify({ action: 'delete', email: email }),
+  })
+  .then(function(r) { return r.json(); })
+  .then(function(d) {
+    if (d.error) { _techDirMsg_(d.error, 'err'); btn.disabled = false; return; }
+    var row = btn.closest('tr');
+    if (row) row.remove();
+    _techDirMsg_('Technician removed.', 'ok');
+  })
+  .catch(function(e) { _techDirMsg_(e.message || 'Request failed', 'err'); btn.disabled = false; });
 }
 
 // ── Equipment Cache admin page ─────────────────────────────────────────────────
