@@ -591,13 +591,21 @@ function showToast(msg, type, durationMs) {
 
 // ── Sign out ──────────────────────────────────────────────────────────────────
 function signOut() {
-  if (confirm('Sign out of CSC Maintenance Console?')) {
-    sessionStorage.removeItem('cmms_email');
-    sessionStorage.setItem('cmms_signed_out', '1');
-    if (typeof google !== 'undefined' && google.accounts && google.accounts.id) {
-      google.accounts.id.disableAutoSelect();
-    }
-    location.reload();
+  // confirm() is silently blocked in cross-origin iframes (e.g. Google Sites).
+  // Swap the body directly instead of reloading — reload also can't persist
+  // cmms_signed_out reliably when third-party storage is restricted.
+  try { sessionStorage.removeItem('cmms_email'); } catch(e) {}
+  if (typeof google !== 'undefined' && google.accounts && google.accounts.id) {
+    try { google.accounts.id.disableAutoSelect(); } catch(e) {}
+  }
+  document.body.innerHTML =
+    '<div style="display:flex;align-items:center;justify-content:center;height:100vh;">' +
+    '<div id="_gsi_btn_"></div></div>';
+  if (typeof google !== 'undefined' && google.accounts && google.accounts.id) {
+    google.accounts.id.renderButton(
+      document.getElementById('_gsi_btn_'),
+      { theme: 'outline', size: 'large', text: 'signin_with', logo_alignment: 'left' }
+    );
   }
 }
 
