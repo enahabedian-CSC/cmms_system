@@ -276,9 +276,10 @@ async function generateTicketNo(token, env, dept) {
 async function resolveUser(token, env, userEmail) {
   const email = (userEmail || '').trim().toLowerCase();
 
-  const [configRows, managerRows] = await Promise.all([
-    readSheet(token, env.SPREADSHEET_ID, SH.CONFIG, 'C2:D30'),
+  const [configRows, managerRows, techDirRows] = await Promise.all([
+    readSheet(token, env.SPREADSHEET_ID, SH.CONFIG,         'C2:D30'),
     readSheet(token, env.SPREADSHEET_ID, SH.MANAGER_ACCESS, 'A4:E200'),
+    readSheet(token, env.SPREADSHEET_ID, SH.TECH_DIR,       'B2:B200'),
   ]);
 
   const config = {};
@@ -298,7 +299,10 @@ async function resolveUser(token, env, userEmail) {
       .map(d => d.trim().toUpperCase()).filter(Boolean);
   });
 
-  return { email, isAdmin, isManager, ownedDepts, displayName };
+  const techEmails = techDirRows.map(r => String(r[0] || '').trim().toLowerCase()).filter(Boolean);
+  const isTech = !isAdmin && !isManager && techEmails.includes(email);
+
+  return { email, isAdmin, isManager, ownedDepts, displayName, isTech };
 }
 
 function allowed(user, dept) {
@@ -314,9 +318,10 @@ function handleVersion(env) {
 async function handleMe(env, userEmail) {
   const token = await getAccessToken(env);
 
-  const [configRows, managerRows] = await Promise.all([
-    readSheet(token, env.SPREADSHEET_ID, SH.CONFIG, 'C2:D50'),
+  const [configRows, managerRows, techDirRows] = await Promise.all([
+    readSheet(token, env.SPREADSHEET_ID, SH.CONFIG,         'C2:D50'),
     readSheet(token, env.SPREADSHEET_ID, SH.MANAGER_ACCESS, 'A4:E200'),
+    readSheet(token, env.SPREADSHEET_ID, SH.TECH_DIR,       'B2:B200'),
   ]);
 
   const config = {};
@@ -337,9 +342,9 @@ async function handleMe(env, userEmail) {
     ownedDepts  = String(r[4] || '').split(',').map(d => d.trim().toUpperCase()).filter(Boolean);
   });
 
-  const domain     = email.split('@')[1] || '';
-  const isCorpUser = domain.toLowerCase() === 'cscmfg.com';
-  const role = isAdmin ? 'admin' : isManager ? 'manager' : isCorpUser ? 'tech' : 'noaccess';
+  const techEmails = techDirRows.map(r => String(r[0] || '').trim().toLowerCase()).filter(Boolean);
+  const isTech = !isAdmin && !isManager && techEmails.includes(email);
+  const role = isAdmin ? 'admin' : isManager ? 'manager' : isTech ? 'tech' : 'noaccess';
 
   if (isAdmin) ownedDepts = ['METAL','ELECTRICAL','PLASTIC','LITHO','PLASTIC DEC','QA','MACHINE SHOP','S/R','SALES','G&A'];
 
@@ -1059,7 +1064,7 @@ async function handleEhlClear(env, userEmail, body) {
 async function handleParts(env, userEmail) {
   const token = await getAccessToken(env);
   const user  = await resolveUser(token, env, userEmail);
-  const isTech = (userEmail || '').trim().toLowerCase().endsWith('@cscmfg.com');
+  const isTech = user.isTech;
   if (!user.isManager && !isTech) return jsonResponse({ error: 'Access required' }, 403);
 
   const rows = await readSheet(token, env.SPREADSHEET_ID, SH.PARTS_NEEDED, `A${HIST_HEADER_ROW + 1}:L`);
@@ -1199,7 +1204,7 @@ function mergeAndFilter(mlRows, statusFilter, deptFilter) {
 async function handleQueueTickets(env, userEmail, queueType, deptFilter) {
   const token  = await getAccessToken(env);
   const user   = await resolveUser(token, env, userEmail);
-  const isTech = (userEmail || '').trim().toLowerCase().endsWith('@cscmfg.com');
+  const isTech = user.isTech;
   if (!user.isManager && !isTech) return jsonResponse({ error: 'Access required' }, 403);
 
   let statusFilter;
@@ -1218,7 +1223,7 @@ async function handleQueueTickets(env, userEmail, queueType, deptFilter) {
 async function handleTicketDetail(env, userEmail, ticketNo) {
   const token  = await getAccessToken(env);
   const user   = await resolveUser(token, env, userEmail);
-  const isTech = (userEmail || '').trim().toLowerCase().endsWith('@cscmfg.com');
+  const isTech = user.isTech;
   if (!user.isManager && !isTech) return jsonResponse({ error: 'Access required' }, 403);
   if (!ticketNo) return jsonResponse({ error: 'ticketNo required' }, 400);
 
@@ -1349,7 +1354,7 @@ async function handleClosedTickets(env, userEmail) {
 async function handleEquipTicketHistory(env, userEmail, equipCode) {
   const token  = await getAccessToken(env);
   const user   = await resolveUser(token, env, userEmail);
-  const isTech = (userEmail || '').trim().toLowerCase().endsWith('@cscmfg.com');
+  const isTech = user.isTech;
   if (!user.isManager && !isTech) return jsonResponse({ error: 'Access required' }, 403);
   if (!equipCode) return jsonResponse([], 200);
 
@@ -1382,7 +1387,7 @@ async function handleEquipTicketHistory(env, userEmail, equipCode) {
 async function handleFormData(env, userEmail) {
   const token = await getAccessToken(env);
   const user  = await resolveUser(token, env, userEmail);
-  const isTech = (userEmail || '').trim().toLowerCase().endsWith('@cscmfg.com');
+  const isTech = user.isTech;
   if (!user.isManager && !isTech) return jsonResponse({ error: 'Access required' }, 403);
 
   const [configRows, dataRows, managerRows, techRows, cacheData] = await Promise.all([
@@ -1516,7 +1521,7 @@ async function handleEquipQuickStats(env, userEmail, equipCode) {
   if (!equipCode) return jsonResponse({ count60d: 0, topProbType: null });
   const token  = await getAccessToken(env);
   const user   = await resolveUser(token, env, userEmail);
-  const isTech = (userEmail || '').trim().toLowerCase().endsWith('@cscmfg.com');
+  const isTech = user.isTech;
   if (!user.isManager && !isTech) return jsonResponse({ error: 'Access required' }, 403);
 
   const mlRows  = await readSheet(token, env.SPREADSHEET_ID, SH.MASTER_LOG, 'A2:AQ');
@@ -1546,22 +1551,21 @@ async function handleEquipQuickStats(env, userEmail, equipCode) {
 }
 
 async function handleReserveTicketId(env, userEmail, searchParams) {
-  const isTech = (userEmail || '').trim().toLowerCase().endsWith('@cscmfg.com');
-  if (!isTech) return jsonResponse({ error: 'Access required' }, 403);
-  const dept   = (searchParams.get('dept') || '').toUpperCase().trim();
   const token  = await getAccessToken(env);
+  const user   = await resolveUser(token, env, userEmail);
+  if (!user.isManager && !user.isTech) return jsonResponse({ error: 'Access required' }, 403);
+  const dept   = (searchParams.get('dept') || '').toUpperCase().trim();
   const ticketNo = await generateTicketNo(token, env, dept);
   return jsonResponse({ ticketNo });
 }
 
 async function handleUploadPhoto(env, userEmail, body) {
-  const isTech = (userEmail || '').trim().toLowerCase().endsWith('@cscmfg.com');
-  if (!isTech) return jsonResponse({ error: 'Access required' }, 403);
-
   const folderId = (env.PHOTO_FOLDER_ID || '').replace(/^﻿/, '').trim();
   if (!folderId) return jsonResponse({ ok: false, error: 'Photo storage not configured (PHOTO_FOLDER_ID missing)' }, 500);
 
   const token     = await getAccessToken(env);
+  const user      = await resolveUser(token, env, userEmail);
+  if (!user.isManager && !user.isTech) return jsonResponse({ error: 'Access required' }, 403);
   const ticketNo  = String(body.ticketNo   || '');
   const photoIdx  = body.photoIndex || 1;
   const dataUrl   = String(body.dataUrl    || '');
@@ -1617,7 +1621,7 @@ async function handleUploadPhoto(env, userEmail, body) {
 async function handleAddTicket(env, userEmail, body) {
   const token  = await getAccessToken(env);
   const user   = await resolveUser(token, env, userEmail);
-  const isTech = (userEmail || '').trim().toLowerCase().endsWith('@cscmfg.com');
+  const isTech = user.isTech;
   if (!user.isManager && !isTech) return jsonResponse({ error: 'Access required' }, 403);
   if (!String(body.equipType || '').trim()) return jsonResponse({ error: 'Equipment type required' }, 400);
 
@@ -1919,7 +1923,7 @@ async function handleTransferTicket(env, userEmail, body) {
 async function handleRequestParts(env, userEmail, body) {
   const token  = await getAccessToken(env);
   const user   = await resolveUser(token, env, userEmail);
-  const isTech = (userEmail || '').trim().toLowerCase().endsWith('@cscmfg.com');
+  const isTech = user.isTech;
   if (!user.isManager && !isTech) return jsonResponse({ error: 'Access required' }, 403);
   const ticketNo  = String(body.ticketNo  || '').trim();
   if (!ticketNo) return jsonResponse({ error: 'ticketNo required' }, 400);
@@ -1959,7 +1963,7 @@ async function handleRequestParts(env, userEmail, body) {
 async function handleUpdateTicket(env, userEmail, body) {
   const token  = await getAccessToken(env);
   const user   = await resolveUser(token, env, userEmail);
-  const isTech = (userEmail || '').trim().toLowerCase().endsWith('@cscmfg.com');
+  const isTech = user.isTech;
   if (!user.isManager && !isTech) return jsonResponse({ error: 'Access required' }, 403);
   const ticketNo  = String(body.ticketNo  || '').trim();
   if (!ticketNo) return jsonResponse({ error: 'ticketNo required' }, 400);
@@ -2011,7 +2015,7 @@ async function handleEditTicketFields(env, userEmail, body) {
 async function handleAddTicketPhoto(env, userEmail, body) {
   const token  = await getAccessToken(env);
   const user   = await resolveUser(token, env, userEmail);
-  const isTech = (userEmail || '').trim().toLowerCase().endsWith('@cscmfg.com');
+  const isTech = user.isTech;
   if (!user.isManager && !isTech) return jsonResponse({ error: 'Access required' }, 403);
   const ticketNo = String(body.ticketNo  || '').trim();
   if (!ticketNo) return jsonResponse({ error: 'ticketNo required' }, 400);
@@ -2654,7 +2658,7 @@ async function handleRefreshEquipCache(env, userEmail) {
 async function handleTechWorkBoard(env, userEmail) {
   const token  = await getAccessToken(env);
   const user   = await resolveUser(token, env, userEmail);
-  const isTech = (userEmail || '').trim().toLowerCase().endsWith('@cscmfg.com');
+  const isTech = user.isTech;
   if (!user.isManager && !isTech) return jsonResponse({ error: 'Access required' }, 403);
 
   const mlRows = await readSheet(token, env.SPREADSHEET_ID, SH.MASTER_LOG, 'A2:AQ');
@@ -2698,7 +2702,7 @@ async function handleTechWorkBoard(env, userEmail) {
 async function handleEquipInventory(env, userEmail) {
   const token  = await getAccessToken(env);
   const user   = await resolveUser(token, env, userEmail);
-  const isTech = (userEmail || '').trim().toLowerCase().endsWith('@cscmfg.com');
+  const isTech = user.isTech;
   if (!user.isManager && !isTech) return jsonResponse({ error: 'Access required' }, 403);
 
   let equipList = [];
