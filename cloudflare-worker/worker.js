@@ -76,6 +76,7 @@ const SH = {
   DATA_VALID:     '📋 Data Lists',
   EQUIP_CACHE:    '⚙️ Equip Inventory Cache',
   TECH_DIR:       '👷 Tech Directory',
+  DEPT_MAP:       '📋 Dept Map',
   RPT_DB:         '📝 Report Database',
   WAITING:        '⏳ Waiting Queue',
   OPEN:           '📂 Open Tickets',
@@ -140,9 +141,10 @@ function cellStr(row, colOneBased) {
   return v != null ? String(v).trim() : '';
 }
 
-// Normalize department names to their canonical form so sheet typos and legacy
-// variants (METALS, PLASTICS, PLASTIC DEC) map to the same value everywhere.
-const DEPT_ALIASES = {
+// Normalize department names to their canonical form.
+// Hardcoded entries are the baseline; loadDeptAliases() merges in the live
+// '📋 Dept Map' sheet so admins can manage aliases without a code deploy.
+let DEPT_ALIASES = {
   METALS:        'METAL',
   PLASTICS:      'PLASTIC',
   'PLASTIC DEC': 'PLASTIC',
@@ -150,6 +152,17 @@ const DEPT_ALIASES = {
 function normalizeDept(d) {
   const up = String(d || '').trim().toUpperCase();
   return DEPT_ALIASES[up] || up;
+}
+async function loadDeptAliases(token, env) {
+  try {
+    const rows = await readSheet(token, env.SPREADSHEET_ID, SH.DEPT_MAP, 'A2:B200');
+    const sheet = {};
+    rows.filter(r => r[0]).forEach(r => {
+      sheet[String(r[0]).trim().toUpperCase()] = String(r[1] || '').trim().toUpperCase();
+    });
+    // Sheet entries override hardcoded defaults; hardcoded act as fallback.
+    DEPT_ALIASES = Object.assign({ METALS:'METAL', PLASTICS:'PLASTIC', 'PLASTIC DEC':'PLASTIC' }, sheet);
+  } catch (_) { /* keep hardcoded defaults if sheet unavailable */ }
 }
 
 // Google Sheets UNFORMATTED_VALUE returns dates as serial numbers (days since
@@ -430,6 +443,7 @@ async function handleDashboardCounts(env, userEmail) {
     readSheet(token, env.SPREADSHEET_ID, SH.MASTER_LOG,   'A2:AQ'),
     readSheet(token, env.SPREADSHEET_ID, SH.TEMP_FIX,     `A${dataStart}:V`),
     readSheet(token, env.SPREADSHEET_ID, SH.PARTS_NEEDED, `A${dataStart}:L`),
+    loadDeptAliases(token, env),
   ]);
 
   const now = new Date();
@@ -525,6 +539,7 @@ async function handleDashboardPanels(env, userEmail) {
     readSheet(token, env.SPREADSHEET_ID, SH.MASTER_LOG,     'A2:AQ'),
     readSheet(token, env.SPREADSHEET_ID, SH.TEMP_FIX,       `A${dataStart}:V`),
     readSheet(token, env.SPREADSHEET_ID, SH.EQUIP_HOLD_LOG, `A${dataStart}:N`),
+    loadDeptAliases(token, env),
   ]);
 
   // Collapse ML rows per ticket; latest non-empty value wins.
@@ -1251,7 +1266,10 @@ async function handleQueueTickets(env, userEmail, queueType, deptFilter) {
     default:        statusFilter = ['WAITING', 'OPEN']; break;
   }
 
-  const mlRows = await readSheet(token, env.SPREADSHEET_ID, SH.MASTER_LOG, 'A2:AQ');
+  const [mlRows] = await Promise.all([
+    readSheet(token, env.SPREADSHEET_ID, SH.MASTER_LOG, 'A2:AQ'),
+    loadDeptAliases(token, env),
+  ]);
   const tickets = mergeAndFilter(mlRows, statusFilter, deptFilter || null);
   return jsonResponse({ tickets: tickets.slice(0, 500), userOwnedDepts: user.ownedDepts || [] });
 }
@@ -2488,6 +2506,41 @@ async function handleEMRLData(env, userEmail, params) {
 
 // ── Admin handlers ────────────────────────────────────────────────────────────
 
+async function handleAdminDeptAliases(env, userEmail, body) {
+  const token = await getAccessToken(env);
+  const user  = await resolveUser(token, env, userEmail);
+  if (!user.isAdmin) return jsonResponse({ error: 'Admin access required' }, 403);
+
+  const action = String(body.action || '').trim();
+
+  if (action === 'add') {
+    const src  = String(body.src  || '').trim().toUpperCase();
+    const dest = String(body.dest || '').trim().toUpperCase();
+    if (!src || !dest) return jsonResponse({ error: 'src and dest are required' }, 400);
+    const existing = await readSheet(token, env.SPREADSHEET_ID, SH.DEPT_MAP, 'A2:B200');
+    if (existing.find(r => String(r[0] || '').trim().toUpperCase() === src)) {
+      return jsonResponse({ error: '"' + src + '" already has a mapping — delete it first.' }, 409);
+    }
+    await appendSheetRow(token, env.SPREADSHEET_ID, SH.DEPT_MAP, [src, dest]);
+    return jsonResponse({ ok: true });
+  }
+
+  if (action === 'delete') {
+    const src = String(body.src || '').trim().toUpperCase();
+    if (!src) return jsonResponse({ error: 'src required' }, 400);
+    const rows = await readSheet(token, env.SPREADSHEET_ID, SH.DEPT_MAP, 'A2:B200');
+    const idx  = rows.findIndex(r => String(r[0] || '').trim().toUpperCase() === src);
+    if (idx === -1) return jsonResponse({ error: 'Mapping not found' }, 404);
+    // Clear the row — empty rows are ignored on next read (filter r[0])
+    await writeSheetCells(token, env.SPREADSHEET_ID, SH.DEPT_MAP, idx + 2, [
+      { col: 1, value: '' }, { col: 2, value: '' },
+    ]);
+    return jsonResponse({ ok: true });
+  }
+
+  return jsonResponse({ error: 'Unknown action' }, 400);
+}
+
 async function handleAdminView(env, userEmail, view) {
   const token = await getAccessToken(env);
   const user  = await resolveUser(token, env, userEmail);
@@ -2888,6 +2941,7 @@ export default {
       else if (p === '/api/reports/active-tickets'       && method === 'GET') res = await handleActiveTickets(env, userEmail);
       else if (p === '/api/reports/emrl'                && method === 'GET') res = await handleEMRLData(env, userEmail, Object.fromEntries(url.searchParams));
       // Admin
+      else if (p === '/api/admin/dept-aliases'           && method === 'POST')res = await handleAdminDeptAliases(env, userEmail, body);
       else if (p === '/api/admin/view'                  && method === 'GET') res = await handleAdminView(env, userEmail, url.searchParams.get('view') || '');
       else if (p === '/api/admin/equip-cache'           && method === 'GET') res = await handleEquipCacheStatus(env, userEmail);
       else if (p === '/api/admin/equip-cache/refresh'   && method === 'POST')res = await handleRefreshEquipCache(env, userEmail);

@@ -22,6 +22,16 @@
 .adm-role-badge{display:inline-block;padding:2px 6px;border-radius:4px;font-size:10.5px;font-weight:600;background:var(--status-info-bg);color:var(--status-info);}
 .adm-tag{display:inline-block;padding:2px 6px;border-radius:4px;font-size:11px;background:var(--bg-subtle);color:var(--text-secondary);margin:1px 2px;}
 .adm-unauthorized{padding:40px 24px;text-align:center;color:var(--text-secondary);font-size:13px;}
+.adm-del-btn{padding:2px 8px;border:1px solid #FCA5A5;border-radius:4px;background:#FEF2F2;color:#991B1B;font-size:11px;font-weight:600;cursor:pointer;white-space:nowrap;}
+.adm-del-btn:hover{background:#FEE2E2;}
+.adm-alias-form{display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:14px;border-top:1px solid var(--border-default);}
+.adm-alias-form input{height:30px;padding:0 10px;border:1px solid var(--border-default);border-radius:6px;font-size:12px;font-family:var(--font-mono);width:160px;}
+.adm-alias-form input:focus{outline:none;border-color:var(--brand-navy);}
+.adm-alias-form .adm-add-btn{height:30px;padding:0 14px;border:1px solid var(--brand-navy);border-radius:6px;background:var(--brand-navy);color:#fff;font-size:12px;font-weight:600;cursor:pointer;}
+.adm-alias-form .adm-add-btn:hover{opacity:.88;}
+.adm-alias-msg{font-size:12px;margin-top:8px;padding:6px 10px;border-radius:5px;display:none;}
+.adm-alias-msg.ok{background:#D1FAE5;color:#065F46;display:block;}
+.adm-alias-msg.err{background:#FEE2E2;color:#991B1B;display:block;}
 </style>
 
 <script>
@@ -101,21 +111,31 @@ function _renderAdminView_(data, container) {
   else if (data.view === 'deptmap') {
     html +=
       '<div class="adm-header"><span class="adm-title">📋 Department Map</span>' + sheetLink + '</div>' +
-      '<div class="adm-notice">Maps raw department strings (from external sources, typos, abbreviations) to canonical dept names. Applied on every inbound ticket.</div>' +
-      '<div class="adm-table-wrap"><table class="adm-table">' +
-        '<thead><tr><th>Source String</th><th>Maps To (Canonical)</th></tr></thead><tbody>';
+      '<div class="adm-notice">Maps variant department strings to their canonical names. Applied automatically whenever ticket data is read. Built-in defaults (METALS→METAL, PLASTICS→PLASTIC) are always active; entries here extend or override them.</div>' +
+      '<div class="adm-table-wrap"><table class="adm-table" id="adm-deptmap-tbl">' +
+        '<thead><tr><th>Source String (variant)</th><th>Maps To (canonical)</th><th style="width:60px;"></th></tr></thead><tbody>';
     if (data.rows && data.rows.length > 0) {
       data.rows.forEach(function(r) {
         html +=
           '<tr>' +
           '<td class="key-col">' + esc(r.src) + '</td>' +
           '<td class="val-col"><span class="adm-role-badge">' + esc(r.dest) + '</span></td>' +
+          '<td><button class="adm-del-btn" onclick="_deleteDeptAlias_(\'' + esc(r.src).replace(/'/g,"\\'") + '\',this)">Delete</button></td>' +
           '</tr>';
       });
     } else {
-      html += '<tr><td colspan="2" class="adm-empty">No department mappings found.</td></tr>';
+      html += '<tr id="adm-deptmap-empty"><td colspan="3" class="adm-empty">No custom mappings. Add one below.</td></tr>';
     }
-    html += '</tbody></table></div>';
+    html +=
+      '</tbody></table>' +
+      '<div class="adm-alias-form">' +
+        '<input id="adm-alias-src"  placeholder="From (e.g. METALS)"   style="text-transform:uppercase;" />' +
+        '<span style="font-size:13px;color:var(--text-secondary);">→</span>' +
+        '<input id="adm-alias-dest" placeholder="To (e.g. METAL)"      style="text-transform:uppercase;" />' +
+        '<button class="adm-add-btn" onclick="_addDeptAlias_()">+ Add Alias</button>' +
+      '</div>' +
+      '<div id="adm-alias-msg" class="adm-alias-msg"></div>' +
+      '</div>';
   }
 
   else {
@@ -129,6 +149,58 @@ function _renderAdminView_(data, container) {
 PAGES['admin-config']  = function(c) { _loadAdminPage_('config',  'Configuration',  c); };
 PAGES['admin-access']  = function(c) { _loadAdminPage_('access',  'Manager Access', c); };
 PAGES['admin-deptmap'] = function(c) { _loadAdminPage_('deptmap', 'Dept Map',       c); };
+
+// ── Dept-map alias management ─────────────────────────────────────────────────
+
+function _deptAliasMsg_(text, type) {
+  var el = document.getElementById('adm-alias-msg');
+  if (!el) return;
+  el.textContent = text;
+  el.className = 'adm-alias-msg ' + type;
+  if (type === 'ok') setTimeout(function() { if (el) { el.className = 'adm-alias-msg'; el.textContent = ''; } }, 3000);
+}
+
+function _addDeptAlias_() {
+  var src  = (document.getElementById('adm-alias-src')  || {}).value  || '';
+  var dest = (document.getElementById('adm-alias-dest') || {}).value || '';
+  src  = src.trim().toUpperCase();
+  dest = dest.trim().toUpperCase();
+  if (!src || !dest) { _deptAliasMsg_('Both fields are required.', 'err'); return; }
+  fetch(WORKER_URL + '/api/admin/dept-aliases', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-User-Email': USER ? USER.email : '' },
+    body: JSON.stringify({ action: 'add', src: src, dest: dest }),
+  })
+  .then(function(r) { return r.json(); })
+  .then(function(d) {
+    if (d.error) { _deptAliasMsg_(d.error, 'err'); return; }
+    document.getElementById('adm-alias-src').value  = '';
+    document.getElementById('adm-alias-dest').value = '';
+    _deptAliasMsg_('Alias added.', 'ok');
+    // Reload the deptmap view to reflect the new row
+    var c = document.getElementById('adm-alias-msg').closest('.adm-wrap').parentElement;
+    if (c) PAGES['admin-deptmap'](c);
+  })
+  .catch(function(e) { _deptAliasMsg_(e.message || 'Request failed', 'err'); });
+}
+
+function _deleteDeptAlias_(src, btn) {
+  if (!confirm('Delete alias for "' + src + '"?')) return;
+  btn.disabled = true;
+  fetch(WORKER_URL + '/api/admin/dept-aliases', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-User-Email': USER ? USER.email : '' },
+    body: JSON.stringify({ action: 'delete', src: src }),
+  })
+  .then(function(r) { return r.json(); })
+  .then(function(d) {
+    if (d.error) { _deptAliasMsg_(d.error, 'err'); btn.disabled = false; return; }
+    var row = btn.closest('tr');
+    if (row) row.remove();
+    _deptAliasMsg_('Alias deleted.', 'ok');
+  })
+  .catch(function(e) { _deptAliasMsg_(e.message || 'Request failed', 'err'); btn.disabled = false; });
+}
 
 // ── Equipment Cache admin page ─────────────────────────────────────────────────
 
