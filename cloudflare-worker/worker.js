@@ -140,6 +140,18 @@ function cellStr(row, colOneBased) {
   return v != null ? String(v).trim() : '';
 }
 
+// Normalize department names to their canonical form so sheet typos and legacy
+// variants (METALS, PLASTICS, PLASTIC DEC) map to the same value everywhere.
+const DEPT_ALIASES = {
+  METALS:        'METAL',
+  PLASTICS:      'PLASTIC',
+  'PLASTIC DEC': 'PLASTIC',
+};
+function normalizeDept(d) {
+  const up = String(d || '').trim().toUpperCase();
+  return DEPT_ALIASES[up] || up;
+}
+
 // Google Sheets UNFORMATTED_VALUE returns dates as serial numbers (days since
 // Dec 30, 1899).  Strings are passed through and parsed as a fallback.
 function cellDate(row, colOneBased) {
@@ -250,7 +262,6 @@ async function generateTicketNo(token, env, dept) {
     ELECTRICAL:     '002',
     PLASTIC:        '003',
     LITHO:          '004',
-    'PLASTIC DEC':  '006',
     QA:             '007',
     'MACHINE SHOP': '008',
     'S/R':          '009',
@@ -441,7 +452,7 @@ async function handleDashboardCounts(env, userEmail) {
   mlRows.forEach(r => {
     const tn   = cellStr(r, ML.TICKET_NO);
     if (!tn) return;
-    const dept = cellStr(r, ML.DEPT);
+    const dept = normalizeDept(cellStr(r, ML.DEPT));
     const st = cellStr(r, ML.STATUS).toUpperCase();
     const pr = cellStr(r, ML.PRIORITY).toUpperCase();
     // Global, keyed by ticket number (joint-safe, never double counts).
@@ -523,7 +534,7 @@ async function handleDashboardPanels(env, userEmail) {
   mlRows.forEach(r => {
     const tn   = cellStr(r, ML.TICKET_NO);
     if (!tn) return;
-    const dept = cellStr(r, ML.DEPT);
+    const dept = normalizeDept(cellStr(r, ML.DEPT));
     if (!byTicket[tn] && !allowed(user, dept)) return;
     if (!byTicket[tn]) { byTicket[tn] = r.slice(); return; }
     const cur = byTicket[tn];
@@ -545,7 +556,7 @@ async function handleDashboardPanels(env, userEmail) {
     const prio   = cellStr(r, ML.PRIORITY).toUpperCase();
     const equip  = cellStr(r, ML.SPECIFIC_EQUIP);
     const code   = cellStr(r, ML.EQUIP_CODE);
-    const dept   = cellStr(r, ML.DEPT);
+    const dept   = normalizeDept(cellStr(r, ML.DEPT));
     const desc   = cellStr(r, ML.DESCRIPTION);
     const opened = fmtDate(cellDate(r, ML.DATE_OPENED));
 
@@ -632,7 +643,7 @@ async function handleDashboardPanels(env, userEmail) {
   const pendingJointRequests = Object.entries(pendingJointMap).map(([tn, { row: r, myDepts }]) => ({
     kind: 'joint-request', ticketNo: tn,
     title: cellStr(r, ML.SPECIFIC_EQUIP) || cellStr(r, ML.DESCRIPTION) || tn,
-    sub: cellStr(r, ML.DEPT) + (cellStr(r, ML.EQUIP_CODE) ? ' · ' + cellStr(r, ML.EQUIP_CODE) : '') +
+    sub: normalizeDept(cellStr(r, ML.DEPT)) + (cellStr(r, ML.EQUIP_CODE) ? ' · ' + cellStr(r, ML.EQUIP_CODE) : '') +
          ' — requesting your dept: ' + myDepts.join(', '),
     action: 'Review',
   }));
@@ -663,7 +674,7 @@ async function handleDashboardPanels(env, userEmail) {
     const tn   = cellStr(r, ML.TICKET_NO);
     const equip = cellStr(r, ML.SPECIFIC_EQUIP);
     const desc  = cellStr(r, ML.DESCRIPTION);
-    const dept  = cellStr(r, ML.DEPT);
+    const dept  = normalizeDept(cellStr(r, ML.DEPT));
     const code  = cellStr(r, ML.EQUIP_CODE);
     jointItems.push({
       kind: 'joint', ticketNo: tn,
@@ -680,7 +691,7 @@ async function handleDashboardPanels(env, userEmail) {
 
   mlRows.forEach(r => {
     const tn   = cellStr(r, ML.TICKET_NO);
-    const dept = cellStr(r, ML.DEPT);
+    const dept = normalizeDept(cellStr(r, ML.DEPT));
     const code = cellStr(r, ML.EQUIP_CODE);
     if (!tn || !code || !allowed(user, dept)) return;
     const doDate = cellDate(r, ML.DATE_OPENED);
@@ -1174,7 +1185,7 @@ function mergeAndFilter(mlRows, statusFilter, deptFilter) {
     const status = cellStr(r, ML.STATUS).toUpperCase();
     if (statusFilter.length && !statusFilter.includes(status)) return;
 
-    const ticketDept    = cellStr(r, ML.DEPT);
+    const ticketDept    = normalizeDept(cellStr(r, ML.DEPT));
     const jointStr      = cellStr(r, ML.JOINT_DEPTS);
     const jointList     = jointStr   ? jointStr.split(',').map(d => d.trim()).filter(Boolean) : [];
     const pendingStr    = cellStr(r, ML.PENDING_JOINT_DEPTS);
@@ -1355,7 +1366,7 @@ async function handleClosedTickets(env, userEmail) {
       ticketNo:     cellStr(r, ML.TICKET_NO),
       status:       cellStr(r, ML.STATUS),
       priority:     cellStr(r, ML.PRIORITY).toUpperCase(),
-      dept:         cellStr(r, ML.DEPT),
+      dept:         normalizeDept(cellStr(r, ML.DEPT)),
       equipCode:    cellStr(r, ML.EQUIP_CODE),
       specificEquip:cellStr(r, ML.SPECIFIC_EQUIP),
       description:  cellStr(r, ML.DESCRIPTION),
@@ -1650,7 +1661,7 @@ async function handleAddTicket(env, userEmail, body) {
   if (!user.isManager && !isTech) return jsonResponse({ error: 'Access required' }, 403);
   if (!String(body.equipType || '').trim()) return jsonResponse({ error: 'Equipment type required' }, 400);
 
-  const dept       = (body.dept || '').toUpperCase().trim();
+  const dept       = normalizeDept(body.dept || '');
   const isCritical = String(body.priority || '').toUpperCase() === 'CRITICAL';
   const status     = isCritical ? 'OPEN' : 'WAITING';
   const now        = new Date();
@@ -2228,7 +2239,7 @@ async function handleActiveTickets(env, userEmail) {
       ticketNo:      tn,
       status:        st,
       priority:      cellStr(r, ML.PRIORITY).toUpperCase(),
-      dept:          cellStr(r, ML.DEPT),
+      dept:          normalizeDept(cellStr(r, ML.DEPT)),
       equipCode:     cellStr(r, ML.EQUIP_CODE),
       specificEquip: cellStr(r, ML.SPECIFIC_EQUIP),
       problemType:   cellStr(r, ML.PROBLEM_TYPE),
@@ -2291,7 +2302,7 @@ async function handleReportData(env, userEmail, daysBack) {
     const status = cellStr(r, ML.STATUS).toUpperCase();
     if (!doDate || (doDate < cutoff && !ACTIVE.includes(status))) return;
 
-    const dept    = cellStr(r, ML.DEPT);
+    const dept    = normalizeDept(cellStr(r, ML.DEPT));
     const tf      = cellStr(r, ML.TEMP_FIX_FLAG) === 'Y';
     const actualH = parseFloat(String(r[ML.ACTUAL_HOURS - 1] || '')) || 0;
     const dc      = cellDate(r, ML.DATE_CLOSED) || cellDate(r, ML.VERIFIED_DATE);
@@ -2455,7 +2466,7 @@ async function handleEMRLData(env, userEmail, params) {
     const status = cellStr(r, ML.STATUS).toUpperCase();
     if (status !== 'CLOSED' && status !== 'COMPLETE') return;
     if (ticketFilter && !tn.toUpperCase().includes(ticketFilter)) return;
-    const dept = cellStr(r, ML.DEPT);
+    const dept = normalizeDept(cellStr(r, ML.DEPT));
     if (deptFilter && dept.toUpperCase() !== deptFilter) return;
     const dc = cellDate(r, ML.DATE_CLOSED) || cellDate(r, ML.VERIFIED_DATE);
     if (dateFrom && dc && dc < dateFrom) return;
@@ -2700,7 +2711,7 @@ async function handleTechWorkBoard(env, userEmail) {
   Object.values(byTicket).forEach(r => {
     const status = cellStr(r, ML.STATUS).toUpperCase();
     if (!ACTIVE.includes(status)) return;
-    const dept   = cellStr(r, ML.DEPT);
+    const dept   = normalizeDept(cellStr(r, ML.DEPT));
     const techAt = cellStr(r, ML.ASSIGNED_TO);
     if (user.isManager) {
       if (!user.isAdmin && !allowed(user, dept)) return;
