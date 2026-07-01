@@ -312,14 +312,16 @@ async function resolveUser(token, env, userEmail) {
     .split(',').map(e => e.trim().toLowerCase()).filter(Boolean);
 
   const isAdmin = adminEmails.includes(email);
-  let isManager = isAdmin, ownedDepts = [], hiddenDepts = [], displayName = '';
+  let isManager = isAdmin, ownedDepts = [], displayDepts = [], displayName = '';
 
   managerRows.forEach(r => {
     if (String(r[2] || '').trim().toLowerCase() !== email) return;
     isManager   = true;
     displayName = String(r[0] || '').trim();
-    ownedDepts  = String(r[4] || '').split(',').map(d => normalizeDept(d)).filter(Boolean);
-    hiddenDepts = String(r[5] || '').split(',').map(d => normalizeDept(d)).filter(Boolean);
+    const mainDepts    = String(r[4] || '').split(',').map(d => normalizeDept(d)).filter(Boolean);
+    const hiddenDepts  = String(r[5] || '').split(',').map(d => normalizeDept(d)).filter(Boolean);
+    displayDepts = mainDepts;
+    ownedDepts   = [...new Set([...mainDepts, ...hiddenDepts])];
   });
 
   // Tech directory read is non-fatal: if the sheet is missing or mis-named
@@ -337,7 +339,6 @@ async function resolveUser(token, env, userEmail) {
     } catch (_) { /* sheet unavailable — isTech stays false */ }
   }
 
-  const displayDepts = ownedDepts.filter(d => !hiddenDepts.includes(d));
   return { email, isAdmin, isManager, ownedDepts, displayDepts, displayName, isTech, techDept, techManager };
 }
 
@@ -367,15 +368,17 @@ async function handleMe(env, userEmail) {
     .split(',').map(e => e.trim().toLowerCase()).filter(Boolean);
   const isAdmin = adminEmails.includes(email);
 
-  let isManager = isAdmin, ownedDepts = [], hiddenDepts = [], displayName = '', teamEmails = '';
+  let isManager = isAdmin, ownedDepts = [], displayDepts = [], displayName = '', teamEmails = '';
 
   managerRows.forEach(r => {
     if (String(r[2] || '').trim().toLowerCase() !== email) return;
     isManager   = true;
     displayName = String(r[0] || '').trim();
     teamEmails  = String(r[3] || '').trim();
-    ownedDepts  = String(r[4] || '').split(',').map(d => normalizeDept(d)).filter(Boolean);
-    hiddenDepts = String(r[5] || '').split(',').map(d => normalizeDept(d)).filter(Boolean);
+    const mainDepts   = String(r[4] || '').split(',').map(d => normalizeDept(d)).filter(Boolean);
+    const hiddenDepts = String(r[5] || '').split(',').map(d => normalizeDept(d)).filter(Boolean);
+    displayDepts = mainDepts;
+    ownedDepts   = [...new Set([...mainDepts, ...hiddenDepts])];
   });
 
   let isTech = false, techDept = '', techManager = '';
@@ -396,7 +399,10 @@ async function handleMe(env, userEmail) {
   }
   const role = isAdmin ? 'admin' : isManager ? 'manager' : isTech ? 'tech' : 'noaccess';
 
-  if (isAdmin) ownedDepts = ['METAL','ELECTRICAL','PLASTIC','LITHO','PLASTIC DEC','QA','MACHINE SHOP','S/R','SALES','G&A'];
+  if (isAdmin) {
+    ownedDepts   = ['METAL','ELECTRICAL','PLASTIC','LITHO','PLASTIC DEC','QA','MACHINE SHOP','S/R','SALES','G&A'];
+    displayDepts = ownedDepts;
+  }
 
   if (!displayName) {
     displayName = email.split('@')[0]
@@ -405,9 +411,6 @@ async function handleMe(env, userEmail) {
   }
   const initials = displayName.trim().split(/\s+/)
     .map(w => w[0] || '').join('').substring(0, 2).toUpperCase() || '?';
-
-  // Admins see all depts — nothing hidden. Others: filter out hiddenDepts for display only.
-  const displayDepts = isAdmin ? ownedDepts : ownedDepts.filter(d => !hiddenDepts.includes(d));
 
   const user = { email, displayName, initials, role,
                  isAdmin, isManager: isManager || isAdmin, ownedDepts, displayDepts, teamEmails,
