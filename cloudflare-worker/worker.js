@@ -497,7 +497,7 @@ async function handleDashboardCounts(env, userEmail) {
                    closedRecent: 0, partsPending: 0, closedThisWeek: 0,
                    openedThisWeek: 0, openedThisMonth: 0, closedThisMonth: 0,
                    // Airtight system-wide unique totals (all departments).
-                   openAll: 0, waitingAll: 0, criticalAll: 0 };
+                   openAll: 0, waitingAll: 0, criticalAll: 0, verifyAll: 0, tempFixAll: 0 };
 
   const OPEN_STS = new Set(['OPEN', 'PENDING PARTS', 'ON HOLD', 'COMPLETE', 'PENDING VERIFICATION']);
 
@@ -506,6 +506,7 @@ async function handleDashboardCounts(env, userEmail) {
     const st = gStatus[tn];
     if (OPEN_STS.has(st)) { counts.openAll++; if (gPriority[tn] === 'CRITICAL') counts.criticalAll++; }
     if (st === 'WAITING') counts.waitingAll++;
+    if (st === 'COMPLETE' || st === 'PENDING VERIFICATION') counts.verifyAll++;
   });
 
   Object.keys(latestStatus).forEach(tn => {
@@ -528,6 +529,7 @@ async function handleDashboardCounts(env, userEmail) {
 
   tfRows.forEach(r => {
     const st = cellStr(r, TF.STATUS).toUpperCase();
+    if (st === 'ACTIVE' || st === 'PAST DUE') counts.tempFixAll++;
     if (!allowed(user, cellStr(r, TF.DEPT))) return;
     if (st === 'ACTIVE' || st === 'PAST DUE') counts.tempFixActive++;
   });
