@@ -302,7 +302,7 @@ async function resolveUser(token, env, userEmail) {
 
   const [configRows, managerRows] = await Promise.all([
     readSheet(token, env.SPREADSHEET_ID, SH.CONFIG,         'C2:D30'),
-    readSheet(token, env.SPREADSHEET_ID, SH.MANAGER_ACCESS, 'A4:F200'),
+    readSheet(token, env.SPREADSHEET_ID, SH.MANAGER_ACCESS, 'A4:G200'),
   ]);
 
   const config = {};
@@ -312,16 +312,17 @@ async function resolveUser(token, env, userEmail) {
     .split(',').map(e => e.trim().toLowerCase()).filter(Boolean);
 
   const isAdmin = adminEmails.includes(email);
-  let isManager = isAdmin, ownedDepts = [], displayDepts = [], displayName = '';
+  let isManager = isAdmin, ownedDepts = [], displayDepts = [], displayName = '', announcement = '';
 
   managerRows.forEach(r => {
     if (String(r[2] || '').trim().toLowerCase() !== email) return;
-    isManager   = true;
-    displayName = String(r[0] || '').trim();
-    const mainDepts    = String(r[4] || '').split(',').map(d => normalizeDept(d)).filter(Boolean);
-    const hiddenDepts  = String(r[5] || '').split(',').map(d => normalizeDept(d)).filter(Boolean);
+    isManager    = true;
+    displayName  = String(r[0] || '').trim();
+    const mainDepts   = String(r[4] || '').split(',').map(d => normalizeDept(d)).filter(Boolean);
+    const hiddenDepts = String(r[5] || '').split(',').map(d => normalizeDept(d)).filter(Boolean);
     displayDepts = mainDepts;
     ownedDepts   = [...new Set([...mainDepts, ...hiddenDepts])];
+    announcement = String(r[6] || '').trim();
   });
 
   // Tech directory read is non-fatal: if the sheet is missing or mis-named
@@ -339,7 +340,7 @@ async function resolveUser(token, env, userEmail) {
     } catch (_) { /* sheet unavailable — isTech stays false */ }
   }
 
-  return { email, isAdmin, isManager, ownedDepts, displayDepts, displayName, isTech, techDept, techManager };
+  return { email, isAdmin, isManager, ownedDepts, displayDepts, displayName, announcement, isTech, techDept, techManager };
 }
 
 function allowed(user, dept) {
@@ -357,7 +358,7 @@ async function handleMe(env, userEmail) {
 
   const [configRows, managerRows] = await Promise.all([
     readSheet(token, env.SPREADSHEET_ID, SH.CONFIG,         'C2:D50'),
-    readSheet(token, env.SPREADSHEET_ID, SH.MANAGER_ACCESS, 'A4:F200'),
+    readSheet(token, env.SPREADSHEET_ID, SH.MANAGER_ACCESS, 'A4:G200'),
   ]);
 
   const config = {};
@@ -368,17 +369,18 @@ async function handleMe(env, userEmail) {
     .split(',').map(e => e.trim().toLowerCase()).filter(Boolean);
   const isAdmin = adminEmails.includes(email);
 
-  let isManager = isAdmin, ownedDepts = [], displayDepts = [], displayName = '', teamEmails = '';
+  let isManager = isAdmin, ownedDepts = [], displayDepts = [], displayName = '', teamEmails = '', announcement = '';
 
   managerRows.forEach(r => {
     if (String(r[2] || '').trim().toLowerCase() !== email) return;
-    isManager   = true;
-    displayName = String(r[0] || '').trim();
-    teamEmails  = String(r[3] || '').trim();
+    isManager    = true;
+    displayName  = String(r[0] || '').trim();
+    teamEmails   = String(r[3] || '').trim();
     const mainDepts   = String(r[4] || '').split(',').map(d => normalizeDept(d)).filter(Boolean);
     const hiddenDepts = String(r[5] || '').split(',').map(d => normalizeDept(d)).filter(Boolean);
     displayDepts = mainDepts;
     ownedDepts   = [...new Set([...mainDepts, ...hiddenDepts])];
+    announcement = String(r[6] || '').trim();
   });
 
   let isTech = false, techDept = '', techManager = '';
@@ -414,7 +416,7 @@ async function handleMe(env, userEmail) {
 
   const user = { email, displayName, initials, role,
                  isAdmin, isManager: isManager || isAdmin, ownedDepts, displayDepts, teamEmails,
-                 techDept, techManager };
+                 announcement, techDept, techManager };
 
   // Replicate getDocControlMap_() from Config.gs
   function pick(noKey, revKey, dateKey, dNo, dRev, dDate) {

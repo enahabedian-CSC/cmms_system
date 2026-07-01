@@ -124,6 +124,8 @@ a{color:inherit;text-decoration:none;}
 .home-welcome{padding:24px 24px 0;}
 .home-greeting{font-size:22px;font-weight:700;color:var(--text-primary);margin-bottom:4px;}
 .home-sub{font-size:13px;color:var(--text-secondary);}
+.home-announcement{display:flex;align-items:flex-start;gap:10px;background:#FFF8E1;border:1px solid #FFD54F;border-radius:8px;padding:10px 14px;margin-top:14px;font-size:13px;color:#5D4037;line-height:1.5;}
+.home-announcement svg{flex-shrink:0;margin-top:1px;}
 .kpi-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:10px;}
 /* legacy card style kept for backward compat with other partials */
 .kpi-card{background:var(--bg-surface);border:1px solid var(--border-default);border-radius:10px;padding:16px;box-shadow:var(--shadow-sm);}
@@ -653,6 +655,12 @@ window.PAGES['home'] = function(container) {
           ' New Ticket' +
         '</button>' +
       '</div>' +
+      (USER.announcement ? (
+        '<div class="home-announcement">' +
+          '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#F59E0B" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>' +
+          '<span>' + esc(USER.announcement) + '</span>' +
+        '</div>'
+      ) : '') +
       // Slim KPI strip — current state (Module 10 declutter)
       '<div class="kpi-grid" id="kpi-grid" style="margin-top:20px;grid-template-columns:repeat(4,minmax(150px,1fr));">' +
         _homeKpiCard_('Open · All Depts','—', 'Unique open tickets',   'info',     'kpi-open-all') +
