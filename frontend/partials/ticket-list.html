@@ -185,10 +185,11 @@ function _renderList_(tickets, queueType, deptFilter, container, userOwnedDepts)
   // Dept filter panel only when there are multiple depts and not already dept-scoped
   var showDeptFP = allDepts.length > 1 && queueType !== 'tracker';
 
-  // For tracker: split primary-owned vs joint vs pending-joint tickets
-  var myTickets      = queueType === 'tracker' ? tickets.filter(function(t) { return !t.isJoint && !t.isPendingJoint; }) : tickets;
-  var jointTickets   = queueType === 'tracker' ? tickets.filter(function(t) { return  t.isJoint; }) : [];
-  var pendingTickets = queueType === 'tracker' ? tickets.filter(function(t) { return  t.isPendingJoint; }) : [];
+  // For tracker: split primary-owned vs complete (awaiting verification) vs joint vs pending-joint tickets
+  var myTickets       = queueType === 'tracker' ? tickets.filter(function(t) { return !t.isJoint && !t.isPendingJoint && t.status !== 'COMPLETE'; }) : tickets;
+  var completeTickets = queueType === 'tracker' ? tickets.filter(function(t) { return !t.isJoint && !t.isPendingJoint && t.status === 'COMPLETE'; }) : [];
+  var jointTickets    = queueType === 'tracker' ? tickets.filter(function(t) { return  t.isJoint; }) : [];
+  var pendingTickets  = queueType === 'tracker' ? tickets.filter(function(t) { return  t.isPendingJoint; }) : [];
 
   var _filtered = tickets.slice();
   var qt = queueType;
@@ -222,18 +223,22 @@ function _renderList_(tickets, queueType, deptFilter, container, userOwnedDepts)
     var _sorted = _ss && _ss.field ? _tlSorted_(_filtered, _ss.field, _ss.dir) : _filtered;
 
     if (qt === 'tracker') {
-      var myF      = _sorted.filter(function(t) { return !t.isJoint && !t.isPendingJoint; });
-      var jointF   = _sorted.filter(function(t) { return  t.isJoint; });
-      var pendingF = _sorted.filter(function(t) { return  t.isPendingJoint; });
-      renderRows(myF,      'tl-tbody-tracker-my',      false);
-      renderRows(jointF,   'tl-tbody-tracker-joint',   true);
+      var myF       = _sorted.filter(function(t) { return !t.isJoint && !t.isPendingJoint && t.status !== 'COMPLETE'; });
+      var completeF = _sorted.filter(function(t) { return !t.isJoint && !t.isPendingJoint && t.status === 'COMPLETE'; });
+      var jointF    = _sorted.filter(function(t) { return  t.isJoint; });
+      var pendingF  = _sorted.filter(function(t) { return  t.isPendingJoint; });
+      renderRows(myF,       'tl-tbody-tracker-my',       false);
+      renderRows(completeF, 'tl-tbody-tracker-complete',  false);
+      renderRows(jointF,    'tl-tbody-tracker-joint',    true);
       renderPendingRows(pendingF, 'tl-tbody-tracker-pending');
       var cntEl = document.getElementById('tl-cnt-' + qt);
       if (cntEl) cntEl.textContent = _sorted.length + ' ticket' + (_sorted.length !== 1 ? 's' : '');
+      var avCard = document.getElementById('tl-complete-card');
       var jCard  = document.getElementById('tl-joint-card');
       var pjCard = document.getElementById('tl-pending-joint-card');
-      if (jCard)  jCard.style.display  = jointF.length   > 0 ? '' : 'none';
-      if (pjCard) pjCard.style.display = pendingF.length > 0 ? '' : 'none';
+      if (avCard) avCard.style.display  = completeF.length  > 0 ? '' : 'none';
+      if (jCard)  jCard.style.display   = jointF.length     > 0 ? '' : 'none';
+      if (pjCard) pjCard.style.display  = pendingF.length   > 0 ? '' : 'none';
     } else {
       renderRows(_sorted);
     }
@@ -405,6 +410,29 @@ function _renderList_(tickets, queueType, deptFilter, container, userOwnedDepts)
             '<th class="col-action"></th>' +
           '</tr></thead>' +
           '<tbody id="tl-tbody-tracker-my"></tbody>' +
+        '</table></div>' +
+      '</div>' +
+      // ── Tracker: "Awaiting Verification" card (hidden when empty) ────────────
+      '<div class="tl-card" id="tl-complete-card" style="margin-top:14px;' + (completeTickets.length === 0 ? 'display:none;' : '') + '">' +
+        '<div class="tl-card-header" style="background:#F0FDF4;">' +
+          '<span style="font-size:13px;margin-right:6px;">&#9989;</span>' +
+          '<span class="tl-card-title" style="color:#166534;">Awaiting Verification</span>' +
+          '<span class="tl-card-sub">' + completeTickets.length + ' ticket' + (completeTickets.length !== 1 ? 's' : '') + ' &#8212; work complete, pending close-out</span>' +
+        '</div>' +
+        '<div class="tl-table-wrap" style="border:0;border-radius:0;box-shadow:none;"><table class="tl-table">' +
+          '<thead><tr>' +
+            _tlTh_('tracker','ticketNo','Ticket #') +
+            _tlTh_('tracker','dateOpened','Date Opened') +
+            _tlTh_('tracker','priority','Priority') +
+            _tlTh_('tracker','status','Status') +
+            _tlTh_('tracker','specificEquip','Equipment') +
+            _tlTh_('tracker','description','Description') +
+            '<th class="col-photo">Photo</th>' +
+            _tlTh_('tracker','addedBy','Added By') +
+            _tlTh_('tracker','assignedTo','Assigned To') +
+            '<th class="col-action"></th>' +
+          '</tr></thead>' +
+          '<tbody id="tl-tbody-tracker-complete"></tbody>' +
         '</table></div>' +
       '</div>' +
       // ── Tracker: "Joint Tickets" card ──────────────────────────────────────────
