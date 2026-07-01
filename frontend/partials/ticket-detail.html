@@ -820,11 +820,14 @@ function _tdEditSectionImpl_(section) {
 
   } else if (section === 'problem') {
     title = 'Edit Problem — ' + esc(t.ticketNo);
+    var notesText = _parsePhotoLinks_(t.notes).text;
     body =
       '<div class="form-group"><label>Problem Type</label>' +
       '<input id="ef-problemType" value="' + esc(t.problemType || '') + '" /></div>' +
       '<div class="form-group"><label>Description</label>' +
-      '<textarea id="ef-description">' + esc(t.description || '') + '</textarea></div>';
+      '<textarea id="ef-description">' + esc(t.description || '') + '</textarea></div>' +
+      '<div class="form-group"><label>Notes / Observations</label>' +
+      '<textarea id="ef-notes">' + esc(notesText) + '</textarea></div>';
 
   } else if (section === 'capa') {
     title = 'Edit CAPA — ' + esc(t.ticketNo);
@@ -867,6 +870,7 @@ function _tdEditSectionImpl_(section) {
     } else if (section === 'problem') {
       data.problemType  = document.getElementById('ef-problemType').value.trim();
       data.description  = document.getElementById('ef-description').value.trim();
+      data.notes        = document.getElementById('ef-notes').value.trim();
     } else if (section === 'capa') {
       data.correctiveAct = document.getElementById('ef-correctiveAct').value.trim();
       data.rootCause     = document.getElementById('ef-rootCause').value.trim();

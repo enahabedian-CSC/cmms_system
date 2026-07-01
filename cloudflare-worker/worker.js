@@ -2055,14 +2055,13 @@ async function handleEditTicketFields(env, userEmail, body) {
     ticketNo, now: new Date(),
     action: 'DIRECT EDIT — ' + section,
     updatedBy,
-    notes: 'Direct edit (' + section + ') by ' + updatedBy,
   };
 
   // Apply only the fields that were submitted for this section
   const editable = [
     'priority','assignedTo','estHours','actualHours','downtimeType','dept',
     'equipType','equipCode','specificEquip','buildingZone','lineNo',
-    'problemType','description',
+    'problemType','description','notes',
     'correctiveAct','rootCause','preventiveAct','fixType','permFixPlan','permFixDate',
   ];
   const changed = [];
