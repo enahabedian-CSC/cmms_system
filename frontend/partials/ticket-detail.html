@@ -43,6 +43,7 @@
 .btn-tempfix   {background:var(--status-warn-bg);color:var(--status-warn);border:1px solid #FDE68A;}
 .btn-transfer  {background:var(--status-warn-bg);color:#92400E;border:1px solid #FDE68A;}
 .btn-update    {background:var(--bg-surface);color:var(--brand-navy);border:1px solid var(--brand-navy);font-weight:600;}
+.td-pending-close{display:inline-flex;align-items:center;gap:6px;padding:6px 12px;border-radius:6px;background:var(--status-warn-bg);border:1px solid #FDE68A;color:#92400E;font-size:12px;font-weight:600;}
 .btn-parts     {background:#F5F3FF;color:#5B21B6;border:1px solid #C4B5FD;}
 .btn-action:hover{filter:brightness(.93);}
 .btn-action:disabled{opacity:.45;cursor:default;}
@@ -266,6 +267,8 @@ function _renderDetail_(result) {
   }
   if ((t.status === 'COMPLETE' || t.status === 'PENDING VERIFICATION') && canVerify) {
     actions += '<button class="btn-action btn-verify" onclick="_tdVerifyClose_()">✓ Verify &amp; Close</button>';
+  } else if (t.status === 'COMPLETE' || t.status === 'PENDING VERIFICATION') {
+    actions += '<span class="td-pending-close">⏳ ' + esc(t.dept) + ' Manager must close this ticket</span>';
   }
   if (t.status !== 'CLOSED' && t.status !== 'VOIDED' && canManage) {
     actions += '<button class="btn-action btn-transfer" onclick="_tdTransfer_()">🔗 Add Joint Department</button>';
