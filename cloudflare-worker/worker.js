@@ -252,6 +252,7 @@ async function readSheet(token, spreadsheetId, sheetName, range) {
     : encodeURIComponent(sheetName);
   const url = `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${ref}?valueRenderOption=UNFORMATTED_VALUE`;
   const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
+  if (res.status === 429) { const e = new Error('RATE_LIMITED'); e.rateLimited = true; throw e; }
   if (!res.ok) throw new Error(`Sheets API error (${sheetName}): ${await res.text()}`);
   return (await res.json()).values || [];
 }
@@ -3011,7 +3012,9 @@ export default {
       else if (p === '/api/equip/inventory'             && method === 'GET') res = await handleEquipInventory(env, userEmail);
       else                                                                    res = jsonResponse({ error: 'Not found' }, 404);
     } catch (e) {
-      res = jsonResponse({ error: e.message }, 500);
+      res = e.rateLimited
+        ? jsonResponse({ error: 'rate_limited' }, 429)
+        : jsonResponse({ error: e.message }, 500);
     }
 
     res.headers.set('Access-Control-Allow-Origin', allowedOrigin);

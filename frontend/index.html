@@ -880,16 +880,28 @@ function _runApp_(version) {
   }
 
   function _loadError_(detail) {
+    var isRL = detail === 'rate_limited';
     document.body.innerHTML =
       '<div style="display:flex;align-items:center;justify-content:center;height:100vh;' +
       'font-family:system-ui,sans-serif;flex-direction:column;gap:12px;color:#64748b;">' +
-      '<span style="font-size:32px;">⚠️</span>' +
-      '<strong style="font-size:16px;color:#0f172a;">Unable to connect</strong>' +
-      '<span style="font-size:13px;">Could not reach the CMMS service. Check your connection and try again.</span>' +
-      (detail ? '<code style="font-size:11px;background:#f1f5f9;padding:4px 8px;border-radius:4px;color:#64748b;max-width:500px;word-break:break-all;">' + detail + '</code>' : '') +
+      '<span style="font-size:32px;">' + (isRL ? '⏳' : '⚠️') + '</span>' +
+      '<strong style="font-size:16px;color:#0f172a;">' + (isRL ? 'Usage Limit Reached' : 'Unable to connect') + '</strong>' +
+      '<span style="font-size:13px;">' + (isRL
+        ? 'Temporary usage exceeded. Refreshing in <strong id="_rl_cd_">60</strong> seconds.'
+        : 'Could not reach the CMMS service. Check your connection and try again.') + '</span>' +
+      (!isRL && detail ? '<code style="font-size:11px;background:#f1f5f9;padding:4px 8px;border-radius:4px;color:#64748b;max-width:500px;word-break:break-all;">' + detail + '</code>' : '') +
       '<button onclick="location.reload()" ' +
-      'style="margin-top:8px;padding:8px 16px;border:1px solid #cbd2da;border-radius:6px;background:#fff;cursor:pointer;font-size:13px;">Retry</button>' +
+      'style="margin-top:8px;padding:8px 16px;border:1px solid #cbd2da;border-radius:6px;background:#fff;cursor:pointer;font-size:13px;">' + (isRL ? 'Refresh Now' : 'Retry') + '</button>' +
       '</div>';
+    if (isRL) {
+      var secs = 60;
+      var cd = document.getElementById('_rl_cd_');
+      var timer = setInterval(function() {
+        secs--;
+        if (cd) cd.textContent = secs;
+        if (secs <= 0) { clearInterval(timer); location.reload(); }
+      }, 1000);
+    }
   }
 
   var _signingIn_ = false;
