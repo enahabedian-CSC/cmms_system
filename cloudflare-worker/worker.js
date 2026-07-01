@@ -499,19 +499,25 @@ async function handleDashboardCounts(env, userEmail) {
                    // Airtight system-wide unique totals (all departments).
                    openAll: 0, waitingAll: 0, criticalAll: 0, verifyAll: 0, tempFixAll: 0 };
 
-  const OPEN_STS = new Set(['OPEN', 'PENDING PARTS', 'ON HOLD', 'COMPLETE', 'PENDING VERIFICATION']);
+  // WORK_STS: tickets actively being worked (not yet in verify/close).
+  // ACTIVE_STS: all non-closed states — used for critical so an urgent ticket
+  // is counted whether it's being worked or awaiting verification.
+  const WORK_STS   = new Set(['OPEN', 'PENDING PARTS', 'ON HOLD']);
+  const ACTIVE_STS = new Set(['OPEN', 'PENDING PARTS', 'ON HOLD', 'COMPLETE', 'PENDING VERIFICATION']);
 
   // System-wide unique totals (each ticket counted once, joint-safe).
   Object.keys(gStatus).forEach(tn => {
     const st = gStatus[tn];
-    if (OPEN_STS.has(st)) { counts.openAll++; if (gPriority[tn] === 'CRITICAL') counts.criticalAll++; }
-    if (st === 'WAITING') counts.waitingAll++;
+    if (WORK_STS.has(st))   counts.openAll++;
+    if (ACTIVE_STS.has(st) && gPriority[tn] === 'CRITICAL') counts.criticalAll++;
+    if (st === 'WAITING')   counts.waitingAll++;
     if (st === 'COMPLETE' || st === 'PENDING VERIFICATION') counts.verifyAll++;
   });
 
   Object.keys(latestStatus).forEach(tn => {
     const st = latestStatus[tn];
-    if (OPEN_STS.has(st)) { counts.open++; if (latestPriority[tn] === 'CRITICAL') counts.critical++; }
+    if (WORK_STS.has(st))   counts.open++;
+    if (ACTIVE_STS.has(st) && latestPriority[tn] === 'CRITICAL') counts.critical++;
     if (st === 'WAITING') counts.waiting++;
     if (st === 'COMPLETE' || st === 'PENDING VERIFICATION') counts.verify++;
     if ((st === 'CLOSED' || st === 'COMPLETE') && latestClosed[tn]) {
