@@ -1308,7 +1308,7 @@ async function handleTicketDetail(env, userEmail, ticketNo) {
     ticketNo:         cellStr(best, ML.TICKET_NO),
     status:           cellStr(best, ML.STATUS).toUpperCase(),
     priority:         cellStr(best, ML.PRIORITY).toUpperCase(),
-    dept:             cellStr(best, ML.DEPT),
+    dept:             normalizeDept(cellStr(best, ML.DEPT)),
     buildingZone:     cellStr(best, ML.BUILDING_ZONE),
     equipType:        cellStr(best, ML.EQUIP_TYPE),
     equipCode:        cellStr(best, ML.EQUIP_CODE),
@@ -1819,9 +1819,9 @@ async function handleCompleteTicket(env, userEmail, body) {
   // repair + CAPA on a joint ticket; on a single-dept ticket the owner does it.
   const best = await _ticketState_(token, env, ticketNo);
   if (!best) return jsonResponse({ error: 'Ticket not found: ' + ticketNo }, 404);
-  const owner = String(cellStr(best, ML.DEPT)).toUpperCase().trim();
+  const owner = normalizeDept(cellStr(best, ML.DEPT));
   const joint = _normDepts_(cellStr(best, ML.JOINT_DEPTS));
-  const mine  = (user.ownedDepts || []).map(d => d.toUpperCase().trim());
+  const mine  = user.ownedDepts || [];
   const canWork = user.isAdmin || (joint.length ? joint.some(d => mine.indexOf(d) >= 0) : mine.indexOf(owner) >= 0);
   if (!canWork) return jsonResponse({ error: 'On a joint ticket, only the assigned (fixer) department can mark work complete.' }, 403);
 
@@ -1863,8 +1863,8 @@ async function handleVerifyClose(env, userEmail, body) {
   // dept cannot self-close their own work.
   const best = await _ticketState_(token, env, ticketNo);
   if (!best) return jsonResponse({ error: 'Ticket not found: ' + ticketNo }, 404);
-  const owner = String(cellStr(best, ML.DEPT)).toUpperCase().trim();
-  const mine  = (user.ownedDepts || []).map(d => d.toUpperCase().trim());
+  const owner = normalizeDept(cellStr(best, ML.DEPT));
+  const mine  = user.ownedDepts || [];
   if (!(user.isAdmin || mine.indexOf(owner) >= 0)) {
     return jsonResponse({ error: 'Only the owning department (' + owner + ') can verify & close this ticket.' }, 403);
   }
