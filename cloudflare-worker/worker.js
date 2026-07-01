@@ -302,7 +302,7 @@ async function resolveUser(token, env, userEmail) {
 
   const [configRows, managerRows] = await Promise.all([
     readSheet(token, env.SPREADSHEET_ID, SH.CONFIG,         'C2:D30'),
-    readSheet(token, env.SPREADSHEET_ID, SH.MANAGER_ACCESS, 'A4:E200'),
+    readSheet(token, env.SPREADSHEET_ID, SH.MANAGER_ACCESS, 'A4:F200'),
   ]);
 
   const config = {};
@@ -312,13 +312,15 @@ async function resolveUser(token, env, userEmail) {
     .split(',').map(e => e.trim().toLowerCase()).filter(Boolean);
 
   const isAdmin = adminEmails.includes(email);
-  let isManager = isAdmin, ownedDepts = [], displayName = '';
+  let isManager = isAdmin, ownedDepts = [], hiddenDepts = [], displayName = '';
 
   managerRows.forEach(r => {
     if (String(r[2] || '').trim().toLowerCase() !== email) return;
     isManager   = true;
     displayName = String(r[0] || '').trim();
     ownedDepts  = String(r[4] || '').split(',')
+      .map(d => d.trim().toUpperCase()).filter(Boolean);
+    hiddenDepts = String(r[5] || '').split(',')
       .map(d => d.trim().toUpperCase()).filter(Boolean);
   });
 
@@ -337,7 +339,8 @@ async function resolveUser(token, env, userEmail) {
     } catch (_) { /* sheet unavailable — isTech stays false */ }
   }
 
-  return { email, isAdmin, isManager, ownedDepts, displayName, isTech, techDept, techManager };
+  const displayDepts = ownedDepts.filter(d => !hiddenDepts.includes(d));
+  return { email, isAdmin, isManager, ownedDepts, displayDepts, displayName, isTech, techDept, techManager };
 }
 
 function allowed(user, dept) {
@@ -355,7 +358,7 @@ async function handleMe(env, userEmail) {
 
   const [configRows, managerRows] = await Promise.all([
     readSheet(token, env.SPREADSHEET_ID, SH.CONFIG,         'C2:D50'),
-    readSheet(token, env.SPREADSHEET_ID, SH.MANAGER_ACCESS, 'A4:E200'),
+    readSheet(token, env.SPREADSHEET_ID, SH.MANAGER_ACCESS, 'A4:F200'),
   ]);
 
   const config = {};
@@ -366,7 +369,7 @@ async function handleMe(env, userEmail) {
     .split(',').map(e => e.trim().toLowerCase()).filter(Boolean);
   const isAdmin = adminEmails.includes(email);
 
-  let isManager = isAdmin, ownedDepts = [], displayName = '', teamEmails = '';
+  let isManager = isAdmin, ownedDepts = [], hiddenDepts = [], displayName = '', teamEmails = '';
 
   managerRows.forEach(r => {
     if (String(r[2] || '').trim().toLowerCase() !== email) return;
@@ -374,6 +377,7 @@ async function handleMe(env, userEmail) {
     displayName = String(r[0] || '').trim();
     teamEmails  = String(r[3] || '').trim();
     ownedDepts  = String(r[4] || '').split(',').map(d => d.trim().toUpperCase()).filter(Boolean);
+    hiddenDepts = String(r[5] || '').split(',').map(d => d.trim().toUpperCase()).filter(Boolean);
   });
 
   let isTech = false, techDept = '', techManager = '';
@@ -404,8 +408,11 @@ async function handleMe(env, userEmail) {
   const initials = displayName.trim().split(/\s+/)
     .map(w => w[0] || '').join('').substring(0, 2).toUpperCase() || '?';
 
+  // Admins see all depts — nothing hidden. Others: filter out hiddenDepts for display only.
+  const displayDepts = isAdmin ? ownedDepts : ownedDepts.filter(d => !hiddenDepts.includes(d));
+
   const user = { email, displayName, initials, role,
-                 isAdmin, isManager: isManager || isAdmin, ownedDepts, teamEmails,
+                 isAdmin, isManager: isManager || isAdmin, ownedDepts, displayDepts, teamEmails,
                  techDept, techManager };
 
   // Replicate getDocControlMap_() from Config.gs

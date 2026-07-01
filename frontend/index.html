@@ -635,7 +635,7 @@ function _asArray_(r) {
 // ── Home page renderer ────────────────────────────────────────────────────────
 window.PAGES['home'] = function(container) {
   var roleLabel = { admin: 'System Admin', manager: 'Manager', tech: 'Technician' }[USER.role] || USER.role;
-  var depts = (USER.ownedDepts || []).join(' + ') || 'All departments';
+  var depts = (USER.displayDepts || USER.ownedDepts || []).join(' + ') || 'All departments';
   var firstName = USER.displayName.split(' ')[0];
   var now = new Date();
   var hour = now.getHours();
