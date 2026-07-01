@@ -318,10 +318,8 @@ async function resolveUser(token, env, userEmail) {
     if (String(r[2] || '').trim().toLowerCase() !== email) return;
     isManager   = true;
     displayName = String(r[0] || '').trim();
-    ownedDepts  = String(r[4] || '').split(',')
-      .map(d => d.trim().toUpperCase()).filter(Boolean);
-    hiddenDepts = String(r[5] || '').split(',')
-      .map(d => d.trim().toUpperCase()).filter(Boolean);
+    ownedDepts  = String(r[4] || '').split(',').map(d => normalizeDept(d)).filter(Boolean);
+    hiddenDepts = String(r[5] || '').split(',').map(d => normalizeDept(d)).filter(Boolean);
   });
 
   // Tech directory read is non-fatal: if the sheet is missing or mis-named
@@ -376,8 +374,8 @@ async function handleMe(env, userEmail) {
     isManager   = true;
     displayName = String(r[0] || '').trim();
     teamEmails  = String(r[3] || '').trim();
-    ownedDepts  = String(r[4] || '').split(',').map(d => d.trim().toUpperCase()).filter(Boolean);
-    hiddenDepts = String(r[5] || '').split(',').map(d => d.trim().toUpperCase()).filter(Boolean);
+    ownedDepts  = String(r[4] || '').split(',').map(d => normalizeDept(d)).filter(Boolean);
+    hiddenDepts = String(r[5] || '').split(',').map(d => normalizeDept(d)).filter(Boolean);
   });
 
   let isTech = false, techDept = '', techManager = '';
