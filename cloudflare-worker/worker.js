@@ -482,7 +482,7 @@ async function handleDashboardCounts(env, userEmail) {
     if (od) latestOpened[tn] = od;
   });
 
-  const counts = { open: 0, waiting: 0, critical: 0, tempFixActive: 0,
+  const counts = { open: 0, waiting: 0, verify: 0, critical: 0, tempFixActive: 0,
                    closedRecent: 0, partsPending: 0, closedThisWeek: 0,
                    openedThisWeek: 0, openedThisMonth: 0, closedThisMonth: 0,
                    // Airtight system-wide unique totals (all departments).
@@ -501,6 +501,7 @@ async function handleDashboardCounts(env, userEmail) {
     const st = latestStatus[tn];
     if (OPEN_STS.has(st)) { counts.open++; if (latestPriority[tn] === 'CRITICAL') counts.critical++; }
     if (st === 'WAITING') counts.waiting++;
+    if (st === 'COMPLETE' || st === 'PENDING VERIFICATION') counts.verify++;
     if ((st === 'CLOSED' || st === 'COMPLETE') && latestClosed[tn]) {
       const cd = latestClosed[tn];
       if (cd >= thirtyDaysAgo) counts.closedRecent++;
@@ -1262,6 +1263,7 @@ async function handleQueueTickets(env, userEmail, queueType, deptFilter) {
   switch (queueType) {
     case 'waiting': statusFilter = ['WAITING']; break;
     case 'open':    statusFilter = ['OPEN', 'COMPLETE', 'PENDING VERIFICATION', 'PENDING PARTS', 'ON HOLD']; break;
+    case 'verify':  statusFilter = ['COMPLETE', 'PENDING VERIFICATION']; break;
     case 'tracker': statusFilter = ['WAITING', 'OPEN', 'COMPLETE', 'PENDING VERIFICATION', 'PENDING PARTS', 'ON HOLD']; break;
     default:        statusFilter = ['WAITING', 'OPEN']; break;
   }

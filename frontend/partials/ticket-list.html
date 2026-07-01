@@ -83,15 +83,6 @@
 .fp-chip.fp-checked{border-color:var(--brand-navy);background:rgba(0,31,79,.07);color:var(--brand-navy);font-weight:600;}
 .fp-reset{font-size:11px;color:var(--brand-navy);background:none;border:none;padding:0;cursor:pointer;text-decoration:underline;align-self:flex-start;margin-top:2px;}
 .fp-atsel{height:28px;padding:0 8px;border:1px solid var(--border-default);border-radius:4px;font-size:12px;background:#fff;color:var(--text-primary);outline:none;min-width:120px;}
-/* ── Open Tickets sub-tabs ───────────────────────────────────────────── */
-.tl-subtabs{display:flex;gap:0;border-bottom:2px solid var(--border-default);margin-bottom:14px;}
-.tl-subtab{background:none;border:none;border-bottom:2px solid transparent;margin-bottom:-2px;padding:8px 16px;font-size:13px;font-weight:600;color:var(--text-secondary);cursor:pointer;display:inline-flex;align-items:center;gap:6px;transition:color .15s,border-color .15s;}
-.tl-subtab:hover{color:var(--text-primary);}
-.tl-subtab.tl-subtab-active{color:var(--brand-navy);border-bottom-color:var(--brand-navy);}
-.tl-subtab-cnt{display:inline-flex;align-items:center;justify-content:center;min-width:18px;height:18px;border-radius:9px;background:var(--bg-subtle);border:1px solid var(--border-default);font-size:10px;font-weight:700;padding:0 4px;}
-.tl-subtab.tl-subtab-active .tl-subtab-cnt{background:var(--brand-navy);color:#fff;border-color:var(--brand-navy);}
-.tl-subtab-verify-cnt{background:#D1FAE5;color:#065F46;border-color:#A7F3D0;}
-.tl-subtab.tl-subtab-active .tl-subtab-verify-cnt{background:var(--status-success);color:#fff;border-color:var(--status-success);}
 </style>
 
 <script>
@@ -176,6 +167,7 @@ function _renderList_(tickets, queueType, deptFilter, container, userOwnedDepts)
 
   var title = queueType === 'waiting' ? 'Waiting Queue'
             : queueType === 'open'    ? 'Open Tickets'
+            : queueType === 'verify'  ? 'Awaiting Verification'
             : queueType === 'tracker' ? (_TRACKER_TITLES_[deptFilter] || (deptFilter ? deptFilter.charAt(0) + deptFilter.slice(1).toLowerCase() + ' Tracker' : 'Dept Tracker'))
             : (deptFilter || 'Dept Tracker');
 
@@ -200,9 +192,6 @@ function _renderList_(tickets, queueType, deptFilter, container, userOwnedDepts)
   var jointTickets    = queueType === 'tracker' ? tickets.filter(function(t) { return  t.isJoint; }) : [];
   var pendingTickets  = queueType === 'tracker' ? tickets.filter(function(t) { return  t.isPendingJoint; }) : [];
 
-  // For open: split all-open vs awaiting-verification (COMPLETE)
-  var activeOpen = queueType === 'open' ? tickets.filter(function(t) { return t.status !== 'COMPLETE'; }) : [];
-  var verifyOpen = queueType === 'open' ? tickets.filter(function(t) { return t.status === 'COMPLETE'; }) : [];
 
   var _filtered = tickets.slice();
   var qt = queueType;
@@ -252,17 +241,6 @@ function _renderList_(tickets, queueType, deptFilter, container, userOwnedDepts)
       if (avCard) avCard.style.display  = completeF.length  > 0 ? '' : 'none';
       if (jCard)  jCard.style.display   = jointF.length     > 0 ? '' : 'none';
       if (pjCard) pjCard.style.display  = pendingF.length   > 0 ? '' : 'none';
-    } else if (qt === 'open') {
-      var activeF = _sorted.filter(function(t) { return t.status !== 'COMPLETE'; });
-      var verifyF = _sorted.filter(function(t) { return t.status === 'COMPLETE'; });
-      renderRows(activeF, 'tl-tbody-open',        true);
-      renderRows(verifyF, 'tl-tbody-open-verify',  true);
-      var allCntEl = document.getElementById('tl-subtab-cnt-all');
-      var vfyCntEl = document.getElementById('tl-subtab-cnt-verify');
-      if (allCntEl) allCntEl.textContent = activeF.length;
-      if (vfyCntEl) vfyCntEl.textContent = verifyF.length;
-      var cntEl = document.getElementById('tl-cnt-open');
-      if (cntEl) cntEl.textContent = _sorted.length + ' ticket' + (_sorted.length !== 1 ? 's' : '');
     } else {
       renderRows(_sorted);
     }
@@ -395,54 +373,8 @@ function _renderList_(tickets, queueType, deptFilter, container, userOwnedDepts)
     fpHtml +
     (qt === 'tracker' ? _tlKpiBar_(tickets) : '') +
     (qt === 'tracker' ? _tlWatchList_(tickets) : '') +
-    (qt === 'open' ?
-      // ── Open Tickets: tabbed All Open / Awaiting Verification ───────────────
-      '<div class="tl-subtabs">' +
-        '<button class="tl-subtab tl-subtab-active" id="tl-subtab-btn-all" onclick="_openSubTab_(\'all\')">' +
-          'All Open <span class="tl-subtab-cnt" id="tl-subtab-cnt-all">' + activeOpen.length + '</span>' +
-        '</button>' +
-        '<button class="tl-subtab" id="tl-subtab-btn-verify" onclick="_openSubTab_(\'verify\')">' +
-          '&#9989; Awaiting Verification <span class="tl-subtab-cnt tl-subtab-verify-cnt" id="tl-subtab-cnt-verify">' + verifyOpen.length + '</span>' +
-        '</button>' +
-      '</div>' +
-      '<div id="tl-subtab-panel-all">' +
-        '<div class="tl-table-wrap"><table class="tl-table">' +
-          '<thead><tr>' +
-            _tlTh_('open','ticketNo','Ticket #') +
-            _tlTh_('open','dateOpened','Date Opened') +
-            _tlTh_('open','priority','Priority') +
-            _tlTh_('open','status','Status') +
-            _tlTh_('open','dept','Dept') +
-            _tlTh_('open','specificEquip','Equipment') +
-            _tlTh_('open','description','Description') +
-            '<th class="col-photo">Photo</th>' +
-            _tlTh_('open','addedBy','Added By') +
-            _tlTh_('open','assignedTo','Assigned To') +
-            '<th class="col-action"></th>' +
-          '</tr></thead>' +
-          '<tbody id="tl-tbody-open"></tbody>' +
-        '</table></div>' +
-      '</div>' +
-      '<div id="tl-subtab-panel-verify" style="display:none;">' +
-        '<div class="tl-table-wrap"><table class="tl-table">' +
-          '<thead><tr>' +
-            _tlTh_('open','ticketNo','Ticket #') +
-            _tlTh_('open','dateOpened','Date Opened') +
-            _tlTh_('open','priority','Priority') +
-            _tlTh_('open','status','Status') +
-            _tlTh_('open','dept','Dept') +
-            _tlTh_('open','specificEquip','Equipment') +
-            _tlTh_('open','description','Description') +
-            '<th class="col-photo">Photo</th>' +
-            _tlTh_('open','addedBy','Added By') +
-            _tlTh_('open','assignedTo','Assigned To') +
-            '<th class="col-action"></th>' +
-          '</tr></thead>' +
-          '<tbody id="tl-tbody-open-verify"></tbody>' +
-        '</table></div>' +
-      '</div>'
-    : qt !== 'tracker' ?
-      // ── Non-tracker (waiting, etc.): single flat table ──────────────────────
+    (qt !== 'tracker' ?
+      // ── Non-tracker: single flat table ─────────────────────────────────────
       '<div class="tl-table-wrap"><table class="tl-table">' +
         '<thead><tr>' +
           _tlTh_(qt,'ticketNo','Ticket #') +
@@ -762,27 +694,13 @@ function _fpDeselectAllDepts_(queueType) {
   _tlFilter_(queueType);
 }
 
-// ── Open Tickets sub-tab switcher ────────────────────────────────────────────
-
-function _openSubTab_(tab) {
-  var allPanel  = document.getElementById('tl-subtab-panel-all');
-  var vfyPanel  = document.getElementById('tl-subtab-panel-verify');
-  var allBtn    = document.getElementById('tl-subtab-btn-all');
-  var vfyBtn    = document.getElementById('tl-subtab-btn-verify');
-  if (!allPanel || !vfyPanel) return;
-  var showVerify = tab === 'verify';
-  allPanel.style.display = showVerify ? 'none' : '';
-  vfyPanel.style.display = showVerify ? ''     : 'none';
-  if (allBtn) allBtn.classList.toggle('tl-subtab-active', !showVerify);
-  if (vfyBtn) vfyBtn.classList.toggle('tl-subtab-active',  showVerify);
-}
-
 // ── PAGES registry ────────────────────────────────────────────────────────────
 // Guard: partial scripts execute before the main script defines PAGES.
 window.PAGES = window.PAGES || {};
 
 PAGES['waiting'] = function(c) { _loadListPage_('waiting', null, c); };
 PAGES['open']    = function(c) { _loadListPage_('open',    null, c); };
+PAGES['verify']  = function(c) { _loadListPage_('verify',  null, c); };
 
 // Tracker pages registered for all depts (nav only shows owned depts,
 // but all are registered so deep-linking works without role checks on the client).

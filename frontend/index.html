@@ -325,11 +325,12 @@ function getNavDef() {
     {
       section: 'Tickets', icon: 'open',
       items: [
-        { id: 'submit',     label: 'New Ticket',     icon: 'newticket'                           },
-        { id: 'waiting',   label: 'Waiting Queue',  icon: 'waiting',  badgeId: 'badge-waiting' },
-        { id: 'open',      label: 'Open Tickets',   icon: 'open',     badgeId: 'badge-open'    },
-        { id: 'tech-board',label: 'Work Board',     icon: 'tracker'                             },
-        { id: 'closed',    label: 'Closed Tickets', icon: 'closed'                              }
+        { id: 'submit',     label: 'New Ticket',            icon: 'newticket'                           },
+        { id: 'waiting',   label: 'Waiting Queue',         icon: 'waiting',  badgeId: 'badge-waiting' },
+        { id: 'open',      label: 'Open Tickets',          icon: 'open',     badgeId: 'badge-open'    },
+        { id: 'verify',    label: 'Awaiting Verification', icon: 'open',     badgeId: 'badge-verify'  },
+        { id: 'tech-board',label: 'Work Board',            icon: 'tracker'                             },
+        { id: 'closed',    label: 'Closed Tickets',        icon: 'closed'                              }
       ]
     }
   ];
@@ -498,6 +499,7 @@ var PAGE_TITLES = {
   'ticket-log':            'Ticket Detail',
   'reports':               'Reports',
   'sqf-nav':               'SQF Navigation',
+  'verify':                'Awaiting Verification',
   'admin-config':          'Configuration',
   'admin-access':          'Access & Roles',
   'admin-techdir':         'Tech Directory',
@@ -765,6 +767,8 @@ function _homeRenderKpis_(counts) {
   if (wb && counts.waiting > 0) { wb.textContent = counts.waiting; wb.style.display = ''; }
   var ob = document.getElementById('badge-open');
   if (ob && counts.open > 0) { ob.textContent = counts.open; ob.style.display = ''; }
+  var vb = document.getElementById('badge-verify');
+  if (vb && counts.verify > 0) { vb.textContent = counts.verify; vb.style.display = ''; }
 }
 
 function _homeRenderPanels_(panels) {
