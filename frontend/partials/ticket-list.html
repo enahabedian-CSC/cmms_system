@@ -328,7 +328,7 @@ function _renderList_(tickets, queueType, deptFilter, container, userOwnedDepts)
   }
 
   var fpHtml =
-    '<div class="fp-bar" id="fp-bar-' + qt + '">' +
+    '<div class="fp-bar fp-open" id="fp-bar-' + qt + '">' +
       '<div class="fp-row">' +
         (showDeptFP
           ? '<div class="fp-group">' +
@@ -362,7 +362,7 @@ function _renderList_(tickets, queueType, deptFilter, container, userOwnedDepts)
       '<span class="tl-title">' + esc(title) + '</span>' +
       '<span class="tl-count" id="tl-cnt-' + qt + '">' + tickets.length + ' tickets</span>' +
       '<input class="tl-search" id="tl-search-' + qt + '" placeholder="Search…" oninput="_tlFilter_(\'' + qt + '\')" />' +
-      '<button class="fp-toggle" id="fp-toggle-' + qt + '" onclick="_tlToggleFP_(\'' + qt + '\')">' +
+      '<button class="fp-toggle fp-active" id="fp-toggle-' + qt + '" onclick="_tlToggleFP_(\'' + qt + '\')">' +
         '&#8862; Filters <span class="fp-badge" id="fp-badge-' + qt + '" style="display:none">0</span>' +
       '</button>' +
       (qt === 'tracker' && USER.isManager
