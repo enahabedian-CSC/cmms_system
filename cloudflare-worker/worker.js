@@ -2923,14 +2923,12 @@ async function handleTabletTicketGet(env, body) {
     readSheet(token, env.SPREADSHEET_ID, SH.MASTER_LOG, 'A2:AU'),
     readSheet(token, env.SPREADSHEET_ID, SH.DATA_VALID,  'A1:Z200').catch(() => []),
   ]);
-  const merged = [];
-  let found = false;
-  mlRows.forEach(r => {
-    if (cellStr(r, ML.TICKET_NO).toUpperCase() !== ticketNo) return;
-    found = true;
-    r.forEach((v, i) => { if (v != null && v !== '') merged[i] = v; });
-  });
-  if (!found) return jsonResponse({ success: false, error: 'Ticket not found: ' + ticketNo }, 404);
+  const rows = mlRows.filter(r => cellStr(r, ML.TICKET_NO).toUpperCase() === ticketNo);
+  if (!rows.length) return jsonResponse({ success: false, error: 'Ticket not found: ' + ticketNo }, 404);
+  const merged = rows[0].slice();
+  for (let i = 1; i < rows.length; i++) {
+    rows[i].forEach((v, c) => { if (v != null && v !== '') merged[c] = v; });
+  }
   const lists = {};
   if (dataRows.length > 0) {
     const hdrs = dataRows[0];
@@ -2958,6 +2956,7 @@ async function handleTabletTicketGet(env, body) {
     estHours:     merged[ML.EST_HOURS    - 1] || '',
     actualHours:  merged[ML.ACTUAL_HOURS - 1] || '',
     assignedTo:   cellStr(merged, ML.ASSIGNED_TO),
+    addedBy:      cellStr(merged, ML.ADDED_BY),
     lineNo:       cellStr(merged, ML.LINE_NO),
     dateOpened:   fmtDate(cellDate(merged, ML.DATE_OPENED)),
     notes:        cellStr(merged, ML.NOTES),
