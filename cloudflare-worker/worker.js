@@ -332,7 +332,7 @@ async function resolveUser(token, env, userEmail) {
   let isTech = false, techDept = '', techManager = '';
   if (!isAdmin && !isManager) {
     try {
-      const techDirRows = await readSheet(token, env.SPREADSHEET_ID, SH.TECH_DIR, 'B2:D200');
+      const techDirRows = await readSheet(token, env.SPREADSHEET_ID, SH.TECH_DIR, 'B4:D200');
       const match = techDirRows.find(r => String(r[0] || '').trim().toLowerCase() === email);
       if (match) {
         isTech      = true;
@@ -388,7 +388,7 @@ async function handleMe(env, userEmail) {
   let isTech = false, techDept = '', techManager = '';
   if (!isAdmin && !isManager) {
     try {
-      const techDirRows = await readSheet(token, env.SPREADSHEET_ID, SH.TECH_DIR, 'B2:D200');
+      const techDirRows = await readSheet(token, env.SPREADSHEET_ID, SH.TECH_DIR, 'B4:D200');
       const match = techDirRows.find(r => String(r[0] || '').trim().toLowerCase() === email);
       if (match) {
         isTech      = true;
@@ -1473,7 +1473,7 @@ async function handleFormData(env, userEmail) {
     readSheet(token, env.SPREADSHEET_ID, SH.CONFIG,         'C2:D30'),
     readSheet(token, env.SPREADSHEET_ID, SH.DATA_VALID,     'A1:Z200'),
     readSheet(token, env.SPREADSHEET_ID, SH.MANAGER_ACCESS, 'A4:E200'),
-    readSheet(token, env.SPREADSHEET_ID, SH.TECH_DIR,       'A2:D200').catch(() => []),
+    readSheet(token, env.SPREADSHEET_ID, SH.TECH_DIR,       'A4:D200').catch(() => []),
     readSheet(token, env.SPREADSHEET_ID, SH.EQUIP_CACHE,    'A4:Z').catch(() => []),
   ]);
 
@@ -2545,7 +2545,7 @@ async function handleAdminTechDir(env, userEmail, body) {
     const dept    = normalizeDept(body.dept || '');
     const manager = String(body.manager || '').trim();
     if (!email || !dept) return jsonResponse({ error: 'Email and department are required' }, 400);
-    const existing = await readSheet(token, env.SPREADSHEET_ID, SH.TECH_DIR, 'B2:B200');
+    const existing = await readSheet(token, env.SPREADSHEET_ID, SH.TECH_DIR, 'B4:B200');
     if (existing.find(r => String(r[0] || '').trim().toLowerCase() === email)) {
       return jsonResponse({ error: '"' + email + '" is already in the directory.' }, 409);
     }
@@ -2556,10 +2556,10 @@ async function handleAdminTechDir(env, userEmail, body) {
   if (action === 'delete') {
     const email = String(body.email || '').trim().toLowerCase();
     if (!email) return jsonResponse({ error: 'email required' }, 400);
-    const rows = await readSheet(token, env.SPREADSHEET_ID, SH.TECH_DIR, 'A2:D200');
+    const rows = await readSheet(token, env.SPREADSHEET_ID, SH.TECH_DIR, 'A4:D200');
     const idx  = rows.findIndex(r => String(r[1] || '').trim().toLowerCase() === email);
     if (idx === -1) return jsonResponse({ error: 'Technician not found' }, 404);
-    await writeSheetCells(token, env.SPREADSHEET_ID, SH.TECH_DIR, idx + 2, [
+    await writeSheetCells(token, env.SPREADSHEET_ID, SH.TECH_DIR, idx + 4, [
       { col: 1, value: '' }, { col: 2, value: '' },
       { col: 3, value: '' }, { col: 4, value: '' },
     ]);
@@ -2633,7 +2633,7 @@ async function handleAdminView(env, userEmail, view) {
   }
   if (view === 'techdir') {
     try {
-      const rows   = await readSheet(token, env.SPREADSHEET_ID, SH.TECH_DIR, 'A2:D200');
+      const rows   = await readSheet(token, env.SPREADSHEET_ID, SH.TECH_DIR, 'A4:D200');
       const result = rows.filter(r => r[0] || r[1]).map(r => ({
         name:    String(r[0] || '').trim(),
         email:   String(r[1] || '').trim().toLowerCase(),
@@ -2867,7 +2867,7 @@ async function handleTabletBoard(env) {
   const token = await getAccessToken(env);
   const [mlRows, techRows] = await Promise.all([
     readSheet(token, env.SPREADSHEET_ID, SH.MASTER_LOG, 'A2:AU'),
-    readSheet(token, env.SPREADSHEET_ID, SH.TECH_DIR,   'A2:D200').catch(() => []),
+    readSheet(token, env.SPREADSHEET_ID, SH.TECH_DIR,   'A4:D200').catch(() => []),
   ]);
   const ACTIVE = new Set(['WAITING','OPEN','PENDING PARTS','ON HOLD']);
   const byTicket = {};
