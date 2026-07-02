@@ -2961,6 +2961,7 @@ async function handleTabletTicketGet(env, body) {
     lineNo:       cellStr(merged, ML.LINE_NO),
     dateOpened:   fmtDate(cellDate(merged, ML.DATE_OPENED)),
     notes:        cellStr(merged, ML.NOTES),
+    photoUrl:     cellStr(merged, ML.PHOTO_URL),
     partsStatuses:lists['Parts Status'] || [],
   });
 }
