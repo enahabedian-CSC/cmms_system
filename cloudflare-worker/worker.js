@@ -2861,6 +2861,222 @@ async function handleTechWorkBoard(env, userEmail) {
   return jsonResponse({ isManager: user.isManager, userDisplayName: user.displayName, tickets, userOwnedDepts: user.ownedDepts || [] });
 }
 
+// ── Tablet endpoints (no email auth — uses tech name from POST body) ─────────
+
+async function handleTabletBoard(env) {
+  const token = await getAccessToken(env);
+  const [mlRows, techRows] = await Promise.all([
+    readSheet(token, env.SPREADSHEET_ID, SH.MASTER_LOG, 'A2:AU'),
+    readSheet(token, env.SPREADSHEET_ID, SH.TECH_DIR,   'A2:D200').catch(() => []),
+  ]);
+  const ACTIVE = new Set(['WAITING','OPEN','PENDING PARTS','ON HOLD']);
+  const byTicket = {};
+  mlRows.forEach(r => {
+    const tn = cellStr(r, ML.TICKET_NO); if (!tn) return;
+    if (!byTicket[tn]) { byTicket[tn] = r.slice(); return; }
+    r.forEach((v, i) => { if (v != null && v !== '') byTicket[tn][i] = v; });
+  });
+  const tickets = [];
+  Object.values(byTicket).forEach(r => {
+    const status = cellStr(r, ML.STATUS).toUpperCase();
+    if (!ACTIVE.has(status)) return;
+    tickets.push({
+      ticketNo:     cellStr(r, ML.TICKET_NO),
+      status,
+      priority:     cellStr(r, ML.PRIORITY).toUpperCase(),
+      dept:         normalizeDept(cellStr(r, ML.DEPT)),
+      buildingZone: cellStr(r, ML.BUILDING_ZONE),
+      equipType:    cellStr(r, ML.EQUIP_TYPE),
+      equipCode:    cellStr(r, ML.EQUIP_CODE),
+      specificEquip:cellStr(r, ML.SPECIFIC_EQUIP),
+      downtimeType: cellStr(r, ML.DOWNTIME_TYPE),
+      problemType:  cellStr(r, ML.PROBLEM_TYPE),
+      description:  cellStr(r, ML.DESCRIPTION),
+      assignedTo:   cellStr(r, ML.ASSIGNED_TO),
+      estHours:     r[ML.EST_HOURS - 1] || '',
+      dateOpened:   fmtDate(cellDate(r, ML.DATE_OPENED)),
+      line:         cellStr(r, ML.LINE_NO),
+    });
+  });
+  const prioOrder = { CRITICAL:0, HIGH:1, MEDIUM:2, LOW:3 };
+  tickets.sort((a, b) => {
+    const pa = prioOrder[a.priority] ?? 4, pb = prioOrder[b.priority] ?? 4;
+    return pa !== pb ? pa - pb : (b.dateOpened || '').localeCompare(a.dateOpened || '');
+  });
+  const technicians = [], techDepartments = {};
+  techRows.forEach(r => {
+    const name   = String(r[0] || '').trim();
+    const dept   = String(r[2] || '').trim().toUpperCase();
+    const active = String(r[3] ?? 'Y').trim().toUpperCase();
+    if (!name || active === 'N') return;
+    technicians.push(name);
+    if (dept) techDepartments[name] = dept.split(',').map(d => d.trim()).filter(Boolean);
+  });
+  return jsonResponse({ tickets, technicians, techDepartments });
+}
+
+async function handleTabletTicketGet(env, body) {
+  const ticketNo = String(body.ticketNo || '').trim().toUpperCase();
+  if (!ticketNo) return jsonResponse({ success: false, error: 'ticketNo required' }, 400);
+  const token = await getAccessToken(env);
+  const [mlRows, dataRows] = await Promise.all([
+    readSheet(token, env.SPREADSHEET_ID, SH.MASTER_LOG, 'A2:AU'),
+    readSheet(token, env.SPREADSHEET_ID, SH.DATA_VALID,  'A1:Z200').catch(() => []),
+  ]);
+  const merged = [];
+  let found = false;
+  mlRows.forEach(r => {
+    if (cellStr(r, ML.TICKET_NO).toUpperCase() !== ticketNo) return;
+    found = true;
+    r.forEach((v, i) => { if (v != null && v !== '') merged[i] = v; });
+  });
+  if (!found) return jsonResponse({ success: false, error: 'Ticket not found: ' + ticketNo }, 404);
+  const lists = {};
+  if (dataRows.length > 0) {
+    const hdrs = dataRows[0];
+    for (let col = 0; col < hdrs.length; col++) {
+      const key = String(hdrs[col] || '').trim(); if (!key) continue;
+      lists[key] = [];
+      for (let row = 1; row < dataRows.length; row++) {
+        const v = String(dataRows[row][col] || '').trim(); if (v) lists[key].push(v);
+      }
+    }
+  }
+  return jsonResponse({
+    success:      true,
+    ticketNo,
+    status:       cellStr(merged, ML.STATUS).toUpperCase(),
+    priority:     cellStr(merged, ML.PRIORITY).toUpperCase(),
+    dept:         normalizeDept(cellStr(merged, ML.DEPT)),
+    buildingZone: cellStr(merged, ML.BUILDING_ZONE),
+    equipType:    cellStr(merged, ML.EQUIP_TYPE),
+    equipCode:    cellStr(merged, ML.EQUIP_CODE),
+    specificEquip:cellStr(merged, ML.SPECIFIC_EQUIP),
+    downtimeType: cellStr(merged, ML.DOWNTIME_TYPE),
+    problemType:  cellStr(merged, ML.PROBLEM_TYPE),
+    description:  cellStr(merged, ML.DESCRIPTION),
+    estHours:     merged[ML.EST_HOURS    - 1] || '',
+    actualHours:  merged[ML.ACTUAL_HOURS - 1] || '',
+    assignedTo:   cellStr(merged, ML.ASSIGNED_TO),
+    lineNo:       cellStr(merged, ML.LINE_NO),
+    dateOpened:   fmtDate(cellDate(merged, ML.DATE_OPENED)),
+    notes:        cellStr(merged, ML.NOTES),
+    partsStatuses:lists['Parts Status'] || [],
+  });
+}
+
+async function handleTabletAssign(env, body) {
+  const ticketNo = String(body.ticketNo || '').trim().toUpperCase();
+  const tech     = String(body.tech     || '').trim();
+  if (!ticketNo || !tech) return jsonResponse({ success: false, error: 'ticketNo and tech required' }, 400);
+  const token  = await getAccessToken(env);
+  const mlRows = await readSheet(token, env.SPREADSHEET_ID, SH.MASTER_LOG, 'A2:AU');
+  const byTicket = {};
+  mlRows.forEach(r => {
+    const tn = cellStr(r, ML.TICKET_NO); if (!tn) return;
+    if (!byTicket[tn]) { byTicket[tn] = r.slice(); return; }
+    r.forEach((v, i) => { if (v != null && v !== '') byTicket[tn][i] = v; });
+  });
+  const best = byTicket[ticketNo];
+  if (!best) return jsonResponse({ success: false, error: 'Ticket not found: ' + ticketNo }, 404);
+  await appendMasterLog(token, env, {
+    ticketNo,
+    action:       'SELF-ASSIGNED — TABLET',
+    status:       'OPEN',
+    dept:         normalizeDept(cellStr(best, ML.DEPT)),
+    buildingZone: cellStr(best, ML.BUILDING_ZONE),
+    equipType:    cellStr(best, ML.EQUIP_TYPE),
+    equipCode:    cellStr(best, ML.EQUIP_CODE),
+    specificEquip:cellStr(best, ML.SPECIFIC_EQUIP),
+    downtimeType: cellStr(best, ML.DOWNTIME_TYPE),
+    priority:     cellStr(best, ML.PRIORITY),
+    description:  cellStr(best, ML.DESCRIPTION),
+    problemType:  cellStr(best, ML.PROBLEM_TYPE),
+    assignedTo:   tech,
+    estHours:     best[ML.EST_HOURS - 1] || '',
+    dateOpened:   fmtDate(cellDate(best, ML.DATE_OPENED)),
+    updatedBy:    tech,
+    notes:        'Self-assigned via tablet',
+    lineNo:       cellStr(best, ML.LINE_NO),
+  });
+  return jsonResponse({ success: true });
+}
+
+async function handleTabletStatus(env, body) {
+  const ticketNo  = String(body.ticketNo  || '').trim().toUpperCase();
+  const tech      = String(body.tech      || '').trim();
+  const newStatus = String(body.newStatus || '').trim().toUpperCase();
+  if (!ticketNo || !newStatus) return jsonResponse({ success: false, error: 'ticketNo and newStatus required' }, 400);
+  const token  = await getAccessToken(env);
+  const mlRows = await readSheet(token, env.SPREADSHEET_ID, SH.MASTER_LOG, 'A2:AU');
+  const byTicket = {};
+  mlRows.forEach(r => {
+    const tn = cellStr(r, ML.TICKET_NO); if (!tn) return;
+    if (!byTicket[tn]) { byTicket[tn] = r.slice(); return; }
+    r.forEach((v, i) => { if (v != null && v !== '') byTicket[tn][i] = v; });
+  });
+  const best = byTicket[ticketNo];
+  if (!best) return jsonResponse({ success: false, error: 'Ticket not found: ' + ticketNo }, 404);
+  await appendMasterLog(token, env, {
+    ticketNo,
+    action:    'STATUS UPDATE — TABLET',
+    status:    newStatus,
+    dept:      normalizeDept(cellStr(best, ML.DEPT)),
+    priority:  cellStr(best, ML.PRIORITY),
+    assignedTo:tech || cellStr(best, ML.ASSIGNED_TO),
+    updatedBy: tech || 'tablet',
+    notes:     'Status changed via tablet',
+    lineNo:    cellStr(best, ML.LINE_NO),
+  });
+  return jsonResponse({ success: true });
+}
+
+async function handleTabletComplete(env, body) {
+  const ticketNo  = String(body.ticketNo  || '').trim().toUpperCase();
+  const tech      = String(body.tech      || '').trim();
+  const newStatus = String(body.newStatus || 'COMPLETE').trim().toUpperCase();
+  if (!ticketNo || !tech) return jsonResponse({ success: false, error: 'ticketNo and tech required' }, 400);
+  const token  = await getAccessToken(env);
+  const mlRows = await readSheet(token, env.SPREADSHEET_ID, SH.MASTER_LOG, 'A2:AU');
+  const byTicket = {};
+  mlRows.forEach(r => {
+    const tn = cellStr(r, ML.TICKET_NO); if (!tn) return;
+    if (!byTicket[tn]) { byTicket[tn] = r.slice(); return; }
+    r.forEach((v, i) => { if (v != null && v !== '') byTicket[tn][i] = v; });
+  });
+  const best = byTicket[ticketNo];
+  if (!best) return jsonResponse({ success: false, error: 'Ticket not found: ' + ticketNo }, 404);
+  await appendMasterLog(token, env, {
+    ticketNo,
+    action:       newStatus === 'COMPLETE' ? 'TECH COMPLETE — TABLET' : 'TECH UPDATE — TABLET',
+    status:       newStatus,
+    dept:         normalizeDept(cellStr(best, ML.DEPT)),
+    buildingZone: cellStr(best, ML.BUILDING_ZONE),
+    equipType:    cellStr(best, ML.EQUIP_TYPE),
+    equipCode:    cellStr(best, ML.EQUIP_CODE),
+    specificEquip:cellStr(best, ML.SPECIFIC_EQUIP),
+    downtimeType: cellStr(best, ML.DOWNTIME_TYPE),
+    priority:     cellStr(best, ML.PRIORITY),
+    description:  cellStr(best, ML.DESCRIPTION),
+    problemType:  cellStr(best, ML.PROBLEM_TYPE),
+    assignedTo:   tech,
+    estHours:     best[ML.EST_HOURS - 1] || '',
+    actualHours:  body.actualHours || '',
+    dateOpened:   fmtDate(cellDate(best, ML.DATE_OPENED)),
+    correctiveAct:body.correctiveAction || '',
+    rootCause:    body.rootCause || '',
+    preventiveAct:body.preventativeAction || '',
+    fixType:      body.fixType || '',
+    tempFixFlag:  body.tempFixFlag,
+    partsNeeded:  body.partsNeeded,
+    partsStatus:  body.partsStatus || '',
+    updatedBy:    tech,
+    notes:        body.notes || '',
+    lineNo:       body.lineNo || cellStr(best, ML.LINE_NO),
+  });
+  return jsonResponse({ success: true, newStatus, routedToReview: newStatus === 'COMPLETE' });
+}
+
 // ── Equipment inventory handler ───────────────────────────────────────────────
 
 async function handleEquipInventory(env, userEmail) {
@@ -3024,6 +3240,12 @@ export default {
       // Tech board & inventory
       else if (p === '/api/tech-board'                  && method === 'GET') res = await handleTechWorkBoard(env, userEmail);
       else if (p === '/api/equip/inventory'             && method === 'GET') res = await handleEquipInventory(env, userEmail);
+      // Tablet (no email auth — tech name comes from POST body)
+      else if (p === '/api/tablet/board'                && method === 'POST') res = await handleTabletBoard(env);
+      else if (p === '/api/tablet/ticket/get'           && method === 'POST') res = await handleTabletTicketGet(env, body);
+      else if (p === '/api/tablet/assign'               && method === 'POST') res = await handleTabletAssign(env, body);
+      else if (p === '/api/tablet/status'               && method === 'POST') res = await handleTabletStatus(env, body);
+      else if (p === '/api/tablet/complete'             && method === 'POST') res = await handleTabletComplete(env, body);
       else                                                                    res = jsonResponse({ error: 'Not found' }, 404);
     } catch (e) {
       res = e.rateLimited
