@@ -1420,6 +1420,7 @@ async function handleClosedTickets(env, userEmail) {
       verifiedDate: fmtDate(cellDate(r, ML.VERIFIED_DATE)),
       addedBy:      cellStr(r, ML.ADDED_BY),
       lineNo:       cellStr(r, ML.LINE_NO),
+      jointDepts:   cellStr(r, ML.JOINT_DEPTS),
       _closeTs:     rawClose ? rawClose.getTime() : 0,
     });
   });

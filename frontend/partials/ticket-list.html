@@ -265,7 +265,7 @@ function _renderList_(tickets, queueType, deptFilter, container, userOwnedDepts)
       var cntEl = document.getElementById('tl-cnt-' + qt);
       if (cntEl) cntEl.textContent = list.length + ' ticket' + (list.length !== 1 ? 's' : '');
     }
-    var colSpan = deptCol ? 12 : 11;
+    var colSpan = deptCol ? 13 : 12;
     if (list.length === 0) {
       tbody.innerHTML = '<tr><td colspan="' + colSpan + '" class="tl-empty">No tickets match.</td></tr>';
       return;
@@ -280,6 +280,7 @@ function _renderList_(tickets, queueType, deptFilter, container, userOwnedDepts)
         '<td><span class="stat-badge ' + staCls + '">' + esc(t.status) + '</span>' +
           (t.tempFixFlag ? '<span class="flag-tf">TF</span>' : '') + '</td>' +
         (deptCol ? '<td>' + esc(t.dept) + '</td>' : '') +
+        '<td style="font-size:11.5px;color:var(--text-secondary);">' + esc(t.jointDepts || '') + '</td>' +
         '<td class="col-equip" title="' + esc(t.equipCode ? t.equipCode + ' — ' + t.specificEquip : t.specificEquip) + '">' +
           (t.equipCode ? '<span style="font-family:var(--font-mono);font-size:11px;color:var(--text-secondary);">' + esc(t.equipCode) + '</span> ' : '') +
           esc(t.specificEquip) + '</td>' +
@@ -382,6 +383,7 @@ function _renderList_(tickets, queueType, deptFilter, container, userOwnedDepts)
           _tlTh_(qt,'priority','Priority') +
           _tlTh_(qt,'status','Status') +
           (showDept ? _tlTh_(qt,'dept','Dept') : '') +
+          '<th>Joint Dept</th>' +
           _tlTh_(qt,'specificEquip','Equipment') +
           _tlTh_(qt,'description','Description') +
           '<th class="col-photo">Photo</th>' +

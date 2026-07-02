@@ -178,6 +178,7 @@ function _renderClosed_(tickets, userOwnedDepts, container) {
         _ctTh_('priority','Priority') +
         _ctTh_('status','Status') +
         _ctTh_('dept','Dept') +
+        '<th>Joint Dept</th>' +
         _ctTh_('specificEquip','Equipment') +
         _ctTh_('description','Description') +
         _ctTh_('assignedTo','Assigned To') +
@@ -241,7 +242,7 @@ function _ctRenderRows_(list) {
   if (cntEl) cntEl.textContent = list.length + ' ticket' + (list.length !== 1 ? 's' : '');
 
   if (list.length === 0) {
-    tbody.innerHTML = '<tr><td colspan="9" class="ct-empty">No tickets match.</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="10" class="ct-empty">No tickets match.</td></tr>';
     return;
   }
   tbody.innerHTML = list.map(function(t) {
@@ -252,6 +253,7 @@ function _ctRenderRows_(list) {
       '<td><span class="pri-badge ' + priCls + '">' + esc(t.priority || '&#8212;') + '</span></td>' +
       '<td><span class="stat-badge ' + staCls + '">' + esc(t.status) + '</span></td>' +
       '<td>' + esc(t.dept) + '</td>' +
+      '<td style="font-size:11.5px;color:var(--text-secondary);">' + esc(t.jointDepts || '') + '</td>' +
       '<td class="col-equip" title="' + esc(t.equipCode ? t.equipCode + ' — ' + t.specificEquip : t.specificEquip) + '">' +
         (t.equipCode ? '<span style="font-family:var(--font-mono);font-size:11px;color:var(--text-secondary);">' + esc(t.equipCode) + '</span> ' : '') +
         esc(t.specificEquip) + '</td>' +
