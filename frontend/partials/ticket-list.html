@@ -383,7 +383,7 @@ function _renderList_(tickets, queueType, deptFilter, container, userOwnedDepts)
           _tlTh_(qt,'priority','Priority') +
           _tlTh_(qt,'status','Status') +
           (showDept ? _tlTh_(qt,'dept','Dept') : '') +
-          '<th>Joint Dept</th>' +
+          _tlTh_(qt,'jointDepts','Joint Dept') +
           _tlTh_(qt,'specificEquip','Equipment') +
           _tlTh_(qt,'description','Description') +
           '<th class="col-photo">Photo</th>' +
