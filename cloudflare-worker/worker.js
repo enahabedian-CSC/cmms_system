@@ -29,6 +29,7 @@ const ML = {
   // Post-Repair Clearance captured at Mark Work Complete (SQF 2.14.3). Additive
   // columns — existing 43-col reads stay valid.
   CLR_TOOLS_REMOVED:44, CLR_AREA_CLEAN:45, CLR_QA_REQUIRED:46,
+  ASSIGNED_DEPT:47,
 };
 
 const TF = {
@@ -800,7 +801,7 @@ async function findMonitorRow(token, spreadsheetId, sheetName, id, startRow) {
 // Append a row to Master Log (43 cols).
 async function appendMasterLog(token, env, opts) {
   const now = opts.now || new Date();
-  const row = new Array(46).fill('');
+  const row = new Array(47).fill('');
   row[ML.TICKET_NO       - 1] = opts.ticketNo       || '';
   row[ML.TIMESTAMP       - 1] = fmtDate(now);
   row[ML.ACTION          - 1] = opts.action          || '';
@@ -835,6 +836,7 @@ async function appendMasterLog(token, env, opts) {
   if (opts.clrToolsRemoved !== undefined) row[ML.CLR_TOOLS_REMOVED - 1] = opts.clrToolsRemoved || '';
   if (opts.clrAreaClean    !== undefined) row[ML.CLR_AREA_CLEAN    - 1] = opts.clrAreaClean    || '';
   if (opts.clrQaRequired   !== undefined) row[ML.CLR_QA_REQUIRED   - 1] = opts.clrQaRequired   || '';
+  if (opts.assignedDept    !== undefined) row[ML.ASSIGNED_DEPT     - 1] = opts.assignedDept    || '';
   if (opts.addedBy       !== undefined) row[ML.ADDED_BY       - 1] = opts.addedBy       || '';
   if (opts.buildingZone  !== undefined) row[ML.BUILDING_ZONE  - 1] = opts.buildingZone  || '';
   if (opts.equipType     !== undefined) row[ML.EQUIP_TYPE     - 1] = opts.equipType     || '';
@@ -1303,7 +1305,7 @@ async function handleTicketDetail(env, userEmail, ticketNo) {
   if (!ticketNo) return jsonResponse({ error: 'ticketNo required' }, 400);
 
   const [mlRows, thRows] = await Promise.all([
-    readSheet(token, env.SPREADSHEET_ID, SH.MASTER_LOG,  'A2:AT'),
+    readSheet(token, env.SPREADSHEET_ID, SH.MASTER_LOG,  'A2:AU'),
     readSheet(token, env.SPREADSHEET_ID, SH.TICKET_HIST, 'A2:H'),
   ]);
 
@@ -1359,6 +1361,7 @@ async function handleTicketDetail(env, userEmail, ticketNo) {
     clrToolsRemoved:  cellStr(best, ML.CLR_TOOLS_REMOVED),
     clrAreaClean:     cellStr(best, ML.CLR_AREA_CLEAN),
     clrQaRequired:    cellStr(best, ML.CLR_QA_REQUIRED),
+    assignedDept:     normalizeDept(cellStr(best, ML.ASSIGNED_DEPT)) || normalizeDept(cellStr(best, ML.DEPT)),
   };
 
   // Sort chronologically by the real timestamp column. Raw sheet-append order
@@ -1719,7 +1722,7 @@ async function handleAddTicket(env, userEmail, body) {
 
   await appendMasterLog(token, env, {
     ticketNo, now, action: isCritical ? 'TICKET CREATED — CRITICAL (bypass)' : 'TICKET CREATED',
-    status, dept,
+    status, dept, assignedDept: dept,
     equipCode:     body.equipCode     || '',
     specificEquip: body.specificEquip || '',
     equipType:     body.equipType     || '',
@@ -1846,6 +1849,8 @@ async function handleCompleteTicket(env, userEmail, body) {
     // Post-Repair Clearance captured at completion (SQF 2.14.3)
     clrToolsRemoved: body.clrToolsRemoved || '', clrAreaClean: body.clrAreaClean || '',
     clrQaRequired: body.clrQaRequired || '',
+    // Revert assigned dept back to owner so they know to verify & close
+    assignedDept: owner,
   });
   await appendTicketHistory(token, env, ticketNo, 'WORK COMPLETE', 'OPEN', 'COMPLETE', updatedBy, '');
   return jsonResponse({ success: true, ticketNo });
@@ -1988,7 +1993,7 @@ async function handleTransferTicket(env, userEmail, body) {
   if (joint.indexOf(toDept) < 0) joint.push(toDept);
   await appendMasterLog(token, env, {
     ticketNo, now: new Date(), action: 'JOINT DEPT ADDED',
-    jointDepts: joint.join(', '), updatedBy, notes: body.reason || '',
+    jointDepts: joint.join(', '), assignedDept: toDept, updatedBy, notes: body.reason || '',
   });
   await appendTicketHistory(token, env, ticketNo, 'JOINT DEPT ADDED', '', '', updatedBy,
     'Joint department added: ' + toDept + (body.reason ? ' — ' + body.reason : ''));
