@@ -132,6 +132,29 @@
   body.printing-srdoc #sr-print-area, body.printing-srdoc #sr-print-area *{visibility:visible !important;}
   body.printing-srdoc #sr-print-area{display:block !important;position:absolute;left:0;top:0;width:100%;padding:14px;}
 }
+/* ── Equipment Hold Tag printable document ─────────────────────────────── */
+.ht-print-area{display:none;}
+.ht-doc{font-family:Arial,Helvetica,sans-serif;color:#111;max-width:420px;margin:0 auto;border:3px solid #ccc;border-radius:4px;break-inside:avoid;}
+.ht-doc.ht-red   {border-color:#DC2626;}
+.ht-doc.ht-yellow{border-color:#CA8A04;}
+.ht-doc.ht-orange{border-color:#EA580C;}
+.ht-doc .ht-hdr{padding:10px 14px;display:flex;align-items:flex-start;justify-content:space-between;color:#fff;}
+.ht-doc.ht-red    .ht-hdr{background:#DC2626;}
+.ht-doc.ht-yellow .ht-hdr{background:#CA8A04;}
+.ht-doc.ht-orange .ht-hdr{background:#EA580C;}
+.ht-doc .ht-hdr h2{margin:0;font-size:16px;font-weight:700;}
+.ht-doc .ht-hdr .ht-sub{font-size:10px;opacity:.88;margin-top:2px;}
+.ht-doc .ht-body{padding:10px 14px;}
+.ht-doc .ht-field{margin-bottom:6px;}
+.ht-doc .ht-lbl{font-size:8.5px;text-transform:uppercase;letter-spacing:.05em;color:#666;}
+.ht-doc .ht-val{font-size:12px;color:#111;font-weight:600;}
+.ht-doc .ht-reason-box{background:#FFFBEB;border:1px solid #D97706;border-radius:3px;padding:7px 9px;margin:8px 0;}
+.ht-doc .ht-footer{border-top:1px solid #e5e5e5;padding:7px 14px;font-size:8.5px;color:#888;text-align:center;}
+@media print {
+  body.printing-htdoc *{visibility:hidden !important;}
+  body.printing-htdoc #ht-print-area, body.printing-htdoc #ht-print-area *{visibility:visible !important;}
+  body.printing-htdoc #ht-print-area{display:block !important;position:absolute;left:0;top:0;width:100%;padding:20px;}
+}
 </style>
 
 <div id="td-overlay">
@@ -915,8 +938,86 @@ function _tdIssueTag_() {
         capaRef:       document.getElementById('tag-capa').value.trim(),
         taggedBy:      USER.displayName
       };
-      _tdRunAction_(issueEquipHoldTag, data, 'Hold Tag Issued');
+      _closeModal_();
+      document.getElementById('td-body').innerHTML = '<div class="loading-overlay"><div class="spinner"></div><span>Saving…</span></div>';
+      var _tagDate = new Date().toLocaleDateString();
+      fetch(WORKER_URL + '/api/monitoring/hold-tags/issue', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-User-Email': USER ? USER.email : '' },
+        body: JSON.stringify(data)
+      })
+      .then(function(r) { return r.json(); })
+      .then(function(result) {
+        if (result && result.success) {
+          showToast('Hold Tag Issued: ' + data.ticketNo, 'success');
+          openTicketDetail(data.ticketNo);
+          _htPrint_(data, result.tagId, _tagDate);
+        } else {
+          showToast('Error: ' + ((result && result.error) || 'Unknown error'), 'error');
+          openTicketDetail(data.ticketNo);
+        }
+      })
+      .catch(function(err) {
+        showToast('Error: ' + (err.message || String(err)), 'error');
+        openTicketDetail(data.ticketNo);
+      });
     }, 'Issue Tag');
+}
+
+function _htBuildPrintDoc_(data, tagId, tagDate) {
+  var tagType  = data.tagType || '';
+  var colorKey = tagType.indexOf('Red') >= 0 ? 'ht-red' : tagType.indexOf('Yellow') >= 0 ? 'ht-yellow' : 'ht-orange';
+  function field(lbl, val) {
+    if (!val) return '';
+    return '<div class="ht-field"><div class="ht-lbl">' + esc(lbl) + '</div><div class="ht-val">' + esc(val) + '</div></div>';
+  }
+  return '<div class="ht-doc ' + colorKey + '">' +
+    '<div class="ht-hdr">' +
+      '<div>' +
+        '<div style="font-size:10px;opacity:.88;margin-bottom:3px;">CSC Manufacturing · Garden Grove, CA</div>' +
+        '<h2>Equipment Hold Tag</h2>' +
+        '<div class="ht-sub">' + esc(tagType) + '</div>' +
+      '</div>' +
+      '<div style="text-align:right;font-size:10px;opacity:.88;">' +
+        '<div style="font-size:13px;font-weight:700;margin-bottom:2px;">' + esc(tagId) + '</div>' +
+        '<div>Ticket: ' + esc(data.ticketNo) + '</div>' +
+        '<div>' + esc(tagDate) + '</div>' +
+      '</div>' +
+    '</div>' +
+    '<div class="ht-body">' +
+      field('Equipment Code', data.equipCode) +
+      field('Equipment', data.specificEquip) +
+      field('Department', data.dept) +
+      field('Building / Zone', data.buildingZone) +
+      '<div class="ht-reason-box">' +
+        '<div class="ht-lbl">Reason / Identified Risk</div>' +
+        '<div style="font-size:12px;margin-top:3px;white-space:pre-wrap;">' + esc(data.reason) + '</div>' +
+      '</div>' +
+      field('CAPA Reference', data.capaRef) +
+      field('Tagged By', data.taggedBy) +
+    '</div>' +
+    '<div class="ht-footer">Do not use or move this equipment without manager authorization. &nbsp;|&nbsp; FRM-029-002 Rev 0</div>' +
+  '</div>';
+}
+
+function _htPrint_(data, tagId, tagDate) {
+  var area = document.getElementById('ht-print-area');
+  if (!area) {
+    area = document.createElement('div');
+    area.id = 'ht-print-area';
+    area.className = 'ht-print-area';
+    document.body.appendChild(area);
+  }
+  area.innerHTML = _htBuildPrintDoc_(data, tagId, tagDate);
+  document.body.classList.add('printing-htdoc');
+  function _done_() {
+    document.body.classList.remove('printing-htdoc');
+    area.innerHTML = '';
+    window.removeEventListener('afterprint', _done_);
+  }
+  window.addEventListener('afterprint', _done_);
+  window.print();
+  setTimeout(_done_, 1500);
 }
 
 // Yes/No (+ optional N/A) select row for the Post-Repair Clearance block.
