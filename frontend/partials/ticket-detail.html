@@ -44,6 +44,17 @@
 .btn-transfer  {background:var(--status-warn-bg);color:#92400E;border:1px solid #FDE68A;}
 .btn-update    {background:var(--bg-surface);color:var(--brand-navy);border:1px solid var(--brand-navy);font-weight:600;}
 .td-pending-close{display:inline-flex;align-items:center;gap:6px;padding:6px 12px;border-radius:6px;background:var(--status-warn-bg);border:1px solid #FDE68A;color:#92400E;font-size:12px;font-weight:600;}
+.joint-banner{border-radius:8px;padding:11px 16px;margin-bottom:14px;font-size:12.5px;font-weight:600;display:flex;align-items:flex-start;gap:10px;line-height:1.4;}
+.joint-banner.role-fixer{background:#EFF6FF;border:1px solid #BFDBFE;color:#1D4ED8;}
+.joint-banner.role-fixer-done{background:#F0FDF4;border:1px solid #BBF7D0;color:#166534;}
+.joint-banner.role-owner-waiting{background:#FFFBEB;border:1px solid #FDE68A;color:#92400E;}
+.joint-banner.role-owner-ready{background:#F0FDF4;border:1px solid #BBF7D0;color:#166534;}
+.joint-banner.role-pending-close{background:var(--bg-subtle);border:1px solid var(--border-default);color:var(--text-secondary);}
+.joint-banner-body{flex:1;}
+.joint-banner-body .jb-sub{font-weight:400;font-size:11.5px;margin-top:3px;opacity:.85;}
+.joint-dept-row{display:flex;align-items:center;gap:6px;margin-top:4px;font-size:11.5px;}
+.joint-dept-dot{width:7px;height:7px;border-radius:50%;flex-shrink:0;}
+.jd-complete{background:#22C55E;}.jd-pending{background:#F59E0B;}
 .btn-parts     {background:#F5F3FF;color:#5B21B6;border:1px solid #C4B5FD;}
 .btn-action:hover{filter:brightness(.93);}
 .btn-action:disabled{opacity:.45;cursor:default;}
@@ -267,11 +278,57 @@ function _renderDetail_(result) {
     ? '<span class="pri-badge pri-' + esc(t.priority) + '">' + esc(t.priority) + '</span>' : '';
   document.getElementById('td-dept-label').textContent = t.dept;
 
-  // ── Action buttons ─────────────────────────────────────────────────────────
-  var actions = '';
+  // ── Joint role banner ─────────────────────────────────────────────────────
   var isOwner   = _isOwnerDept_(t);
   var isFixer   = _isFixerDept_(t);
   var isJoint   = _isJoint_(t);
+  var jointBanner = '';
+  if (isJoint && isManager) {
+    var _jbSignoffs = {};
+    try { _jbSignoffs = JSON.parse(t.jointSignoffs || '{}'); } catch(e) {}
+    var _jbDepts = (t.jointDepts || '').split(',').map(function(d){return d.trim();}).filter(Boolean);
+    var _jbDone  = _jbDepts.filter(function(d){ return _jbSignoffs[d] && _jbSignoffs[d].complete; });
+    var _jbLeft  = _jbDepts.filter(function(d){ return !(_jbSignoffs[d] && _jbSignoffs[d].complete); });
+    var _jbMyDepts = (USER.ownedDepts || []).filter(function(d){ return _jbDepts.indexOf(d) >= 0; });
+    var _jbMyDone  = _jbMyDepts.every(function(d){ return _jbSignoffs[d] && _jbSignoffs[d].complete; });
+    var _jbDeptRows = function(list, done) {
+      return list.map(function(d) {
+        return '<div class="joint-dept-row"><div class="joint-dept-dot ' + (done ? 'jd-complete' : 'jd-pending') + '"></div>' + esc(d) + '</div>';
+      }).join('');
+    };
+
+    if (t.status === 'PENDING VERIFICATION') {
+      if (isOwner) {
+        jointBanner = '<div class="joint-banner role-owner-ready">' +
+          '<span>✅</span><div class="joint-banner-body">All joint departments have completed their work.' +
+          '<div class="jb-sub">You can now verify and close this ticket.</div></div></div>';
+      } else if (isFixer) {
+        jointBanner = '<div class="joint-banner role-pending-close">' +
+          '<span>⏳</span><div class="joint-banner-body">Your department\'s work is recorded.' +
+          '<div class="jb-sub">' + esc(t.dept) + ' is now reviewing and will close this ticket.</div></div></div>';
+      }
+    } else if (t.status === 'OPEN' || t.status === 'PENDING PARTS') {
+      if (isFixer && _jbMyDone && _jbLeft.length) {
+        jointBanner = '<div class="joint-banner role-fixer-done">' +
+          '<span>✓</span><div class="joint-banner-body">Your work has been recorded.' +
+          '<div class="jb-sub">Waiting on: ' + _jbLeft.map(function(d){return esc(d);}).join(', ') + ' to complete their work.</div>' +
+          _jbDeptRows(_jbDone, true) + _jbDeptRows(_jbLeft, false) + '</div></div>';
+      } else if (isFixer && !_jbMyDone) {
+        jointBanner = '<div class="joint-banner role-fixer">' +
+          '<span>🔗</span><div class="joint-banner-body">Your department (' + esc(_jbMyDepts.join(', ') || '—') + ') is a joint fixer on this ticket.' +
+          '<div class="jb-sub">Complete your repair, then click <strong>Mark Work Complete</strong>.</div></div></div>';
+      } else if (isOwner) {
+        jointBanner = '<div class="joint-banner role-owner-waiting">' +
+          '<span>⏳</span><div class="joint-banner-body">Waiting on joint departments to complete their work.' +
+          (_jbDone.length  ? '<div class="jb-sub">Done: ' + _jbDone.map(function(d){return esc(d);}).join(', ') + '</div>' : '') +
+          (_jbLeft.length  ? '<div class="jb-sub">Still working: ' + _jbLeft.map(function(d){return esc(d);}).join(', ') + '</div>' : '') +
+          _jbDeptRows(_jbDone, true) + _jbDeptRows(_jbLeft, false) + '</div></div>';
+      }
+    }
+  }
+
+  // ── Action buttons ─────────────────────────────────────────────────────────
+  var actions = '';
   // Two-step segmentation: the work-doer (fixer on joint tickets, owner on
   // single-dept tickets) performs the repair + CAPA; the owner verifies & closes.
   var canWork   = isManager && (isJoint ? isFixer : isOwner);
@@ -336,6 +393,7 @@ function _renderDetail_(result) {
   }
 
   var html =
+    jointBanner +
     (actions ? '<div class="td-actions">' + actions + '</div>' : '') +
 
     '<div class="td-section">' +
@@ -423,6 +481,62 @@ function _renderDetail_(result) {
         field('Date Closed',   t.dateClosed) +
       '</div>' +
     '</div>') : '') +
+
+    (isJoint ? (function() {
+      var _jaSignoffs = {};
+      try { _jaSignoffs = JSON.parse(t.jointSignoffs || '{}'); } catch(e) {}
+      var _jaDepts = (t.jointDepts || '').split(',').map(function(d){return d.trim();}).filter(Boolean);
+      var _jaJointEvents = ['JOINT DEPT ADDED','JOINT REQUEST CONFIRMED','JOINT REQUEST REJECTED',
+        'DEPT WORK COMPLETE','WORK COMPLETE','DEPT SIGN-OFF'];
+      var _jaHistItems = hist.filter(function(h){ return _jaJointEvents.indexOf(h.eventType) >= 0; });
+
+      var deptCards = _jaDepts.map(function(d) {
+        var s = _jaSignoffs[d] || null;
+        var isComplete = s && s.complete;
+        var hasSigned  = s && !s.complete;
+        var statusTxt  = isComplete ? 'Work Complete ✓' : (hasSigned ? 'Signed Off' : 'Pending');
+        var statusClr  = isComplete ? '#166534' : (hasSigned ? '#1D4ED8' : '#92400E');
+        var statusBg   = isComplete ? '#DCFCE7' : (hasSigned ? '#DBEAFE' : '#FEF3C7');
+        var card = '<div style="border:1px solid var(--border-default);border-radius:8px;padding:12px 14px;margin-bottom:8px;">' +
+          '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:' + (s ? '6' : '0') + 'px;">' +
+            '<strong style="font-size:13px;color:var(--text-primary);">' + esc(d) + '</strong>' +
+            '<span style="font-size:11px;font-weight:700;color:' + statusClr + ';background:' + statusBg + ';padding:2px 8px;border-radius:4px;">' + esc(statusTxt) + '</span>' +
+          '</div>';
+        if (s) {
+          card += '<div style="font-size:11.5px;color:var(--text-secondary);">By ' + esc(s.by) + ' · ' + esc(s.at) + '</div>';
+          if (s.notes) card += '<div style="font-size:11.5px;color:var(--text-tertiary);margin-top:3px;white-space:pre-wrap;">' + esc(s.notes) + '</div>';
+          if (s.correctiveAct) card += '<div style="margin-top:8px;"><div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--text-tertiary);margin-bottom:2px;">Corrective Action</div><div style="font-size:12px;white-space:pre-wrap;">' + esc(s.correctiveAct) + '</div></div>';
+          if (s.rootCause)     card += '<div style="margin-top:6px;"><div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--text-tertiary);margin-bottom:2px;">Root Cause</div><div style="font-size:12px;white-space:pre-wrap;">' + esc(s.rootCause) + '</div></div>';
+          if (s.preventiveAct) card += '<div style="margin-top:6px;"><div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--text-tertiary);margin-bottom:2px;">Preventive Action</div><div style="font-size:12px;white-space:pre-wrap;">' + esc(s.preventiveAct) + '</div></div>';
+          if (s.fixType)       card += '<div style="margin-top:6px;font-size:11.5px;"><span style="color:var(--text-tertiary);">Fix Type: </span>' + esc(s.fixType) + (s.actualHours ? ' · <span style="color:var(--text-tertiary);">Hours: </span>' + esc(String(s.actualHours)) : '') + '</div>';
+        }
+        card += '</div>';
+        return card;
+      }).join('');
+
+      var eventList = _jaHistItems.length === 0 ? '' :
+        '<ul class="th-list" style="margin-top:10px;">' +
+        _jaHistItems.map(function(h) {
+          return '<li class="th-item">' +
+            '<div class="th-dot" style="background:#6366F1;"></div>' +
+            '<div style="flex:1;">' +
+              '<div style="display:flex;gap:12px;align-items:baseline;">' +
+                '<span class="th-event">' + esc(h.eventType) + '</span>' +
+                '<span class="th-by">' + esc(h.performedBy) + '</span>' +
+              '</div>' +
+              (h.notes ? '<div class="th-notes">' + esc(h.notes) + '</div>' : '') +
+            '</div>' +
+            '<div class="th-ts">' + esc(h.timestamp) + '</div>' +
+          '</li>';
+        }).join('') +
+        '</ul>';
+
+      return '<div class="td-section">' +
+        '<div class="td-section-title">Joint Department Activity</div>' +
+        deptCards +
+        (eventList ? '<div style="font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--text-tertiary);margin:10px 0 4px;">Event Log</div>' + eventList : '') +
+      '</div>';
+    })() : '') +
 
     '<div class="td-section">' +
       '<div class="td-section-title">Ticket History</div>' +
@@ -1676,14 +1790,22 @@ function _renderJointStatus_(t) {
   if (t.jointSignoffs) { try { signs = JSON.parse(t.jointSignoffs); } catch(e) {} }
   var chips = jd.map(function(d) {
     var s = signs[d];
-    return s
-      ? '<span style="display:inline-flex;align-items:center;gap:4px;padding:3px 9px;border-radius:4px;background:#D1FAE5;color:#065F46;font-size:11.5px;font-weight:600;margin:2px 4px 2px 0;">' +
-          '<svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>' +
-          esc(d) + ' ✓ <span style="font-weight:400;font-size:10.5px;">' + esc(s.by) + '</span>' +
-        '</span>'
-      : '<span style="display:inline-flex;align-items:center;gap:4px;padding:3px 9px;border-radius:4px;background:#FEF3C7;color:#92400E;font-size:11.5px;font-weight:600;margin:2px 4px 2px 0;">' +
-          esc(d) + ' · Pending sign-off' +
+    if (s && s.complete) {
+      var tip = s.by + ' · ' + s.at + (s.notes ? ': ' + s.notes : '');
+      return '<span style="display:inline-flex;align-items:center;gap:4px;padding:3px 9px;border-radius:4px;background:#D1FAE5;color:#065F46;font-size:11.5px;font-weight:600;margin:2px 4px 2px 0;" title="' + esc(tip) + '">' +
+        '<svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>' +
+        esc(d) + ' · Work Complete <span style="font-weight:400;font-size:10.5px;">' + esc(s.by) + '</span>' +
         '</span>';
+    } else if (s) {
+      var tip = s.by + ' · ' + s.at + (s.notes ? ': ' + s.notes : '');
+      return '<span style="display:inline-flex;align-items:center;gap:4px;padding:3px 9px;border-radius:4px;background:#DBEAFE;color:#1D4ED8;font-size:11.5px;font-weight:600;margin:2px 4px 2px 0;" title="' + esc(tip) + '">' +
+        esc(d) + ' · Signed Off <span style="font-weight:400;font-size:10.5px;">' + esc(s.by) + '</span>' +
+        '</span>';
+    } else {
+      return '<span style="display:inline-flex;align-items:center;gap:4px;padding:3px 9px;border-radius:4px;background:#FEF3C7;color:#92400E;font-size:11.5px;font-weight:600;margin:2px 4px 2px 0;">' +
+        esc(d) + ' · Pending' +
+        '</span>';
+    }
   });
   // Pending attachment requests shown as purple "awaiting" chips
   pd.forEach(function(d) {

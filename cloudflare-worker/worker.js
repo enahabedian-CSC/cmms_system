@@ -1760,13 +1760,27 @@ async function handleConfirmJoint(env, userEmail, body) {
   const ticketNo = String(body.ticketNo || '').trim();
   if (!ticketNo) return jsonResponse({ error: 'ticketNo required' }, 400);
 
-  // Find the ticket row in the ML and update PENDING_JOINT_DEPTS → JOINT_DEPTS
-  // This is a complex multi-row update; stub returns success so the UI flows
+  const best = await _ticketState_(token, env, ticketNo);
+  if (!best) return jsonResponse({ error: 'Ticket not found: ' + ticketNo }, 404);
+
+  const pending = _normDepts_(cellStr(best, ML.PENDING_JOINT_DEPTS));
+  const mine    = user.ownedDepts || [];
+  const myDept  = mine.find(d => pending.indexOf(d) >= 0);
+  if (!myDept) return jsonResponse({ error: 'No pending joint request found for your department on this ticket.' }, 400);
+
+  const joint      = _normDepts_(cellStr(best, ML.JOINT_DEPTS));
+  if (joint.indexOf(myDept) < 0) joint.push(myDept);
+  const newPending = pending.filter(d => d !== myDept);
+
+  const updatedBy = String(body.updatedBy || user.displayName).trim();
   await appendMasterLog(token, env, {
-    ticketNo, now: new Date(), action: 'JOINT REQUEST', status: '', dept: '',
-    updatedBy: user.displayName, notes: 'Joint request confirmed by ' + user.displayName,
+    ticketNo, now: new Date(), action: 'JOINT REQUEST CONFIRMED',
+    jointDepts:        joint.join(', '),
+    pendingJointDepts: newPending.join(', '),
+    updatedBy, notes: myDept + ' accepted joint attachment',
   });
-  await appendTicketHistory(token, env, ticketNo, 'TRANSFER CONFIRMED', '', '', user.displayName, 'Joint request accepted');
+  await appendTicketHistory(token, env, ticketNo, 'JOINT REQUEST CONFIRMED', '', '', updatedBy,
+    myDept + ' accepted joint attachment');
   return jsonResponse({ success: true, ticketNo });
 }
 
@@ -1777,11 +1791,23 @@ async function handleRejectJoint(env, userEmail, body) {
   const ticketNo = String(body.ticketNo || '').trim();
   if (!ticketNo) return jsonResponse({ error: 'ticketNo required' }, 400);
 
+  const best = await _ticketState_(token, env, ticketNo);
+  if (!best) return jsonResponse({ error: 'Ticket not found: ' + ticketNo }, 404);
+
+  const pending = _normDepts_(cellStr(best, ML.PENDING_JOINT_DEPTS));
+  const mine    = user.ownedDepts || [];
+  const myDept  = mine.find(d => pending.indexOf(d) >= 0);
+  if (!myDept) return jsonResponse({ error: 'No pending joint request found for your department on this ticket.' }, 400);
+
+  const newPending = pending.filter(d => d !== myDept);
+  const updatedBy  = String(body.updatedBy || user.displayName).trim();
   await appendMasterLog(token, env, {
-    ticketNo, now: new Date(), action: 'JOINT REQUEST REJECTED', status: '', dept: '',
-    updatedBy: user.displayName, notes: 'Rejected: ' + (body.reason || ''),
+    ticketNo, now: new Date(), action: 'JOINT REQUEST REJECTED',
+    pendingJointDepts: newPending.join(', '),
+    updatedBy, notes: myDept + ' rejected joint attachment' + (body.reason ? ': ' + body.reason : ''),
   });
-  await appendTicketHistory(token, env, ticketNo, 'JOINT REQUEST REJECTED', '', '', user.displayName, body.reason || '');
+  await appendTicketHistory(token, env, ticketNo, 'JOINT REQUEST REJECTED', '', '', updatedBy,
+    myDept + ' rejected joint attachment' + (body.reason ? ': ' + body.reason : ''));
   return jsonResponse({ success: true, ticketNo });
 }
 
@@ -1841,6 +1867,50 @@ async function handleCompleteTicket(env, userEmail, body) {
   if (!canWork) return jsonResponse({ error: 'On a joint ticket, only the assigned (fixer) department can mark work complete.' }, 403);
 
   const updatedBy = String(body.updatedBy || user.displayName).trim();
+
+  // Multi-fixer: on a joint ticket, track each dept's completion independently in
+  // JOINT_SIGNOFFS. The ticket only moves to PENDING VERIFICATION once every joint
+  // dept has set complete:true — partial completion stays OPEN so the other depts
+  // can still act.
+  if (joint.length) {
+    const myDept = mine.find(d => joint.indexOf(d) >= 0) || mine[0] || '';
+    let signoffs = {};
+    try { signoffs = JSON.parse(cellStr(best, ML.JOINT_SIGNOFFS) || '{}'); } catch (_) {}
+    signoffs[myDept] = Object.assign({}, signoffs[myDept] || {}, {
+      by: updatedBy, at: fmtDate(new Date()), complete: true,
+      notes: body.notes || '',
+      correctiveAct: body.correctiveAct || '', rootCause: body.rootCause || '',
+      preventiveAct: body.preventiveAct || '', fixType: body.fixType || '',
+      actualHours: body.actualHours || '',
+    });
+    const allDone = joint.every(d => signoffs[d] && signoffs[d].complete);
+    const logOpts = {
+      ticketNo, now: new Date(),
+      action: allDone ? 'WORK COMPLETE' : 'DEPT WORK COMPLETE',
+      status: allDone ? 'PENDING VERIFICATION' : '',
+      correctiveAct: body.correctiveAct || '', rootCause: body.rootCause || '',
+      preventiveAct: body.preventiveAct || '', fixType: body.fixType || '',
+      actualHours: body.actualHours || '', downtimeDuration: body.downtimeDuration || '',
+      tempFixFlag: body.tempFixFlag,
+      jointSignoffs: JSON.stringify(signoffs),
+      updatedBy, notes: body.notes || '',
+      clrToolsRemoved: body.clrToolsRemoved || '', clrAreaClean: body.clrAreaClean || '',
+      clrQaRequired: body.clrQaRequired || '',
+    };
+    if (allDone) logOpts.assignedDept = owner;
+    await appendMasterLog(token, env, logOpts);
+    const remaining = joint.filter(d => !(signoffs[d] && signoffs[d].complete));
+    await appendTicketHistory(token, env, ticketNo,
+      allDone ? 'WORK COMPLETE' : 'DEPT WORK COMPLETE',
+      allDone ? 'OPEN' : '', allDone ? 'PENDING VERIFICATION' : '',
+      updatedBy,
+      allDone
+        ? 'All joint departments complete — awaiting owner verification'
+        : myDept + ' marked work complete' + (remaining.length ? '; still waiting on: ' + remaining.join(', ') : ''));
+    return jsonResponse({ success: true, ticketNo, allDone, myDept, remaining });
+  }
+
+  // Single-dept ticket: original one-step behavior.
   await appendMasterLog(token, env, {
     ticketNo, now: new Date(), action: 'WORK COMPLETE', status: 'PENDING VERIFICATION',
     correctiveAct: body.correctiveAct || '', rootCause: body.rootCause || '',
@@ -1884,6 +1954,19 @@ async function handleVerifyClose(env, userEmail, body) {
   const mine  = user.ownedDepts || [];
   if (!(user.isAdmin || mine.indexOf(owner) >= 0)) {
     return jsonResponse({ error: 'Only the owning department (' + owner + ') can verify & close this ticket.' }, 403);
+  }
+
+  // Joint sign-off gate: every joint dept must have marked their work complete
+  // (complete:true in JOINT_SIGNOFFS) before the owner can close. This ensures
+  // no dept's repair gets skipped in the audit trail.
+  const joint = _normDepts_(cellStr(best, ML.JOINT_DEPTS));
+  if (joint.length) {
+    let signoffs = {};
+    try { signoffs = JSON.parse(cellStr(best, ML.JOINT_SIGNOFFS) || '{}'); } catch (_) {}
+    const incomplete = joint.filter(d => !(signoffs[d] && signoffs[d].complete));
+    if (incomplete.length) {
+      return jsonResponse({ error: 'Cannot close: the following joint departments have not completed their work: ' + incomplete.join(', ') }, 400);
+    }
   }
 
   const updatedBy = String(body.updatedBy || user.displayName).trim();
@@ -2242,7 +2325,11 @@ async function handleDeptSignOff(env, userEmail, body) {
   let signoffs = {};
   try { signoffs = JSON.parse(cellStr(best, ML.JOINT_SIGNOFFS) || '{}'); } catch (_) {}
   const dept = user.ownedDepts[0] || '';
-  if (dept) signoffs[dept] = { by: updatedBy, at: fmtDate(new Date()) };
+  // Merge: preserve existing complete:true set by handleCompleteTicket — a
+  // lightweight sign-off must never accidentally clear a dept's work-complete status.
+  if (dept) signoffs[dept] = Object.assign({}, signoffs[dept] || {}, {
+    by: updatedBy, at: fmtDate(new Date()), notes: body.notes || '',
+  });
 
   await appendMasterLog(token, env, {
     ticketNo, now: new Date(), action: 'DEPT SIGN-OFF',
