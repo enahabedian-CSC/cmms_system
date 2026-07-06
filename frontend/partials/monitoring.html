@@ -11,16 +11,21 @@
 .mon-search{height:30px;padding:0 10px;border:1px solid var(--border-default);border-radius:6px;font-size:12.5px;width:180px;outline:none;color:var(--text-primary);}
 .mon-search:focus{border-color:var(--brand-navy);}
 .mon-filter-select{height:30px;padding:0 8px;border:1px solid var(--border-default);border-radius:6px;font-size:12px;background:#fff;color:var(--text-primary);outline:none;}
-.mon-table-wrap{background:var(--bg-surface);border:1px solid var(--border-default);border-radius:10px;overflow-x:auto;box-shadow:var(--shadow-sm);}
-.mon-table{width:100%;border-collapse:collapse;font-size:12.5px;}
-.mon-table th{background:var(--bg-subtle);padding:9px 12px;text-align:left;font-size:11px;font-weight:600;color:var(--text-secondary);text-transform:uppercase;letter-spacing:.04em;border-bottom:1px solid var(--border-default);white-space:nowrap;}
-.mon-table td{padding:9px 12px;border-bottom:1px solid var(--border-default);vertical-align:middle;}
+.mon-table-wrap{background:var(--bg-surface);border:1px solid var(--border-default);border-radius:10px;overflow-x:hidden;box-shadow:var(--shadow-sm);max-width:100%;}
+.mon-table{width:100%;border-collapse:collapse;font-size:clamp(9px,1vw,12.5px);table-layout:auto;}
+.mon-table th{background:var(--bg-subtle);padding:clamp(4px,.5vw,9px) clamp(3px,.65vw,12px);text-align:left;font-size:clamp(8px,.85vw,11px);font-weight:600;color:var(--text-secondary);text-transform:uppercase;letter-spacing:.04em;border-bottom:1px solid var(--border-default);white-space:nowrap;}
+.mon-table td{padding:clamp(4px,.5vw,9px) clamp(3px,.65vw,12px);border-bottom:1px solid var(--border-default);vertical-align:middle;}
 .mon-table tr:last-child td{border-bottom:0;}
 .mon-table tbody tr:hover{background:var(--bg-hover);}
 .mon-empty{padding:40px 24px;text-align:center;color:var(--text-secondary);font-size:13px;}
-.mon-id{font-family:var(--font-mono);font-size:11px;color:var(--text-secondary);}
-.mon-desc{max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text-secondary);}
-.mon-equip{max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.mon-id{font-family:var(--font-mono);font-size:clamp(9px,.9vw,11px);color:var(--text-secondary);}
+.mon-desc{max-width:clamp(80px,12vw,200px);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text-secondary);}
+.mon-equip{max-width:clamp(70px,10vw,160px);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+/* Equipment Hold Log — responsive column visibility */
+.ehl-c-md,.ehl-c-lg{display:none;}
+@media(min-width:640px){.ehl-c-sm{display:table-cell;}}
+@media(min-width:900px){.ehl-c-md{display:table-cell;}}
+@media(min-width:1150px){.ehl-c-lg{display:table-cell;}}
 
 /* Status badges reuse pri-badge / stat-badge; extra monitoring statuses: */
 .stat-ACTIVE    {background:#FFF3E0;color:#E65100;}
@@ -474,9 +479,19 @@ function _renderEhl_(items, container) {
     _ehlKpiBar_(_ehlData_) +
     '<div class="mon-table-wrap"><table class="mon-table">' +
       '<thead><tr>' +
-        '<th>Hold Ref #</th><th>Tag ID</th><th>Ticket #</th><th>Equipment</th><th>Dept</th>' +
-        '<th>Tag Type</th><th>Status</th><th>Date Tagged</th><th>Reason / Identified Risk</th><th>CAPA #</th>' +
-        '<th>Disposition (Release)</th><th>Authority</th><th></th>' +
+        '<th class="ehl-c-lg">Hold Ref #</th>' +
+        '<th class="ehl-c-md">Tag ID</th>' +
+        '<th class="ehl-c-sm">Ticket #</th>' +
+        '<th>Equipment</th>' +
+        '<th class="ehl-c-sm">Dept</th>' +
+        '<th>Tag Type</th>' +
+        '<th>Status</th>' +
+        '<th class="ehl-c-sm">Date Tagged</th>' +
+        '<th>Reason / Risk</th>' +
+        '<th class="ehl-c-md">CAPA #</th>' +
+        '<th class="ehl-c-lg">Disposition</th>' +
+        '<th class="ehl-c-lg">Authority</th>' +
+        '<th></th>' +
       '</tr></thead>' +
       '<tbody id="ehl-tbody"></tbody>' +
     '</table></div></div>';
@@ -500,7 +515,7 @@ function _ehlRenderRows_(list) {
   var cntEl = document.getElementById('ehl-cnt');
   if (cntEl) cntEl.textContent = list.length + ' item' + (list.length !== 1 ? 's' : '');
   if (list.length === 0) {
-    tbody.innerHTML = '<tr><td colspan="13" class="mon-empty">No equipment holds.</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="9" class="mon-empty">No equipment holds.</td></tr>';
     return;
   }
   tbody.innerHTML = list.map(function(t) {
@@ -517,20 +532,20 @@ function _ehlRenderRows_(list) {
       : '<button class="mon-btn" onclick="_ehlPrintTag_(\'' + esc(t.tagId) + '\')">🖨 Print Tag</button> ' +
         '<button class="mon-btn danger" onclick="_ehlClear_(\'' + esc(t.tagId) + '\')">Release / Clear</button>';
     return '<tr' + (released ? ' style="opacity:.72;"' : '') + '>' +
-      '<td class="mon-id">' + esc(t.holdRef || '—') + '</td>' +
-      '<td class="mon-id">' + esc(t.tagId) + '</td>' +
-      '<td style="font-family:var(--font-mono);font-size:11.5px;color:var(--brand-navy);">' + esc(t.ticketNo) + '</td>' +
+      '<td class="mon-id ehl-c-lg">' + esc(t.holdRef || '—') + '</td>' +
+      '<td class="mon-id ehl-c-md">' + esc(t.tagId) + '</td>' +
+      '<td class="ehl-c-sm" style="font-family:var(--font-mono);font-size:clamp(9px,.9vw,11.5px);color:var(--brand-navy);">' + esc(t.ticketNo) + '</td>' +
       '<td class="mon-equip" title="' + esc(t.equipCode ? t.equipCode + ' — ' + t.specificEquip : t.specificEquip) + '">' +
-        (t.equipCode ? '<span style="font-family:var(--font-mono);font-size:10.5px;color:var(--text-secondary);">' + esc(t.equipCode) + '</span> ' : '') +
+        (t.equipCode ? '<span style="font-family:var(--font-mono);font-size:clamp(8px,.8vw,10.5px);color:var(--text-secondary);">' + esc(t.equipCode) + '</span> ' : '') +
         esc(t.specificEquip) + '</td>' +
-      '<td>' + esc(t.dept) + '</td>' +
-      '<td><span style="background:var(--status-critical-bg);color:var(--status-critical);font-size:10.5px;font-weight:700;padding:2px 6px;border-radius:4px;">' + esc(t.tagType || 'HOLD') + '</span></td>' +
+      '<td class="ehl-c-sm">' + esc(t.dept) + '</td>' +
+      '<td><span style="background:var(--status-critical-bg);color:var(--status-critical);font-size:clamp(8px,.8vw,10.5px);font-weight:700;padding:2px 6px;border-radius:4px;white-space:nowrap;">' + esc(t.tagType || 'HOLD') + '</span></td>' +
       '<td>' + statusCell + '</td>' +
-      '<td style="font-size:11.5px;color:var(--text-tertiary);">' + esc(t.dateTagged) + '</td>' +
+      '<td class="ehl-c-sm" style="font-size:clamp(9px,.9vw,11.5px);color:var(--text-tertiary);white-space:nowrap;">' + esc(t.dateTagged) + '</td>' +
       '<td class="mon-desc" title="' + esc(t.reason) + '">' + esc(t.reason) + '</td>' +
-      '<td style="font-family:var(--font-mono);font-size:11px;color:var(--text-secondary);">' + esc(t.capaRef || '—') + '</td>' +
-      '<td style="font-size:11.5px;">' + dispoCell + '</td>' +
-      '<td>' + esc(t.taggedBy) + '</td>' +
+      '<td class="mon-id ehl-c-md">' + esc(t.capaRef || '—') + '</td>' +
+      '<td class="ehl-c-lg" style="font-size:clamp(9px,.9vw,11.5px);">' + dispoCell + '</td>' +
+      '<td class="ehl-c-lg">' + esc(t.taggedBy) + '</td>' +
       '<td style="white-space:nowrap;">' + actionCell + '</td>' +
     '</tr>';
   }).join('');
