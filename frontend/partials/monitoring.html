@@ -24,9 +24,9 @@
 /* Equipment Hold Log — responsive column visibility.
    Base: 5 cols (Equipment · Tag Type · Status · Reason · Actions).
    Always-shown cols carry no class; hidden-by-default cols use ehl-c-* classes. */
-.ehl-c-sm,.ehl-c-md,.ehl-c-lg{display:none;}
+.ehl-c-sm,.ehl-c-md,.ehl-c-lg,.ehl-c-none{display:none;}
 @media(min-width:640px){.ehl-c-sm{display:table-cell;}} /* +Ticket # · Dept · Date Tagged → 8 cols */
-@media(min-width:900px){.ehl-c-md{display:table-cell;}} /* +Tag ID · CAPA # → 10 cols            */
+@media(min-width:900px){.ehl-c-md{display:table-cell;}} /* +CAPA # → 9 cols            */
 @media(min-width:1150px){.ehl-c-lg{display:table-cell;}}/* +Hold Ref · Disposition · Authority → 13 */
 
 /* Status badges reuse pri-badge / stat-badge; extra monitoring statuses: */
@@ -482,7 +482,7 @@ function _renderEhl_(items, container) {
     '<div class="mon-table-wrap"><table class="mon-table">' +
       '<thead><tr>' +
         '<th class="ehl-c-lg">Hold Ref #</th>' +
-        '<th class="ehl-c-md">Tag ID</th>' +
+        '<th class="ehl-c-none">Tag ID</th>' +
         '<th class="ehl-c-sm">Ticket #</th>' +
         '<th>Equipment</th>' +
         '<th class="ehl-c-sm">Dept</th>' +
@@ -535,7 +535,7 @@ function _ehlRenderRows_(list) {
         '<button class="mon-btn danger" onclick="_ehlClear_(\'' + esc(t.tagId) + '\')">Release / Clear</button>';
     return '<tr' + (released ? ' style="opacity:.72;"' : '') + '>' +
       '<td class="mon-id ehl-c-lg">' + esc(t.holdRef || '—') + '</td>' +
-      '<td class="mon-id ehl-c-md">' + esc(t.tagId) + '</td>' +
+      '<td class="mon-id ehl-c-none">' + esc(t.tagId) + '</td>' +
       '<td class="ehl-c-sm" style="font-family:var(--font-mono);font-size:clamp(9px,.9vw,11.5px);color:var(--brand-navy);">' + esc(t.ticketNo) + '</td>' +
       '<td class="mon-equip" title="' + esc(t.equipCode ? t.equipCode + ' — ' + t.specificEquip : t.specificEquip) + '">' +
         (t.equipCode ? '<span style="font-family:var(--font-mono);font-size:clamp(8px,.8vw,10.5px);color:var(--text-secondary);">' + esc(t.equipCode) + '</span> ' : '') +
