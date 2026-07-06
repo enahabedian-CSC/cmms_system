@@ -603,17 +603,49 @@ function _ehlPrintTag_(tagId) {
       '<div class="eht-foot"><span>' + esc(ref) + '</span><span>CSC Maintenance · FRM-029-002</span></div>' +
     '</div>';
 
-  var area = document.getElementById('ehl-print-area');
-  if (!area) { showToast('Print area missing', 'error'); return; }
-  area.innerHTML = html;
-  document.body.classList.add('printing-tag');
-  function _cleanup_() {
-    document.body.classList.remove('printing-tag');
-    window.removeEventListener('afterprint', _cleanup_);
-  }
-  window.addEventListener('afterprint', _cleanup_);
-  window.print();
-  setTimeout(_cleanup_, 2000); // fallback if afterprint doesn't fire
+  // Open a standalone popup window so print works even when the app is
+  // embedded in an iFrame (Google Sites, etc.) where window.print() is blocked.
+  var css = [
+    'body{margin:20px;font-family:Arial,Helvetica,sans-serif;background:#fff;}',
+    '.eht-tag{width:340px;margin:0 auto;border:3px solid #000;border-radius:10px;font-family:Arial,Helvetica,sans-serif;background:#fff;overflow:hidden;}',
+    '.eht-hero{padding:12px 14px;text-align:center;background:#C62828;color:#fff;}',
+    '.eht-hero .l{font-size:10px;letter-spacing:.06em;text-transform:uppercase;opacity:.92;}',
+    '.eht-hero .n{font-size:22px;font-weight:800;font-family:"Courier New",monospace;margin-top:2px;}',
+    '.eht-cobar{display:flex;justify-content:space-between;align-items:center;padding:6px 12px;background:#111;color:#fff;font-size:10px;font-weight:600;}',
+    '.eht-title{text-align:center;padding:10px;border-bottom:2px solid #000;}',
+    '.eht-title .m{font-size:17px;font-weight:800;letter-spacing:.02em;}',
+    '.eht-title .s{font-size:10.5px;color:#444;margin-top:2px;}',
+    '.eht-status{text-align:center;padding:12px;background:#C62828;color:#fff;}',
+    '.eht-status .t{font-size:16px;font-weight:800;}',
+    '.eht-status .onhold{font-size:12px;font-weight:800;margin-top:5px;text-transform:uppercase;letter-spacing:.02em;}',
+    '.eht-seclbl{background:#000;color:#fff;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;padding:3px 12px;}',
+    '.eht-grid{display:grid;grid-template-columns:1fr 1fr;}',
+    '.eht-grid .f{padding:6px 12px;border-bottom:1px solid #ccc;border-right:1px solid #ccc;}',
+    '.eht-grid .f .fl{font-size:8.5px;text-transform:uppercase;color:#666;letter-spacing:.04em;}',
+    '.eht-grid .f .fv{font-size:12px;font-weight:600;color:#000;margin-top:1px;word-break:break-word;}',
+    '.eht-reason{padding:8px 12px;border-bottom:1px solid #000;}',
+    '.eht-reason .fl{font-size:9px;text-transform:uppercase;color:#666;font-weight:700;}',
+    '.eht-reason .fv{font-size:12.5px;color:#000;margin-top:2px;word-break:break-word;}',
+    '.eht-warn{background:#000;color:#fff;text-align:center;font-weight:800;font-size:12px;padding:8px;letter-spacing:.04em;}',
+    '.eht-sign{display:grid;grid-template-columns:1fr 1fr;border-bottom:1px solid #000;}',
+    '.eht-sign .sg{padding:18px 10px 6px;border-right:1px solid #ccc;}',
+    '.eht-sign .sg .sl{font-size:8.5px;text-transform:uppercase;color:#666;border-top:1px solid #000;padding-top:3px;}',
+    '.eht-foot{display:flex;justify-content:space-between;padding:6px 12px;font-size:9px;color:#444;}',
+    '.eht-yellow .eht-hero,.eht-yellow .eht-status{background:#F9A825;color:#000;}',
+    '.eht-orange .eht-hero,.eht-orange .eht-status{background:#EF6C00;color:#fff;}',
+    '@media print{*{-webkit-print-color-adjust:exact !important;print-color-adjust:exact !important;color-adjust:exact !important;}}'
+  ].join('');
+
+  var win = window.open('', '_blank', 'width=520,height=760,menubar=no,toolbar=no,location=no,status=no');
+  if (!win) { showToast('Pop-ups blocked — allow pop-ups for this site to print tags', 'error'); return; }
+  win.document.write(
+    '<!DOCTYPE html><html><head><meta charset="utf-8"><title>Hold Tag — ' + esc(tagId) + '</title>' +
+    '<style>' + css + '</style></head>' +
+    '<body>' + html +
+    '<script>window.onload=function(){setTimeout(function(){window.print();},250);};<\/script>' +
+    '</body></html>'
+  );
+  win.document.close();
 }
 
 function _ehlClear_(tagId) {

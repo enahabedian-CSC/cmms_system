@@ -1009,23 +1009,37 @@ function _htBuildPrintDoc_(data, tagId, tagDate) {
 }
 
 function _htPrint_(data, tagId, tagDate) {
-  var area = document.getElementById('ht-print-area');
-  if (!area) {
-    area = document.createElement('div');
-    area.id = 'ht-print-area';
-    area.className = 'ht-print-area';
-    document.body.appendChild(area);
-  }
-  area.innerHTML = _htBuildPrintDoc_(data, tagId, tagDate);
-  document.body.classList.add('printing-htdoc');
-  function _done_() {
-    document.body.classList.remove('printing-htdoc');
-    area.innerHTML = '';
-    window.removeEventListener('afterprint', _done_);
-  }
-  window.addEventListener('afterprint', _done_);
-  window.print();
-  setTimeout(_done_, 1500);
+  // Open a standalone popup so print works even inside an iFrame (Google Sites).
+  var css = [
+    'body{margin:24px;font-family:Arial,Helvetica,sans-serif;background:#fff;}',
+    '.ht-doc{font-family:Arial,Helvetica,sans-serif;color:#111;max-width:420px;margin:0 auto;border:3px solid #ccc;border-radius:4px;}',
+    '.ht-doc.ht-red{border-color:#DC2626;}',
+    '.ht-doc.ht-yellow{border-color:#CA8A04;}',
+    '.ht-doc.ht-orange{border-color:#EA580C;}',
+    '.ht-doc .ht-hdr{padding:10px 14px;display:flex;align-items:flex-start;justify-content:space-between;color:#fff;}',
+    '.ht-doc.ht-red .ht-hdr{background:#DC2626;}',
+    '.ht-doc.ht-yellow .ht-hdr{background:#CA8A04;}',
+    '.ht-doc.ht-orange .ht-hdr{background:#EA580C;}',
+    '.ht-doc .ht-hdr h2{margin:0;font-size:16px;font-weight:700;}',
+    '.ht-doc .ht-hdr .ht-sub{font-size:10px;opacity:.88;margin-top:2px;}',
+    '.ht-doc .ht-body{padding:10px 14px;}',
+    '.ht-doc .ht-field{margin-bottom:6px;}',
+    '.ht-doc .ht-lbl{font-size:8.5px;text-transform:uppercase;letter-spacing:.05em;color:#666;}',
+    '.ht-doc .ht-val{font-size:12px;color:#111;font-weight:600;}',
+    '.ht-doc .ht-reason-box{background:#FFFBEB;border:1px solid #D97706;border-radius:3px;padding:7px 9px;margin:8px 0;}',
+    '.ht-doc .ht-footer{border-top:1px solid #e5e5e5;padding:7px 14px;font-size:8.5px;color:#888;text-align:center;}',
+    '@media print{*{-webkit-print-color-adjust:exact !important;print-color-adjust:exact !important;color-adjust:exact !important;}}'
+  ].join('');
+  var win = window.open('', '_blank', 'width=520,height=700,menubar=no,toolbar=no,location=no,status=no');
+  if (!win) { showToast('Pop-ups blocked — allow pop-ups for this site to print tags', 'error'); return; }
+  win.document.write(
+    '<!DOCTYPE html><html><head><meta charset="utf-8"><title>Hold Tag — ' + esc(tagId) + '</title>' +
+    '<style>' + css + '</style></head>' +
+    '<body>' + _htBuildPrintDoc_(data, tagId, tagDate) +
+    '<script>window.onload=function(){setTimeout(function(){window.print();},250);};<\/script>' +
+    '</body></html>'
+  );
+  win.document.close();
 }
 
 // Yes/No (+ optional N/A) select row for the Post-Repair Clearance block.
