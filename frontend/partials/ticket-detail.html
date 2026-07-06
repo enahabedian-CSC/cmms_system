@@ -951,7 +951,15 @@ function _tdIssueTag_() {
         if (result && result.success) {
           showToast('Hold Tag Issued: ' + data.ticketNo, 'success');
           openTicketDetail(data.ticketNo);
-          _htPrint_(data, result.tagId, _tagDate);
+          // Show tag preview in a modal with an explicit Print button.
+          // window.print() must be triggered by a direct user gesture — calling it
+          // inside a fetch callback causes browsers to silently block the dialog.
+          var _tagId = result.tagId || '';
+          _showModal_('Hold Tag Issued — ' + _tagId,
+            _htBuildPrintDoc_(data, _tagId, _tagDate),
+            function() { _htPrint_(data, _tagId, _tagDate); _closeModal_(); },
+            'Print Tag'
+          );
         } else {
           showToast('Error: ' + ((result && result.error) || 'Unknown error'), 'error');
           openTicketDetail(data.ticketNo);
