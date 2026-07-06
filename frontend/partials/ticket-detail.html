@@ -288,9 +288,9 @@ function _renderDetail_(result) {
     }
     actions += '<button class="btn-action btn-void" onclick="_tdIssueTag_()">🏷 Issue Hold Tag</button>';
   }
-  if ((t.status === 'COMPLETE' || t.status === 'PENDING VERIFICATION') && canVerify) {
+  if (t.status === 'PENDING VERIFICATION' && canVerify) {
     actions += '<button class="btn-action btn-verify" onclick="_tdVerifyClose_()">✓ Verify &amp; Close</button>';
-  } else if (t.status === 'COMPLETE' || t.status === 'PENDING VERIFICATION') {
+  } else if (t.status === 'PENDING VERIFICATION') {
     actions += '<span class="td-pending-close">⏳ ' + esc(t.dept) + ' Manager must close this ticket</span>';
   }
   if (t.status !== 'CLOSED' && t.status !== 'VOIDED' && canManage) {

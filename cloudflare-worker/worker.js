@@ -504,7 +504,7 @@ async function handleDashboardCounts(env, userEmail) {
   // ACTIVE_STS: all non-closed states — used for critical so an urgent ticket
   // is counted whether it's being worked or awaiting verification.
   const WORK_STS   = new Set(['OPEN', 'PENDING PARTS', 'ON HOLD']);
-  const ACTIVE_STS = new Set(['OPEN', 'PENDING PARTS', 'ON HOLD', 'COMPLETE', 'PENDING VERIFICATION']);
+  const ACTIVE_STS = new Set(['OPEN', 'PENDING PARTS', 'ON HOLD', 'PENDING VERIFICATION']);
 
   // System-wide unique totals (each ticket counted once, joint-safe).
   Object.keys(gStatus).forEach(tn => {
@@ -512,7 +512,7 @@ async function handleDashboardCounts(env, userEmail) {
     if (WORK_STS.has(st))   counts.openAll++;
     if (ACTIVE_STS.has(st) && gPriority[tn] === 'CRITICAL') counts.criticalAll++;
     if (st === 'WAITING')   counts.waitingAll++;
-    if (st === 'COMPLETE' || st === 'PENDING VERIFICATION') counts.verifyAll++;
+    if (st === 'PENDING VERIFICATION') counts.verifyAll++;
   });
 
   Object.keys(latestStatus).forEach(tn => {
@@ -520,8 +520,8 @@ async function handleDashboardCounts(env, userEmail) {
     if (WORK_STS.has(st))   counts.open++;
     if (ACTIVE_STS.has(st) && latestPriority[tn] === 'CRITICAL') counts.critical++;
     if (st === 'WAITING') counts.waiting++;
-    if (st === 'COMPLETE' || st === 'PENDING VERIFICATION') counts.verify++;
-    if ((st === 'CLOSED' || st === 'COMPLETE') && latestClosed[tn]) {
+    if (st === 'PENDING VERIFICATION') counts.verify++;
+    if (st === 'CLOSED' && latestClosed[tn]) {
       const cd = latestClosed[tn];
       if (cd >= thirtyDaysAgo) counts.closedRecent++;
       if (cd >= weekStart)     counts.closedThisWeek++;
@@ -584,7 +584,7 @@ async function handleDashboardPanels(env, userEmail) {
   );
 
   const reviewItems = [], verifyItems = [], tempItems = [], openTickets = [];
-  const OPEN_STS = new Set(['OPEN', 'PENDING PARTS', 'ON HOLD', 'COMPLETE', 'PENDING VERIFICATION']);
+  const OPEN_STS = new Set(['OPEN', 'PENDING PARTS', 'ON HOLD', 'PENDING VERIFICATION']);
 
   allTickets.forEach(r => {
     const tn     = cellStr(r, ML.TICKET_NO);
@@ -603,7 +603,7 @@ async function handleDashboardPanels(env, userEmail) {
         sub: dept + (code ? ' · ' + code : '') + (prio ? ' · ' + prio + ' priority' : '') + ' — awaiting approval',
         action: 'Approve', pageTarget: 'waiting',
       });
-    } else if ((status === 'COMPLETE' || status === 'PENDING VERIFICATION') && verifyItems.length < 8) {
+    } else if (status === 'PENDING VERIFICATION' && verifyItems.length < 8) {
       verifyItems.push({
         kind: 'complete', ticketNo: tn,
         title: equip || desc || tn,
@@ -1283,9 +1283,9 @@ async function handleQueueTickets(env, userEmail, queueType, deptFilter) {
   let statusFilter;
   switch (queueType) {
     case 'waiting': statusFilter = ['WAITING']; break;
-    case 'open':    statusFilter = ['OPEN', 'COMPLETE', 'PENDING VERIFICATION', 'PENDING PARTS', 'ON HOLD']; break;
-    case 'verify':  statusFilter = ['COMPLETE', 'PENDING VERIFICATION']; break;
-    case 'tracker': statusFilter = ['WAITING', 'OPEN', 'COMPLETE', 'PENDING VERIFICATION', 'PENDING PARTS', 'ON HOLD']; break;
+    case 'open':    statusFilter = ['OPEN', 'PENDING VERIFICATION', 'PENDING PARTS', 'ON HOLD']; break;
+    case 'verify':  statusFilter = ['PENDING VERIFICATION']; break;
+    case 'tracker': statusFilter = ['WAITING', 'OPEN', 'PENDING VERIFICATION', 'PENDING PARTS', 'ON HOLD']; break;
     default:        statusFilter = ['WAITING', 'OPEN']; break;
   }
 
@@ -1402,7 +1402,7 @@ async function handleClosedTickets(env, userEmail) {
   const tickets = [];
   Object.values(byTicket).forEach(r => {
     const status = cellStr(r, ML.STATUS).toUpperCase();
-    if (status !== 'CLOSED' && status !== 'COMPLETE') return;
+    if (status !== 'CLOSED') return;
     const rawClose = cellDate(r, ML.DATE_CLOSED) || cellDate(r, ML.VERIFIED_DATE);
     tickets.push({
       ticketNo:     cellStr(r, ML.TICKET_NO),
@@ -1842,7 +1842,7 @@ async function handleCompleteTicket(env, userEmail, body) {
 
   const updatedBy = String(body.updatedBy || user.displayName).trim();
   await appendMasterLog(token, env, {
-    ticketNo, now: new Date(), action: 'WORK COMPLETE', status: 'COMPLETE',
+    ticketNo, now: new Date(), action: 'WORK COMPLETE', status: 'PENDING VERIFICATION',
     correctiveAct: body.correctiveAct || '', rootCause: body.rootCause || '',
     preventiveAct: body.preventiveAct || '', fixType: body.fixType || '',
     actualHours: body.actualHours || '', downtimeDuration: body.downtimeDuration || '',
@@ -1853,7 +1853,7 @@ async function handleCompleteTicket(env, userEmail, body) {
     // Revert assigned dept back to owner so they know to verify & close
     assignedDept: owner,
   });
-  await appendTicketHistory(token, env, ticketNo, 'WORK COMPLETE', 'OPEN', 'COMPLETE', updatedBy, '');
+  await appendTicketHistory(token, env, ticketNo, 'WORK COMPLETE', 'OPEN', 'PENDING VERIFICATION', updatedBy, '');
   return jsonResponse({ success: true, ticketNo });
 }
 
@@ -1897,7 +1897,7 @@ async function handleVerifyClose(env, userEmail, body) {
     clrQaRequired: body.clrQaRequired || '',
     updatedBy, notes: body.notes || '',
   });
-  await appendTicketHistory(token, env, ticketNo, 'VERIFIED & CLOSED', 'COMPLETE', 'CLOSED', updatedBy, body.notes || '');
+  await appendTicketHistory(token, env, ticketNo, 'VERIFIED & CLOSED', 'PENDING VERIFICATION', 'CLOSED', updatedBy, body.notes || '');
   return jsonResponse({ success: true, ticketNo });
 }
 
@@ -2273,7 +2273,7 @@ async function handleActiveTickets(env, userEmail) {
     r.forEach((v, i) => { if (v != null && v !== '') cur[i] = v; });
   });
 
-  const ACTIVE = new Set(['WAITING', 'OPEN', 'COMPLETE', 'PENDING VERIFICATION', 'PENDING PARTS', 'ON HOLD']);
+  const ACTIVE = new Set(['WAITING', 'OPEN', 'PENDING VERIFICATION', 'PENDING PARTS', 'ON HOLD']);
   const tickets = [];
   Object.keys(byTicket).forEach(tn => {
     const r  = byTicket[tn];
@@ -2320,7 +2320,7 @@ async function handleReportData(env, userEmail, daysBack) {
     r.forEach((v, i) => { if (v != null && v !== '') byTicket[tn][i] = v; });
   });
 
-  const ACTIVE = ['WAITING','OPEN','COMPLETE','PENDING VERIFICATION','PENDING PARTS','ON HOLD'];
+  const ACTIVE = ['WAITING','OPEN','PENDING VERIFICATION','PENDING PARTS','ON HOLD'];
   const tickets = [];
   const statusFunnel = { waiting:0, open:0, pendingVerify:0, pendingParts:0, closed:0 };
   const deptStats = {};
@@ -2354,8 +2354,8 @@ async function handleReportData(env, userEmail, daysBack) {
     if (!deptStats[dept]) deptStats[dept] = { dept, open:0, waiting:0, closed:0, critical:0, tempFix:0, totalHours:0 };
     const ds = deptStats[dept];
     if (status === 'WAITING') { statusFunnel.waiting++; ds.waiting++; }
-    else if (status === 'CLOSED' || status === 'COMPLETE') { statusFunnel.closed++; ds.closed++; }
-    else if (status === 'COMPLETE' || status === 'PENDING VERIFICATION') statusFunnel.pendingVerify++;
+    else if (status === 'CLOSED') { statusFunnel.closed++; ds.closed++; }
+    else if (status === 'PENDING VERIFICATION') statusFunnel.pendingVerify++;
     else if (status === 'PENDING PARTS')        statusFunnel.pendingParts++;
     else { statusFunnel.open++; ds.open++; }
     if (cellStr(r, ML.PRIORITY).toUpperCase() === 'CRITICAL') ds.critical++;
@@ -2394,7 +2394,7 @@ async function handleReportData(env, userEmail, daysBack) {
     if (tech) {
       if (!teamMap[tech]) teamMap[tech] = { name: tech, open:0, closed:0, totalHrs:0, closeTimes:[] };
       const tm = teamMap[tech];
-      const isClosed = status === 'CLOSED' || status === 'COMPLETE';
+      const isClosed = status === 'CLOSED';
       if (isClosed) { tm.closed++; if (doDate && dc) tm.closeTimes.push((dc - doDate) / 3600000); }
       else if (ACTIVE.includes(status)) tm.open++;
       if (actualH) tm.totalHrs += actualH;
@@ -2425,7 +2425,7 @@ async function handleReportData(env, userEmail, daysBack) {
   })).sort((a, b) => b.open - a.open);
 
   const openTickets     = tickets.filter(t => ACTIVE.includes(t.status));
-  const closedInPeriod  = tickets.filter(t => t.status === 'CLOSED' || t.status === 'COMPLETE');
+  const closedInPeriod  = tickets.filter(t => t.status === 'CLOSED');
   const closedTimes     = closedInPeriod.map(t => {
     const d0 = t.dateOpened ? new Date(t.dateOpened) : null;
     const d1 = t.dateClosed ? new Date(t.dateClosed)  : null;
@@ -2442,7 +2442,7 @@ async function handleReportData(env, userEmail, daysBack) {
     avgTimeToClose,
   };
   const sqfPack = {
-    verifiedCount: tickets.filter(t => (t.status === 'CLOSED' || t.status === 'COMPLETE') && t.verifiedBy).length,
+    verifiedCount: tickets.filter(t => t.status === 'CLOSED' && t.verifiedBy).length,
     totalClosed:   closedInPeriod.length,
     openCritical:  kpis.critical,
     avgCaDays:     avgTimeToClose !== null ? Math.round(avgTimeToClose / 24) : null,
@@ -2508,7 +2508,7 @@ async function handleEMRLData(env, userEmail, params) {
   Object.values(byTicket).forEach(r => {
     const tn     = cellStr(r, ML.TICKET_NO);
     const status = cellStr(r, ML.STATUS).toUpperCase();
-    if (status !== 'CLOSED' && status !== 'COMPLETE') return;
+    if (status !== 'CLOSED') return;
     if (ticketFilter && !tn.toUpperCase().includes(ticketFilter)) return;
     const dept = normalizeDept(cellStr(r, ML.DEPT));
     if (deptFilter && dept.toUpperCase() !== deptFilter) return;
@@ -2826,7 +2826,7 @@ async function handleTechWorkBoard(env, userEmail) {
   if (!user.isManager && !isTech) return jsonResponse({ error: 'Access required' }, 403);
 
   const mlRows = await readSheet(token, env.SPREADSHEET_ID, SH.MASTER_LOG, 'A2:AQ');
-  const ACTIVE = ['WAITING','OPEN','COMPLETE','PENDING VERIFICATION','PENDING PARTS','ON HOLD'];
+  const ACTIVE = ['WAITING','OPEN','PENDING VERIFICATION','PENDING PARTS','ON HOLD'];
   const byTicket = {};
   mlRows.forEach(r => {
     const tn = cellStr(r, ML.TICKET_NO); if (!tn) return;
@@ -3034,7 +3034,8 @@ async function handleTabletStatus(env, body) {
 async function handleTabletComplete(env, body) {
   const ticketNo  = String(body.ticketNo  || '').trim().toUpperCase();
   const tech      = String(body.tech      || '').trim();
-  const newStatus = String(body.newStatus || 'COMPLETE').trim().toUpperCase();
+  const _rawStatus = String(body.newStatus || 'PENDING VERIFICATION').trim().toUpperCase();
+  const newStatus = _rawStatus === 'COMPLETE' ? 'PENDING VERIFICATION' : _rawStatus;
   if (!ticketNo || !tech) return jsonResponse({ success: false, error: 'ticketNo and tech required' }, 400);
   const token  = await getAccessToken(env);
   const mlRows = await readSheet(token, env.SPREADSHEET_ID, SH.MASTER_LOG, 'A2:AU');
@@ -3048,7 +3049,7 @@ async function handleTabletComplete(env, body) {
   if (!best) return jsonResponse({ success: false, error: 'Ticket not found: ' + ticketNo }, 404);
   await appendMasterLog(token, env, {
     ticketNo,
-    action:       newStatus === 'COMPLETE' ? 'TECH COMPLETE — TABLET' : 'TECH UPDATE — TABLET',
+    action:       newStatus === 'PENDING VERIFICATION' ? 'TECH COMPLETE — TABLET' : 'TECH UPDATE — TABLET',
     status:       newStatus,
     dept:         normalizeDept(cellStr(best, ML.DEPT)),
     buildingZone: cellStr(best, ML.BUILDING_ZONE),
@@ -3074,7 +3075,7 @@ async function handleTabletComplete(env, body) {
     notes:        body.notes || '',
     lineNo:       body.lineNo || cellStr(best, ML.LINE_NO),
   });
-  return jsonResponse({ success: true, newStatus, routedToReview: newStatus === 'COMPLETE' });
+  return jsonResponse({ success: true, newStatus, routedToReview: newStatus === 'PENDING VERIFICATION' });
 }
 
 // ── Equipment inventory handler ───────────────────────────────────────────────
@@ -3125,7 +3126,7 @@ async function handleEquipInventory(env, userEmail) {
     const tRows     = Object.values(ticketMap);
     e.totalTickets  = tRows.length;
     e.openTickets   = tRows.filter(r => ACTIVE.has(cellStr(r, ML.STATUS).toUpperCase())).length;
-    const closedRows = tRows.filter(r => { const st = cellStr(r, ML.STATUS).toUpperCase(); return st === 'CLOSED' || st === 'COMPLETE'; });
+    const closedRows = tRows.filter(r => { const st = cellStr(r, ML.STATUS).toUpperCase(); return st === 'CLOSED'; });
     if (closedRows.length) {
       const closeTimes = closedRows.map(r => {
         const d0 = cellDate(r, ML.DATE_OPENED), d1 = cellDate(r, ML.DATE_CLOSED) || cellDate(r, ML.VERIFIED_DATE);

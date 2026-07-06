@@ -186,9 +186,9 @@ function _renderList_(tickets, queueType, deptFilter, container, userOwnedDepts)
   // Dept filter panel only when there are multiple depts and not already dept-scoped
   var showDeptFP = allDepts.length > 1 && queueType !== 'tracker';
 
-  // For tracker: split primary-owned vs complete (awaiting verification) vs joint vs pending-joint tickets
-  var myTickets       = queueType === 'tracker' ? tickets.filter(function(t) { return !t.isJoint && !t.isPendingJoint && t.status !== 'COMPLETE'; }) : tickets;
-  var completeTickets = queueType === 'tracker' ? tickets.filter(function(t) { return !t.isJoint && !t.isPendingJoint && t.status === 'COMPLETE'; }) : [];
+  // For tracker: split primary-owned vs awaiting-verification vs joint vs pending-joint tickets
+  var myTickets       = queueType === 'tracker' ? tickets.filter(function(t) { return !t.isJoint && !t.isPendingJoint && t.status !== 'PENDING VERIFICATION'; }) : tickets;
+  var completeTickets = queueType === 'tracker' ? tickets.filter(function(t) { return !t.isJoint && !t.isPendingJoint && t.status === 'PENDING VERIFICATION'; }) : [];
   var jointTickets    = queueType === 'tracker' ? tickets.filter(function(t) { return  t.isJoint; }) : [];
   var pendingTickets  = queueType === 'tracker' ? tickets.filter(function(t) { return  t.isPendingJoint; }) : [];
 
@@ -225,8 +225,8 @@ function _renderList_(tickets, queueType, deptFilter, container, userOwnedDepts)
     var _sorted = _ss && _ss.field ? _tlSorted_(_filtered, _ss.field, _ss.dir) : _filtered;
 
     if (qt === 'tracker') {
-      var myF       = _sorted.filter(function(t) { return !t.isJoint && !t.isPendingJoint && t.status !== 'COMPLETE'; });
-      var completeF = _sorted.filter(function(t) { return !t.isJoint && !t.isPendingJoint && t.status === 'COMPLETE'; });
+      var myF       = _sorted.filter(function(t) { return !t.isJoint && !t.isPendingJoint && t.status !== 'PENDING VERIFICATION'; });
+      var completeF = _sorted.filter(function(t) { return !t.isJoint && !t.isPendingJoint && t.status === 'PENDING VERIFICATION'; });
       var jointF    = _sorted.filter(function(t) { return  t.isJoint; });
       var pendingF  = _sorted.filter(function(t) { return  t.isPendingJoint; });
       renderRows(myF,       'tl-tbody-tracker-my',       false);
