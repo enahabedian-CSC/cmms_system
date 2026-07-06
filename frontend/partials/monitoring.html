@@ -11,7 +11,7 @@
 .mon-search{height:30px;padding:0 10px;border:1px solid var(--border-default);border-radius:6px;font-size:12.5px;width:180px;outline:none;color:var(--text-primary);}
 .mon-search:focus{border-color:var(--brand-navy);}
 .mon-filter-select{height:30px;padding:0 8px;border:1px solid var(--border-default);border-radius:6px;font-size:12px;background:#fff;color:var(--text-primary);outline:none;}
-.mon-table-wrap{background:var(--bg-surface);border:1px solid var(--border-default);border-radius:10px;overflow-x:hidden;box-shadow:var(--shadow-sm);max-width:100%;}
+.mon-table-wrap{background:var(--bg-surface);border:1px solid var(--border-default);border-radius:10px;overflow-x:auto;box-shadow:var(--shadow-sm);max-width:100%;}
 .mon-table{width:100%;border-collapse:collapse;font-size:clamp(9px,1vw,12.5px);table-layout:auto;}
 .mon-table th{background:var(--bg-subtle);padding:clamp(4px,.5vw,9px) clamp(3px,.65vw,12px);text-align:left;font-size:clamp(8px,.85vw,11px);font-weight:600;color:var(--text-secondary);text-transform:uppercase;letter-spacing:.04em;border-bottom:1px solid var(--border-default);white-space:nowrap;}
 .mon-table td{padding:clamp(4px,.5vw,9px) clamp(3px,.65vw,12px);border-bottom:1px solid var(--border-default);vertical-align:middle;}
@@ -21,11 +21,13 @@
 .mon-id{font-family:var(--font-mono);font-size:clamp(9px,.9vw,11px);color:var(--text-secondary);}
 .mon-desc{max-width:clamp(80px,12vw,200px);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text-secondary);}
 .mon-equip{max-width:clamp(70px,10vw,160px);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
-/* Equipment Hold Log — responsive column visibility */
-.ehl-c-md,.ehl-c-lg{display:none;}
-@media(min-width:640px){.ehl-c-sm{display:table-cell;}}
-@media(min-width:900px){.ehl-c-md{display:table-cell;}}
-@media(min-width:1150px){.ehl-c-lg{display:table-cell;}}
+/* Equipment Hold Log — responsive column visibility.
+   Base: 5 cols (Equipment · Tag Type · Status · Reason · Actions).
+   Always-shown cols carry no class; hidden-by-default cols use ehl-c-* classes. */
+.ehl-c-sm,.ehl-c-md,.ehl-c-lg{display:none;}
+@media(min-width:640px){.ehl-c-sm{display:table-cell;}} /* +Ticket # · Dept · Date Tagged → 8 cols */
+@media(min-width:900px){.ehl-c-md{display:table-cell;}} /* +Tag ID · CAPA # → 10 cols            */
+@media(min-width:1150px){.ehl-c-lg{display:table-cell;}}/* +Hold Ref · Disposition · Authority → 13 */
 
 /* Status badges reuse pri-badge / stat-badge; extra monitoring statuses: */
 .stat-ACTIVE    {background:#FFF3E0;color:#E65100;}
