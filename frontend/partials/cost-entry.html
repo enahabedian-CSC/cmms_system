@@ -1,0 +1,219 @@
+<!-- ╔══════════════════════════════════════════════════════════════════╗ -->
+<!-- ║  Cost Data Entry — standardized form for logging labor + material ║ -->
+<!-- ║  cost records. Registers PAGE: cost-entry.                        ║ -->
+<!-- ║  Depends on the cost-reports module (_CR_DEPTS_, _crAddEntry_,     ║ -->
+<!-- ║  _crMoney_). Saves to localStorage now; syncs to the DB later.    ║ -->
+<!-- ╚══════════════════════════════════════════════════════════════════╝ -->
+<style>
+.ce-wrap{padding:20px 24px;max-width:940px;}
+.ce-card{background:var(--bg-surface);border:1px solid var(--border-default);border-radius:12px;padding:20px 22px;box-shadow:var(--shadow-sm);}
+.ce-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;}
+@media (max-width:720px){.ce-grid{grid-template-columns:1fr;}}
+.ce-field{display:flex;flex-direction:column;gap:5px;}
+.ce-field.full{grid-column:1 / -1;}
+.ce-label{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--text-secondary);}
+.ce-label .req{color:var(--status-critical);margin-left:2px;}
+.ce-inp{height:38px;padding:0 12px;border:1px solid var(--border-default);border-radius:8px;font-size:13px;background:#fff;color:var(--text-primary);outline:none;}
+.ce-inp:focus{border-color:var(--brand-navy);box-shadow:0 0 0 3px rgba(0,31,79,.08);}
+.ce-inp.invalid{border-color:var(--status-critical);background:var(--status-critical-bg);}
+textarea.ce-inp{height:auto;padding:10px 12px;resize:vertical;min-height:60px;font-family:inherit;}
+.ce-hint{font-size:10.5px;color:var(--text-tertiary);}
+.ce-preview{display:flex;gap:28px;flex-wrap:wrap;align-items:center;background:var(--status-info-bg);border:1px solid var(--border-default);border-radius:8px;padding:12px 16px;margin-top:18px;}
+.ce-preview .pv{display:flex;flex-direction:column;gap:2px;}
+.ce-preview .pv-l{font-size:10.5px;text-transform:uppercase;letter-spacing:.05em;color:var(--text-secondary);font-weight:600;}
+.ce-preview .pv-v{font-size:18px;font-weight:700;font-variant-numeric:tabular-nums;color:var(--text-primary);line-height:1;}
+.ce-preview .pv-v.total{color:var(--brand-navy);}
+.ce-actions{display:flex;gap:10px;margin-top:18px;align-items:center;}
+.ce-btn{height:40px;padding:0 20px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;border:1px solid var(--border-default);background:#fff;color:var(--text-secondary);}
+.ce-btn:hover{background:var(--bg-hover);}
+.ce-btn.primary{background:var(--brand-navy);color:#fff;border-color:var(--brand-navy);}
+.ce-btn.primary:hover{background:var(--brand-navy-soft);}
+.ce-note{font-size:11px;color:var(--text-tertiary);font-family:var(--font-mono);margin-top:14px;}
+.ce-recent{margin-top:24px;}
+</style>
+
+<script>
+// ── Cost Data Entry page ────────────────────────────────────────────────────
+var _ceRoot_   = null;
+var _ceDept_   = null;    // selected department id
+var _ceRecent_ = [];      // entries added this session (for the confirmation list)
+
+PAGES['cost-entry'] = function(container) {
+  _ceRoot_ = container;
+  if (!_ceDept_ && typeof _CR_DEPTS_ !== 'undefined') _ceDept_ = _CR_DEPTS_[0].id;
+  _ceRender_();
+};
+
+function _ceTodayIso_() {
+  var d = new Date();
+  var p = function(n) { return (n < 10 ? '0' : '') + n; };
+  return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate());
+}
+
+function _ceRender_(keepDate) {
+  if (!_ceRoot_) return;
+  if (typeof _CR_DEPTS_ === 'undefined') {
+    _ceRoot_.innerHTML = '<div class="ce-wrap"><div class="ce-card">Cost module not loaded.</div></div>';
+    return;
+  }
+  var dept = _ceDeptCfg_(_ceDept_);
+  var date = keepDate || _ceTodayIso_();
+
+  _ceRoot_.innerHTML =
+    '<div class="ce-wrap">' +
+    '<div class="page-head"><div class="page-head-main">' +
+      '<div class="crumbs"><span>Reports &amp; SQF</span><span class="sep">/</span><span class="cur">Cost Data Entry</span></div>' +
+      '<h1>Cost Data Entry</h1>' +
+      '<p class="sub">Log a labor + material cost record for any department. Standardized fields keep every entry consistent for the cost reports.</p>' +
+    '</div></div>' +
+
+    '<div class="ce-card">' +
+      '<div class="ce-grid">' +
+        '<div class="ce-field"><label class="ce-label">Department<span class="req">*</span></label>' +
+          '<select class="ce-inp" id="ce-dept" onchange="_ceSetDept_(this.value)">' +
+            _CR_DEPTS_.map(function(d) {
+              return '<option value="' + d.id + '"' + (d.id === _ceDept_ ? ' selected' : '') + '>' + esc(d.label) + '</option>';
+            }).join('') +
+          '</select></div>' +
+
+        '<div class="ce-field"><label class="ce-label">Date<span class="req">*</span></label>' +
+          '<input type="date" class="ce-inp" id="ce-date" value="' + esc(date) + '" max="' + esc(_ceTodayIso_()) + '"/></div>' +
+
+        '<div class="ce-field"><label class="ce-label">' + esc(dept.assetLabel) + '<span class="req">*</span></label>' +
+          '<input class="ce-inp" id="ce-asset" list="ce-asset-list" placeholder="Select or type…" autocomplete="off"/>' +
+          '<datalist id="ce-asset-list">' + dept.assets.map(function(a) { return '<option value="' + esc(a) + '"></option>'; }).join('') + '</datalist>' +
+        '</div>' +
+
+        '<div class="ce-field"><label class="ce-label">Operator / Tech</label>' +
+          '<input class="ce-inp" id="ce-person" list="ce-person-list" placeholder="Select or type…" autocomplete="off"/>' +
+          '<datalist id="ce-person-list">' + dept.people.map(function(p) { return '<option value="' + esc(p) + '"></option>'; }).join('') + '</datalist>' +
+        '</div>' +
+
+        '<div class="ce-field"><label class="ce-label">Labor Hours<span class="req">*</span></label>' +
+          '<input type="number" min="0" step="0.5" class="ce-inp" id="ce-hours" placeholder="0.0" oninput="_cePreview_()"/></div>' +
+
+        '<div class="ce-field"><label class="ce-label">Material Cost ($)</label>' +
+          '<input type="number" min="0" step="0.01" class="ce-inp" id="ce-material" placeholder="0.00" value="0" oninput="_cePreview_()"/>' +
+          '<span class="ce-hint">Parts, supplies, consumables — leave 0 for labor-only.</span></div>' +
+
+        '<div class="ce-field full"><label class="ce-label">Notes</label>' +
+          '<textarea class="ce-inp" id="ce-note" placeholder="Optional — job description, work order #, etc."></textarea></div>' +
+      '</div>' +
+
+      '<div class="ce-preview">' +
+        '<div class="pv"><span class="pv-l">Rate</span><span class="pv-v" id="ce-pv-rate">' + esc(_crMoney_(dept.rate, 2)) + '/hr</span></div>' +
+        '<div class="pv"><span class="pv-l">Labor Cost</span><span class="pv-v" id="ce-pv-labor">$0.00</span></div>' +
+        '<div class="pv"><span class="pv-l">Material</span><span class="pv-v" id="ce-pv-mat">$0.00</span></div>' +
+        '<div class="pv"><span class="pv-l">Total Cost</span><span class="pv-v total" id="ce-pv-total">$0.00</span></div>' +
+      '</div>' +
+
+      '<div class="ce-actions">' +
+        '<button class="ce-btn primary" onclick="_ceSubmit_()">Save Entry</button>' +
+        '<button class="ce-btn" onclick="_ceRender_()">Clear</button>' +
+        '<button class="ce-btn" onclick="navigate(\'reports\')">Go to Cost Reports</button>' +
+      '</div>' +
+      '<div class="ce-note">Saved in this browser and merged into the cost reports immediately. Entries will sync to the database once the live connection is enabled.</div>' +
+    '</div>' +
+
+    (_ceRecent_.length ? _ceRecentHtml_() : '') +
+    '</div>';
+
+  _cePreview_();
+}
+
+function _ceDeptCfg_(id) {
+  for (var i = 0; i < _CR_DEPTS_.length; i++) if (_CR_DEPTS_[i].id === id) return _CR_DEPTS_[i];
+  return _CR_DEPTS_[0];
+}
+
+function _ceSetDept_(id) {
+  _ceDept_ = id;
+  var dateEl = document.getElementById('ce-date');
+  _ceRender_(dateEl ? dateEl.value : null);   // preserve the chosen date
+}
+
+function _cePreview_() {
+  var dept = _ceDeptCfg_(_ceDept_);
+  var hours = parseFloat((document.getElementById('ce-hours') || {}).value) || 0;
+  var mat   = parseFloat((document.getElementById('ce-material') || {}).value) || 0;
+  var labor = hours * dept.rate;
+  var set = function(id, v) { var el = document.getElementById(id); if (el) el.textContent = v; };
+  set('ce-pv-labor', _crMoney_(labor, 2));
+  set('ce-pv-mat',   _crMoney_(mat, 2));
+  set('ce-pv-total', _crMoney_(labor + mat, 2));
+}
+
+function _ceSubmit_() {
+  var dept   = _ceDeptCfg_(_ceDept_);
+  var dateEl = document.getElementById('ce-date');
+  var assetEl= document.getElementById('ce-asset');
+  var persEl = document.getElementById('ce-person');
+  var hrsEl  = document.getElementById('ce-hours');
+  var matEl  = document.getElementById('ce-material');
+  var noteEl = document.getElementById('ce-note');
+
+  var date  = (dateEl.value || '').trim();
+  var asset = (assetEl.value || '').trim();
+  var hours = parseFloat(hrsEl.value);
+  var mat   = parseFloat(matEl.value);
+
+  // Validation — flag the first offending field and stop.
+  [dateEl, assetEl, hrsEl, matEl].forEach(function(el) { el.classList.remove('invalid'); });
+  var bad = null, msg = '';
+  if (!date)                        { bad = dateEl;  msg = 'Pick a date.'; }
+  else if (date > _ceTodayIso_())   { bad = dateEl;  msg = 'Date cannot be in the future.'; }
+  else if (!asset)                  { bad = assetEl; msg = 'Enter a ' + dept.assetLabel + '.'; }
+  else if (isNaN(hours) || hours <= 0) { bad = hrsEl; msg = 'Enter labor hours greater than 0.'; }
+  else if (matEl.value !== '' && (isNaN(mat) || mat < 0)) { bad = matEl; msg = 'Material cost cannot be negative.'; }
+  if (bad) {
+    bad.classList.add('invalid');
+    if (bad.focus) bad.focus();
+    if (typeof showToast === 'function') showToast(msg, 'error');
+    return;
+  }
+
+  var rec = {
+    id:       'ENT-' + Date.now() + '-' + Math.floor(Math.random() * 1000),
+    dept:     dept.id,
+    date:     date,
+    asset:    asset,
+    person:   (persEl.value || '').trim() || '—',
+    hours:    Math.round(hours * 100) / 100,
+    material: isNaN(mat) ? 0 : Math.round(mat * 100) / 100,
+    note:     (noteEl.value || '').trim(),
+    source:   'entry'
+  };
+
+  if (typeof _crAddEntry_ === 'function') _crAddEntry_(rec);
+  _ceRecent_.unshift({ rec: rec, deptLabel: dept.label, assetLabel: dept.assetLabel,
+                       labor: rec.hours * dept.rate, total: rec.hours * dept.rate + rec.material });
+  if (_ceRecent_.length > 8) _ceRecent_.pop();
+
+  if (typeof showToast === 'function') {
+    showToast('Saved: ' + dept.label + ' · ' + asset + ' · ' + _crMoney_(rec.hours * dept.rate + rec.material, 2), 'success');
+  }
+  _ceRender_(date);   // keep the date for fast repeated entry; other fields reset
+}
+
+function _ceRecentHtml_() {
+  return '<div class="ce-recent"><div class="rpt-table-wrap">' +
+    '<div class="rpt-section-hdr">Saved This Session — ' + _ceRecent_.length + '</div>' +
+    '<table class="rpt-table"><thead><tr>' +
+      '<th>Date</th><th>Department</th><th>Item</th><th>Operator / Tech</th>' +
+      '<th style="text-align:right;">Hours</th><th style="text-align:right;">Material $</th><th style="text-align:right;">Total $</th>' +
+    '</tr></thead><tbody>' +
+    _ceRecent_.map(function(e) {
+      var r = e.rec, p = r.date.split('-');
+      return '<tr>' +
+        '<td>' + esc(p[1] + '/' + p[2] + '/' + p[0]) + '</td>' +
+        '<td>' + esc(e.deptLabel) + '</td>' +
+        '<td style="font-family:var(--font-mono);font-weight:600;color:var(--brand-navy);">' + esc(r.asset) + '</td>' +
+        '<td>' + esc(r.person) + '</td>' +
+        '<td style="text-align:right;font-variant-numeric:tabular-nums;">' + esc(String(r.hours)) + '</td>' +
+        '<td style="text-align:right;font-variant-numeric:tabular-nums;">' + esc(_crMoney_(r.material, 2)) + '</td>' +
+        '<td style="text-align:right;font-variant-numeric:tabular-nums;font-weight:600;">' + esc(_crMoney_(e.total, 2)) + '</td>' +
+      '</tr>';
+    }).join('') +
+    '</tbody></table></div></div>';
+}
+</script>
