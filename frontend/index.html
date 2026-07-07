@@ -325,7 +325,7 @@ function getNavDef() {
       ]
     },
     {
-      section: 'Tickets', icon: 'open',
+      section: 'Tickets', icon: 'open', ungrouped: true,
       items: [
         { id: 'submit',     label: 'New Ticket',            icon: 'newticket'                           },
         { id: 'waiting',   label: 'Waiting Queue',         icon: 'waiting',  badgeId: 'badge-waiting' },
@@ -340,7 +340,7 @@ function getNavDef() {
   // Dept trackers hidden
 
   nav.push({
-    section: 'Monitoring', icon: 'tempfix',
+    section: 'Monitoring', icon: 'tempfix', ungrouped: true,
     items: [
       { id: 'tempfix',              label: 'Temp Fix Monitor',   icon: 'tempfix', badgeId: 'badge-tempfix' },
       { id: 'equipment-hold',       label: 'Equipment Hold',     icon: 'equip'   },
@@ -351,7 +351,7 @@ function getNavDef() {
 
   if (isManager) {
     nav.push({
-      section: 'Reports & SQF', icon: 'reports',
+      section: 'Reports & SQF', icon: 'reports', ungrouped: true,
       items: [
         { id: 'reports',  label: 'Reports',         icon: 'reports' },
         { id: 'sqf-nav',  label: 'SQF Navigation',  icon: 'reports' }
@@ -413,6 +413,25 @@ function buildNav() {
       html += '<span class="nav-icon">' + icon + '</span>';
       html += '<span class="nav-label">' + esc(item.label) + sub + '</span>';
       html += badge + '</div>';
+    } else if (section.ungrouped) {
+      // Ungrouped multi-item section: section label divider + flat nav-items with icons.
+      // No accordion — all items are always visible, one less click for users.
+      html += '<div class="nav-section-label">' + esc(section.section) + '</div>';
+      section.items.forEach(function(item) {
+        var cls  = 'nav-item' + (item.disabled ? ' disabled' : '');
+        var icon = item.iconHtml || (item.icon && ICONS[item.icon] ? ICONS[item.icon] : ICONS.home);
+        var badge = item.badgeId
+          ? '<span class="nav-badge" id="' + item.badgeId + '" style="display:none">0</span>'
+          : '';
+        var sub = item.sublabel
+          ? '<span style="font-size:10px;opacity:.6;margin-left:4px;">' + esc(item.sublabel) + '</span>'
+          : '';
+        var onclick = item.disabled ? '' : 'onclick="navigate(\'' + item.id + '\')"';
+        html += '<div class="' + cls + '" id="nav-' + item.id + '" ' + onclick + '>';
+        html += '<span class="nav-icon">' + icon + '</span>';
+        html += '<span class="nav-label">' + esc(item.label) + sub + '</span>';
+        html += badge + '</div>';
+      });
     } else {
       // Multi-item section: accordion header + collapsible sub-items
       html += '<div class="nav-item nav-section-hdr" id="nav-sec-' + secId + '" onclick="toggleNavSection(\'' + secId + '\')">';
