@@ -1,0 +1,260 @@
+<!-- ╔══════════════════════════════════════════════════════════════════╗ -->
+<!-- ║  PM Packets partial — per-machine PM checklist packets           ║ -->
+<!-- ║  Registers PAGE: pm-packets  (title "Machine PM Packets")       ║ -->
+<!-- ║  Groups every PM due for one machine at a single interval into  ║ -->
+<!-- ║  a manager checklist; supports a printable floor sign-off sheet. ║ -->
+<!-- ║                                                                  ║ -->
+<!-- ║  DATA: seeded from _PM_PACKETS_ below. When the backend PM       ║ -->
+<!-- ║  endpoints land, replace _pmpLoad_() with a fetch to            ║ -->
+<!-- ║  WORKER_URL + '/api/pm/packets'.                               ║ -->
+<!-- ╚══════════════════════════════════════════════════════════════════╝ -->
+<style>
+/* ── PM Packets ──────────────────────────────────────────────────────── */
+.pmp-wrap{padding:20px 24px;}
+.pmp-toolbar{display:flex;align-items:center;gap:10px;margin-bottom:6px;flex-wrap:wrap;}
+.pmp-title{font-size:15px;font-weight:700;color:var(--text-primary);flex:1;}
+.pmp-count{font-size:12px;color:var(--text-secondary);background:var(--bg-subtle);border:1px solid var(--border-default);border-radius:4px;padding:2px 8px;}
+.pmp-intro{font-size:12.5px;color:var(--text-secondary);margin:0 0 18px;max-width:720px;line-height:1.5;}
+
+.pmp-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:14px;}
+.pmp-card{background:var(--bg-surface);border:1px solid var(--border-default);border-radius:10px;padding:16px;box-shadow:var(--shadow-sm);cursor:pointer;transition:box-shadow .12s,border-color .12s;}
+.pmp-card:hover{box-shadow:var(--shadow-md);border-color:var(--border-strong);}
+.pmp-card-head{display:flex;align-items:flex-start;gap:8px;margin-bottom:10px;}
+.pmp-card-code{font-family:var(--font-mono);font-size:11px;color:var(--brand-navy);font-weight:600;}
+.pmp-card-name{font-size:13.5px;font-weight:700;color:var(--text-primary);margin-top:2px;line-height:1.25;}
+.pmp-freq{display:inline-block;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600;font-family:var(--font-mono);background:var(--bg-subtle);color:#334155;white-space:nowrap;}
+.pmp-card-meta{display:flex;align-items:center;justify-content:space-between;font-size:11.5px;color:var(--text-secondary);margin-bottom:8px;}
+.pmp-bar{height:8px;background:var(--bg-subtle);border-radius:5px;overflow:hidden;}
+.pmp-bar-fill{height:100%;border-radius:5px;transition:width .25s;}
+.pmp-card-foot{display:flex;align-items:center;justify-content:space-between;margin-top:7px;}
+.pmp-card-progress{font-size:11.5px;font-weight:600;color:var(--text-primary);}
+.pmp-card-pct{font-size:11.5px;color:var(--text-tertiary);}
+
+/* Packet detail */
+.pmp-back{background:#fff;border:1px solid var(--border-default);border-radius:6px;padding:6px 11px;font-size:12px;color:var(--text-secondary);cursor:pointer;display:flex;align-items:center;gap:5px;}
+.pmp-back:hover{background:var(--bg-hover);}
+.pmp-print-btn{background:var(--brand-navy);color:#fff;border:1px solid var(--brand-navy);border-radius:6px;padding:7px 14px;font-size:12.5px;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;gap:6px;}
+.pmp-print-btn:hover{background:var(--brand-navy-soft);}
+.pmp-detail-hero{background:var(--bg-surface);border:1px solid var(--border-default);border-radius:10px;padding:18px 20px;margin-bottom:14px;box-shadow:var(--shadow-sm);}
+.pmp-check-table{width:100%;border-collapse:collapse;font-size:12.5px;}
+.pmp-check-table th{background:var(--bg-subtle);padding:8px 12px;text-align:left;font-size:10.5px;font-weight:600;color:var(--text-secondary);text-transform:uppercase;letter-spacing:.04em;border-bottom:1px solid var(--border-default);}
+.pmp-check-table th.center{text-align:center;width:44px;}
+.pmp-check-table td{padding:10px 12px;border-bottom:1px solid var(--border-default);vertical-align:middle;color:var(--text-primary);}
+.pmp-check-table td.center{text-align:center;}
+.pmp-check-table tr:last-child td{border-bottom:0;}
+.pmp-check{width:16px;height:16px;cursor:pointer;accent-color:var(--status-success);}
+.pmp-tlink{font-family:var(--font-mono);font-weight:600;color:var(--brand-navy);font-size:11.5px;cursor:pointer;text-decoration:underline;}
+.pmp-empty{padding:40px 24px;text-align:center;color:var(--text-secondary);font-size:13px;}
+
+/* Print sign-off sheet — only visible when printing a packet */
+#pm-print-sheet{display:none;}
+@media print{
+  body.pm-printing .app{display:none !important;}
+  body.pm-printing #pm-print-sheet{display:block !important;position:absolute;left:0;top:0;width:100%;padding:0;font-family:var(--font-sans);color:#0F172A;}
+  @page{margin:14mm;}
+}
+.pmp-ps-head{display:flex;align-items:flex-start;justify-content:space-between;border-bottom:2px solid var(--brand-navy);padding-bottom:10px;margin-bottom:14px;}
+.pmp-ps-title{font-size:20px;font-weight:800;letter-spacing:-.01em;}
+.pmp-ps-sub{font-size:13px;color:#475569;margin-top:3px;}
+.pmp-ps-meta{text-align:right;font-size:12px;color:#475569;line-height:1.6;}
+.pmp-ps-bar{display:flex;gap:26px;font-size:12.5px;margin-bottom:16px;}
+.pmp-ps-table{width:100%;border-collapse:collapse;font-size:12.5px;}
+.pmp-ps-table th,.pmp-ps-table td{border:1px solid var(--border-strong);padding:8px 9px;text-align:left;}
+.pmp-ps-table th{background:var(--bg-subtle);}
+.pmp-ps-sign{display:flex;gap:40px;margin-top:36px;font-size:12.5px;}
+.pmp-ps-sign > div{flex:1;border-top:1px solid #0F172A;padding-top:6px;}
+.pmp-ps-doc{font-size:10.5px;color:var(--text-tertiary);font-family:var(--font-mono);margin-top:24px;}
+</style>
+
+<!-- Print sign-off sheet target (populated on print, hidden on screen) -->
+<div id="pm-print-sheet"></div>
+
+<script>
+window.PAGES = window.PAGES || {};
+
+/* ══════════════════════════════════════════════════════════════════════════
+   SAMPLE DATA — remove when backend PM endpoints exist.
+   A packet = one machine + one interval, listing every PM in that cycle with
+   completion state. Each item links to its generated PM- ticket.
+   ══════════════════════════════════════════════════════════════════════════ */
+window._PM_PACKETS_ = window._PM_PACKETS_ || [
+  { id:'PKT-003-354-6M', asset:'003-354', assetName:'MOLD #48-E, 4.25 GAL ROUND', dept:'PLASTICS', freq:'6-Month', window:'H1 2026', due:'2026-06-18',
+    items:[
+      { label:'Ejector pin inspection & wear check', type:'Inspection',   ticket:'PM-003-260611-001', done:true,  by:'Felipe Vasquez', date:'2026-06-12' },
+      { label:'Hydraulic filter change',             type:'Filter Change', ticket:'PM-003-260611-002', done:true,  by:'Ismael Silva',   date:'2026-06-12' },
+      { label:'Cooling line / water filter replace', type:'Filter Change', ticket:'PM-003-260611-003', done:false, by:'', date:'' },
+      { label:'Drive belt inspection & tension',     type:'Belt/Drive',    ticket:'PM-003-260611-004', done:false, by:'', date:'' }
+    ] },
+  { id:'PKT-001-018-3M', asset:'001-018', assetName:'PRESS NO. 18', dept:'MACHINE SHOP', freq:'Quarterly', window:'Q2 2026', due:'2026-06-14',
+    items:[
+      { label:'Way & ball-screw lubrication',    type:'Lubrication', ticket:'PM-001-260607-001', done:true,  by:'Anthony Gonzalez', date:'2026-06-08' },
+      { label:'VFD enclosure clean & fan check', type:'Inspection',  ticket:'PM-001-260607-002', done:false, by:'', date:'' },
+      { label:'Hydraulic oil sample & analysis', type:'Inspection',  ticket:'PM-001-260607-003', done:false, by:'', date:'' },
+      { label:'Limit switch & E-stop test',      type:'Calibration', ticket:'PM-001-260607-004', done:false, by:'', date:'' }
+    ] },
+  { id:'PKT-008-202-1M', asset:'008-202', assetName:'AIR COMPRESSOR NO. 2', dept:'MACHINE SHOP', freq:'Monthly', window:'Jun 2026', due:'2026-06-06',
+    items:[
+      { label:'Intake air filter change',  type:'Filter Change', ticket:'PM-008-260530-001', done:true, by:'Christian Gavina', date:'2026-06-02' },
+      { label:'Oil/water separator drain', type:'Filter Change', ticket:'PM-008-260530-002', done:true, by:'Christian Gavina', date:'2026-06-02' },
+      { label:'Drive belt inspection',     type:'Belt/Drive',    ticket:'PM-008-260530-003', done:true, by:'Christian Gavina', date:'2026-06-02' }
+    ] },
+  { id:'PKT-008-707-6M', asset:'008-707', assetName:'FORKLIFT NO. 7', dept:'MACHINE SHOP', freq:'6-Month', window:'H1 2026', due:'2026-06-05',
+    items:[
+      { label:'Hydraulic fluid & filter change', type:'Filter Change', ticket:'PM-008-260529-001', done:true,  by:'Jorge Guzman', date:'2026-05-30' },
+      { label:'Brake inspection & adjust',       type:'Inspection',    ticket:'PM-008-260529-002', done:true,  by:'Jorge Guzman', date:'2026-05-30' },
+      { label:'Mast chain lube & tension',       type:'Lubrication',   ticket:'PM-008-260529-003', done:false, by:'', date:'' },
+      { label:'LP system leak check',            type:'Inspection',    ticket:'PM-008-260529-004', done:false, by:'', date:'' }
+    ] }
+];
+
+var _pmpChecks_  = null;   // pktId::ticket -> bool (seeded from data on first render)
+var _pmpOpenId_  = null;
+
+function _pmpSeed_() {
+  if (_pmpChecks_) return;
+  _pmpChecks_ = {};
+  (window._PM_PACKETS_ || []).forEach(function(p) {
+    p.items.forEach(function(it) { _pmpChecks_[p.id + '::' + it.ticket] = !!it.done; });
+  });
+}
+function _pmpById_(id) { return (window._PM_PACKETS_ || []).filter(function(p){ return p.id === id; })[0]; }
+function _pmpProgress_(p) {
+  var done = 0;
+  p.items.forEach(function(it){ if (_pmpChecks_[p.id + '::' + it.ticket]) done++; });
+  var total = p.items.length;
+  return { done:done, total:total, pct: total ? Math.round(done/total*100) : 0 };
+}
+function _pmpBarColor_(pct) { return pct === 100 ? 'var(--status-success)' : (pct === 0 ? 'var(--border-strong)' : 'var(--brand-navy-soft)'); }
+function _pmpFreqBadge_(f) { return '<span class="pmp-freq">' + esc(f) + '</span>'; }
+
+/* ── page registration ─────────────────────────────────────────────────── */
+PAGES['pm-packets'] = function(c) { _pmpLoad_(c); };
+
+function _pmpLoad_(container) {
+  _pmpSeed_();
+  // TODO(backend): replace with fetch(WORKER_URL + '/api/pm/packets', {...})
+  _pmpRender_(container);
+}
+
+function _pmpRender_(container) {
+  if (_pmpOpenId_) { _pmpRenderDetail_(container, _pmpOpenId_); return; }
+  var packets = window._PM_PACKETS_ || [];
+  var cards = packets.map(function(p) {
+    var pr = _pmpProgress_(p);
+    var color = _pmpBarColor_(pr.pct);
+    return '<div class="pmp-card" onclick="_pmpOpen_(\'' + esc(p.id) + '\')">' +
+      '<div class="pmp-card-head"><div style="flex:1;min-width:0;">' +
+        '<div class="pmp-card-code">' + esc(p.asset) + '</div>' +
+        '<div class="pmp-card-name">' + esc(p.assetName) + '</div></div>' +
+        _pmpFreqBadge_(p.freq) + '</div>' +
+      '<div class="pmp-card-meta"><span>' + esc(p.dept) + ' &middot; ' + esc(p.window) + '</span><span>Due ' + esc(p.due) + '</span></div>' +
+      '<div class="pmp-bar"><div class="pmp-bar-fill" style="width:' + pr.pct + '%;background:' + color + ';"></div></div>' +
+      '<div class="pmp-card-foot"><span class="pmp-card-progress">' + pr.done + ' of ' + pr.total + '</span><span class="pmp-card-pct">' + pr.pct + '% complete</span></div>' +
+    '</div>';
+  }).join('');
+
+  container.innerHTML =
+    '<div class="pmp-wrap">' +
+      '<div class="pmp-toolbar"><span class="pmp-title">Machine PM Packets</span>' +
+        '<span class="pmp-count">' + packets.length + ' packets</span></div>' +
+      '<p class="pmp-intro">Each packet groups every PM due for one machine at a single interval &mdash; a manager checklist showing which PMs in the cycle are complete. Open a packet to work the checklist or print a floor sign-off sheet.</p>' +
+      (packets.length ? '<div class="pmp-grid">' + cards + '</div>' : '<div class="pmp-empty">No PM packets.</div>') +
+    '</div>';
+}
+
+function _pmpRenderDetail_(container, id) {
+  var p = _pmpById_(id);
+  if (!p) { _pmpOpenId_ = null; _pmpRender_(container); return; }
+  var pr = _pmpProgress_(p);
+  var color = _pmpBarColor_(pr.pct);
+
+  var rows = p.items.map(function(it) {
+    var done = !!_pmpChecks_[p.id + '::' + it.ticket];
+    var by = done ? (it.by ? esc(it.by) + ' &middot; ' + esc(it.date) : 'Checked') : 'Pending';
+    return '<tr>' +
+      '<td class="center"><input type="checkbox" class="pmp-check"' + (done ? ' checked' : '') + ' onchange="_pmpToggle_(\'' + esc(p.id) + '\',\'' + esc(it.ticket) + '\')"></td>' +
+      '<td>' + esc(it.label) + '</td>' +
+      '<td style="color:var(--text-secondary);font-size:11.5px;">' + esc(it.type) + '</td>' +
+      '<td><span class="pmp-tlink" onclick="_pmpOpenTicket_(\'' + esc(it.ticket) + '\')">' + esc(it.ticket) + '</span></td>' +
+      '<td style="color:var(--text-secondary);font-size:11.5px;">' + by + '</td>' +
+    '</tr>';
+  }).join('');
+
+  container.innerHTML =
+    '<div class="pmp-wrap">' +
+      '<div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;flex-wrap:wrap;">' +
+        '<button class="pmp-back" onclick="_pmpClose_()"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M19 12H5M12 5l-7 7 7 7"/></svg> All packets</button>' +
+        '<div style="flex:1;"></div>' +
+        '<button class="pmp-print-btn" onclick="_pmpPrint_(\'' + esc(p.id) + '\')"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg> Print sign-off sheet</button>' +
+      '</div>' +
+      '<div class="pmp-detail-hero">' +
+        '<div style="display:flex;align-items:flex-start;gap:14px;flex-wrap:wrap;">' +
+          '<div style="flex:1;min-width:200px;">' +
+            '<div class="pmp-card-code" style="font-size:12px;">' + esc(p.asset) + '</div>' +
+            '<div style="font-size:18px;font-weight:700;color:var(--text-primary);margin-top:2px;">' + esc(p.assetName) + '</div>' +
+            '<div style="font-size:12.5px;color:var(--text-secondary);margin-top:4px;">' + esc(p.dept) + ' &middot; ' + _pmpFreqBadge_(p.freq) + ' interval &middot; ' + esc(p.window) + ' &middot; Due ' + esc(p.due) + '</div>' +
+          '</div>' +
+          '<div style="text-align:right;"><div style="font-size:30px;font-weight:700;color:var(--text-primary);line-height:1;">' + pr.pct + '%</div>' +
+            '<div style="font-size:11.5px;color:var(--text-secondary);margin-top:4px;">' + pr.done + ' of ' + pr.total + ' PMs complete</div></div>' +
+        '</div>' +
+        '<div class="pmp-bar" style="margin-top:14px;"><div class="pmp-bar-fill" style="width:' + pr.pct + '%;background:' + color + ';"></div></div>' +
+      '</div>' +
+      '<div class="pmp-detail-hero" style="padding:0;overflow:hidden;">' +
+        '<table class="pmp-check-table"><thead><tr>' +
+          '<th class="center">Done</th><th>PM Task</th><th>Type</th><th>PM Ticket</th><th>Completed By</th>' +
+        '</tr></thead><tbody>' + rows + '</tbody></table>' +
+      '</div>' +
+    '</div>';
+}
+
+function _pmpOpen_(id) { _pmpOpenId_ = id; _pmpRender_(document.getElementById('page-pm-packets')); }
+function _pmpClose_() { _pmpOpenId_ = null; _pmpRender_(document.getElementById('page-pm-packets')); }
+function _pmpToggle_(pid, ticket) {
+  var key = pid + '::' + ticket;
+  _pmpChecks_[key] = !_pmpChecks_[key];
+  _pmpRenderDetail_(document.getElementById('page-pm-packets'), pid);
+}
+
+/* Open a PM ticket. Prefer the PM-master handler if that partial is loaded. */
+function _pmpOpenTicket_(no) {
+  if (typeof _pmOpenTicket_ === 'function') { _pmOpenTicket_(no); }
+  else showToast('Open PM ticket ' + no + ' (PM Master screen)', 'info');
+}
+
+/* ── Print sign-off sheet ──────────────────────────────────────────────── */
+function _pmpPrint_(id) {
+  var p = _pmpById_(id);
+  if (!p) return;
+  var pr = _pmpProgress_(p);
+  var rows = p.items.map(function(it) {
+    var done = !!_pmpChecks_[p.id + '::' + it.ticket];
+    var by = done ? (it.by ? esc(it.by) + ' &middot; ' + esc(it.date) : 'Checked') : 'Pending';
+    return '<tr><td style="text-align:center;font-size:15px;">' + (done ? '&#9745;' : '&#9744;') + '</td>' +
+      '<td>' + esc(it.label) + '</td><td style="color:#475569;">' + esc(it.type) + '</td>' +
+      '<td style="font-family:var(--font-mono);">' + esc(it.ticket) + '</td>' +
+      '<td style="color:#475569;">' + by + '</td></tr>';
+  }).join('');
+
+  document.getElementById('pm-print-sheet').innerHTML =
+    '<div class="pmp-ps-head">' +
+      '<div><div class="pmp-ps-title">CSC Maintenance &mdash; PM Packet Sign-Off</div>' +
+        '<div class="pmp-ps-sub">' + esc(p.asset) + ' &middot; ' + esc(p.assetName) + '</div></div>' +
+      '<div class="pmp-ps-meta"><div><strong>' + esc(p.freq) + '</strong> interval</div><div>' + esc(p.window) + '</div><div>Due ' + esc(p.due) + '</div></div>' +
+    '</div>' +
+    '<div class="pmp-ps-bar">' +
+      '<div><span style="color:#64748B;">Department:</span> <strong>' + esc(p.dept) + '</strong></div>' +
+      '<div><span style="color:#64748B;">Completion:</span> <strong>' + pr.done + ' of ' + pr.total + ' (' + pr.pct + '%)</strong></div>' +
+      '<div><span style="color:#64748B;">Printed:</span> ' + new Date().toLocaleDateString() + '</div>' +
+    '</div>' +
+    '<table class="pmp-ps-table"><thead><tr>' +
+      '<th style="text-align:center;width:48px;">Done</th><th>PM Task</th><th style="width:120px;">Type</th><th style="width:150px;">PM Ticket</th><th style="width:180px;">Completed By / Date</th>' +
+    '</tr></thead><tbody>' + rows + '</tbody></table>' +
+    '<div class="pmp-ps-sign"><div>Manager signature</div><div>Date</div></div>' +
+    '<div class="pmp-ps-doc">' + (docLabel('pmPacket') || 'FRM-030-005 · PM Packet Sign-Off · Rev 0 · 6/2026') + '</div>';
+
+  document.body.classList.add('pm-printing');
+  var _cleanup = function() { document.body.classList.remove('pm-printing'); window.removeEventListener('afterprint', _cleanup); };
+  window.addEventListener('afterprint', _cleanup);
+  setTimeout(function(){ window.print(); }, 60);
+}
+</script>

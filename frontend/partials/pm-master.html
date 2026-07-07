@@ -1,0 +1,734 @@
+<!-- ╔══════════════════════════════════════════════════════════════════╗ -->
+<!-- ║  PM Master partial — Preventive Maintenance master schedule     ║ -->
+<!-- ║  Registers PAGE: pm  (nav id "pm", title "PM Schedules")        ║ -->
+<!-- ║  Two tabs: Schedule Definitions + Generated PM Tickets          ║ -->
+<!-- ║  Slide-overs: schedule definition detail, PM ticket work order  ║ -->
+<!-- ║                                                                  ║ -->
+<!-- ║  DATA: currently seeded from _PM_SAMPLE_ below. When the        ║ -->
+<!-- ║  backend PM endpoints land, replace _pmLoad_() with a fetch to  ║ -->
+<!-- ║  WORKER_URL + '/api/pm/schedules'  (see _pmLoad_ TODO).         ║ -->
+<!-- ╚══════════════════════════════════════════════════════════════════╝ -->
+<style>
+/* ── PM Master ───────────────────────────────────────────────────────── */
+.pm-wrap{padding:20px 24px;}
+.pm-toolbar{display:flex;align-items:center;gap:10px;margin-bottom:14px;flex-wrap:wrap;}
+.pm-title{font-size:15px;font-weight:700;color:var(--text-primary);flex:1;}
+.pm-count{font-size:12px;color:var(--text-secondary);background:var(--bg-subtle);border:1px solid var(--border-default);border-radius:4px;padding:2px 8px;}
+.pm-search{height:30px;padding:0 10px;border:1px solid var(--border-default);border-radius:6px;font-size:12.5px;width:230px;outline:none;color:var(--text-primary);}
+.pm-search:focus{border-color:var(--brand-navy);}
+
+/* Tabs */
+.pm-tabs{display:inline-flex;background:var(--bg-subtle);border:1px solid var(--border-default);border-radius:8px;padding:3px;margin-bottom:14px;gap:2px;}
+.pm-tab{border:none;border-radius:6px;padding:6px 14px;font-size:12.5px;font-weight:600;cursor:pointer;background:transparent;color:var(--text-secondary);}
+.pm-tab.active{background:#fff;color:var(--brand-navy);box-shadow:var(--shadow-sm);}
+
+/* Table */
+.pm-table-wrap{background:var(--bg-surface);border:1px solid var(--border-default);border-radius:10px;overflow-x:auto;box-shadow:var(--shadow-sm);}
+.pm-table{width:100%;border-collapse:collapse;font-size:12.5px;}
+.pm-table th{background:var(--bg-subtle);padding:8px 12px;text-align:left;font-size:10.5px;font-weight:600;color:var(--text-secondary);text-transform:uppercase;letter-spacing:.04em;border-bottom:1px solid var(--border-default);white-space:nowrap;}
+.pm-table th.right{text-align:right;}
+.pm-table td{padding:9px 12px;border-bottom:1px solid var(--border-default);vertical-align:middle;color:var(--text-primary);}
+.pm-table td.right{text-align:right;}
+.pm-table tr:last-child td{border-bottom:0;}
+.pm-table tbody tr{cursor:pointer;transition:background .1s;}
+.pm-table tbody tr:hover{background:var(--bg-hover);}
+.pm-table .col-asset{font-family:var(--font-mono);font-weight:600;color:var(--brand-navy);font-size:11.5px;}
+.pm-table .col-name{color:var(--text-secondary);font-size:11.5px;max-width:190px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.pm-table .col-tn{font-family:var(--font-mono);font-weight:600;color:var(--brand-navy);font-size:11.5px;}
+.pm-empty{padding:40px 24px;text-align:center;color:var(--text-secondary);font-size:13px;}
+
+/* Frequency + status badges */
+.pm-freq{display:inline-block;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600;font-family:var(--font-mono);background:var(--bg-subtle);color:#334155;white-space:nowrap;}
+.pm-sbadge{display:inline-block;padding:2px 8px;border-radius:4px;font-size:10.5px;font-weight:700;letter-spacing:.03em;white-space:nowrap;}
+.pm-sb-Active   {background:var(--status-success-bg);color:var(--status-success);}
+.pm-sb-Due-Soon {background:var(--status-warn-bg);   color:var(--status-warn);}
+.pm-sb-Overdue  {background:var(--status-critical-bg);color:var(--status-critical);}
+.pm-sb-Snoozed  {background:#F1F5F9;color:#64748B;}
+.pm-tbadge{display:inline-block;padding:2px 7px;border-radius:4px;font-size:10.5px;font-weight:600;white-space:nowrap;}
+.pm-tb-WAITING {background:#EDE9FE;color:#5B21B6;}
+.pm-tb-OPEN    {background:var(--status-info-bg);color:var(--status-info);}
+.pm-tb-COMPLETE{background:var(--status-success-bg);color:var(--status-success);}
+
+/* Detail slide-over (mirrors equipment-inventory ei-detail pattern) */
+.pm-detail-overlay{position:fixed;top:var(--topbar-h);right:0;width:calc(100% - var(--sidebar-w));height:calc(100vh - var(--topbar-h));background:var(--bg-app);z-index:50;transform:translateX(100%);transition:transform .22s ease;overflow-y:auto;display:flex;flex-direction:column;}
+.pm-detail-overlay.open{transform:translateX(0);}
+.app.collapsed .pm-detail-overlay{width:calc(100% - var(--sidebar-w-collapsed));}
+.pm-ticket-overlay{z-index:60;}
+.pm-detail-hdr{background:var(--bg-surface);border-bottom:1px solid var(--border-default);padding:12px 20px;display:flex;align-items:center;gap:12px;flex-shrink:0;position:sticky;top:0;z-index:10;flex-wrap:wrap;}
+.pm-detail-back{background:transparent;border:1px solid var(--border-default);border-radius:6px;padding:5px 10px;font-size:12px;color:var(--text-secondary);cursor:pointer;display:flex;align-items:center;gap:5px;}
+.pm-detail-back:hover{background:var(--bg-hover);}
+.pm-detail-code{font-family:var(--font-mono);font-weight:700;font-size:14px;color:var(--brand-navy);}
+.pm-detail-body{padding:20px 24px;flex:1;max-width:1100px;}
+.pm-hact{background:#fff;border:1px solid var(--border-default);border-radius:6px;padding:6px 11px;font-size:12px;color:var(--text-secondary);cursor:pointer;}
+.pm-hact:hover{background:var(--bg-hover);}
+.pm-hact.primary{background:var(--brand-navy);color:#fff;border-color:var(--brand-navy);font-weight:600;}
+.pm-hact.primary:hover{background:var(--brand-navy-soft);}
+.pm-hact.save{background:var(--status-success);color:#fff;border-color:var(--status-success);font-weight:600;}
+
+.pm-kpi-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:14px;}
+.pm-kpi{background:var(--bg-surface);border:1px solid var(--border-default);border-radius:8px;padding:12px 14px;}
+.pm-kpi-label{font-size:10.5px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;color:var(--text-tertiary);margin-bottom:5px;}
+.pm-kpi-value{font-size:17px;font-weight:700;color:var(--text-primary);line-height:1.2;}
+.pm-kpi-foot{font-size:10.5px;color:var(--text-tertiary);margin-top:3px;}
+
+.pm-section{background:var(--bg-surface);border:1px solid var(--border-default);border-radius:10px;padding:18px 20px;margin-bottom:14px;box-shadow:var(--shadow-sm);}
+.pm-section-title{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--text-secondary);margin-bottom:12px;display:flex;align-items:center;justify-content:space-between;}
+.pm-two-col{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px;}
+.pm-field-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:14px 22px;font-size:12.5px;}
+.pm-field-label{font-size:10.5px;font-weight:600;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:.04em;margin-bottom:3px;}
+.pm-field-value{color:var(--text-primary);}
+.pm-link{font-family:var(--font-mono);color:var(--brand-navy);font-weight:600;cursor:pointer;text-decoration:underline;}
+.pm-list{margin:0;padding-left:18px;color:var(--text-primary);font-size:12.5px;line-height:1.7;}
+.pm-taskrow{display:flex;gap:12px;padding:9px 0;border-bottom:1px solid var(--border-default);align-items:baseline;}
+.pm-taskrow:last-child{border-bottom:0;}
+.pm-tasknum{font-family:var(--font-mono);font-size:11px;color:var(--text-tertiary);width:20px;flex-shrink:0;}
+.pm-tasktext{flex:1;font-size:12.5px;color:var(--text-primary);line-height:1.5;}
+.pm-ref{font-family:var(--font-mono);font-size:10.5px;color:var(--brand-navy);background:var(--status-info-bg);border:1px solid #cfe6f5;border-radius:4px;padding:2px 7px;flex-shrink:0;}
+.pm-tool{font-size:12px;background:var(--bg-subtle);border:1px solid var(--border-default);border-radius:6px;padding:4px 10px;color:var(--text-primary);}
+.pm-hist-table{width:100%;border-collapse:collapse;font-size:12px;}
+.pm-hist-table th{background:var(--bg-subtle);padding:7px 10px;text-align:left;font-size:10.5px;font-weight:600;color:var(--text-secondary);text-transform:uppercase;letter-spacing:.04em;border-bottom:1px solid var(--border-default);}
+.pm-hist-table td{padding:8px 10px;border-bottom:1px solid var(--border-default);vertical-align:middle;}
+.pm-hist-table tr:last-child td{border-bottom:0;}
+.pm-docref{font-size:11px;color:var(--text-tertiary);font-family:var(--font-mono);padding:2px 2px 16px;}
+
+/* Edit-mode inputs */
+.pm-ein{flex:1;height:28px;padding:0 8px;border:1px solid var(--border-default);border-radius:5px;font-size:12px;outline:none;color:var(--text-primary);}
+.pm-ein:focus{border-color:var(--brand-navy);}
+.pm-erm{background:var(--status-critical-bg);color:var(--status-critical);border:none;border-radius:5px;width:26px;height:28px;cursor:pointer;font-weight:700;}
+.pm-eadd{font-size:11px;color:var(--brand-navy);background:none;border:none;cursor:pointer;text-decoration:underline;}
+
+/* Checklist */
+.pm-check{width:16px;height:16px;cursor:pointer;accent-color:var(--status-success);}
+.pm-tl-item{display:flex;gap:11px;}
+.pm-tl-dot{width:8px;height:8px;border-radius:50%;background:var(--brand-navy-soft);margin-top:5px;flex-shrink:0;}
+</style>
+
+<!-- ── Schedule definition slide-over (hidden until opened) ─────────────── -->
+<div id="pm-sched-overlay" class="pm-detail-overlay">
+  <div class="pm-detail-hdr">
+    <button class="pm-detail-back" onclick="_pmCloseSched_()">
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M19 12H5M12 5l-7 7 7 7"/></svg> Back
+    </button>
+    <span class="pm-detail-code" id="pm-sched-code">&mdash;</span>
+    <span id="pm-sched-name" style="font-size:13px;font-weight:600;color:var(--text-primary);"></span>
+    <span id="pm-sched-status"></span>
+    <div style="flex:1;"></div>
+    <div id="pm-sched-actions" style="display:flex;gap:8px;"></div>
+  </div>
+  <div class="pm-detail-body" id="pm-sched-body">
+    <div class="loading-overlay"><div class="spinner"></div><span>Loading&#8230;</span></div>
+  </div>
+</div>
+
+<!-- ── PM ticket work-order slide-over (hidden until opened) ────────────── -->
+<div id="pm-ticket-overlay" class="pm-detail-overlay pm-ticket-overlay">
+  <div class="pm-detail-hdr">
+    <button class="pm-detail-back" onclick="_pmCloseTicket_()">
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M19 12H5M12 5l-7 7 7 7"/></svg> Back
+    </button>
+    <span class="pm-detail-code" id="pm-ticket-code">&mdash;</span>
+    <span id="pm-ticket-badges"></span>
+    <div style="flex:1;"></div>
+    <span id="pm-ticket-sub" style="font-size:12px;color:var(--text-secondary);"></span>
+  </div>
+  <div class="pm-detail-body" id="pm-ticket-body">
+    <div class="loading-overlay"><div class="spinner"></div><span>Loading&#8230;</span></div>
+  </div>
+</div>
+
+<script>
+window.PAGES = window.PAGES || {};
+
+/* ══════════════════════════════════════════════════════════════════════════
+   SAMPLE DATA — remove when backend PM endpoints exist.
+   Schedules and generated tickets mirror the fields agreed for the PM master:
+   Asset ID, Type of PM, Frequency, Downtime type, Est. downtime, Manpower,
+   Parts changed regularly, Parts that may need ordering, Task list + checklist
+   refs, Specialty tools, Safety/Quality/Environmental, Priority code.
+   ══════════════════════════════════════════════════════════════════════════ */
+window._PM_SAMPLE_ = window._PM_SAMPLE_ || {
+  schedules: [
+    { id:'PMS-003-354-6M', asset:'003-354', assetName:'MOLD #48-E, 4.25 GAL ROUND', dept:'PLASTICS',
+      type:'Inspection', freq:'6-Month', downtimeType:'Asset', estDowntime:'3 h', manpower:'2 techs',
+      priorityMode:'interval', priority:'', leadDays:7, lastCompleted:'2025-12-18', nextDue:'2026-06-18', status:'Due Soon',
+      partsRegular:['Ejector pin set (spare)','O-ring kit, mold face','Molykote G-n food-grade grease'],
+      partsOrder:['Leader pins, long — Husky (long lead)'],
+      tasks:[{t:'LOTO press and pull mold to bench',ref:'CHK-030-354-01'},{t:'Disassemble ejector housing; inspect pins for wear/scoring',ref:'CHK-030-354-02'},{t:'Gauge ejector bore, log dimensions vs spec',ref:'CHK-030-354-03'},{t:'Re-grease and reassemble; verify ejection stroke',ref:'CHK-030-354-04'}],
+      tools:['Bore gauge','Torque wrench 3/8"','Mold lift eye'],
+      safety:['LOTO press before mold pull (SAF-014)','Food-contact grease only — SQF 11.2','Dispose solvent per EHS-007'],
+      history:[{date:'2025-12-18',ticket:'PM-003-251211-002',tech:'Felipe Vasquez',result:'Pass — pins within spec'},{date:'2025-06-16',ticket:'PM-003-250609-001',tech:'Ismael Silva',result:'Pass — o-rings replaced'}] },
+    { id:'PMS-003-354-1M', asset:'003-354', assetName:'MOLD #48-E, 4.25 GAL ROUND', dept:'PLASTICS',
+      type:'Lubrication', freq:'Monthly', downtimeType:'Asset', estDowntime:'45 min', manpower:'1 tech',
+      priorityMode:'interval', priority:'', leadDays:7, lastCompleted:'2026-05-20', nextDue:'2026-06-20', status:'Active',
+      partsRegular:['Molykote G-n food-grade grease'], partsOrder:[],
+      tasks:[{t:'Wipe down guide pins and bushings',ref:'CHK-030-354-11'},{t:'Apply food-grade grease to slides',ref:'CHK-030-354-12'}],
+      tools:['Grease gun, dedicated food-grade'],
+      safety:['Food-contact grease only — SQF 11.2','Wipe excess to avoid product contamination'],
+      history:[{date:'2026-05-20',ticket:'PM-003-260513-004',tech:'Felipe Vasquez',result:'Pass'}] },
+    { id:'PMS-003-503-3M', asset:'003-503', assetName:'BLENDER NO. 3', dept:'PLASTICS',
+      type:'Calibration', freq:'Quarterly', downtimeType:'Asset', estDowntime:'2 h', manpower:'1 tech + controls',
+      priorityMode:'explicit', priority:'HIGH', leadDays:7, lastCompleted:'2026-02-24', nextDue:'2026-05-24', status:'Overdue',
+      partsRegular:['Load-cell calibration weights (on hand)'], partsOrder:['PLC backup battery, Allen-Bradley'],
+      tasks:[{t:'Back up PLC program before calibration',ref:'CHK-030-503-01'},{t:'Run load-cell calibration routine; log offsets',ref:'CHK-030-503-02'},{t:'Verify blend ratio across 3 recipes',ref:'CHK-030-503-03'}],
+      tools:['Certified cal weights','Laptop w/ RSLogix'],
+      safety:['Controls lockout — qualified personnel only (SAF-021)','Record cal in SQF calibration log 8.4','ISO 9001 traceable weights required'],
+      history:[{date:'2026-02-24',ticket:'PM-003-260217-001',tech:'Ismael Silva',result:'Pass — offsets logged'},{date:'2025-11-20',ticket:'PM-003-251113-002',tech:'Ismael Silva',result:'Pass'}] },
+    { id:'PMS-001-018-3M', asset:'001-018', assetName:'PRESS NO. 18', dept:'MACHINE SHOP',
+      type:'Inspection', freq:'Quarterly', downtimeType:'Asset', estDowntime:'2.5 h', manpower:'2 techs',
+      priorityMode:'interval', priority:'', leadDays:7, lastCompleted:'2026-03-14', nextDue:'2026-06-14', status:'Due Soon',
+      partsRegular:['VFD cooling fan, 120mm','Way lube, ISO 68'], partsOrder:['Servo drive (spare, if flagged)'],
+      tasks:[{t:'Inspect and clean VFD enclosure; check cooling fan',ref:'CHK-030-018-01'},{t:'Lube ways and ball screw; check backlash',ref:'CHK-030-018-02'},{t:'Test limit switches and E-stops',ref:'CHK-030-018-03'},{t:'Thermal-image drive under load',ref:'CHK-030-018-04'}],
+      tools:['Thermal camera','Dial indicator','Way-lube pump'],
+      safety:['Full LOTO — electrical + hydraulic (SAF-014)','Arc-flash PPE for enclosure work','Log guard checks per OSHA 1910.212'],
+      history:[{date:'2026-03-14',ticket:'PM-001-260307-001',tech:'Anthony Gonzalez',result:'Pass — fan replaced'}] },
+    { id:'PMS-001-018-1W', asset:'001-018', assetName:'PRESS NO. 18', dept:'MACHINE SHOP',
+      type:'Cleaning', freq:'Weekly', downtimeType:'Asset', estDowntime:'20 min', manpower:'1 operator',
+      priorityMode:'interval', priority:'', leadDays:2, lastCompleted:'2026-06-01', nextDue:'2026-06-08', status:'Active',
+      partsRegular:['Shop rags','Approved degreaser'], partsOrder:[],
+      tasks:[{t:'Clear chips from bed and guarding',ref:'CHK-030-018-21'},{t:'Wipe down and check for fluid leaks',ref:'CHK-030-018-22'}],
+      tools:['Chip brush','Vacuum'],
+      safety:['Machine off before clearing chips (SAF-002)','Cut-resistant gloves'],
+      history:[{date:'2026-06-01',ticket:'PM-001-260527-003',tech:'Christian Gavina',result:'Pass'}] },
+    { id:'PMS-008-202-1M', asset:'008-202', assetName:'AIR COMPRESSOR NO. 2', dept:'MACHINE SHOP',
+      type:'Filter Change', freq:'Monthly', downtimeType:'Facility', estDowntime:'1 h', manpower:'1 tech',
+      priorityMode:'interval', priority:'', leadDays:7, lastCompleted:'2026-05-06', nextDue:'2026-06-06', status:'Due Soon',
+      partsRegular:['Intake air filter','Oil/water separator element'], partsOrder:['Compressor oil, 5 gal (if low)'],
+      tasks:[{t:'Replace intake air filter',ref:'CHK-030-202-01'},{t:'Drain oil/water separator; check element',ref:'CHK-030-202-02'},{t:'Inspect drive belt tension',ref:'CHK-030-202-03'}],
+      tools:['Belt tension gauge'],
+      safety:['Bleed system pressure before service (SAF-018)','Capture condensate per EHS-004 (oily water)'],
+      history:[{date:'2026-05-06',ticket:'PM-008-260429-002',tech:'Christian Gavina',result:'Pass'}] },
+    { id:'PMS-008-202-1Y', asset:'008-202', assetName:'AIR COMPRESSOR NO. 2', dept:'MACHINE SHOP',
+      type:'Overhaul', freq:'Annual', downtimeType:'Facility', estDowntime:'6 h', manpower:'2 techs + vendor',
+      priorityMode:'explicit', priority:'MEDIUM', leadDays:14, lastCompleted:'2025-09-12', nextDue:'2026-09-12', status:'Active',
+      partsRegular:['Full seal + gasket kit','Compressor oil, 5 gal'], partsOrder:['Airend rebuild kit — vendor (long lead)'],
+      tasks:[{t:'Vendor airend inspection / rebuild',ref:'CHK-030-202-31'},{t:'Replace all seals and gaskets',ref:'CHK-030-202-32'},{t:'Full oil change and flush',ref:'CHK-030-202-33'},{t:'Run-in test and log pressures',ref:'CHK-030-202-34'}],
+      tools:['Vendor service kit','Oil evacuator'],
+      safety:['Confined-space near tank — permit (SAF-030)','Used oil to licensed hauler (EHS-002)'],
+      history:[{date:'2025-09-12',ticket:'PM-008-250905-001',tech:'Mike Magallanes',result:'Pass — vendor rebuild'}] },
+    { id:'PMS-008-707-6M', asset:'008-707', assetName:'FORKLIFT NO. 7', dept:'MACHINE SHOP',
+      type:'Inspection', freq:'6-Month', downtimeType:'Asset', estDowntime:'3 h', manpower:'1 tech',
+      priorityMode:'interval', priority:'', leadDays:7, lastCompleted:'2025-12-05', nextDue:'2026-06-05', status:'Due Soon',
+      partsRegular:['Hydraulic filter','Hydraulic fluid','Mast chain lube'], partsOrder:['Brake shoes (if worn)'],
+      tasks:[{t:'Change hydraulic fluid and filter',ref:'CHK-030-707-01'},{t:'Inspect brakes and adjust',ref:'CHK-030-707-02'},{t:'Lube mast chains; check tension',ref:'CHK-030-707-03'},{t:'LP system leak check',ref:'CHK-030-707-04'}],
+      tools:['LP leak detector','Chain wear gauge'],
+      safety:['Chock and block mast before service (SAF-011)','LP handling per EHS-009'],
+      history:[{date:'2025-12-05',ticket:'PM-008-251128-002',tech:'Jorge Guzman',result:'Pass'}] },
+    { id:'PMS-004-704-1Y', asset:'004-704', assetName:'OVEN NO. 4', dept:'LITHO',
+      type:'Calibration', freq:'Annual', downtimeType:'Asset', estDowntime:'4 h', manpower:'1 tech + QA',
+      priorityMode:'explicit', priority:'HIGH', leadDays:14, lastCompleted:'2025-08-22', nextDue:'2026-08-22', status:'Active',
+      partsRegular:['Thermocouple (spare)'], partsOrder:['Burner ignition module (if flagged)'],
+      tasks:[{t:'Verify burner safety interlocks',ref:'CHK-030-704-01'},{t:'Calibrate zone thermocouples vs reference',ref:'CHK-030-704-02'},{t:'Run temperature-uniformity survey',ref:'CHK-030-704-03'}],
+      tools:['Reference pyrometer','Data logger'],
+      safety:['Gas train lockout (SAF-025)','QA sign-off on cure profile — SQF 2.4','Emissions log per EHS-011'],
+      history:[{date:'2025-08-22',ticket:'PM-004-250815-001',tech:'Efren Becerra',result:'Pass — TUS within ±5°F'}] },
+    { id:'PMS-004-906-1M', asset:'004-906', assetName:'LITHO VACUUM PUMP', dept:'LITHO',
+      type:'Inspection', freq:'Monthly', downtimeType:'Asset', estDowntime:'30 min', manpower:'1 tech',
+      priorityMode:'interval', priority:'', leadDays:7, lastCompleted:'2026-04-30', nextDue:'2026-05-30', status:'Snoozed',
+      partsRegular:['Vacuum filter element'], partsOrder:['Festo vacuum generator VAD-M5'],
+      tasks:[{t:'Check vacuum level at manifold',ref:'CHK-030-906-01'},{t:'Clean/replace inlet filter',ref:'CHK-030-906-02'}],
+      tools:['Vacuum gauge'],
+      safety:['Isolate air supply before service (SAF-018)'],
+      history:[{date:'2026-04-30',ticket:'PM-004-260423-001',tech:'Jesus Nunez',result:'Pass'}] },
+    { id:'PMS-001-302-1W', asset:'001-302', assetName:'SEAMER NO. 2', dept:'METAL',
+      type:'Inspection', freq:'Weekly', downtimeType:'Asset', estDowntime:'25 min', manpower:'1 tech',
+      priorityMode:'explicit', priority:'HIGH', leadDays:2, lastCompleted:'2026-06-01', nextDue:'2026-06-08', status:'Active',
+      partsRegular:['Seam roll (spare set)'], partsOrder:['Chuck, precision (if worn)'],
+      tasks:[{t:'Inspect seam rolls and chuck for wear',ref:'CHK-030-302-01'},{t:'Teardown-gauge seam thickness on sample',ref:'CHK-030-302-02'}],
+      tools:['Seam micrometer','Teardown gauge'],
+      safety:['LOTO before roll access (SAF-014)','QA seam records — SQF 2.4 (food safety critical)'],
+      history:[{date:'2026-06-01',ticket:'PM-001-260527-001',tech:'Justino Flores',result:'Pass — seam in spec'}] },
+    { id:'PMS-008-916-3M', asset:'008-916', assetName:'CHILLER TANK / PUMPS', dept:'MACHINE SHOP',
+      type:'Filter Change', freq:'Quarterly', downtimeType:'Facility', estDowntime:'1.5 h', manpower:'1 tech',
+      priorityMode:'interval', priority:'', leadDays:7, lastCompleted:'2026-03-30', nextDue:'2026-06-30', status:'Active',
+      partsRegular:['Coolant filter','Water treatment tablets'], partsOrder:['Diaphragm pump (if flagged)'],
+      tasks:[{t:'Replace coolant filter',ref:'CHK-030-916-01'},{t:'Test water chemistry; dose treatment',ref:'CHK-030-916-02'},{t:'Inspect pumps for leaks / cavitation',ref:'CHK-030-916-03'}],
+      tools:['Water test kit'],
+      safety:['Coolant handling PPE (SAF-016)','Dispose spent coolant per EHS-002'],
+      history:[{date:'2026-03-30',ticket:'PM-008-260323-002',tech:'David Avila',result:'Pass'}] }
+  ],
+  tickets: [
+    { ticketNo:'PM-003-260611-001', schedId:'PMS-003-354-6M', date:'2026-06-11', status:'COMPLETE', assigned:'Felipe Vasquez',  due:'2026-06-18' },
+    { ticketNo:'PM-003-260611-002', schedId:'PMS-003-354-6M', date:'2026-06-11', status:'COMPLETE', assigned:'Ismael Silva',    due:'2026-06-18' },
+    { ticketNo:'PM-003-260611-003', schedId:'PMS-003-354-6M', date:'2026-06-11', status:'OPEN',     assigned:'Felipe Vasquez',  due:'2026-06-18' },
+    { ticketNo:'PM-003-260611-004', schedId:'PMS-003-354-6M', date:'2026-06-11', status:'OPEN',     assigned:'Unassigned',      due:'2026-06-18' },
+    { ticketNo:'PM-001-260607-001', schedId:'PMS-001-018-3M', date:'2026-06-07', status:'OPEN',     assigned:'Anthony Gonzalez',due:'2026-06-14' },
+    { ticketNo:'PM-008-260530-001', schedId:'PMS-008-202-1M', date:'2026-05-30', status:'COMPLETE', assigned:'Christian Gavina',due:'2026-06-06' },
+    { ticketNo:'PM-003-260517-001', schedId:'PMS-003-503-3M', date:'2026-05-17', status:'WAITING',  assigned:'Unassigned',      due:'2026-05-24' },
+    { ticketNo:'PM-008-260529-001', schedId:'PMS-008-707-6M', date:'2026-05-29', status:'OPEN',     assigned:'Jorge Guzman',    due:'2026-06-05' }
+  ]
+};
+
+/* ── module state ──────────────────────────────────────────────────────── */
+var _PM_FREQS_ = ['Weekly','Monthly','Quarterly','6-Month','Annual'];
+var _PM_DEPTS_ = ['METAL','PLASTICS','LITHO','MACHINE SHOP','ELECTRICAL','FACILITIES'];
+var _PM_TYPES_ = ['Lubrication','Inspection','Filter Change','Calibration','Cleaning','Overhaul','Belt/Drive'];
+
+var _pmTab_        = 'defs';
+var _pmSchedOv_    = {};   // schedId -> {partsRegular,partsOrder,tasks} edit overrides
+var _pmStatusOv_   = {};   // schedId -> status override (Snoozed)
+var _pmTaskChecks_ = {};   // ticketNo::idx -> bool
+var _pmEditBuf_    = null;  // active edit working copy
+var _pmEditId_     = null;
+
+/* ── helpers ───────────────────────────────────────────────────────────── */
+function _pmFreqToPri_(f){ return ({Weekly:'HIGH',Monthly:'MEDIUM',Quarterly:'MEDIUM','6-Month':'LOW',Annual:'LOW'})[f] || 'LOW'; }
+function _pmEffPri_(s){ return s.priorityMode === 'explicit' ? s.priority : _pmFreqToPri_(s.freq); }
+function _pmEffStatus_(s){ return _pmStatusOv_[s.id] || s.status; }
+function _pmEffSched_(s){ var o = _pmSchedOv_[s.id]; return o ? Object.assign({}, s, o) : s; }
+function _pmSchedById_(id){ return (window._PM_SAMPLE_.schedules).filter(function(s){ return s.id === id; })[0]; }
+function _pmPriBadge_(p){ return '<span class="pri-badge pri-' + esc(p || '') + '">' + esc(p || '&#8212;') + '</span>'; }
+function _pmSchedBadge_(s){ return '<span class="pm-sbadge pm-sb-' + esc(s.replace(/\s+/g,'-')) + '">' + esc(s) + '</span>'; }
+function _pmTicketBadge_(s){ return '<span class="pm-tbadge pm-tb-' + esc(s.replace(/\s+/g,'-')) + '">' + esc(s) + '</span>'; }
+function _pmDueStyle_(s){ var st = _pmEffStatus_(s); if(st==='Overdue') return 'color:var(--status-critical);font-weight:600;'; if(st==='Due Soon') return 'color:var(--status-warn);font-weight:600;'; return 'color:var(--text-secondary);'; }
+
+/* ── page registration ─────────────────────────────────────────────────── */
+PAGES['pm'] = function(c) { _pmLoad_(c); };
+
+function _pmLoad_(container) {
+  // TODO(backend): when PM endpoints land, replace the sample-data block below with:
+  //   fetch(WORKER_URL + '/api/pm/schedules', { headers:{ 'X-User-Email': USER ? USER.email : '' } })
+  //     .then(function(r){ return r.json(); })
+  //     .then(function(data){ window._PM_SAMPLE_ = data; _pmRender_(container); })
+  //     .catch(function(err){ container.innerHTML = '<div class="pm-empty">Error loading PM schedules: ' + esc(err.message||String(err)) + '</div>'; });
+  _pmRender_(container);
+}
+
+function _pmRender_(container) {
+  var schedules = window._PM_SAMPLE_.schedules || [];
+  var tickets   = window._PM_SAMPLE_.tickets   || [];
+
+  var dueSoon = schedules.filter(function(s){ return _pmEffStatus_(s) === 'Due Soon'; }).length;
+  var overdue = schedules.filter(function(s){ return _pmEffStatus_(s) === 'Overdue'; }).length;
+  var openTk  = tickets.filter(function(t){ return t.status !== 'COMPLETE'; }).length;
+  var compTk  = tickets.filter(function(t){ return t.status === 'COMPLETE'; }).length;
+  var compRate = tickets.length ? Math.round(compTk / tickets.length * 100) : 0;
+
+  function kcell(label, value, mod) {
+    return '<div class="ds-cell' + (mod ? ' ' + mod : '') + '"><div class="ds-lbl">' + esc(label) + '</div><div class="ds-v">' + value + '</div></div>';
+  }
+  var kpiBar = '<div class="dept-strip" style="grid-template-columns:repeat(5,1fr);">' +
+    kcell('Active Schedules', schedules.length, '') +
+    kcell('Due This Week', dueSoon, dueSoon ? 'ds-warn' : '') +
+    kcell('Overdue', overdue, overdue ? 'ds-crit' : '') +
+    kcell('Open PM Tickets', openTk, '') +
+    kcell('Cycle Completion', compRate + '%', '') +
+  '</div>';
+
+  function chips(cls, values) {
+    return values.map(function(v) {
+      return '<label class="fp-chip"><input type="checkbox" value="' + esc(v) + '" data-fp="pm" class="' + cls + '" onchange="_fpChip_(this);_pmApply_()">' + esc(v) + '</label>';
+    }).join('');
+  }
+  var fpHtml =
+    '<div class="fp-bar" id="pm-fp-bar">' +
+      '<div class="fp-row">' +
+        '<div class="fp-group"><div class="fp-glabel">Frequency</div><div class="fp-checks">' + chips('fp-cb-freq', _PM_FREQS_) + '</div></div>' +
+        '<div class="fp-group"><div class="fp-glabel">Department</div><div class="fp-checks">' + chips('fp-cb-dept', _PM_DEPTS_) + '</div></div>' +
+        '<div class="fp-group"><div class="fp-glabel">PM Type</div><div class="fp-checks">' + chips('fp-cb-type', _PM_TYPES_) + '</div></div>' +
+        '<div class="fp-group"><div class="fp-glabel">Priority</div><div class="fp-checks">' + chips('fp-cb-pri', ['CRITICAL','HIGH','MEDIUM','LOW']) + '</div></div>' +
+        '<button class="fp-reset" onclick="_pmResetFilters_()" style="align-self:flex-end;margin-bottom:4px;">Reset all</button>' +
+      '</div>' +
+    '</div>';
+
+  container.innerHTML =
+    '<div class="pm-wrap">' +
+      kpiBar +
+      '<div class="pm-toolbar">' +
+        '<span class="pm-title">PM Master Schedule</span>' +
+        '<span class="pm-count" id="pm-cnt">' + schedules.length + ' schedules</span>' +
+        '<input class="pm-search" id="pm-search" placeholder="Search asset, PM ID, type&#8230;" oninput="_pmApply_()" />' +
+        '<button class="fp-toggle" id="pm-fp-toggle" onclick="_pmToggleFP_()">&#8862; Filters <span class="fp-badge" id="pm-fp-badge" style="display:none">0</span></button>' +
+        '<button onclick="_pmRender_(document.getElementById(\'page-pm\'))" style="height:30px;padding:0 10px;border:1px solid var(--border-default);border-radius:6px;background:#fff;font-size:12px;cursor:pointer;color:var(--text-secondary);" title="Refresh">&#8635;</button>' +
+      '</div>' +
+      '<div class="pm-tabs">' +
+        '<button class="pm-tab' + (_pmTab_ === 'defs' ? ' active' : '') + '" id="pm-tab-defs" onclick="_pmSetTab_(\'defs\')">Schedule Definitions</button>' +
+        '<button class="pm-tab' + (_pmTab_ === 'tickets' ? ' active' : '') + '" id="pm-tab-tickets" onclick="_pmSetTab_(\'tickets\')">Generated PM Tickets</button>' +
+      '</div>' +
+      fpHtml +
+      '<div id="pm-body"></div>' +
+    '</div>';
+
+  _pmApply_();
+}
+
+function _pmSetTab_(tab) {
+  _pmTab_ = tab;
+  var d = document.getElementById('pm-tab-defs');
+  var t = document.getElementById('pm-tab-tickets');
+  if (d) d.classList.toggle('active', tab === 'defs');
+  if (t) t.classList.toggle('active', tab === 'tickets');
+  _pmApply_();
+}
+
+function _pmReadFilters_() {
+  var q = document.getElementById('pm-search');
+  var out = { search: q ? q.value.toLowerCase() : '', freq: [], dept: [], type: [], pri: [] };
+  document.querySelectorAll('.fp-cb-freq[data-fp="pm"]').forEach(function(cb){ if (cb.checked) out.freq.push(cb.value); });
+  document.querySelectorAll('.fp-cb-dept[data-fp="pm"]').forEach(function(cb){ if (cb.checked) out.dept.push(cb.value); });
+  document.querySelectorAll('.fp-cb-type[data-fp="pm"]').forEach(function(cb){ if (cb.checked) out.type.push(cb.value); });
+  document.querySelectorAll('.fp-cb-pri[data-fp="pm"]').forEach(function(cb){ if (cb.checked) out.pri.push(cb.value); });
+  return out;
+}
+
+function _pmApply_() {
+  var f = _pmReadFilters_();
+  var cntEl = document.getElementById('pm-cnt');
+  var body  = document.getElementById('pm-body');
+  if (!body) return;
+
+  if (_pmTab_ === 'defs') {
+    var list = (window._PM_SAMPLE_.schedules || []).filter(function(s) {
+      if (f.freq.length && f.freq.indexOf(s.freq) < 0) return false;
+      if (f.dept.length && f.dept.indexOf(s.dept) < 0) return false;
+      if (f.type.length && f.type.indexOf(s.type) < 0) return false;
+      if (f.pri.length  && f.pri.indexOf(_pmEffPri_(s)) < 0) return false;
+      if (f.search) { var hay = (s.id+' '+s.asset+' '+s.assetName+' '+s.type+' '+s.freq+' '+s.dept).toLowerCase(); if (hay.indexOf(f.search) < 0) return false; }
+      return true;
+    });
+    if (cntEl) cntEl.textContent = list.length + ' schedule' + (list.length !== 1 ? 's' : '');
+    body.innerHTML = _pmDefTable_(list);
+  } else {
+    var tlist = (window._PM_SAMPLE_.tickets || []).filter(function(t) {
+      var s = _pmSchedById_(t.schedId); if (!s) return false;
+      if (f.freq.length && f.freq.indexOf(s.freq) < 0) return false;
+      if (f.dept.length && f.dept.indexOf(s.dept) < 0) return false;
+      if (f.type.length && f.type.indexOf(s.type) < 0) return false;
+      if (f.pri.length  && f.pri.indexOf(_pmEffPri_(s)) < 0) return false;
+      if (f.search) { var hay = (t.ticketNo+' '+s.asset+' '+s.assetName+' '+s.type+' '+s.freq+' '+s.dept+' '+t.assigned).toLowerCase(); if (hay.indexOf(f.search) < 0) return false; }
+      return true;
+    });
+    if (cntEl) cntEl.textContent = tlist.length + ' ticket' + (tlist.length !== 1 ? 's' : '');
+    body.innerHTML = _pmTicketTable_(tlist);
+  }
+
+  // filter badge
+  var nActive = (f.freq.length?1:0) + (f.dept.length?1:0) + (f.type.length?1:0) + (f.pri.length?1:0) + (f.search?1:0);
+  var btn = document.getElementById('pm-fp-toggle');
+  var badge = document.getElementById('pm-fp-badge');
+  if (btn) btn.classList.toggle('fp-active', nActive > 0);
+  if (badge) { badge.textContent = nActive; badge.style.display = nActive > 0 ? '' : 'none'; }
+}
+
+function _pmDefTable_(list) {
+  if (list.length === 0) return '<div class="pm-table-wrap"><div class="pm-empty">No PM schedules match your filters.</div></div>';
+  return '<div class="pm-table-wrap"><table class="pm-table"><thead><tr>' +
+      '<th>Asset</th><th>Type of PM</th><th>Frequency</th><th>Priority</th><th>Downtime</th>' +
+      '<th class="right">Est. DT</th><th>Manpower</th><th>Last Done</th><th>Next Due</th><th>Status</th>' +
+    '</tr></thead><tbody>' +
+    list.map(function(s) {
+      return '<tr onclick="_pmOpenSched_(\'' + esc(s.id) + '\')">' +
+        '<td><span class="col-asset">' + esc(s.asset) + '</span><div class="col-name" title="' + esc(s.assetName) + '">' + esc(s.assetName) + '</div></td>' +
+        '<td>' + esc(s.type) + '</td>' +
+        '<td><span class="pm-freq">' + esc(s.freq) + '</span></td>' +
+        '<td>' + _pmPriBadge_(_pmEffPri_(s)) + '</td>' +
+        '<td style="color:var(--text-secondary);">' + esc(s.downtimeType) + '</td>' +
+        '<td class="right" style="font-family:var(--font-mono);font-size:11.5px;color:var(--text-secondary);">' + esc(s.estDowntime) + '</td>' +
+        '<td style="color:var(--text-secondary);font-size:11.5px;">' + esc(s.manpower) + '</td>' +
+        '<td style="color:var(--text-tertiary);font-size:11.5px;">' + esc(s.lastCompleted) + '</td>' +
+        '<td style="font-size:11.5px;' + _pmDueStyle_(s) + '">' + esc(s.nextDue) + '</td>' +
+        '<td>' + _pmSchedBadge_(_pmEffStatus_(s)) + '</td>' +
+      '</tr>';
+    }).join('') +
+    '</tbody></table></div>';
+}
+
+function _pmTicketTable_(list) {
+  if (list.length === 0) return '<div class="pm-table-wrap"><div class="pm-empty">No generated PM tickets match your filters.</div></div>';
+  return '<div class="pm-table-wrap"><table class="pm-table"><thead><tr>' +
+      '<th>PM Ticket #</th><th>Generated</th><th>Priority</th><th>Status</th><th>Dept</th>' +
+      '<th>Equipment</th><th>PM Type</th><th>Frequency</th><th>Assigned To</th>' +
+    '</tr></thead><tbody>' +
+    list.map(function(t) {
+      var s = _pmSchedById_(t.schedId);
+      return '<tr onclick="_pmOpenTicket_(\'' + esc(t.ticketNo) + '\')">' +
+        '<td class="col-tn">' + esc(t.ticketNo) + '</td>' +
+        '<td style="color:var(--text-tertiary);font-size:11.5px;">' + esc(t.date) + '</td>' +
+        '<td>' + _pmPriBadge_(_pmEffPri_(s)) + '</td>' +
+        '<td>' + _pmTicketBadge_(t.status) + '</td>' +
+        '<td style="color:var(--text-secondary);font-size:11.5px;">' + esc(s.dept) + '</td>' +
+        '<td><span style="font-family:var(--font-mono);font-size:11px;color:var(--text-secondary);">' + esc(s.asset) + '</span> ' + esc(s.assetName) + '</td>' +
+        '<td>' + esc(s.type) + '</td>' +
+        '<td><span class="pm-freq">' + esc(s.freq) + '</span></td>' +
+        '<td style="color:var(--text-secondary);">' + esc(t.assigned) + '</td>' +
+      '</tr>';
+    }).join('') +
+    '</tbody></table></div>';
+}
+
+function _pmToggleFP_() {
+  var bar = document.getElementById('pm-fp-bar');
+  var btn = document.getElementById('pm-fp-toggle');
+  if (!bar) return;
+  bar.classList.toggle('fp-open');
+  if (btn) btn.classList.toggle('fp-active', bar.classList.contains('fp-open'));
+}
+function _pmResetFilters_() {
+  document.querySelectorAll('input[data-fp="pm"]').forEach(function(cb){ cb.checked = false; if (window._fpChip_) window._fpChip_(cb); });
+  var q = document.getElementById('pm-search'); if (q) q.value = '';
+  _pmApply_();
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   Schedule definition slide-over
+   ══════════════════════════════════════════════════════════════════════════ */
+function _pmOpenSched_(id) {
+  _pmEditId_ = null; _pmEditBuf_ = null;
+  var raw = _pmSchedById_(id);
+  if (!raw) return;
+  document.getElementById('pm-sched-overlay').setAttribute('data-id', id);
+  document.getElementById('pm-sched-overlay').classList.add('open');
+  _pmRenderSched_(id);
+}
+function _pmCloseSched_() {
+  document.getElementById('pm-sched-overlay').classList.remove('open');
+  _pmEditId_ = null; _pmEditBuf_ = null;
+}
+
+function _pmRenderSched_(id) {
+  var raw = _pmSchedById_(id);
+  var s = _pmEffSched_(raw);
+  var pri = _pmEffPri_(raw);
+  var statLabel = _pmEffStatus_(raw);
+  var editing = (_pmEditId_ === id);
+  var isManager = USER && USER.isManager;
+
+  document.getElementById('pm-sched-code').textContent = s.id;
+  document.getElementById('pm-sched-name').textContent = s.assetName;
+  document.getElementById('pm-sched-status').innerHTML = _pmSchedBadge_(statLabel);
+
+  var actions = '';
+  if (isManager) {
+    actions = editing
+      ? '<button class="pm-hact" onclick="_pmCancelEdit_()">Cancel</button>' +
+        '<button class="pm-hact save" onclick="_pmSaveEdit_()">Save changes</button>'
+      : '<button class="pm-hact" onclick="_pmStartEdit_(\'' + esc(id) + '\')">Edit definition</button>' +
+        '<button class="pm-hact" onclick="_pmSnooze_(\'' + esc(id) + '\')">Snooze</button>' +
+        '<button class="pm-hact primary" onclick="_pmGenerate_(\'' + esc(id) + '\')">Generate PM ticket now</button>';
+  }
+  document.getElementById('pm-sched-actions').innerHTML = actions;
+
+  var partsReg = editing ? _pmEditBuf_.partsRegular : s.partsRegular;
+  var partsOrd = editing ? _pmEditBuf_.partsOrder   : s.partsOrder;
+  var tasks    = editing ? _pmEditBuf_.tasks        : s.tasks;
+
+  function kpi(label, value, foot, style) {
+    return '<div class="pm-kpi"><div class="pm-kpi-label">' + esc(label) + '</div>' +
+      '<div class="pm-kpi-value" style="' + (style||'') + '">' + esc(value) + '</div>' +
+      (foot ? '<div class="pm-kpi-foot">' + esc(foot) + '</div>' : '') + '</div>';
+  }
+  var priFoot = raw.priorityMode === 'explicit' ? 'manual' : 'from interval';
+  var nextStyle = statLabel==='Overdue' ? 'color:var(--status-critical);' : (statLabel==='Due Soon' ? 'color:var(--status-warn);' : '');
+  var kpis = '<div class="pm-kpi-grid">' +
+    kpi('Frequency', s.freq, '', '') +
+    kpi('Next Due', s.nextDue, statLabel, nextStyle) +
+    kpi('Last Completed', s.lastCompleted, '', '') +
+    kpi('Priority', pri, priFoot, '') +
+    kpi('Est. Downtime', s.estDowntime, s.downtimeType + ' downtime', '') +
+    kpi('Manpower', s.manpower, '', '') +
+  '</div>';
+
+  function field(label, valHtml) {
+    return '<div><div class="pm-field-label">' + esc(label) + '</div><div class="pm-field-value">' + valHtml + '</div></div>';
+  }
+  var priNote = raw.priorityMode === 'explicit' ? '(manual override)' : '(derived from interval)';
+  var defSection = '<div class="pm-section"><div class="pm-section-title">Schedule Definition</div><div class="pm-field-grid">' +
+    field('Asset ID', '<span class="pm-link" onclick="_pmRegister_(\'' + esc(s.asset) + '\')">' + esc(s.asset) + '</span> <span style="color:var(--text-tertiary);font-size:11px;">&rarr; Register</span>') +
+    field('Asset name', esc(s.assetName)) +
+    field('Type of PM', esc(s.type)) +
+    field('Frequency', esc(s.freq)) +
+    field('Downtime type', esc(s.downtimeType)) +
+    field('Estimated asset downtime', esc(s.estDowntime)) +
+    field('Manpower requirements', esc(s.manpower)) +
+    field('Priority code', _pmPriBadge_(pri) + ' <span style="color:var(--text-tertiary);font-size:11px;">' + priNote + '</span>') +
+    field('Ticket lead time', esc(s.leadDays + ' days before due')) +
+  '</div></div>';
+
+  // Parts
+  function partsBlock(title, arr, addFn, key) {
+    var inner;
+    if (editing) {
+      inner = '<div style="display:flex;flex-direction:column;gap:6px;">' + arr.map(function(p, i) {
+        return '<div style="display:flex;gap:6px;align-items:center;"><input class="pm-ein" value="' + esc(p) + '" oninput="_pmEditPart_(\'' + key + '\',' + i + ',this.value)"><button class="pm-erm" onclick="_pmRemovePart_(\'' + key + '\',' + i + ')">&times;</button></div>';
+      }).join('') + '</div>';
+    } else {
+      inner = arr.length ? '<ul class="pm-list">' + arr.map(function(p){ return '<li>' + esc(p) + '</li>'; }).join('') + '</ul>' : '<div style="color:var(--text-tertiary);font-size:12.5px;">None specified.</div>';
+    }
+    var add = editing ? '<button class="pm-eadd" onclick="' + addFn + '">+ Add</button>' : '';
+    return '<div class="pm-section"><div class="pm-section-title"><span>' + title + '</span>' + add + '</div>' + inner + '</div>';
+  }
+  var partsSection = '<div class="pm-two-col">' +
+    partsBlock('Parts changed regularly', partsReg, '_pmAddPart_(\'partsRegular\')', 'partsRegular') +
+    partsBlock('Parts that may need ordering', partsOrd, '_pmAddPart_(\'partsOrder\')', 'partsOrder') +
+  '</div>';
+
+  // Tasks
+  var tasksInner;
+  if (editing) {
+    tasksInner = '<div style="display:flex;flex-direction:column;gap:6px;">' + tasks.map(function(t, i) {
+      return '<div style="display:flex;gap:6px;align-items:center;">' +
+        '<input class="pm-ein" placeholder="Task description" value="' + esc(t.t) + '" oninput="_pmEditTask_(' + i + ',\'t\',this.value)">' +
+        '<input class="pm-ein" style="max-width:140px;font-family:var(--font-mono);font-size:11.5px;" placeholder="CHK ref" value="' + esc(t.ref) + '" oninput="_pmEditTask_(' + i + ',\'ref\',this.value)">' +
+        '<button class="pm-erm" onclick="_pmRemoveTask_(' + i + ')">&times;</button></div>';
+    }).join('') + '</div>';
+  } else {
+    tasksInner = tasks.map(function(t, i) {
+      return '<div class="pm-taskrow"><span class="pm-tasknum">' + (i+1) + '</span><span class="pm-tasktext">' + esc(t.t) + '</span><span class="pm-ref">' + esc(t.ref) + '</span></div>';
+    }).join('');
+  }
+  var addTask = editing ? '<button class="pm-eadd" onclick="_pmAddTask_()">+ Add task</button>' : '';
+  var tasksSection = '<div class="pm-section"><div class="pm-section-title"><span>Task list &amp; checklist references</span>' + addTask + '</div>' + tasksInner + '</div>';
+
+  var toolsSafety = '<div class="pm-two-col">' +
+    '<div class="pm-section"><div class="pm-section-title">Specialty tools</div><div style="display:flex;flex-wrap:wrap;gap:6px;">' +
+      s.tools.map(function(t){ return '<span class="pm-tool">' + esc(t) + '</span>'; }).join('') + '</div></div>' +
+    '<div class="pm-section"><div class="pm-section-title">Safety / Quality / Environmental</div><ul class="pm-list">' +
+      s.safety.map(function(x){ return '<li>' + esc(x) + '</li>'; }).join('') + '</ul></div>' +
+  '</div>';
+
+  var histSection = '<div class="pm-section"><div class="pm-section-title">PM History</div>' +
+    '<table class="pm-hist-table"><thead><tr><th>Date Completed</th><th>PM Ticket</th><th>Technician</th><th>Result</th></tr></thead><tbody>' +
+    raw.history.map(function(h) {
+      return '<tr><td style="color:var(--text-secondary);">' + esc(h.date) + '</td>' +
+        '<td style="font-family:var(--font-mono);font-weight:600;color:var(--brand-navy);font-size:11.5px;">' + esc(h.ticket) + '</td>' +
+        '<td>' + esc(h.tech) + '</td><td style="color:var(--text-secondary);">' + esc(h.result) + '</td></tr>';
+    }).join('') + '</tbody></table></div>';
+
+  var docref = '<div class="pm-docref">' + (docLabel('pmSchedule') || 'FRM-030-004 · PM Schedule Master · Rev 0 · 6/2026') + '</div>';
+
+  document.getElementById('pm-sched-body').innerHTML = kpis + defSection + partsSection + tasksSection + toolsSafety + histSection + docref;
+}
+
+/* Register link */
+function _pmRegister_(code) {
+  if (typeof navigate === 'function') { navigate('equipment-inventory'); showToast('Jump to Equipment Register for ' + code, 'info'); }
+  else showToast('Equipment Register → ' + code, 'info');
+}
+
+/* ── Edit mode ─────────────────────────────────────────────────────────── */
+function _pmStartEdit_(id) {
+  var s = _pmEffSched_(_pmSchedById_(id));
+  _pmEditId_ = id;
+  _pmEditBuf_ = {
+    partsRegular: s.partsRegular.slice(),
+    partsOrder: s.partsOrder.slice(),
+    tasks: s.tasks.map(function(t){ return { t:t.t, ref:t.ref }; })
+  };
+  _pmRenderSched_(id);
+}
+function _pmCancelEdit_() { var id = _pmEditId_; _pmEditId_ = null; _pmEditBuf_ = null; _pmRenderSched_(id); }
+function _pmSaveEdit_() {
+  var id = _pmEditId_;
+  _pmSchedOv_[id] = {
+    partsRegular: _pmEditBuf_.partsRegular.slice(),
+    partsOrder: _pmEditBuf_.partsOrder.slice(),
+    tasks: _pmEditBuf_.tasks.map(function(t){ return { t:t.t, ref:t.ref }; })
+  };
+  _pmEditId_ = null; _pmEditBuf_ = null;
+  _pmRenderSched_(id);
+  showToast('Schedule definition updated.', 'success');
+}
+function _pmEditPart_(key, i, val) { _pmEditBuf_[key][i] = val; }
+function _pmRemovePart_(key, i) { _pmEditBuf_[key].splice(i, 1); _pmRenderSched_(_pmEditId_); }
+function _pmAddPart_(key) { _pmEditBuf_[key].push('New part'); _pmRenderSched_(_pmEditId_); }
+function _pmEditTask_(i, field, val) { _pmEditBuf_.tasks[i][field] = val; }
+function _pmRemoveTask_(i) { _pmEditBuf_.tasks.splice(i, 1); _pmRenderSched_(_pmEditId_); }
+function _pmAddTask_() { _pmEditBuf_.tasks.push({ t:'', ref:'' }); _pmRenderSched_(_pmEditId_); }
+
+/* ── Generate / Snooze ─────────────────────────────────────────────────── */
+function _pmGenerate_(id) {
+  var s = _pmEffSched_(_pmSchedById_(id));
+  var seq = String((window._PM_SAMPLE_.tickets || []).length + 1).padStart(3, '0');
+  var grp = s.asset.split('-')[0];
+  var no = 'PM-' + grp + '-260706-' + seq;
+  window._PM_SAMPLE_.tickets.push({ ticketNo:no, schedId:id, date:'2026-07-06', status:'WAITING', assigned:'Unassigned', due:s.nextDue });
+  // In production this POSTs to the Worker, which creates the PM- ticket in the
+  // Waiting Queue alongside regular MT- tickets.
+  _pmCloseSched_();
+  _pmTab_ = 'tickets';
+  _pmRender_(document.getElementById('page-pm'));
+  showToast('Generated ' + no + ' → now in the Waiting Queue with regular tickets.', 'success');
+}
+function _pmSnooze_(id) {
+  _pmStatusOv_[id] = 'Snoozed';
+  _pmRenderSched_(id);
+  _pmApply_();
+  showToast('PM schedule deferred — next generation pushed one cycle.', 'info');
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   PM ticket work-order slide-over
+   ══════════════════════════════════════════════════════════════════════════ */
+function _pmOpenTicket_(no) {
+  var t = (window._PM_SAMPLE_.tickets || []).filter(function(x){ return x.ticketNo === no; })[0];
+  if (!t) return;
+  document.getElementById('pm-ticket-overlay').classList.add('open');
+  _pmRenderTicket_(no);
+}
+function _pmCloseTicket_() { document.getElementById('pm-ticket-overlay').classList.remove('open'); }
+
+function _pmRenderTicket_(no) {
+  var t = (window._PM_SAMPLE_.tickets || []).filter(function(x){ return x.ticketNo === no; })[0];
+  var s = _pmEffSched_(_pmSchedById_(t.schedId));
+  var pri = _pmEffPri_(_pmSchedById_(t.schedId));
+
+  document.getElementById('pm-ticket-code').textContent = t.ticketNo;
+  document.getElementById('pm-ticket-badges').innerHTML = _pmPriBadge_(pri) + ' ' + _pmTicketBadge_(t.status);
+  document.getElementById('pm-ticket-sub').textContent = 'PM · ' + s.freq + ' ' + s.type;
+
+  function field(label, valHtml) {
+    return '<div><div class="pm-field-label">' + esc(label) + '</div><div class="pm-field-value">' + valHtml + '</div></div>';
+  }
+  var info = '<div class="pm-section"><div class="pm-field-grid">' +
+    field('Equipment', '<span class="pm-link" onclick="_pmRegister_(\'' + esc(s.asset) + '\')">' + esc(s.asset) + '</span> ' + esc(s.assetName)) +
+    field('PM Type', esc(s.type)) +
+    field('Frequency', esc(s.freq)) +
+    field('Downtime', esc(s.downtimeType) + ' · ' + esc(s.estDowntime)) +
+    field('Department', esc(s.dept)) +
+    field('Generated', esc(t.date)) +
+    field('Due date', esc(t.due)) +
+    field('Assigned to', esc(t.assigned)) +
+    field('Generated from', '<span class="pm-link" onclick="_pmCloseTicket_();_pmOpenSched_(\'' + esc(s.id) + '\')">' + esc(s.id) + '</span>') +
+    field('Manpower', esc(s.manpower)) +
+  '</div></div>';
+
+  var doneCount = 0;
+  var checklist = s.tasks.map(function(task, i) {
+    var key = t.ticketNo + '::' + i;
+    var done = !!_pmTaskChecks_[key];
+    if (done) doneCount++;
+    var strike = done ? 'text-decoration:line-through;color:var(--text-tertiary);' : '';
+    return '<label style="display:flex;gap:11px;padding:9px 0;border-bottom:1px solid var(--border-default);align-items:flex-start;cursor:pointer;">' +
+      '<input type="checkbox" class="pm-check" style="margin-top:1px;flex-shrink:0;"' + (done ? ' checked' : '') + ' onchange="_pmToggleTask_(\'' + esc(t.ticketNo) + '\',' + i + ')">' +
+      '<span style="flex:1;font-size:12.5px;color:var(--text-primary);line-height:1.5;' + strike + '">' + esc(task.t) + '</span>' +
+      '<span class="pm-ref">' + esc(task.ref) + '</span></label>';
+  }).join('');
+  var checkSection = '<div class="pm-section"><div class="pm-section-title"><span>Task checklist</span><span style="font-weight:400;color:var(--text-secondary);text-transform:none;letter-spacing:0;">' + doneCount + ' / ' + s.tasks.length + ' complete</span></div>' + checklist + '</div>';
+
+  var parts = s.partsRegular.concat(s.partsOrder);
+  var partsTools = '<div class="pm-two-col">' +
+    '<div class="pm-section"><div class="pm-section-title">Parts &amp; tools</div>' +
+      '<ul class="pm-list" style="margin-bottom:10px;">' + parts.map(function(p){ return '<li>' + esc(p) + '</li>'; }).join('') + '</ul>' +
+      '<div style="display:flex;flex-wrap:wrap;gap:6px;">' + s.tools.map(function(x){ return '<span class="pm-tool">' + esc(x) + '</span>'; }).join('') + '</div>' +
+    '</div>' +
+    '<div class="pm-section"><div class="pm-section-title">Safety / Quality / Environmental</div><ul class="pm-list">' +
+      s.safety.map(function(x){ return '<li>' + esc(x) + '</li>'; }).join('') + '</ul></div>' +
+  '</div>';
+
+  var events = [
+    { label:'Generated', ts:t.date, body:'Auto-created from schedule ' + s.id + ' (' + s.leadDays + ' days before due). Prefix PM- brings it into rotation with regular tickets.' },
+    { label:'Assigned', ts:t.date, body: t.assigned === 'Unassigned' ? 'Awaiting assignment.' : 'Assigned to ' + t.assigned + '.' }
+  ];
+  if (t.status === 'COMPLETE') events.push({ label:'Completed', ts:t.due, body:'All checklist items signed off; pending manager verification.' });
+  var timeline = '<div class="pm-section"><div class="pm-section-title">Activity</div><div style="display:flex;flex-direction:column;gap:12px;">' +
+    events.map(function(e) {
+      return '<div class="pm-tl-item"><div class="pm-tl-dot"></div><div><div style="font-size:12px;font-weight:600;color:var(--text-primary);">' + esc(e.label) + ' <span style="font-weight:400;color:var(--text-tertiary);">· ' + esc(e.ts) + '</span></div><div style="font-size:12px;color:var(--text-secondary);margin-top:1px;">' + esc(e.body) + '</div></div></div>';
+    }).join('') + '</div></div>';
+
+  document.getElementById('pm-ticket-body').innerHTML = info + checkSection + partsTools + timeline;
+}
+function _pmToggleTask_(no, i) {
+  var key = no + '::' + i;
+  _pmTaskChecks_[key] = !_pmTaskChecks_[key];
+  _pmRenderTicket_(no);
+}
+</script>
