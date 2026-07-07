@@ -83,6 +83,30 @@
 .emrl-table .col-chk-pend{color:var(--status-warn);font-weight:600;}
 .emrl-status{padding:14px;text-align:center;font-size:12px;color:var(--text-secondary);}
 
+/* ── Machine Shop Costs report ─────────────────────────────────────────── */
+.ms-controls{display:flex;flex-wrap:wrap;gap:14px;align-items:flex-end;background:var(--bg-surface);border:1px solid var(--border-default);border-radius:10px;padding:14px 16px;box-shadow:var(--shadow-sm);margin-bottom:16px;}
+.ms-ctl{display:flex;flex-direction:column;gap:4px;}
+.ms-ctl-label{font-size:10.5px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--text-secondary);}
+.ms-input{height:32px;padding:0 10px;border:1px solid var(--border-default);border-radius:6px;font-size:12.5px;background:#fff;color:var(--text-primary);outline:none;}
+.ms-input:focus{border-color:var(--brand-navy);}
+.ms-input.narrow{width:96px;}
+.ms-daterange{display:flex;align-items:flex-end;gap:10px;padding:8px 12px;border:1.5px solid var(--brand-navy);border-radius:8px;background:var(--status-info-bg);}
+.ms-daterange .ms-ctl-label{color:var(--brand-navy);}
+.ms-presets{display:flex;gap:4px;flex-wrap:wrap;margin-top:2px;}
+.ms-preset{height:24px;padding:0 10px;border:1px solid var(--border-default);border-radius:13px;background:#fff;font-size:11px;color:var(--text-secondary);cursor:pointer;}
+.ms-preset:hover{background:var(--bg-hover);color:var(--text-primary);}
+.ms-preset.active{background:var(--brand-navy);color:#fff;border-color:var(--brand-navy);}
+.ms-charts{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px;}
+@media (max-width:900px){.ms-charts{grid-template-columns:1fr;}}
+.ms-th{cursor:pointer;user-select:none;white-space:nowrap;}
+.ms-th:hover{color:var(--brand-navy);}
+.ms-th .ms-arrow{color:var(--brand-navy);margin-left:3px;font-size:9px;}
+.ms-td-num{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap;}
+.ms-td-machine{font-family:var(--font-mono);font-weight:600;color:var(--brand-navy);}
+.ms-pager{display:flex;align-items:center;justify-content:space-between;padding:10px 14px;border-top:1px solid var(--border-default);font-size:12px;color:var(--text-secondary);}
+.ms-pager-btns{display:flex;gap:6px;}
+.ms-empty{padding:28px;text-align:center;color:var(--text-secondary);font-size:13px;}
+
 /* Print styles */
 @media print {
   .page-head-actions,.rpt-btn,#sidebar,.topbar{display:none!important;}
@@ -98,6 +122,20 @@ window.PAGES = window.PAGES || {};
 
 var _rptData_ = null;
 var _rptCat_  = 'insights';   // active report category (persists across day changes)
+
+// ── Machine Shop Costs report state (client-side, sample data) ──────────────
+// Sample data models the "Costs 2024" Machine Shop labor log (Date · Machine ID
+// · Hours · Operator, priced at a single Machine Shop hourly rate). The report
+// is fully self-contained so it can be swapped for a live worker endpoint later.
+var _msData_   = null;        // generated once, cached across re-renders
+var _msRate_   = 28.39;       // Machine Shop hourly cost ($/hr) — editable setting
+var _msReport_ = 'overall';   // overall | operator | utilization
+var _msStart_  = null;        // 'YYYY-MM-DD' inclusive lower bound (null = min)
+var _msEnd_    = null;        // 'YYYY-MM-DD' inclusive upper bound (null = max)
+var _msPreset_ = 'all';       // active quick-range preset id
+var _msSort_   = { key: 'date', dir: 'desc' };
+var _msPage_   = 1;
+var _MS_PAGE_  = 15;
 
 PAGES['reports'] = function(c) { _loadReportPage_(c, 30); };
 
@@ -128,7 +166,8 @@ var _RPT_CATS_ = [
   { id: 'insights',     label: 'Insights',            desc: 'Headline KPIs, predictive insights, recurring equipment, and activity trend.' },
   { id: 'workload',     label: 'Workload',            desc: 'Load by department and by technician across the reporting window.' },
   { id: 'distribution', label: 'Work Distribution',   desc: 'Where the work is — status, problem types, and equipment/building hotspots.' },
-  { id: 'compliance',   label: 'Compliance & Exports', desc: 'SQF 13.2.8 compliance pack, repair-log search, and data exports.' }
+  { id: 'compliance',   label: 'Compliance & Exports', desc: 'SQF 13.2.8 compliance pack, repair-log search, and data exports.' },
+  { id: 'machineshop',  label: 'Machine Shop Costs',   desc: 'Labor cost, hours, and machine utilization for the Machine Shop — filtered by a custom date range.' }
 ];
 
 function _renderReport_(data, container) {
@@ -191,7 +230,11 @@ function _rptRenderCats_(data) {
         _rptStatusDistHtml_(data) + _rptProblemTypesHtml_(data) + _rptEquipHeatmapHtml_(data) + _rptBuildingHeatmapHtml_(data)) +
     cat('compliance',   meta.compliance.label,   meta.compliance.desc,
         _rptSqfPackHtml_(data) + _rptEmrlHtml_()) +
+    cat('machineshop',  meta.machineshop.label,  meta.machineshop.desc,
+        '<div id="ms-report"></div>') +
     '<div class="sqf-footer" style="margin-top:20px;"><span>FRM-030-001 · Maintenance Ticket</span><span>SQF 13.2.8 · Equipment Maintenance Repair Log</span><span class="grow">' + esc(window.COMPANY || 'CSC Maintenance') + '</span></div>';
+
+  _msInit_();   // generate sample data (once) and render the Machine Shop report
 }
 
 function _rptShowCat_(cat) {
@@ -651,4 +694,331 @@ function _truncate_(s, n) {
   if (!s) return '';
   return s.length > n ? s.substring(0, n) + '…' : s;
 }
+
+/* ══════════════════════════════════════════════════════════════════════════
+   MACHINE SHOP COSTS  — client-side report over a self-contained sample set.
+
+   Mirrors the "Costs 2024" Machine Shop labor log:
+     · date       — MM/DD/YYYY (stored ISO for range comparison)
+     · machine_id — "Jo.2 #" (e.g. 405.1, 1003.0)
+     · operator   — logging operator (Gonzalez, Messina, …)
+     · hours      — hours logged
+     · total_cost — hours × Machine Shop hourly rate (recomputed live)
+
+   To go live, replace _msGenerate_() with a fetch of a worker endpoint that
+   returns the same {date,machine,operator,hours} record shape.
+   ══════════════════════════════════════════════════════════════════════════ */
+
+var _MS_MACHINES_  = ['405.1','1003.0','406.1','916.0','433.0','62.1','1010.0','318.0',
+                      '432.0','404.1','500.0','812.0','804.0','166.0','68.1','134.1',
+                      '321.0','3138.0','316.0','255.0'];
+var _MS_OPERATORS_ = ['Gonzalez','Messina','Melchor','Nunez','Ignacio'];
+
+// Deterministic PRNG (mulberry32) so the sample set is stable across reloads.
+function _msRng_(seed) {
+  return function() {
+    seed |= 0; seed = (seed + 0x6D2B79F5) | 0;
+    var t = Math.imul(seed ^ (seed >>> 15), 1 | seed);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+function _msPad_(n) { return (n < 10 ? '0' : '') + n; }
+function _msIso_(d)  { return d.getFullYear() + '-' + _msPad_(d.getMonth() + 1) + '-' + _msPad_(d.getDate()); }
+function _msDisp_(iso) { var p = iso.split('-'); return p[1] + '/' + p[2] + '/' + p[0]; }
+
+// Build ~25 weekly logs (Fridays through 2025) with weighted machine picks so
+// "Most Utilized Machine" is meaningful.
+function _msGenerate_() {
+  var rnd = _msRng_(20250103);
+  var recs = [];
+  var d = new Date(2025, 0, 3);     // Fri 01/03/2025
+  var id = 0;
+  for (var w = 0; w < 25; w++) {
+    var iso = _msIso_(d);
+    var lines = 8 + Math.floor(rnd() * 8);   // 8–15 entries this week
+    for (var i = 0; i < lines; i++) {
+      // Weight toward the front of the machine list (squared bias).
+      var mi = Math.floor(rnd() * rnd() * _MS_MACHINES_.length);
+      var op = _MS_OPERATORS_[Math.floor(rnd() * _MS_OPERATORS_.length)];
+      var h  = Math.round((0.5 + rnd() * 9.5) * 2) / 2;   // 0.5–10.0 in .5 steps
+      if (rnd() > 0.9) h = Math.round((10 + rnd() * 30) * 2) / 2;  // occasional long job
+      recs.push({ id: 'MS-' + _msPad_(++id), date: iso, machine: _MS_MACHINES_[mi], operator: op, hours: h });
+    }
+    d.setDate(d.getDate() + 7);
+  }
+  return recs;
+}
+
+function _msInit_() {
+  if (!_msData_) {
+    _msData_ = _msGenerate_();
+    var dates = _msData_.map(function(r) { return r.date; }).sort();
+    if (_msStart_ === null) _msStart_ = dates[0];
+    if (_msEnd_   === null) _msEnd_   = dates[dates.length - 1];
+  }
+  _msRenderReport_();
+}
+
+// ── Derived data ────────────────────────────────────────────────────────────
+function _msFiltered_() {
+  return _msData_.filter(function(r) {
+    if (_msStart_ && r.date < _msStart_) return false;
+    if (_msEnd_   && r.date > _msEnd_)   return false;
+    return true;
+  });
+}
+
+function _msMoney_(n, dec) {
+  return '$' + Number(n || 0).toLocaleString('en-US',
+    { minimumFractionDigits: dec == null ? 0 : dec, maximumFractionDigits: dec == null ? 0 : dec });
+}
+
+function _msGroup_(rows, keyFn, hoursFn) {
+  var m = {};
+  rows.forEach(function(r) {
+    var k = keyFn(r);
+    if (!m[k]) m[k] = { key: k, hours: 0, count: 0 };
+    m[k].hours += hoursFn(r); m[k].count++;
+  });
+  return Object.keys(m).map(function(k) { return m[k]; })
+    .sort(function(a, b) { return b.hours - a.hours; });
+}
+
+// ── Render ────────────────────────────────────────────────────────────────
+function _msRenderReport_() {
+  var host = document.getElementById('ms-report');
+  if (!host) return;
+  var rows = _msFiltered_();
+  host.innerHTML =
+    _msControlsHtml_() +
+    (rows.length === 0
+      ? '<div class="rpt-table-wrap"><div class="ms-empty">No Machine Shop records in the selected date range. Widen the range or pick a preset above.</div></div>'
+      : _msKpiHtml_(rows) +
+        '<div class="ms-charts">' + _msPrimaryChartHtml_(rows) + _msCostOverTimeHtml_(rows) + '</div>' +
+        _msTableHtml_(rows));
+}
+
+function _msControlsHtml_() {
+  var reports = [
+    { id: 'overall',     label: 'Overall Machine Costs' },
+    { id: 'operator',    label: 'Hours by Operator' },
+    { id: 'utilization', label: 'Utilization by Machine' }
+  ];
+  var presets = [
+    { id: 'all',  label: 'All time' },
+    { id: '30',   label: 'Last 30 days' },
+    { id: '90',   label: 'Last 90 days' },
+    { id: 'ytd',  label: 'Year to date' }
+  ];
+  return '<div class="ms-controls">' +
+    '<div class="ms-ctl"><label class="ms-ctl-label">Report</label>' +
+      '<select class="ms-input" style="width:200px" onchange="_msSetReport_(this.value)">' +
+        reports.map(function(r) {
+          return '<option value="' + r.id + '"' + (r.id === _msReport_ ? ' selected' : '') + '>' + esc(r.label) + '</option>';
+        }).join('') +
+      '</select></div>' +
+    '<div class="ms-daterange">' +
+      '<div class="ms-ctl"><label class="ms-ctl-label">From</label>' +
+        '<input type="date" class="ms-input" value="' + esc(_msStart_ || '') + '" onchange="_msSetRange_(\'start\', this.value)"/></div>' +
+      '<div class="ms-ctl"><label class="ms-ctl-label">To</label>' +
+        '<input type="date" class="ms-input" value="' + esc(_msEnd_ || '') + '" onchange="_msSetRange_(\'end\', this.value)"/></div>' +
+    '</div>' +
+    '<div class="ms-ctl"><label class="ms-ctl-label">Quick range</label>' +
+      '<div class="ms-presets">' +
+        presets.map(function(p) {
+          return '<button class="ms-preset' + (p.id === _msPreset_ ? ' active' : '') + '" onclick="_msPresetRange_(\'' + p.id + '\')">' + esc(p.label) + '</button>';
+        }).join('') +
+      '</div></div>' +
+    '<div class="ms-ctl"><label class="ms-ctl-label">Shop Hourly Cost ($/hr)</label>' +
+      '<input type="number" min="0" step="0.01" class="ms-input narrow" value="' + _msRate_ + '" onchange="_msSetRate_(this.value)"/></div>' +
+  '</div>';
+}
+
+function _msKpiHtml_(rows) {
+  var totalHours = rows.reduce(function(s, r) { return s + r.hours; }, 0);
+  var totalCost  = totalHours * _msRate_;
+  var avgPerHour = totalHours ? totalCost / totalHours : 0;
+  var byMachine  = _msGroup_(rows, function(r) { return r.machine; }, function(r) { return r.hours; });
+  var top        = byMachine[0];
+  return '<div class="kpi-band" style="grid-template-columns:repeat(4,1fr);margin-bottom:16px;">' +
+    _rptKpi_(_msMoney_(totalCost), 'Total Machine Shop Cost', 'info', rows.length + ' records') +
+    _rptKpi_(totalHours.toLocaleString('en-US', { maximumFractionDigits: 1 }), 'Total Hours Logged', '', 'in selected range') +
+    _rptKpi_(_msMoney_(avgPerHour, 2), 'Average Cost Per Hour', 'success', 'blended rate') +
+    _rptKpi_(top ? esc(top.key) : '—', 'Most Utilized Machine', 'warn',
+             top ? (top.hours.toLocaleString('en-US', { maximumFractionDigits: 1 }) + ' hrs') : '') +
+  '</div>';
+}
+
+// Horizontal bar breakdown — content driven by the selected report type.
+function _msPrimaryChartHtml_(rows) {
+  var title, legend, bars;
+  if (_msReport_ === 'operator') {
+    title = 'Hours by Operator'; legend = 'total hours';
+    bars = _msGroup_(rows, function(r) { return r.operator; }, function(r) { return r.hours; })
+      .map(function(g) { return { label: g.key, value: g.hours, disp: g.hours.toLocaleString('en-US', { maximumFractionDigits: 1 }) + ' h' }; });
+  } else if (_msReport_ === 'overall') {
+    title = 'Cost per Machine'; legend = 'top 10 by cost';
+    bars = _msGroup_(rows, function(r) { return r.machine; }, function(r) { return r.hours; })
+      .slice(0, 10)
+      .map(function(g) { return { label: g.key, value: g.hours * _msRate_, disp: _msMoney_(g.hours * _msRate_) }; });
+  } else {
+    title = 'Hours per Machine'; legend = 'top 10 by utilization';
+    bars = _msGroup_(rows, function(r) { return r.machine; }, function(r) { return r.hours; })
+      .slice(0, 10)
+      .map(function(g) { return { label: g.key, value: g.hours, disp: g.hours.toLocaleString('en-US', { maximumFractionDigits: 1 }) + ' h' }; });
+  }
+  var max = bars.reduce(function(m, b) { return Math.max(m, b.value); }, 1);
+  return '<div class="rpt-analytics-card">' +
+    '<div class="rpt-analytics-hdr">' + esc(title) + '<span class="rpt-legend">' + esc(legend) + '</span></div>' +
+    bars.map(function(b) {
+      var pct = Math.round(b.value / max * 100);
+      return '<div class="rpt-pt-row">' +
+        '<div class="rpt-pt-label" title="' + esc(b.label) + '">' + esc(b.label) + '</div>' +
+        '<div class="rpt-pt-bar-wrap"><div class="rpt-pt-bar" style="width:' + pct + '%"></div></div>' +
+        '<div class="rpt-pt-count" style="width:auto;min-width:52px;">' + esc(b.disp) + '</div>' +
+      '</div>';
+    }).join('') +
+  '</div>';
+}
+
+// Cost over time — one point per logged date within range, drawn as an SVG
+// line + area chart.
+function _msCostOverTimeHtml_(rows) {
+  var byDate = {};
+  rows.forEach(function(r) { byDate[r.date] = (byDate[r.date] || 0) + r.hours * _msRate_; });
+  var pts = Object.keys(byDate).sort().map(function(d) { return { date: d, cost: byDate[d] }; });
+
+  var W = 520, H = 200, padL = 44, padR = 12, padT = 14, padB = 26;
+  var plotW = W - padL - padR, plotH = H - padT - padB;
+  var maxV = pts.reduce(function(m, p) { return Math.max(m, p.cost); }, 1);
+  var n = pts.length;
+  var x = function(i) { return padL + (n <= 1 ? plotW / 2 : (i / (n - 1)) * plotW); };
+  var y = function(v) { return padT + plotH - (v / maxV) * plotH; };
+
+  var line = pts.map(function(p, i) { return (i ? 'L' : 'M') + x(i).toFixed(1) + ' ' + y(p.cost).toFixed(1); }).join(' ');
+  var area = line + ' L' + x(n - 1).toFixed(1) + ' ' + (padT + plotH) + ' L' + x(0).toFixed(1) + ' ' + (padT + plotH) + ' Z';
+
+  var grid = '';
+  for (var g = 0; g <= 3; g++) {
+    var gy = padT + plotH - (g / 3) * plotH;
+    var gv = (maxV * g / 3);
+    grid += '<line x1="' + padL + '" y1="' + gy.toFixed(1) + '" x2="' + (W - padR) + '" y2="' + gy.toFixed(1) + '" stroke="var(--border-default)" stroke-width="1"/>';
+    grid += '<text x="' + (padL - 6) + '" y="' + (gy + 3).toFixed(1) + '" text-anchor="end" font-size="9" fill="var(--text-tertiary)" font-family="var(--font-mono)">' + esc(_msMoney_(gv)) + '</text>';
+  }
+  // X labels: first, middle, last.
+  var xlabels = '';
+  [0, Math.floor((n - 1) / 2), n - 1].forEach(function(i) {
+    if (i < 0 || i >= n) return;
+    xlabels += '<text x="' + x(i).toFixed(1) + '" y="' + (H - 8) + '" text-anchor="middle" font-size="9" fill="var(--text-tertiary)" font-family="var(--font-mono)">' + esc(_msDisp_(pts[i].date).slice(0, 5)) + '</text>';
+  });
+  var dots = pts.map(function(p, i) {
+    return '<circle cx="' + x(i).toFixed(1) + '" cy="' + y(p.cost).toFixed(1) + '" r="2.4" fill="var(--brand-navy)"><title>' + esc(_msDisp_(p.date)) + ' — ' + esc(_msMoney_(p.cost)) + '</title></circle>';
+  }).join('');
+
+  return '<div class="rpt-analytics-card">' +
+    '<div class="rpt-analytics-hdr">Cost Over Time<span class="rpt-legend">per logged day</span></div>' +
+    '<svg viewBox="0 0 ' + W + ' ' + H + '" style="width:100%;height:auto;display:block;">' +
+      grid +
+      '<path d="' + area + '" fill="var(--brand-navy)" opacity=".08"/>' +
+      '<path d="' + line + '" fill="none" stroke="var(--brand-navy)" stroke-width="1.8"/>' +
+      dots + xlabels +
+    '</svg>' +
+  '</div>';
+}
+
+// Sortable, paginated raw records table.
+function _msTableHtml_(rows) {
+  var withCost = rows.map(function(r) {
+    return { date: r.date, machine: r.machine, operator: r.operator, hours: r.hours, total: r.hours * _msRate_ };
+  });
+  var k = _msSort_.key, dir = _msSort_.dir === 'asc' ? 1 : -1;
+  withCost.sort(function(a, b) {
+    var av = a[k], bv = b[k];
+    if (typeof av === 'string') return av < bv ? -dir : av > bv ? dir : 0;
+    return (av - bv) * dir;
+  });
+
+  var pages = Math.max(1, Math.ceil(withCost.length / _MS_PAGE_));
+  if (_msPage_ > pages) _msPage_ = pages;
+  var start = (_msPage_ - 1) * _MS_PAGE_;
+  var page  = withCost.slice(start, start + _MS_PAGE_);
+
+  function hdr(key, label, extra) {
+    var arrow = _msSort_.key === key ? '<span class="ms-arrow">' + (_msSort_.dir === 'asc' ? '▲' : '▼') + '</span>' : '';
+    return '<th class="ms-th' + (extra ? ' ' + extra : '') + '" onclick="_msSetSort_(\'' + key + '\')">' + esc(label) + arrow + '</th>';
+  }
+
+  return '<div class="rpt-table-wrap">' +
+    '<div class="rpt-section-hdr">Raw Records — ' + withCost.length + ' entr' + (withCost.length === 1 ? 'y' : 'ies') + '</div>' +
+    '<table class="rpt-table">' +
+      '<thead><tr>' +
+        hdr('date', 'Date') +
+        hdr('machine', 'Machine ID') +
+        hdr('operator', 'Operator') +
+        hdr('hours', 'Hours', 'ms-td-num') +
+        '<th class="ms-td-num">Hourly Cost</th>' +
+        hdr('total', 'Total Cost', 'ms-td-num') +
+      '</tr></thead><tbody>' +
+      page.map(function(r) {
+        return '<tr>' +
+          '<td>' + esc(_msDisp_(r.date)) + '</td>' +
+          '<td class="ms-td-machine">' + esc(r.machine) + '</td>' +
+          '<td>' + esc(r.operator) + '</td>' +
+          '<td class="ms-td-num">' + r.hours.toLocaleString('en-US', { maximumFractionDigits: 1 }) + '</td>' +
+          '<td class="ms-td-num">' + esc(_msMoney_(_msRate_, 2)) + '</td>' +
+          '<td class="ms-td-num" style="font-weight:600;">' + esc(_msMoney_(r.total, 2)) + '</td>' +
+        '</tr>';
+      }).join('') +
+    '</tbody></table>' +
+    '<div class="ms-pager">' +
+      '<span>Page ' + _msPage_ + ' of ' + pages + ' · showing ' + (page.length ? (start + 1) : 0) + '–' + (start + page.length) + '</span>' +
+      '<div class="ms-pager-btns">' +
+        '<button class="rpt-btn" ' + (_msPage_ <= 1 ? 'disabled style="opacity:.5;cursor:default;"' : 'onclick="_msGoPage_(' + (_msPage_ - 1) + ')"') + '>‹ Prev</button>' +
+        '<button class="rpt-btn" ' + (_msPage_ >= pages ? 'disabled style="opacity:.5;cursor:default;"' : 'onclick="_msGoPage_(' + (_msPage_ + 1) + ')"') + '>Next ›</button>' +
+      '</div>' +
+    '</div>' +
+  '</div>';
+}
+
+// ── Event handlers ──────────────────────────────────────────────────────────
+function _msSetReport_(v) { _msReport_ = v; _msRenderReport_(); }
+
+function _msSetRange_(which, v) {
+  if (which === 'start') _msStart_ = v || null; else _msEnd_ = v || null;
+  _msPreset_ = 'custom';
+  _msPage_ = 1;
+  _msRenderReport_();
+}
+
+function _msPresetRange_(id) {
+  _msPreset_ = id;
+  _msPage_ = 1;
+  var dates = _msData_.map(function(r) { return r.date; }).sort();
+  var min = dates[0], max = dates[dates.length - 1];
+  if (id === 'all') { _msStart_ = min; _msEnd_ = max; }
+  else if (id === 'ytd') { _msStart_ = max.slice(0, 4) + '-01-01'; _msEnd_ = max; }
+  else {
+    var days = parseInt(id, 10);
+    var end = new Date(max + 'T00:00:00');
+    var startD = new Date(end.getTime());
+    startD.setDate(startD.getDate() - days);
+    _msStart_ = _msIso_(startD); _msEnd_ = max;
+  }
+  _msRenderReport_();
+}
+
+function _msSetRate_(v) {
+  var n = parseFloat(v);
+  if (!isNaN(n) && n >= 0) { _msRate_ = Math.round(n * 100) / 100; _msRenderReport_(); }
+}
+
+function _msSetSort_(key) {
+  if (_msSort_.key === key) _msSort_.dir = _msSort_.dir === 'asc' ? 'desc' : 'asc';
+  else { _msSort_.key = key; _msSort_.dir = (key === 'date' || key === 'operator' || key === 'machine') ? 'asc' : 'desc'; }
+  _msRenderReport_();
+}
+
+function _msGoPage_(n) { _msPage_ = n; _msRenderReport_(); }
 </script>
