@@ -618,7 +618,7 @@ async function handleDashboardPanels(env, userEmail) {
         equipCode: code, specificEquip: equip, description: desc,
         assignedTo:   cellStr(r, ML.ASSIGNED_TO),
         dateOpened:   opened,
-        tempFixFlag:  cellStr(r, ML.TEMP_FIX_FLAG) === 'Y',
+        tempFixFlag:  cellStr(r, ML.TEMP_FIX_FLAG).toUpperCase().startsWith('Y'),
       });
     }
   });
@@ -821,7 +821,7 @@ async function appendMasterLog(token, env, opts) {
   if (opts.rootCause     !== undefined) row[ML.ROOT_CAUSE     - 1] = opts.rootCause     || '';
   if (opts.preventiveAct !== undefined) row[ML.PREVENTIVE_ACT - 1] = opts.preventiveAct || '';
   if (opts.fixType       !== undefined) row[ML.FIX_TYPE       - 1] = opts.fixType       || '';
-  if (opts.tempFixFlag   !== undefined) row[ML.TEMP_FIX_FLAG  - 1] = opts.tempFixFlag   ? 'Y' : '';
+  if (opts.tempFixFlag   !== undefined) row[ML.TEMP_FIX_FLAG  - 1] = opts.tempFixFlag   ? 'YES' : 'NO';
   if (opts.verifiedBy    !== undefined) row[ML.VERIFIED_BY    - 1] = opts.verifiedBy    || '';
   if (opts.verifiedDate  !== undefined) row[ML.VERIFIED_DATE  - 1] = opts.verifiedDate  || '';
   if (opts.dateClosed    !== undefined) row[ML.DATE_CLOSED    - 1] = opts.dateClosed    || '';
@@ -1046,6 +1046,7 @@ async function handleTempFixClear(env, userEmail, body) {
   if (ticketNo) {
     await appendMasterLog(token, env, {
       ticketNo, now, action: 'MANAGER ACTION — TEMP FIX CLEARED', status: 'OPEN',
+      tempFixFlag: false,
       dept, updatedBy: clearer, notes: body.notes || '',
     });
     await appendTicketHistory(token, env, ticketNo, 'TEMP FIX CLEARED', '', '', clearer, body.notes || '');
@@ -1255,7 +1256,7 @@ function mergeAndFilter(mlRows, statusFilter, deptFilter) {
       addedBy:      cellStr(r, ML.ADDED_BY),
       downtimeType: cellStr(r, ML.DOWNTIME_TYPE),
       lineNo:       cellStr(r, ML.LINE_NO),
-      tempFixFlag:  cellStr(r, ML.TEMP_FIX_FLAG) === 'Y',
+      tempFixFlag:  cellStr(r, ML.TEMP_FIX_FLAG).toUpperCase().startsWith('Y'),
       partsNeeded:  cellStr(r, ML.PARTS_NEEDED) === 'Y',
       estHours:     r[ML.EST_HOURS   - 1] || '',
       actualHours:  r[ML.ACTUAL_HOURS - 1] || '',
@@ -1339,7 +1340,7 @@ async function handleTicketDetail(env, userEmail, ticketNo) {
     preventiveAct:    cellStr(best, ML.PREVENTIVE_ACT),
     workSummary:      cellStr(best, ML.PREVENTIVE_ACT),
     fixType:          cellStr(best, ML.FIX_TYPE),
-    tempFixFlag:      cellStr(best, ML.TEMP_FIX_FLAG) === 'Y',
+    tempFixFlag:      cellStr(best, ML.TEMP_FIX_FLAG).toUpperCase().startsWith('Y'),
     partsNeeded:      cellStr(best, ML.PARTS_NEEDED) === 'Y',
     partsStatus:      cellStr(best, ML.PARTS_STATUS),
     equipTagStatus:   cellStr(best, ML.EQUIP_TAG_STATUS),
@@ -1734,6 +1735,7 @@ async function handleAddTicket(env, userEmail, body) {
     description:   body.description   || '',
     downtimeType:  body.downtimeType  || '',
     partsNeeded:   !!body.partsNeeded,
+    tempFixFlag:   false,
     estHours:      body.estHours      || '',
     addedBy:       addedBy,
     updatedBy:     addedBy,
@@ -1954,6 +1956,13 @@ async function handleVerifyClose(env, userEmail, body) {
   const mine  = user.ownedDepts || [];
   if (!(user.isAdmin || mine.indexOf(owner) >= 0)) {
     return jsonResponse({ error: 'Only the owning department (' + owner + ') can verify & close this ticket.' }, 403);
+  }
+
+  // Temp fix gate: a ticket with an active temporary fix cannot be closed until
+  // the permanent fix is in place and the temp fix is cleared (column X = NO).
+  // This enforces SQF 2.14 — temporary fixes must not become permanent by default.
+  if (cellStr(best, ML.TEMP_FIX_FLAG).toUpperCase().startsWith('Y')) {
+    return jsonResponse({ error: 'Cannot close: this ticket has an active temporary fix. Complete the permanent fix and clear the temp fix flag before closing.' }, 400);
   }
 
   // Joint sign-off gate: every joint dept must have marked their work complete
@@ -2434,7 +2443,7 @@ async function handleReportData(env, userEmail, daysBack) {
     if (!doDate || (doDate < cutoff && !ACTIVE.includes(status))) return;
 
     const dept    = normalizeDept(cellStr(r, ML.DEPT));
-    const tf      = cellStr(r, ML.TEMP_FIX_FLAG) === 'Y';
+    const tf      = cellStr(r, ML.TEMP_FIX_FLAG).toUpperCase().startsWith('Y');
     const actualH = parseFloat(String(r[ML.ACTUAL_HOURS - 1] || '')) || 0;
     const dc      = cellDate(r, ML.DATE_CLOSED) || cellDate(r, ML.VERIFIED_DATE);
 
@@ -2609,7 +2618,7 @@ async function handleEMRLData(env, userEmail, params) {
       rootCause: rc, correctiveAct: ca, preventiveAct: pa, partsUsed: '',
       capaRequired: (ca || rc || pa) ? 'YES' : 'NO',
       clearanceChk: cellStr(r, ML.VERIFIED_BY) ? 'DONE' : 'PENDING',
-      hadTempFix:   cellStr(r, ML.TEMP_FIX_FLAG) === 'Y' ? 'Yes' : 'No',
+      hadTempFix:   cellStr(r, ML.TEMP_FIX_FLAG).toUpperCase().startsWith('Y') ? 'Yes' : 'No',
       verifiedBy:   cellStr(r, ML.VERIFIED_BY),
     });
   });
