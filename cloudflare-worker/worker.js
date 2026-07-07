@@ -466,32 +466,28 @@ async function handleDashboardCounts(env, userEmail) {
   weekStart.setDate(weekStart.getDate() - (dow === 0 ? 6 : dow - 1));
   const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
 
-  const latestStatus = {}, latestPriority = {}, latestClosed = {}, latestOpened = {};
-  // Global (un-scoped) maps: one entry per ticket number, so a joint ticket that
-  // shows in several department trackers is still counted exactly ONCE here.
-  const gStatus = {}, gPriority = {};
+  // Merge-first approach: build one best-state row per ticket (last non-empty wins),
+  // matching the logic used by mergeAndFilter and handleDashboardPanels.
+  // This ensures badge counts agree with what the queue pages actually show —
+  // per-row dept scoping was the prior bug: a closure row with dept='' would be
+  // skipped, leaving latestStatus as PENDING VERIFICATION even though the ticket
+  // was already closed.
+  const byTicket    = {};  // dept-scoped: ticket entered only when first seen on an allowed-dept row
+  const byTicketAll = {};  // global: all tickets, no dept scoping
 
-  // Collapse per ticket with LAST NON-EMPTY wins (matching the tracker/panel
-  // queues). Absolute last-write-wins previously let a trailing row with a blank
-  // STATUS cell overwrite a real status with '', silently dropping open tickets
-  // from the count — the root of the dashboard-vs-tracker total mismatch.
   mlRows.forEach(r => {
     const tn   = cellStr(r, ML.TICKET_NO);
     if (!tn) return;
     const dept = normalizeDept(cellStr(r, ML.DEPT));
-    const st = cellStr(r, ML.STATUS).toUpperCase();
-    const pr = cellStr(r, ML.PRIORITY).toUpperCase();
-    // Global, keyed by ticket number (joint-safe, never double counts).
-    if (st) gStatus[tn] = st;
-    if (pr) gPriority[tn] = pr;
-    // Dept-scoped ("mine").
-    if (!allowed(user, dept)) return;
-    if (st) latestStatus[tn] = st;
-    if (pr) latestPriority[tn] = pr;
-    const dc = cellDate(r, ML.DATE_CLOSED);
-    if (dc) latestClosed[tn] = dc;
-    const od = cellDate(r, ML.DATE_OPENED);
-    if (od) latestOpened[tn] = od;
+    // Global merge (no dept gate).
+    if (!byTicketAll[tn]) { byTicketAll[tn] = r.slice(); }
+    else { r.forEach((v, i) => { if (v != null && v !== '') byTicketAll[tn][i] = v; }); }
+    // Dept-scoped merge: ticket enters byTicket only on first allowed-dept row;
+    // subsequent rows (even from other depts) are merged in so late-writing rows
+    // (admin closures, joint actions) are not lost.
+    if (!byTicket[tn] && !allowed(user, dept)) return;
+    if (!byTicket[tn]) { byTicket[tn] = r.slice(); return; }
+    r.forEach((v, i) => { if (v != null && v !== '') byTicket[tn][i] = v; });
   });
 
   const counts = { open: 0, waiting: 0, verify: 0, critical: 0, tempFixActive: 0,
@@ -507,27 +503,31 @@ async function handleDashboardCounts(env, userEmail) {
   const ACTIVE_STS = new Set(['OPEN', 'PENDING PARTS', 'ON HOLD', 'PENDING VERIFICATION']);
 
   // System-wide unique totals (each ticket counted once, joint-safe).
-  Object.keys(gStatus).forEach(tn => {
-    const st = gStatus[tn];
+  Object.values(byTicketAll).forEach(r => {
+    const st = cellStr(r, ML.STATUS).toUpperCase();
+    const pr = cellStr(r, ML.PRIORITY).toUpperCase();
     if (WORK_STS.has(st))   counts.openAll++;
-    if (ACTIVE_STS.has(st) && gPriority[tn] === 'CRITICAL') counts.criticalAll++;
+    if (ACTIVE_STS.has(st) && pr === 'CRITICAL') counts.criticalAll++;
     if (st === 'WAITING')   counts.waitingAll++;
     if (st === 'PENDING VERIFICATION') counts.verifyAll++;
   });
 
-  Object.keys(latestStatus).forEach(tn => {
-    const st = latestStatus[tn];
+  Object.values(byTicket).forEach(r => {
+    const st = cellStr(r, ML.STATUS).toUpperCase();
+    const pr = cellStr(r, ML.PRIORITY).toUpperCase();
     if (WORK_STS.has(st))   counts.open++;
-    if (ACTIVE_STS.has(st) && latestPriority[tn] === 'CRITICAL') counts.critical++;
+    if (ACTIVE_STS.has(st) && pr === 'CRITICAL') counts.critical++;
     if (st === 'WAITING') counts.waiting++;
     if (st === 'PENDING VERIFICATION') counts.verify++;
-    if (st === 'CLOSED' && latestClosed[tn]) {
-      const cd = latestClosed[tn];
-      if (cd >= thirtyDaysAgo) counts.closedRecent++;
-      if (cd >= weekStart)     counts.closedThisWeek++;
-      if (cd >= monthStart)    counts.closedThisMonth++;
+    if (st === 'CLOSED') {
+      const cd = cellDate(r, ML.DATE_CLOSED);
+      if (cd) {
+        if (cd >= thirtyDaysAgo) counts.closedRecent++;
+        if (cd >= weekStart)     counts.closedThisWeek++;
+        if (cd >= monthStart)    counts.closedThisMonth++;
+      }
     }
-    const od = latestOpened[tn];
+    const od = cellDate(r, ML.DATE_OPENED);
     if (od) {
       if (od >= weekStart)  counts.openedThisWeek++;
       if (od >= monthStart) counts.openedThisMonth++;
