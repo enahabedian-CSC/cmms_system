@@ -72,6 +72,46 @@
 .mon-modal-notes:focus{border-color:var(--brand-navy);}
 .mon-modal-footer{display:flex;gap:8px;justify-content:flex-end;margin-top:14px;}
 
+/* ── Temp Fix Inspect Panel ──────────────────────────────────────────────── */
+.tfi-info-strip{display:grid;grid-template-columns:repeat(4,1fr);background:var(--brand-navy,#1a2332);padding:12px 20px;gap:12px;border-radius:10px 10px 0 0;}
+.tfi-info-label{font-size:10px;color:#8899bb;text-transform:uppercase;letter-spacing:.6px;}
+.tfi-info-val{font-size:12.5px;color:#eceff1;font-weight:600;margin-top:2px;}
+.tfi-body{display:grid;grid-template-columns:1fr 260px;}
+.tfi-left{padding:18px 20px;border-right:1px solid var(--border-default);}
+.tfi-right{padding:18px 16px;background:var(--bg-subtle,#f6f7f9);}
+.tfi-section{margin-bottom:18px;}
+.tfi-section-head{font-size:11px;font-weight:700;color:var(--text-primary);text-transform:uppercase;letter-spacing:.7px;border-left:3px solid #ef6c00;padding-left:8px;margin-bottom:10px;}
+.tfi-row2{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px;}
+.tfi-field{margin-bottom:10px;}
+.tfi-label{font-size:11px;color:var(--text-tertiary);margin-bottom:3px;}
+.tfi-ro{font-size:12.5px;color:var(--text-primary);background:var(--bg-subtle,#f6f7f9);padding:6px 10px;border-radius:4px;border:1px solid var(--border-default);min-height:32px;word-break:break-word;white-space:pre-wrap;}
+.tfi-ro.overdue{color:#c62828;font-weight:700;}
+.tfi-checklist{border:1px solid var(--border-default);border-radius:6px;overflow:hidden;}
+.tfi-check-item{display:flex;align-items:flex-start;gap:10px;padding:10px 12px;border-bottom:1px solid var(--border-default);}
+.tfi-check-item:last-child{border-bottom:none;}
+.tfi-chk-input{margin-top:2px;flex-shrink:0;width:15px;height:15px;accent-color:#ef6c00;}
+.tfi-check-label{font-size:12px;color:var(--text-primary);font-weight:600;}
+.tfi-check-sub{font-size:11px;color:var(--text-secondary);margin-top:2px;line-height:1.4;}
+.tfi-notes{width:100%;padding:8px 10px;border:1px solid var(--border-default);border-radius:6px;font-size:12.5px;font-family:inherit;resize:vertical;min-height:72px;outline:none;box-sizing:border-box;}
+.tfi-notes:focus{border-color:var(--brand-navy);}
+.tfi-input{width:100%;padding:7px 10px;border:1px solid var(--border-default);border-radius:6px;font-size:12.5px;font-family:inherit;outline:none;box-sizing:border-box;}
+.tfi-input:focus{border-color:var(--brand-navy);}
+.tfi-outcome-head{font-size:11px;font-weight:700;color:var(--text-primary);text-transform:uppercase;letter-spacing:.7px;margin-bottom:10px;}
+.tfi-outcome-opt{display:flex;align-items:flex-start;gap:8px;padding:10px;border:1px solid var(--border-default);border-radius:6px;margin-bottom:8px;cursor:pointer;background:#fff;}
+.tfi-outcome-opt input[type=radio]{margin-top:3px;flex-shrink:0;}
+.tfi-continue-opt{border-color:#f9a825;background:#fffde7;}
+.tfi-clear-opt{border-color:#2e7d32;background:#e8f5e9;}
+.tfi-opt-title{font-size:12px;font-weight:700;color:#633806;}
+.tfi-clear-title{color:#1b5e20;}
+.tfi-opt-sub{font-size:11px;margin-top:2px;color:#854f0b;line-height:1.4;}
+.tfi-clear-sub{color:#2e7d32;}
+.tfi-freq-row{display:flex;align-items:center;gap:8px;margin:-2px 0 12px 0;}
+.tfi-freq-label{font-size:11px;color:var(--text-secondary);}
+.tfi-freq-input{width:60px;font-size:12.5px;padding:5px 8px;border:1px solid var(--border-default);border-radius:4px;}
+.tfi-err{font-size:12px;color:#c62828;background:#ffeaea;border:1px solid #ffcdd2;border-radius:4px;padding:6px 10px;margin-bottom:10px;}
+.tfi-btn-wrap{display:flex;flex-direction:column;gap:8px;margin-top:14px;}
+.tfi-compliance-note{font-size:10px;color:var(--text-tertiary);line-height:1.5;margin-top:14px;border-top:1px solid var(--border-default);padding-top:10px;}
+
 /* ── Equipment Quality Hold Tag — printable (FRM-029-002) ────────────────── */
 /* Auditor-approved field set ported from Izzy's EquipmentHoldTag.html.        */
 /* Fields are auditor-approved — only the doc-control triplet was added.       */
@@ -135,6 +175,11 @@
 <!-- Temporary Repair Log detail (all SQF fields); populated by _tfDetail_ -->
 <div id="tf-detail-back" class="mon-modal-back" style="align-items:flex-start;">
   <div class="mon-modal" id="tf-detail-modal" style="width:620px;max-width:96vw;max-height:90vh;overflow-y:auto;margin-top:4vh;"></div>
+</div>
+
+<!-- Temp Fix Inspection form; populated by _tfInspect_ -->
+<div id="tf-inspect-back" class="mon-modal-back" style="align-items:flex-start;" onclick="if(event.target===this)_tfInspectClose_()">
+  <div class="mon-modal" id="tf-inspect-modal" style="width:800px;max-width:96vw;max-height:92vh;overflow-y:auto;margin-top:4vh;padding:0;border-radius:10px;overflow:hidden;"></div>
 </div>
 
 <script>
@@ -406,19 +451,158 @@ function _tfRenderDetail_(d) {
 }
 
 function _tfInspect_(tempId) {
-  _monModalOpen_('Record Inspection', 'Update last inspected date and recalculate next due.', function(notes) {
-    fetch(WORKER_URL + '/api/monitoring/temp-fix/inspect', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'X-User-Email': USER ? USER.email : '' },
-      body: JSON.stringify({ tempId: tempId, notes: notes })
+  var rec = _tfData_.find(function(t) { return t.tempId === tempId; });
+  if (!rec) { showToast('Temp fix record not found', 'error'); return; }
+
+  var back  = document.getElementById('tf-inspect-back');
+  var modal = document.getElementById('tf-inspect-modal');
+  if (!back || !modal) return;
+
+  var isPastDue = rec.status === 'PAST DUE';
+  var today = new Date();
+  var mm  = String(today.getMonth() + 1).padStart(2, '0');
+  var dd  = String(today.getDate()).padStart(2, '0');
+  var todayStr = today.getFullYear() + '-' + mm + '-' + dd;
+
+  function chkItem(id, label, sub) {
+    return '<div class="tfi-check-item">' +
+      '<input type="checkbox" id="' + id + '" class="tfi-chk-input">' +
+      '<div><div class="tfi-check-label">' + esc(label) + '</div>' +
+      '<div class="tfi-check-sub">' + esc(sub) + '</div></div>' +
+      '</div>';
+  }
+
+  modal.innerHTML =
+    '<div class="tfi-info-strip">' +
+      '<div class="tfi-info-cell"><div class="tfi-info-label">Ticket #</div><div class="tfi-info-val">' + esc(rec.ticketNo) + '</div></div>' +
+      '<div class="tfi-info-cell"><div class="tfi-info-label">Equipment</div><div class="tfi-info-val">' + esc(rec.specificEquip || '—') + '</div></div>' +
+      '<div class="tfi-info-cell"><div class="tfi-info-label">Department</div><div class="tfi-info-val">' + esc(rec.dept) + '</div></div>' +
+      '<div class="tfi-info-cell"><div class="tfi-info-label">Status</div><div class="tfi-info-val">' +
+        (isPastDue ? '<span class="stat-badge stat-PAST-DUE">PAST DUE</span>' : '<span class="stat-badge stat-OPEN" style="background:#e8f5e9;color:#2e7d32;border:1px solid #a5d6a7;">ACTIVE</span>') +
+      '</div></div>' +
+    '</div>' +
+    '<div class="tfi-body">' +
+      '<div class="tfi-left">' +
+        '<div class="tfi-section">' +
+          '<div class="tfi-section-head">Equipment & repair details</div>' +
+          '<div class="tfi-row2">' +
+            '<div class="tfi-field"><div class="tfi-label">Equip code</div><div class="tfi-ro">' + esc(rec.equipCode || '—') + '</div></div>' +
+            '<div class="tfi-field"><div class="tfi-label">Date flagged</div><div class="tfi-ro">' + esc(rec.dateFlagged || '—') + '</div></div>' +
+          '</div>' +
+          '<div class="tfi-field"><div class="tfi-label">Problem description</div><div class="tfi-ro">' + esc(rec.description || '—') + '</div></div>' +
+          '<div class="tfi-field"><div class="tfi-label">Temp fix description</div><div class="tfi-ro">' + esc(rec.tempFixDesc || '—') + '</div></div>' +
+          '<div class="tfi-row2">' +
+            '<div class="tfi-field"><div class="tfi-label">Last inspected</div><div class="tfi-ro">' + esc(rec.lastInspected || 'Never') + '</div></div>' +
+            '<div class="tfi-field"><div class="tfi-label">Next due</div><div class="tfi-ro' + (isPastDue ? ' overdue' : '') + '">' + esc(rec.nextDue || '—') + '</div></div>' +
+          '</div>' +
+        '</div>' +
+        '<div class="tfi-section">' +
+          '<div class="tfi-section-head">Inspection checklist — all items required</div>' +
+          '<div class="tfi-checklist">' +
+            chkItem('tfi-chk1', 'Temp fix is intact', 'Inspect the repair, reinforcement, or temporary measure — confirm it shows no signs of wear, loosening, or failure') +
+            chkItem('tfi-chk2', 'Equipment operating within acceptable parameters', 'No unusual noise, heat, vibration, or output degradation observed') +
+            chkItem('tfi-chk3', 'No safety or food safety risk identified', 'Confirm no contamination risk, guarding issue, or personnel hazard') +
+          '</div>' +
+        '</div>' +
+        '<div class="tfi-section">' +
+          '<div class="tfi-section-head">Inspection notes</div>' +
+          '<div class="tfi-field">' +
+            '<div class="tfi-label">Observations / findings</div>' +
+            '<textarea id="tfi-notes" class="tfi-notes" placeholder="Describe current condition, any changes since last inspection, parts status, etc."></textarea>' +
+          '</div>' +
+        '</div>' +
+        '<div class="tfi-section">' +
+          '<div class="tfi-section-head">Sign-off</div>' +
+          '<div class="tfi-row2">' +
+            '<div class="tfi-field"><div class="tfi-label">Inspected by</div><input type="text" id="tfi-by" class="tfi-input" value="' + esc((USER && USER.displayName) || '') + '"></div>' +
+            '<div class="tfi-field"><div class="tfi-label">Inspection date</div><input type="date" id="tfi-date" class="tfi-input" value="' + todayStr + '"></div>' +
+          '</div>' +
+        '</div>' +
+      '</div>' +
+      '<div class="tfi-right">' +
+        '<div class="tfi-outcome-head">Inspection outcome</div>' +
+        '<label class="tfi-outcome-opt tfi-continue-opt">' +
+          '<input type="radio" name="tfi-outcome" id="tfi-out-continue" value="CONTINUE" checked>' +
+          '<div><div class="tfi-opt-title">Continue monitoring</div>' +
+          '<div class="tfi-opt-sub">Equipment can run under current conditions. Reset the inspection clock.</div></div>' +
+        '</label>' +
+        '<div class="tfi-freq-row">' +
+          '<span class="tfi-freq-label">Next inspection in</span>' +
+          '<input type="number" id="tfi-freq" class="tfi-freq-input" value="' + esc(String(rec.freqDays || 7)) + '" min="1" max="90">' +
+          '<span class="tfi-freq-label">days</span>' +
+        '</div>' +
+        '<label class="tfi-outcome-opt tfi-clear-opt">' +
+          '<input type="radio" name="tfi-outcome" id="tfi-out-clear" value="CLEAR">' +
+          '<div><div class="tfi-opt-title tfi-clear-title">Permanent fix complete — clear</div>' +
+          '<div class="tfi-opt-sub tfi-clear-sub">Temp fix resolved. Remove from monitoring.</div></div>' +
+        '</label>' +
+        '<div id="tfi-err" class="tfi-err" style="display:none;"></div>' +
+        '<div class="tfi-btn-wrap">' +
+          '<button class="mon-btn primary" id="tfi-submit-btn" onclick="_tfInspectSubmit_(\'' + esc(tempId) + '\')">Submit inspection</button>' +
+          '<button class="mon-btn" onclick="_tfInspectClose_()">Cancel</button>' +
+        '</div>' +
+        '<div class="tfi-compliance-note">All inspections are logged to the audit trail with inspector name, date, and outcome per SQF document control policy.</div>' +
+      '</div>' +
+    '</div>';
+
+  back.classList.add('open');
+}
+
+function _tfInspectClose_() {
+  var back = document.getElementById('tf-inspect-back');
+  if (back) back.classList.remove('open');
+}
+
+function _tfInspectSubmit_(tempId) {
+  var outcomeEl = document.querySelector('input[name="tfi-outcome"]:checked');
+  var outcome   = outcomeEl ? outcomeEl.value : 'CONTINUE';
+  var byVal     = (document.getElementById('tfi-by')    || {}).value || '';
+  var dateVal   = (document.getElementById('tfi-date')  || {}).value || '';
+  var notesVal  = (document.getElementById('tfi-notes') || {}).value || '';
+  var freqVal   = parseInt((document.getElementById('tfi-freq') || {}).value || '7', 10);
+  var chk1      = !!(document.getElementById('tfi-chk1') || {}).checked;
+  var chk2      = !!(document.getElementById('tfi-chk2') || {}).checked;
+  var chk3      = !!(document.getElementById('tfi-chk3') || {}).checked;
+
+  var errEl = document.getElementById('tfi-err');
+  function showErr(msg) { if (errEl) { errEl.textContent = msg; errEl.style.display = ''; } }
+  if (errEl) errEl.style.display = 'none';
+
+  if (!byVal.trim())            { showErr('Please enter who performed the inspection.'); return; }
+  if (!dateVal)                 { showErr('Please enter the inspection date.'); return; }
+  if (!chk1 || !chk2 || !chk3) { showErr('All three checklist items must be checked before submitting.'); return; }
+
+  var btn = document.getElementById('tfi-submit-btn');
+  if (btn) btn.disabled = true;
+
+  var endpoint = outcome === 'CLEAR'
+    ? '/api/monitoring/temp-fix/clear'
+    : '/api/monitoring/temp-fix/inspect';
+
+  fetch(WORKER_URL + endpoint, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-User-Email': USER ? USER.email : '' },
+    body: JSON.stringify({
+      tempId: tempId, notes: notesVal,
+      inspectedBy: byVal.trim(), inspectionDate: dateVal,
+      freqDays: freqVal
     })
-      .then(function(r) { return r.json(); })
-      .then(function(r) {
-        if (r.success) { showToast('Inspection recorded', 'success'); _loadTfPage_(document.getElementById('page-tempfix')); }
-        else showToast(r.error || 'Error', 'error');
-      })
-      .catch(function(e) { showToast(String(e.message || e), 'error'); });
-  });
+  })
+    .then(function(r) { return r.json(); })
+    .then(function(r) {
+      if (r.success) {
+        var msg = outcome === 'CLEAR'
+          ? 'Temp fix cleared successfully'
+          : 'Inspection recorded — next due in ' + freqVal + ' days';
+        showToast(msg, 'success');
+        _tfInspectClose_();
+        _loadTfPage_(document.getElementById('page-tempfix'));
+      } else {
+        showErr(r.error || 'Error saving inspection');
+        if (btn) btn.disabled = false;
+      }
+    })
+    .catch(function(e) { showErr(String(e.message || e)); if (btn) btn.disabled = false; });
 }
 
 function _tfClear_(tempId) {

@@ -994,27 +994,34 @@ async function handleTempFixInspect(env, userEmail, body) {
   const sheetRow  = await findMonitorRow(token, env.SPREADSHEET_ID, SH.TEMP_FIX, tempId, dataStart);
   if (sheetRow < 0) return jsonResponse({ error: 'Temp fix not found: ' + tempId }, 404);
 
-  const rowData  = (await readSheet(token, env.SPREADSHEET_ID, SH.TEMP_FIX, `A${sheetRow}:V${sheetRow}`))[0] || [];
-  const freq     = parseInt(rowData[TF.FREQ_DAYS - 1] || '7', 10);
-  const ticketNo = cellStr(rowData, TF.TICKET_NO);
-  const dept     = cellStr(rowData, TF.DEPT);
-  const now      = new Date();
-  const nextDue  = new Date(now.getTime() + freq * 86400000);
+  const rowData    = (await readSheet(token, env.SPREADSHEET_ID, SH.TEMP_FIX, `A${sheetRow}:V${sheetRow}`))[0] || [];
+  // freqDays from form submission takes precedence over stored value so the inspector can adjust it
+  const freqBody   = parseInt(body.freqDays || '0', 10);
+  const freqStored = parseInt(rowData[TF.FREQ_DAYS - 1] || '7', 10);
+  const freq       = freqBody > 0 ? freqBody : freqStored;
+  const ticketNo   = cellStr(rowData, TF.TICKET_NO);
+  const dept       = cellStr(rowData, TF.DEPT);
+  const now        = new Date();
+  const nextDue    = new Date(now.getTime() + freq * 86400000);
+  const inspector  = String(body.inspectedBy || body.updatedBy || user.displayName).trim();
 
-  await writeSheetCells(token, env.SPREADSHEET_ID, SH.TEMP_FIX, sheetRow, [
+  const updates = [
     { col: TF.LAST_INSPECTED, value: fmtDate(now) },
     { col: TF.NEXT_DUE,       value: fmtDate(nextDue) },
     { col: TF.STATUS,         value: 'ACTIVE' },
-  ]);
+  ];
+  if (freqBody > 0) updates.push({ col: TF.FREQ_DAYS, value: String(freq) });
+  await writeSheetCells(token, env.SPREADSHEET_ID, SH.TEMP_FIX, sheetRow, updates);
 
   if (ticketNo) {
-    const noteStr = 'Temp fix inspected — next due: ' + fmtDate(nextDue) + (body.notes ? ' | ' + body.notes : '');
+    const noteStr = 'Temp fix inspected by ' + inspector +
+      ' — next due: ' + fmtDate(nextDue) + (body.notes ? ' | ' + body.notes : '');
     await appendMasterLog(token, env, {
       ticketNo, now, action: 'TEMP FIX INSPECTED', status: 'OPEN',
-      dept, updatedBy: body.updatedBy || user.displayName, notes: noteStr,
+      dept, updatedBy: inspector, notes: noteStr,
     });
     await appendTicketHistory(token, env, ticketNo, 'TEMP FIX INSPECTED', '', '',
-      body.updatedBy || user.displayName, 'Inspected — next due: ' + fmtDate(nextDue));
+      inspector, 'Inspected — next due: ' + fmtDate(nextDue));
   }
   return jsonResponse({ success: true, tempId });
 }
@@ -1044,12 +1051,15 @@ async function handleTempFixClear(env, userEmail, body) {
   ]);
 
   if (ticketNo) {
+    // Accept inspectedBy from the inspect form's "clear" outcome so the audit
+    // trail records who physically inspected before clearing (not just the API caller).
+    const effectiveClearer = String(body.inspectedBy || body.clearedBy || user.displayName).trim();
     await appendMasterLog(token, env, {
       ticketNo, now, action: 'MANAGER ACTION — TEMP FIX CLEARED', status: 'OPEN',
       tempFixFlag: false,
-      dept, updatedBy: clearer, notes: body.notes || '',
+      dept, updatedBy: effectiveClearer, notes: body.notes || '',
     });
-    await appendTicketHistory(token, env, ticketNo, 'TEMP FIX CLEARED', '', '', clearer, body.notes || '');
+    await appendTicketHistory(token, env, ticketNo, 'TEMP FIX CLEARED', '', '', effectiveClearer, body.notes || '');
   }
   return jsonResponse({ success: true, tempId });
 }
