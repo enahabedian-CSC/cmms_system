@@ -123,6 +123,11 @@ var _TRACKER_TITLES_ = {
 
 // ── Sort utility (shared with closed-tickets + tech-work-board) ───────────────
 var _tlSortState_ = {};
+// Default all queues to newest-first so the most recent tickets are at the top
+// without requiring a manual column click.
+['waiting','open','verify','closed','tracker'].forEach(function(g) {
+  _tlSortState_[g] = { field: 'dateOpened', dir: 'desc' };
+});
 
 window._tlSorted_ = function(list, field, dir) {
   var m = dir === 'desc' ? -1 : 1;
@@ -223,6 +228,13 @@ function _renderList_(tickets, queueType, deptFilter, container, userOwnedDepts)
 
     var _ss     = _tlSortState_[qt];
     var _sorted = _ss && _ss.field ? _tlSorted_(_filtered, _ss.field, _ss.dir) : _filtered;
+    // Keep column header arrow in sync with the active sort (covers default sort on first load)
+    if (_ss && _ss.field) {
+      document.querySelectorAll('[data-sort-group="' + qt + '"]').forEach(function(th) {
+        th.classList.remove('sort-asc', 'sort-desc');
+        if (th.getAttribute('data-sort-field') === _ss.field) th.classList.add('sort-' + _ss.dir);
+      });
+    }
 
     if (qt === 'tracker') {
       var myF       = _sorted.filter(function(t) { return !t.isJoint && !t.isPendingJoint && t.status !== 'PENDING VERIFICATION'; });
