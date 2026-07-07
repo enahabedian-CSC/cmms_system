@@ -1,0 +1,466 @@
+<!-- ╔══════════════════════════════════════════════════════════════════╗ -->
+<!-- ║  PM Intake partial — data-entry form for new Preventive          ║ -->
+<!-- ║  Maintenance records.  Registers PAGE: pm-intake                 ║ -->
+<!-- ║  (nav id "pm-intake", title "New PM Entry").                    ║ -->
+<!-- ║                                                                  ║ -->
+<!-- ║  ARCHITECTURE                                                    ║ -->
+<!-- ║  The whole form is driven by the PM_INTAKE_CONFIG object below.  ║ -->
+<!-- ║  To add / rename / re-order a field or change a dropdown's       ║ -->
+<!-- ║  options, edit that ONE object — the markup, validation, live    ║ -->
+<!-- ║  summary and submit payload all derive from it. Nothing else     ║ -->
+<!-- ║  in this file hard-codes a field name.                           ║ -->
+<!-- ║                                                                  ║ -->
+<!-- ║  BACKEND CONTRACT                                                 ║ -->
+<!-- ║  On submit we POST JSON to  WORKER_URL + '/api/pm/intake/add'    ║ -->
+<!-- ║  with header  X-User-Email.  Body = { <field.key>: value, … }.  ║ -->
+<!-- ║  System-owned fields (PM ID + Timestamp) are NOT sent — the      ║ -->
+<!-- ║  Worker assigns them and returns { ok:true, pmId, timestamp }.   ║ -->
+<!-- ║  See handlePmIntakeAdd() in cloudflare-worker/worker.js.         ║ -->
+<!-- ╚══════════════════════════════════════════════════════════════════╝ -->
+<style>
+/* ── PM Intake ───────────────────────────────────────────────────────── */
+.pmi-wrap{padding:20px 24px;max-width:1180px;}
+.pmi-hdr{margin-bottom:16px;}
+.pmi-hdr-title{font-size:20px;font-weight:700;color:var(--text-primary);letter-spacing:-.01em;line-height:1.15;margin-bottom:4px;}
+.pmi-hdr-sub{font-size:12.5px;color:var(--text-secondary);line-height:1.45;max-width:720px;}
+.pmi-hdr-code{font-family:var(--font-mono);font-size:10.5px;color:var(--text-tertiary);margin-top:6px;}
+
+/* Two-column shell: form (left) + sticky summary (right) */
+.pmi-shell{display:grid;grid-template-columns:1fr 320px;gap:18px;align-items:start;}
+@media (max-width:900px){.pmi-shell{grid-template-columns:1fr;}}
+
+/* Sections */
+.pmi-section{background:var(--bg-surface);border:1px solid var(--border-default);border-radius:10px;padding:16px 20px;margin-bottom:12px;box-shadow:var(--shadow-sm);}
+.pmi-section-hdr{display:flex;align-items:center;gap:10px;margin-bottom:14px;}
+.pmi-step-num{width:24px;height:24px;border-radius:50%;background:var(--brand-navy);color:#fff;font-size:11px;font-weight:700;display:grid;place-items:center;flex-shrink:0;}
+.pmi-section-title{font-size:13px;font-weight:700;color:var(--text-primary);}
+.pmi-section-note{font-size:11px;color:var(--text-tertiary);margin-left:auto;}
+
+/* Field grid */
+.pmi-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px 16px;}
+.pmi-grid .pmi-span2{grid-column:1 / -1;}
+@media (max-width:560px){.pmi-grid{grid-template-columns:1fr;}}
+.pmi-group{display:flex;flex-direction:column;gap:4px;min-width:0;}
+.pmi-label{font-size:12px;font-weight:600;color:var(--text-primary);}
+.pmi-label .pmi-req{color:var(--status-critical);margin-left:2px;}
+.pmi-label .pmi-opt{font-weight:400;color:var(--text-tertiary);margin-left:4px;font-size:11px;}
+.pmi-input,.pmi-select,.pmi-textarea{height:34px;padding:0 10px;border:1px solid var(--border-default);border-radius:6px;font-size:13px;color:var(--text-primary);background:#fff;outline:none;width:100%;box-sizing:border-box;transition:border-color .15s,box-shadow .15s;}
+.pmi-textarea{height:auto;min-height:80px;padding:8px 10px;resize:vertical;line-height:1.5;}
+.pmi-input:focus,.pmi-select:focus,.pmi-textarea:focus{border-color:var(--brand-navy);box-shadow:0 0 0 3px rgba(0,31,79,.07);}
+.pmi-input.pmi-invalid,.pmi-select.pmi-invalid,.pmi-textarea.pmi-invalid{border-color:var(--status-critical);box-shadow:0 0 0 3px rgba(214,60,60,.08);}
+.pmi-hint{font-size:11px;color:var(--text-tertiary);}
+.pmi-err{font-size:11px;color:var(--status-critical);font-weight:600;display:none;}
+.pmi-err.show{display:block;}
+
+/* Number field with unit suffix */
+.pmi-num-wrap{position:relative;}
+.pmi-num-unit{position:absolute;right:10px;top:50%;transform:translateY(-50%);font-size:11.5px;color:var(--text-tertiary);pointer-events:none;font-weight:600;}
+.pmi-num-wrap .pmi-input{padding-right:52px;}
+
+/* Auto-assigned (system) field chips */
+.pmi-auto{display:flex;align-items:center;gap:8px;height:34px;padding:0 12px;border:1px dashed var(--border-strong,#c7d0da);border-radius:6px;background:var(--bg-subtle);font-size:12.5px;color:var(--text-secondary);}
+.pmi-auto-dot{width:7px;height:7px;border-radius:50%;background:var(--brand-navy);flex-shrink:0;}
+.pmi-auto-mono{font-family:var(--font-mono);color:var(--brand-navy);font-weight:600;}
+
+/* Summary rail */
+.pmi-rail{position:sticky;top:16px;}
+.pmi-summary{background:var(--bg-surface);border:1px solid var(--border-default);border-radius:10px;box-shadow:var(--shadow-sm);overflow:hidden;}
+.pmi-summary-hdr{padding:12px 16px;border-bottom:1px solid var(--border-default);font-size:12px;font-weight:700;color:var(--text-primary);display:flex;align-items:center;justify-content:space-between;}
+.pmi-summary-count{font-size:10.5px;font-weight:600;color:var(--text-tertiary);font-variant-numeric:tabular-nums;}
+.pmi-summary-body{padding:6px 16px 12px;max-height:none;}
+.pmi-srow{display:flex;justify-content:space-between;gap:12px;padding:7px 0;border-bottom:1px solid var(--border-default);font-size:11.5px;}
+.pmi-srow:last-child{border-bottom:0;}
+.pmi-skey{color:var(--text-tertiary);flex-shrink:0;}
+.pmi-sval{color:var(--text-primary);font-weight:600;text-align:right;word-break:break-word;}
+.pmi-sval.pmi-empty{color:var(--text-tertiary);font-weight:400;font-style:italic;}
+.pmi-progress{height:6px;background:var(--bg-subtle);border-radius:4px;overflow:hidden;margin:0 16px 12px;}
+.pmi-progress-fill{height:100%;background:var(--status-success);border-radius:4px;transition:width .2s;width:0;}
+.pmi-actions{padding:12px 16px;border-top:1px solid var(--border-default);display:flex;flex-direction:column;gap:8px;}
+.pmi-btn{height:38px;border-radius:7px;font-size:13px;font-weight:700;cursor:pointer;border:1px solid transparent;display:flex;align-items:center;justify-content:center;gap:7px;transition:opacity .15s,background .15s;}
+.pmi-btn-primary{background:var(--brand-navy);color:#fff;}
+.pmi-btn-primary:hover{background:var(--brand-navy-soft);}
+.pmi-btn-primary:disabled{opacity:.55;cursor:not-allowed;}
+.pmi-btn-ghost{background:#fff;color:var(--text-secondary);border-color:var(--border-default);height:32px;font-size:12px;font-weight:600;}
+.pmi-btn-ghost:hover{background:var(--bg-hover);}
+
+/* Priority pill inside summary */
+.pmi-pri{display:inline-block;padding:1px 7px;border-radius:4px;font-size:10px;font-weight:700;letter-spacing:.03em;}
+.pmi-pri-LOW{background:var(--status-success-bg);color:var(--status-success);}
+.pmi-pri-MEDIUM{background:var(--status-info-bg);color:var(--status-info);}
+.pmi-pri-HIGH{background:var(--status-warn-bg);color:var(--status-warn);}
+.pmi-pri-CRITICAL{background:var(--status-critical-bg);color:var(--status-critical);}
+
+/* Success screen */
+.pmi-done{max-width:520px;margin:40px auto;text-align:center;background:var(--bg-surface);border:1px solid var(--border-default);border-radius:12px;padding:34px 30px;box-shadow:var(--shadow-md);}
+.pmi-done-check{width:54px;height:54px;border-radius:50%;background:var(--status-success-bg);color:var(--status-success);display:grid;place-items:center;margin:0 auto 16px;}
+.pmi-done-title{font-size:17px;font-weight:700;color:var(--text-primary);margin-bottom:6px;}
+.pmi-done-sub{font-size:12.5px;color:var(--text-secondary);margin-bottom:18px;}
+.pmi-done-id{display:inline-flex;align-items:center;gap:8px;font-family:var(--font-mono);font-size:15px;font-weight:700;color:var(--brand-navy);background:var(--bg-subtle);border:1px solid var(--border-default);border-radius:8px;padding:9px 16px;margin-bottom:20px;cursor:pointer;}
+.pmi-done-actions{display:flex;gap:10px;justify-content:center;flex-wrap:wrap;}
+
+/* Offline / not-yet-live banner */
+.pmi-banner{display:none;align-items:flex-start;gap:9px;background:#FFF8E1;border:1px solid #FFD54F;border-radius:8px;padding:9px 13px;margin-bottom:14px;font-size:12px;color:#5D4037;line-height:1.5;}
+.pmi-banner.show{display:flex;}
+</style>
+
+<script>
+// ── PM Intake — field configuration (single source of truth) ─────────────────
+// type: 'text' | 'textarea' | 'select' | 'number' | 'auto'
+//   auto   → assigned by the Worker on submit (rendered read-only, never sent)
+//   select → needs `options: [...]`
+//   number → optional `unit`, `min`, `step`
+// span2  → field spans the full width of its section's 2-col grid
+window.PM_INTAKE_CONFIG = {
+  addEndpoint: '/api/pm/intake/add',
+  formCode: 'FRM-PM-001',
+  sections: [
+    { id: 'ident', num: 1, title: 'Record Identification',
+      note: 'Assigned automatically', keys: ['pmId', 'ticketNo', 'timestamp'] },
+    { id: 'task',  num: 2, title: 'Maintenance Task',
+      keys: ['action', 'interval', 'status', 'priority'] },
+    { id: 'equip', num: 3, title: 'Equipment',
+      keys: ['department', 'buildingZone', 'equipType', 'equipCode', 'specificEquip'] },
+    { id: 'impact', num: 4, title: 'Downtime & Resources',
+      keys: ['downtimeType', 'estDowntime', 'manpower'] },
+    { id: 'desc', num: 5, title: 'Description',
+      keys: ['description'] }
+  ],
+  fields: {
+    pmId:          { label: 'PM ID',            type: 'auto', autoText: 'Assigned on submit — e.g. PM-000123' },
+    ticketNo:      { label: 'Ticket #',         type: 'text', required: false,
+                     placeholder: 'e.g. MT-003-2507-001', hint: 'Link to a triggering repair ticket, if any.' },
+    timestamp:     { label: 'Timestamp',        type: 'auto', autoText: 'Stamped on submit' },
+
+    action:        { label: 'Action',           type: 'select', required: true,
+                     options: ['Inspect', 'Clean', 'Lubricate', 'Calibrate', 'Adjust', 'Tighten', 'Replace', 'Test', 'Service', 'Overhaul', 'Other'] },
+    interval:      { label: 'Interval',         type: 'select', required: true,
+                     options: ['Daily', 'Weekly', 'Bi-Weekly', 'Monthly', 'Quarterly', '6-Month', 'Annual'] },
+    status:        { label: 'Status',           type: 'select', required: true, defaultValue: 'Scheduled',
+                     options: ['Scheduled', 'Active', 'Due Soon', 'Overdue', 'In Progress', 'Complete', 'Deferred'] },
+    priority:      { label: 'Priority',         type: 'select', required: true, defaultValue: 'MEDIUM',
+                     options: ['LOW', 'MEDIUM', 'HIGH', 'CRITICAL'] },
+
+    department:    { label: 'Department',       type: 'select', required: true,
+                     options: ['METAL', 'ELECTRICAL', 'PLASTIC', 'LITHO', 'PLASTIC DEC', 'QA', 'MACHINE SHOP', 'S/R', 'SALES', 'G&A'] },
+    buildingZone:  { label: 'Building / Zone',  type: 'text', required: true,
+                     placeholder: 'e.g. Plant 1 — Zone B' },
+    equipType:     { label: 'Equipment Type',   type: 'select', required: true,
+                     options: ['Press', 'Conveyor', 'Robot', 'Pump', 'Motor', 'Compressor', 'HVAC', 'Oven / Dryer', 'Molding Machine', 'Packaging Line', 'Electrical Panel', 'Hydraulic System', 'Tooling', 'Other'] },
+    equipCode:     { label: 'Equipment Code',   type: 'text', required: true,
+                     placeholder: 'e.g. MET-PRS-014', hint: 'Asset / equipment identifier.' },
+    specificEquip: { label: 'Specific Equipment', type: 'text', required: true,
+                     placeholder: 'e.g. 200-ton Stamping Press #3' },
+
+    downtimeType:  { label: 'Downtime Type',    type: 'select', required: true, defaultValue: 'PLANNED',
+                     options: ['PLANNED', 'UNPLANNED', 'NONE'] },
+    estDowntime:   { label: 'Estimated Downtime', type: 'number', required: true, unit: 'hrs', min: 0, step: 0.5,
+                     placeholder: '0.0' },
+    manpower:      { label: 'Manpower Req.',    type: 'number', required: true, unit: 'techs', min: 1, step: 1,
+                     placeholder: '1' },
+
+    description:   { label: 'Description',      type: 'textarea', required: true, span2: true, minLength: 10,
+                     placeholder: 'Describe the preventive maintenance task, scope, and any special instructions…' }
+  }
+};
+
+// Runtime state
+var _pmiState_   = {};   // key -> string value
+var _pmiSubmitting_ = false;
+
+// Ordered list of every field key, following section order.
+function _pmiOrderedKeys_() {
+  var cfg = window.PM_INTAKE_CONFIG, out = [];
+  cfg.sections.forEach(function(s) { s.keys.forEach(function(k) { out.push(k); }); });
+  return out;
+}
+function _pmiField_(key) { return window.PM_INTAKE_CONFIG.fields[key]; }
+function _pmiIsUserField_(key) { return _pmiField_(key).type !== 'auto'; }
+
+// ── Page entry point ─────────────────────────────────────────────────────────
+PAGES['pm-intake'] = function(container) { _pmiRender_(container); };
+
+function _pmiRender_(container) {
+  // (Re)initialise state from defaults every time the form is rendered fresh.
+  _pmiState_ = {};
+  _pmiOrderedKeys_().forEach(function(k) {
+    var f = _pmiField_(k);
+    _pmiState_[k] = f.defaultValue || '';
+  });
+
+  var cfg = window.PM_INTAKE_CONFIG;
+  var html =
+    '<div class="pmi-wrap">' +
+      '<div class="pmi-hdr">' +
+        '<div class="pmi-hdr-title">New PM Entry</div>' +
+        '<div class="pmi-hdr-sub">Log a preventive-maintenance record. The PM ID and timestamp are assigned automatically; every other field is required so the data stays clean and reportable.</div>' +
+        '<div class="pmi-hdr-code">' + esc(cfg.formCode) + '</div>' +
+      '</div>' +
+      '<div class="pmi-banner" id="pmi-banner"></div>' +
+      '<div class="pmi-shell">' +
+        '<div class="pmi-form">' + cfg.sections.map(_pmiSectionHTML_).join('') + '</div>' +
+        _pmiRailHTML_() +
+      '</div>' +
+    '</div>';
+
+  container.innerHTML = html;
+  _pmiUpdateSummary_();
+}
+
+function _pmiSectionHTML_(section) {
+  var body = section.keys.map(_pmiFieldHTML_).join('');
+  return '' +
+    '<div class="pmi-section">' +
+      '<div class="pmi-section-hdr">' +
+        '<div class="pmi-step-num">' + section.num + '</div>' +
+        '<div class="pmi-section-title">' + esc(section.title) + '</div>' +
+        (section.note ? '<div class="pmi-section-note">' + esc(section.note) + '</div>' : '') +
+      '</div>' +
+      '<div class="pmi-grid">' + body + '</div>' +
+    '</div>';
+}
+
+function _pmiFieldHTML_(key) {
+  var f = _pmiField_(key);
+  var span = f.span2 ? ' pmi-span2' : '';
+  var reqMark = f.type === 'auto' ? '' :
+    (f.required === false ? '<span class="pmi-opt">(optional)</span>' : '<span class="pmi-req">*</span>');
+  var control;
+
+  if (f.type === 'auto') {
+    control =
+      '<div class="pmi-auto"><span class="pmi-auto-dot"></span>' +
+        '<span>' + esc(f.autoText || 'Auto-assigned') + '</span></div>';
+  } else if (f.type === 'select') {
+    var opts = '<option value="">— Select —</option>' + f.options.map(function(o) {
+      var sel = (_pmiState_[key] === o) ? ' selected' : '';
+      return '<option value="' + esc(o) + '"' + sel + '>' + esc(o) + '</option>';
+    }).join('');
+    control = '<select class="pmi-select" id="pmi-' + key + '" ' +
+      'onchange="_pmiOnInput_(\'' + key + '\')">' + opts + '</select>';
+  } else if (f.type === 'textarea') {
+    control = '<textarea class="pmi-textarea" id="pmi-' + key + '" rows="3" ' +
+      'placeholder="' + esc(f.placeholder || '') + '" ' +
+      'oninput="_pmiOnInput_(\'' + key + '\')">' + esc(_pmiState_[key] || '') + '</textarea>';
+  } else if (f.type === 'number') {
+    control =
+      '<div class="pmi-num-wrap">' +
+        '<input type="number" class="pmi-input" id="pmi-' + key + '" ' +
+          'inputmode="decimal" ' +
+          (f.min != null ? 'min="' + f.min + '" ' : '') +
+          (f.step != null ? 'step="' + f.step + '" ' : '') +
+          'placeholder="' + esc(f.placeholder || '') + '" ' +
+          'value="' + esc(_pmiState_[key] || '') + '" ' +
+          'oninput="_pmiOnInput_(\'' + key + '\')">' +
+        (f.unit ? '<span class="pmi-num-unit">' + esc(f.unit) + '</span>' : '') +
+      '</div>';
+  } else { // text
+    control = '<input type="text" class="pmi-input" id="pmi-' + key + '" ' +
+      'placeholder="' + esc(f.placeholder || '') + '" ' +
+      'value="' + esc(_pmiState_[key] || '') + '" ' +
+      'oninput="_pmiOnInput_(\'' + key + '\')">';
+  }
+
+  return '' +
+    '<div class="pmi-group' + span + '">' +
+      '<label class="pmi-label" for="pmi-' + key + '">' + esc(f.label) + ' ' + reqMark + '</label>' +
+      control +
+      (f.hint ? '<div class="pmi-hint">' + esc(f.hint) + '</div>' : '') +
+      '<div class="pmi-err" id="pmi-err-' + key + '"></div>' +
+    '</div>';
+}
+
+function _pmiRailHTML_() {
+  var rows = _pmiOrderedKeys_().map(function(k) {
+    var f = _pmiField_(k);
+    if (f.type === 'auto') return '';
+    return '<div class="pmi-srow"><span class="pmi-skey">' + esc(f.label) + '</span>' +
+      '<span class="pmi-sval pmi-empty" id="pmi-sum-' + k + '">—</span></div>';
+  }).join('');
+
+  return '' +
+    '<div class="pmi-rail">' +
+      '<div class="pmi-summary">' +
+        '<div class="pmi-summary-hdr"><span>Review</span>' +
+          '<span class="pmi-summary-count" id="pmi-sum-count">0 / 0</span></div>' +
+        '<div class="pmi-progress"><div class="pmi-progress-fill" id="pmi-progress"></div></div>' +
+        '<div class="pmi-summary-body">' + rows + '</div>' +
+        '<div class="pmi-actions">' +
+          '<button class="pmi-btn pmi-btn-primary" id="pmi-submit" onclick="_pmiSubmit_()">Submit PM Entry</button>' +
+          '<button class="pmi-btn pmi-btn-ghost" onclick="_pmiResetConfirm_()">Clear Form</button>' +
+        '</div>' +
+      '</div>' +
+    '</div>';
+}
+
+// ── Input handling + live summary ────────────────────────────────────────────
+function _pmiOnInput_(key) {
+  var el = document.getElementById('pmi-' + key);
+  if (el) _pmiState_[key] = el.value;
+  // Clear any prior error state as the user edits.
+  if (el) el.classList.remove('pmi-invalid');
+  var errEl = document.getElementById('pmi-err-' + key);
+  if (errEl) errEl.classList.remove('show');
+  _pmiUpdateSummary_();
+}
+
+function _pmiUpdateSummary_() {
+  var keys = _pmiOrderedKeys_().filter(_pmiIsUserField_);
+  var required = keys.filter(function(k) { return _pmiField_(k).required !== false; });
+  var filled = 0;
+
+  keys.forEach(function(k) {
+    var f = _pmiField_(k);
+    var val = (_pmiState_[k] || '').trim();
+    var cell = document.getElementById('pmi-sum-' + k);
+    if (!cell) return;
+    if (val) {
+      if (k === 'priority') {
+        cell.innerHTML = '<span class="pmi-pri pmi-pri-' + esc(val) + '">' + esc(val) + '</span>';
+      } else if (f.unit) {
+        cell.textContent = val + ' ' + f.unit;
+      } else {
+        cell.textContent = val;
+      }
+      cell.classList.remove('pmi-empty');
+    } else {
+      cell.textContent = '—';
+      cell.classList.add('pmi-empty');
+    }
+  });
+
+  required.forEach(function(k) { if ((_pmiState_[k] || '').trim()) filled++; });
+  var countEl = document.getElementById('pmi-sum-count');
+  if (countEl) countEl.textContent = filled + ' / ' + required.length;
+  var fillEl = document.getElementById('pmi-progress');
+  if (fillEl) fillEl.style.width = (required.length ? Math.round(filled / required.length * 100) : 0) + '%';
+}
+
+// ── Validation ───────────────────────────────────────────────────────────────
+// Returns the key of the first invalid field, marking all invalid ones. null = OK.
+function _pmiValidate_() {
+  var firstBad = null;
+  _pmiOrderedKeys_().filter(_pmiIsUserField_).forEach(function(k) {
+    var f = _pmiField_(k);
+    var val = (_pmiState_[k] || '').trim();
+    var msg = '';
+
+    if (f.required !== false && !val) {
+      msg = f.label + ' is required.';
+    } else if (val && f.type === 'number') {
+      var n = Number(val);
+      if (isNaN(n)) msg = 'Enter a number.';
+      else if (f.min != null && n < f.min) msg = 'Must be at least ' + f.min + '.';
+    } else if (val && f.minLength && val.length < f.minLength) {
+      msg = 'Please enter at least ' + f.minLength + ' characters.';
+    }
+
+    var el = document.getElementById('pmi-' + k);
+    var errEl = document.getElementById('pmi-err-' + k);
+    if (msg) {
+      if (el) el.classList.add('pmi-invalid');
+      if (errEl) { errEl.textContent = msg; errEl.classList.add('show'); }
+      if (!firstBad) firstBad = k;
+    } else {
+      if (el) el.classList.remove('pmi-invalid');
+      if (errEl) errEl.classList.remove('show');
+    }
+  });
+  return firstBad;
+}
+
+// ── Submit ───────────────────────────────────────────────────────────────────
+function _pmiSubmit_() {
+  if (_pmiSubmitting_) return;
+
+  var bad = _pmiValidate_();
+  if (bad) {
+    showToast('Please complete the highlighted fields.', 'error');
+    var el = document.getElementById('pmi-' + bad);
+    if (el && el.scrollIntoView) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    if (el && el.focus) try { el.focus({ preventScroll: true }); } catch (e) { el.focus(); }
+    return;
+  }
+
+  // Build payload from every USER field (auto fields are assigned server-side).
+  var payload = {};
+  _pmiOrderedKeys_().filter(_pmiIsUserField_).forEach(function(k) {
+    payload[k] = (_pmiState_[k] || '').trim();
+  });
+
+  var btn = document.getElementById('pmi-submit');
+  _pmiSubmitting_ = true;
+  if (btn) { btn.disabled = true; btn.textContent = 'Submitting…'; }
+
+  fetch(WORKER_URL + window.PM_INTAKE_CONFIG.addEndpoint, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-User-Email': (typeof USER !== 'undefined' && USER ? USER.email : '') },
+    body: JSON.stringify(payload)
+  })
+    .then(function(r) { return r.json().then(function(j) { return { ok: r.ok, status: r.status, body: j }; }); })
+    .then(function(res) {
+      _pmiSubmitting_ = false;
+      if (btn) { btn.disabled = false; btn.textContent = 'Submit PM Entry'; }
+
+      if (res.body && res.body.ok) {
+        _pmiSuccess_(res.body.pmId || '(assigned)', res.body.timestamp || '');
+        return;
+      }
+      // Endpoint reachable but returned an error (incl. 404 = route not deployed yet).
+      if (res.status === 404) {
+        _pmiShowBanner_('The PM intake endpoint isn’t live yet. Your entries are validated and ready — once <code>/api/pm/intake/add</code> is deployed, submit will write straight to the sheet.');
+      }
+      showToast('Error: ' + esc((res.body && res.body.error) || ('HTTP ' + res.status)), 'error', 7000);
+    })
+    .catch(function(err) {
+      _pmiSubmitting_ = false;
+      if (btn) { btn.disabled = false; btn.textContent = 'Submit PM Entry'; }
+      showToast('Submission failed: ' + esc(String(err.message || err)), 'error', 7000);
+    });
+}
+
+function _pmiShowBanner_(msgHtml) {
+  var b = document.getElementById('pmi-banner');
+  if (!b) return;
+  b.innerHTML = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="flex-shrink:0;margin-top:1px;"><path d="M12 9v4M12 17h.01"/><path d="M10.3 3.9L1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/></svg><div>' + msgHtml + '</div>';
+  b.classList.add('show');
+}
+
+function _pmiSuccess_(pmId, timestamp) {
+  var container = document.getElementById('page-pm-intake');
+  if (!container) return;
+  container.innerHTML =
+    '<div class="pmi-wrap">' +
+      '<div class="pmi-done">' +
+        '<div class="pmi-done-check">' +
+          '<svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>' +
+        '</div>' +
+        '<div class="pmi-done-title">PM entry logged</div>' +
+        '<div class="pmi-done-sub">Written to the PM sheet' + (timestamp ? ' on ' + esc(timestamp) : '') + '.</div>' +
+        '<div class="pmi-done-id" title="Copy PM ID" onclick="_pmiCopy_(\'' + esc(pmId) + '\')">' +
+          '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>' +
+          esc(pmId) +
+        '</div>' +
+        '<div class="pmi-done-actions">' +
+          '<button class="pmi-btn pmi-btn-primary" style="padding:0 18px;" onclick="_pmiRenderReset_()">Log Another PM</button>' +
+          '<button class="pmi-btn pmi-btn-ghost" style="padding:0 16px;" onclick="navigate(\'pm\')">Go to PM Schedules</button>' +
+        '</div>' +
+      '</div>' +
+    '</div>';
+}
+
+function _pmiRenderReset_() {
+  var container = document.getElementById('page-pm-intake');
+  if (container) _pmiRender_(container);
+}
+
+function _pmiResetConfirm_() {
+  var container = document.getElementById('page-pm-intake');
+  if (container) { _pmiRender_(container); showToast('Form cleared.'); }
+}
+
+function _pmiCopy_(txt) {
+  if (navigator.clipboard) {
+    navigator.clipboard.writeText(txt).then(function() { showToast('Copied: ' + txt); });
+  }
+}
+</script>
