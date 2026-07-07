@@ -191,6 +191,29 @@ a{color:inherit;text-decoration:none;}
 .toast.error{background:#7F1D1D;border-left:3px solid var(--status-critical);}
 .toast.warn{background:#78350F;border-left:3px solid var(--status-warn);}
 @keyframes slideIn{from{transform:translateX(16px);opacity:0;}to{transform:translateX(0);opacity:1;}}
+
+/* ── Professional page header (mockup parity) ───────────────────────────────
+   Shared header for content screens: breadcrumb + title + descriptive sub +
+   right-aligned action slot, closed with a hairline rule. Reusable across all
+   partials — replaces the flat 15px inline titles that made screens feel thin. */
+.page-head{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;margin-bottom:18px;padding-bottom:14px;border-bottom:1px solid var(--border-default);flex-wrap:wrap;}
+.page-head-main{min-width:0;}
+.page-head .crumbs{font-size:11px;color:var(--text-tertiary);margin-bottom:6px;display:flex;align-items:center;gap:6px;flex-wrap:wrap;letter-spacing:.02em;}
+.page-head .crumbs .sep{opacity:.5;}
+.page-head .crumbs .cur{color:var(--text-secondary);font-weight:600;}
+.page-head h1{font-size:20px;font-weight:700;margin:0 0 4px;letter-spacing:-.01em;color:var(--text-primary);line-height:1.15;}
+.page-head .sub{color:var(--text-secondary);font-size:12.5px;line-height:1.45;margin:0;max-width:860px;}
+.page-head-actions{display:flex;gap:8px;align-items:center;flex-shrink:0;flex-wrap:wrap;}
+
+/* KPI delta chip — sits inline beside the value (up=good/green, down=bad/red). */
+.kpi .kpi-delta{font-size:11px;font-weight:600;font-variant-numeric:tabular-nums;margin-left:6px;}
+.kpi .kpi-delta.up{color:var(--status-success);}
+.kpi .kpi-delta.down{color:var(--status-critical);}
+.kpi .kpi-delta.neutral{color:var(--text-secondary);}
+
+/* SQF audit footer — controlled-document register strip at page bottom. */
+.sqf-footer{margin-top:24px;padding-top:12px;border-top:1px dashed var(--border-default);font-size:10.5px;color:var(--text-tertiary);font-family:var(--font-mono);display:flex;gap:16px;flex-wrap:wrap;align-items:center;}
+.sqf-footer .grow{margin-left:auto;}
 </style>
 </head>
 <body>
@@ -271,6 +294,8 @@ function docLabel(key) {
 <?!= include_('frontend/partials/sqf-navigation') ?>
 <?!= include_('frontend/partials/tech-work-board') ?>
 <?!= include_('frontend/partials/equipment-inventory') ?>
+<?!= include_('frontend/partials/pm-master') ?>
+<?!= include_('frontend/partials/pm-packets') ?>
 <?!= include_('frontend/partials/admin') ?>
 
 <div id="toast-container"></div>
@@ -373,12 +398,12 @@ function getNavDef() {
     });
   }
 
-  // PM — always last, always greyed out (no UI in v1)
+  // Preventive Maintenance — Master schedule + per-machine PM packets.
   nav.push({
     section: 'Preventive Maintenance', icon: 'pm',
     items: [
-      { id: 'pm', label: 'PM Schedules', icon: 'pm', disabled: true,
-        sublabel: 'Coming Soon' }
+      { id: 'pm',         label: 'Master PM',          icon: 'pm' },
+      { id: 'pm-packets', label: 'Machine PM Packets', icon: 'pm' }
     ]
   });
 
@@ -527,7 +552,8 @@ var PAGE_TITLES = {
   'admin-techdir':         'Tech Directory',
   'admin-deptmap':         'Dept Map',
   'admin-equip':           'Equipment Cache',
-  'pm':                    'PM Schedules'
+  'pm':                    'PM Schedules',
+  'pm-packets':            'Machine PM Packets'
 };
 
 // ── Navigation ────────────────────────────────────────────────────────────────

@@ -212,16 +212,21 @@ function _renderTf_(items, container) {
   _tfData_ = _asArray_(items);
   container.innerHTML =
     '<div class="mon-wrap">' +
-    '<div class="mon-toolbar">' +
-      '<span class="mon-title">Temp Fix Monitor</span>' +
-      '<span class="mon-count" id="tf-cnt">' + _tfData_.length + ' active</span>' +
-      '<input class="mon-search" id="tf-search" placeholder="Search…" oninput="_tfApply_()" />' +
-      '<select class="mon-filter-select" id="tf-stat" onchange="_tfApply_()">' +
-        '<option value="">All statuses</option>' +
-        '<option>ACTIVE</option><option>PAST DUE</option>' +
-      '</select>' +
-      '<button onclick="_loadTfPage_(document.getElementById(\'page-tempfix\'))" ' +
-        'style="height:30px;padding:0 10px;border:1px solid var(--border-default);border-radius:6px;background:#fff;font-size:12px;cursor:pointer;color:var(--text-secondary);" title="Refresh">↻</button>' +
+    '<div class="page-head">' +
+      '<div class="page-head-main">' +
+        '<div class="crumbs"><span>Monitoring</span><span class="sep">/</span><span class="cur">Temp Fix Monitor</span></div>' +
+        '<h1>Temp Fix Monitor</h1>' +
+        '<p class="sub">Every temporary repair on the floor — flagged, scheduled, and audited against SQF 2.10 (Temporary Repairs) and Maintenance Program 030. Past-due rows must be inspected or cleared with a permanent fix.</p>' +
+      '</div>' +
+      '<div class="page-head-actions">' +
+        '<span class="mon-count" id="tf-cnt">' + _tfData_.length + ' active</span>' +
+        '<input class="mon-search" id="tf-search" placeholder="Search…" oninput="_tfApply_()" />' +
+        '<select class="mon-filter-select" id="tf-stat" onchange="_tfApply_()">' +
+          '<option value="">All statuses</option>' +
+          '<option>ACTIVE</option><option>PAST DUE</option>' +
+        '</select>' +
+        '<button class="mon-btn" onclick="_loadTfPage_(document.getElementById(\'page-tempfix\'))" style="height:30px;" title="Refresh">↻</button>' +
+      '</div>' +
     '</div>' +
     _tfKpiBar_(_tfData_) +
     '<div class="mon-table-wrap"><table class="mon-table">' +
@@ -232,7 +237,9 @@ function _renderTf_(items, container) {
         '<th>Days to Re-Inspect</th><th>Freq (days)</th><th></th>' +
       '</tr></thead>' +
       '<tbody id="tf-tbody"></tbody>' +
-    '</table></div></div>';
+    '</table></div>' +
+    '<div class="sqf-footer"><span>FRM-030-001 · Maintenance Ticket</span><span>Maintenance Program 030 — Temporary Repair Control</span><span>SQF 2.10 · 11.2.13</span><span class="grow">' + esc(window.COMPANY || 'CSC Maintenance') + '</span></div>' +
+    '</div>';
   _tfRenderRows_(_tfData_);
 }
 

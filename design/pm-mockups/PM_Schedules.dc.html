@@ -1,0 +1,1209 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --brand-navy:#001F4F; --brand-navy-soft:#1A3A6B; --brand-navy-deep:#001436;
+  --bg-app:#F7F8FA; --bg-surface:#FFFFFF; --bg-subtle:#F1F3F6; --bg-hover:#F4F6F9;
+  --border-default:#E4E7EC; --border-strong:#CBD2DA;
+  --text-primary:#0F172A; --text-secondary:#64748B; --text-tertiary:#94A3B8;
+  --text-onnavy:#FFFFFF; --text-onnavy-dim:#B6C2D8;
+  --status-critical:#DC2626; --status-critical-bg:#FEF2F2;
+  --status-high:#EA580C; --status-high-bg:#FFF7ED;
+  --status-medium:#CA8A04; --status-medium-bg:#FEFCE8;
+  --status-low:#64748B; --status-low-bg:#F1F5F9;
+  --status-success:#059669; --status-success-bg:#ECFDF5;
+  --status-info:#0284C7; --status-info-bg:#F0F9FF;
+  --status-warn:#D97706; --status-warn-bg:#FFFBEB;
+  --shadow-sm:0 1px 2px rgba(15,23,42,.04); --shadow-md:0 2px 8px rgba(15,23,42,.06); --shadow-lg:0 12px 32px rgba(15,23,42,.12);
+  --font-sans:"Inter",-apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif;
+  --font-mono:"JetBrains Mono","SF Mono",Menlo,Consolas,monospace;
+  --sidebar-w:232px; --topbar-h:52px;
+}
+*{box-sizing:border-box;}
+html,body{margin:0;padding:0;height:100%;}
+body{font-family:var(--font-sans);font-size:13px;color:var(--text-primary);background:var(--bg-app);-webkit-font-smoothing:antialiased;}
+a{color:var(--brand-navy);text-decoration:none;}
+a:hover{text-decoration:underline;}
+@keyframes spin{to{transform:rotate(360deg);}}
+@keyframes pulse{0%{transform:scale(.5);opacity:.5;}70%{transform:scale(1.4);opacity:0;}100%{transform:scale(1.4);opacity:0;}}
+@keyframes slideIn{from{transform:translateX(16px);opacity:0;}to{transform:translateX(0);opacity:1;}}
+::-webkit-scrollbar{width:8px;height:8px;}
+::-webkit-scrollbar-thumb{background:#cbd2da;border-radius:4px;}
+::-webkit-scrollbar-track{background:transparent;}
+#pm-print{display:none;}
+@media print{
+  #pm-app{display:none !important;}
+  #pm-print{display:block !important;}
+  @page{margin:14mm;}
+}
+</style>
+</helmet>
+
+<div id="pm-app" style="display:grid;grid-template-columns:var(--sidebar-w) 1fr;height:100vh;overflow:hidden;">
+
+  <aside style="background:var(--brand-navy);color:var(--text-onnavy);display:flex;flex-direction:column;border-right:1px solid var(--brand-navy-deep);overflow:hidden;">
+    <div style="padding:14px 16px 12px;display:flex;align-items:center;gap:10px;border-bottom:1px solid rgba(255,255,255,.06);">
+      <div style="width:28px;height:28px;border-radius:6px;background:#fff;color:var(--brand-navy);display:grid;place-items:center;font-weight:800;font-size:12px;letter-spacing:-.02em;flex-shrink:0;">CSC</div>
+      <div style="line-height:1.15;">
+        <div style="font-weight:700;font-size:12.5px;letter-spacing:.02em;">Maintenance</div>
+        <div style="font-weight:400;font-size:10px;color:var(--text-onnavy-dim);letter-spacing:.06em;text-transform:uppercase;margin-top:2px;">Operations Console</div>
+        <div style="font-size:9px;color:rgba(255,255,255,.28);letter-spacing:.05em;margin-top:1px;">v4.02</div>
+      </div>
+    </div>
+
+    <nav style="flex:1;overflow-y:auto;padding:8px 8px 16px;">
+      <div style="padding:8px 0 4px;">
+        <div style="font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:var(--text-onnavy-dim);padding:6px 10px 4px;font-weight:600;">Overview</div>
+        <div onClick="{{ demoNav }}" style="display:flex;align-items:center;gap:10px;padding:7px 10px;border-radius:6px;color:var(--text-onnavy-dim);font-size:12.5px;font-weight:500;cursor:pointer;">Dashboard</div>
+      </div>
+      <div style="padding:8px 0 4px;">
+        <div style="font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:var(--text-onnavy-dim);padding:6px 10px 4px;font-weight:600;">Tickets</div>
+        <div onClick="{{ demoNav }}" style="display:flex;align-items:center;gap:10px;padding:7px 10px;border-radius:6px;color:var(--text-onnavy-dim);font-size:12.5px;font-weight:500;cursor:pointer;">New Ticket</div>
+        <div onClick="{{ demoNav }}" style="display:flex;align-items:center;gap:10px;padding:7px 10px;border-radius:6px;color:var(--text-onnavy-dim);font-size:12.5px;font-weight:500;cursor:pointer;">Open Tickets</div>
+        <div onClick="{{ demoNav }}" style="display:flex;align-items:center;gap:10px;padding:7px 10px;border-radius:6px;color:var(--text-onnavy-dim);font-size:12.5px;font-weight:500;cursor:pointer;">Closed Tickets</div>
+      </div>
+      <div style="padding:8px 0 4px;">
+        <div style="font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:var(--text-onnavy-dim);padding:6px 10px 4px;font-weight:600;">Monitoring</div>
+        <div onClick="{{ demoNav }}" style="display:flex;align-items:center;gap:10px;padding:7px 10px;border-radius:6px;color:var(--text-onnavy-dim);font-size:12.5px;font-weight:500;cursor:pointer;">Equipment Inventory</div>
+        <div onClick="{{ demoNav }}" style="display:flex;align-items:center;gap:10px;padding:7px 10px;border-radius:6px;color:var(--text-onnavy-dim);font-size:12.5px;font-weight:500;cursor:pointer;">Parts Needed</div>
+      </div>
+      <div style="padding:8px 0 4px;">
+        <div style="font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:var(--text-onnavy-dim);padding:6px 10px 4px;font-weight:600;">Reports &amp; SQF</div>
+        <div onClick="{{ demoNav }}" style="display:flex;align-items:center;gap:10px;padding:7px 10px;border-radius:6px;color:var(--text-onnavy-dim);font-size:12.5px;font-weight:500;cursor:pointer;">Reports</div>
+      </div>
+      <div style="padding:8px 0 4px;">
+        <div style="font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:var(--text-onnavy-dim);padding:6px 10px 4px;font-weight:600;">Preventive Maintenance</div>
+        <div onClick="{{ goMaster }}" style="{{ navMasterStyle }}">
+          <span style="width:16px;height:16px;flex-shrink:0;">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+          </span>
+          <span style="flex:1;">Master PM</span>
+        </div>
+        <div onClick="{{ goPackets }}" style="{{ navPacketsStyle }}">
+          <span style="width:16px;height:16px;flex-shrink:0;">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg>
+          </span>
+          <span style="flex:1;">Machine PM Packets</span>
+        </div>
+      </div>
+    </nav>
+
+    <div style="border-top:1px solid rgba(255,255,255,.06);padding:10px;display:flex;align-items:center;gap:10px;">
+      <div style="width:28px;height:28px;border-radius:50%;background:linear-gradient(135deg,#4D7BC9,#2D4F8A);color:#fff;font-size:11px;font-weight:700;display:grid;place-items:center;flex-shrink:0;">EN</div>
+      <div style="flex:1;min-width:0;">
+        <div style="font-size:12px;font-weight:600;color:#fff;line-height:1.2;">Eddie Nahabedian</div>
+        <div style="font-size:10.5px;color:var(--text-onnavy-dim);margin-top:1px;">{{ roleLabel }}</div>
+      </div>
+    </div>
+  </aside>
+
+  <div style="display:flex;flex-direction:column;overflow:hidden;min-width:0;">
+    <header style="height:var(--topbar-h);background:var(--bg-surface);border-bottom:1px solid var(--border-default);display:flex;align-items:center;padding:0 18px;gap:16px;flex-shrink:0;">
+      <span style="font-weight:600;font-size:14px;color:var(--text-primary);">{{ topbarTitle }}</span>
+      <div style="flex:1;"></div>
+      <div style="display:flex;align-items:center;gap:7px;font-size:11.5px;color:var(--text-secondary);padding:4px 10px;background:var(--bg-app);border-radius:4px;border:1px solid var(--border-default);">
+        <div style="width:7px;height:7px;border-radius:50%;background:var(--status-success);"></div>
+        <span>CSC Maintenance</span>
+      </div>
+    </header>
+
+    <div style="flex:1;overflow:auto;background:var(--bg-app);">
+
+      <sc-if value="{{ showMaster }}" hint-placeholder-val="{{ true }}">
+      <div style="padding:20px 24px;">
+
+        <sc-if value="{{ showKpis }}" hint-placeholder-val="{{ true }}">
+        <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:1px;background:var(--border-default);border:1px solid var(--border-default);border-radius:8px;overflow:hidden;margin-bottom:16px;">
+          <sc-for list="{{ kpis }}" as="k" hint-placeholder-count="5">
+            <div style="background:var(--bg-surface);padding:11px 14px;">
+              <div style="font-size:10px;text-transform:uppercase;letter-spacing:.06em;color:var(--text-secondary);font-weight:600;">{{ k.label }}</div>
+              <div style="font-size:20px;font-weight:700;font-variant-numeric:tabular-nums;margin-top:4px;line-height:1;{{ k.color }}">{{ k.value }}</div>
+            </div>
+          </sc-for>
+        </div>
+        </sc-if>
+
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;flex-wrap:wrap;">
+          <span style="font-size:15px;font-weight:700;color:var(--text-primary);flex:1;">PM Master Schedule</span>
+          <span style="font-size:12px;color:var(--text-secondary);background:var(--bg-subtle);border:1px solid var(--border-default);border-radius:4px;padding:2px 8px;">{{ listCountLabel }}</span>
+          <input value="{{ search }}" onInput="{{ onSearch }}" placeholder="Search asset, PM ID, type…" style="height:30px;padding:0 10px;border:1px solid var(--border-default);border-radius:6px;font-size:12.5px;width:230px;outline:none;color:var(--text-primary);" />
+          <button onClick="{{ toggleFilters }}" style="{{ filterToggleStyle }}">&#8862; Filters<sc-if value="{{ hasActiveFilters }}" hint-placeholder-val="{{ false }}"><span style="display:inline-flex;align-items:center;justify-content:center;min-width:16px;height:16px;border-radius:8px;background:var(--brand-navy);color:#fff;font-size:9px;font-weight:700;padding:0 3px;margin-left:5px;">{{ activeFilterCount }}</span></sc-if></button>
+        </div>
+
+        <div style="display:inline-flex;background:var(--bg-subtle);border:1px solid var(--border-default);border-radius:8px;padding:3px;margin-bottom:14px;gap:2px;">
+          <button onClick="{{ setTabDefs }}" style="{{ tabDefsStyle }}">Schedule Definitions</button>
+          <button onClick="{{ setTabTickets }}" style="{{ tabTicketsStyle }}">Generated PM Tickets</button>
+        </div>
+
+        <sc-if value="{{ filtersOpen }}" hint-placeholder-val="{{ true }}">
+        <div style="background:var(--bg-subtle);border:1px solid var(--border-default);border-radius:8px;padding:12px 16px;margin-bottom:14px;">
+          <div style="display:flex;flex-wrap:wrap;gap:22px;align-items:flex-start;">
+            <sc-for list="{{ filterGroups }}" as="g" hint-placeholder-count="4">
+              <div style="display:flex;flex-direction:column;gap:6px;">
+                <div style="font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--text-secondary);">{{ g.label }}</div>
+                <div style="display:flex;flex-wrap:wrap;gap:4px;max-width:340px;">
+                  <sc-for list="{{ g.chips }}" as="c" hint-placeholder-count="4">
+                    <label style="{{ c.style }}"><input type="checkbox" checked="{{ c.checked }}" onChange="{{ c.onToggle }}" style="width:12px;height:12px;cursor:pointer;margin:0;accent-color:var(--brand-navy);" />{{ c.label }}</label>
+                  </sc-for>
+                </div>
+              </div>
+            </sc-for>
+            <button onClick="{{ resetFilters }}" style="font-size:11px;color:var(--brand-navy);background:none;border:none;padding:0;cursor:pointer;text-decoration:underline;align-self:flex-end;margin-bottom:4px;">Reset all</button>
+          </div>
+        </div>
+        </sc-if>
+
+        <sc-if value="{{ tabDefs }}" hint-placeholder-val="{{ true }}">
+        <div style="background:var(--bg-surface);border:1px solid var(--border-default);border-radius:10px;overflow-x:auto;box-shadow:var(--shadow-sm);">
+          <table style="width:100%;border-collapse:collapse;font-size:12.5px;">
+            <thead><tr>
+              <th style="background:var(--bg-subtle);padding:8px 12px;text-align:left;font-size:10.5px;font-weight:600;color:var(--text-secondary);text-transform:uppercase;letter-spacing:.04em;border-bottom:1px solid var(--border-default);white-space:nowrap;">Asset</th>
+              <th style="background:var(--bg-subtle);padding:8px 12px;text-align:left;font-size:10.5px;font-weight:600;color:var(--text-secondary);text-transform:uppercase;letter-spacing:.04em;border-bottom:1px solid var(--border-default);white-space:nowrap;">Type of PM</th>
+              <th style="background:var(--bg-subtle);padding:8px 12px;text-align:left;font-size:10.5px;font-weight:600;color:var(--text-secondary);text-transform:uppercase;letter-spacing:.04em;border-bottom:1px solid var(--border-default);white-space:nowrap;">Frequency</th>
+              <th style="background:var(--bg-subtle);padding:8px 12px;text-align:left;font-size:10.5px;font-weight:600;color:var(--text-secondary);text-transform:uppercase;letter-spacing:.04em;border-bottom:1px solid var(--border-default);white-space:nowrap;">Priority</th>
+              <th style="background:var(--bg-subtle);padding:8px 12px;text-align:left;font-size:10.5px;font-weight:600;color:var(--text-secondary);text-transform:uppercase;letter-spacing:.04em;border-bottom:1px solid var(--border-default);white-space:nowrap;">Downtime</th>
+              <th style="background:var(--bg-subtle);padding:8px 12px;text-align:right;font-size:10.5px;font-weight:600;color:var(--text-secondary);text-transform:uppercase;letter-spacing:.04em;border-bottom:1px solid var(--border-default);white-space:nowrap;">Est. DT</th>
+              <th style="background:var(--bg-subtle);padding:8px 12px;text-align:left;font-size:10.5px;font-weight:600;color:var(--text-secondary);text-transform:uppercase;letter-spacing:.04em;border-bottom:1px solid var(--border-default);white-space:nowrap;">Manpower</th>
+              <th style="background:var(--bg-subtle);padding:8px 12px;text-align:left;font-size:10.5px;font-weight:600;color:var(--text-secondary);text-transform:uppercase;letter-spacing:.04em;border-bottom:1px solid var(--border-default);white-space:nowrap;">Last Done</th>
+              <th style="background:var(--bg-subtle);padding:8px 12px;text-align:left;font-size:10.5px;font-weight:600;color:var(--text-secondary);text-transform:uppercase;letter-spacing:.04em;border-bottom:1px solid var(--border-default);white-space:nowrap;">Next Due</th>
+              <th style="background:var(--bg-subtle);padding:8px 12px;text-align:left;font-size:10.5px;font-weight:600;color:var(--text-secondary);text-transform:uppercase;letter-spacing:.04em;border-bottom:1px solid var(--border-default);white-space:nowrap;">Status</th>
+            </tr></thead>
+            <tbody>
+              <sc-for list="{{ defRows }}" as="r" hint-placeholder-count="8">
+                <tr onClick="{{ r.onOpen }}" style="cursor:pointer;border-bottom:1px solid var(--border-default);">
+                  <td style="padding:9px 12px;vertical-align:middle;"><span style="font-family:var(--font-mono);font-weight:600;color:var(--brand-navy);font-size:11.5px;">{{ r.asset }}</span><div style="color:var(--text-secondary);font-size:11.5px;max-width:190px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{{ r.assetName }}</div></td>
+                  <td style="padding:9px 12px;vertical-align:middle;color:var(--text-primary);">{{ r.type }}</td>
+                  <td style="padding:9px 12px;vertical-align:middle;"><span style="{{ r.freqStyle }}">{{ r.freq }}</span></td>
+                  <td style="padding:9px 12px;vertical-align:middle;"><span style="{{ r.priStyle }}">{{ r.priLabel }}</span></td>
+                  <td style="padding:9px 12px;vertical-align:middle;color:var(--text-secondary);">{{ r.downtimeType }}</td>
+                  <td style="padding:9px 12px;vertical-align:middle;text-align:right;font-family:var(--font-mono);font-size:11.5px;color:var(--text-secondary);">{{ r.estDowntime }}</td>
+                  <td style="padding:9px 12px;vertical-align:middle;color:var(--text-secondary);font-size:11.5px;">{{ r.manpower }}</td>
+                  <td style="padding:9px 12px;vertical-align:middle;color:var(--text-tertiary);font-size:11.5px;">{{ r.lastCompleted }}</td>
+                  <td style="padding:9px 12px;vertical-align:middle;font-size:11.5px;{{ r.dueColor }}">{{ r.nextDue }}</td>
+                  <td style="padding:9px 12px;vertical-align:middle;"><span style="{{ r.statStyle }}">{{ r.statLabel }}</span></td>
+                </tr>
+              </sc-for>
+            </tbody>
+          </table>
+          <sc-if value="{{ defEmpty }}" hint-placeholder-val="{{ false }}"><div style="padding:40px 24px;text-align:center;color:var(--text-secondary);font-size:13px;">No PM schedules match your filters.</div></sc-if>
+        </div>
+        </sc-if>
+
+        <sc-if value="{{ tabTickets }}" hint-placeholder-val="{{ false }}">
+        <div style="background:var(--bg-surface);border:1px solid var(--border-default);border-radius:10px;overflow-x:auto;box-shadow:var(--shadow-sm);">
+          <table style="width:100%;border-collapse:collapse;font-size:12.5px;">
+            <thead><tr>
+              <th style="background:var(--bg-subtle);padding:8px 12px;text-align:left;font-size:10.5px;font-weight:600;color:var(--text-secondary);text-transform:uppercase;letter-spacing:.04em;border-bottom:1px solid var(--border-default);white-space:nowrap;">PM Ticket #</th>
+              <th style="background:var(--bg-subtle);padding:8px 12px;text-align:left;font-size:10.5px;font-weight:600;color:var(--text-secondary);text-transform:uppercase;letter-spacing:.04em;border-bottom:1px solid var(--border-default);white-space:nowrap;">Generated</th>
+              <th style="background:var(--bg-subtle);padding:8px 12px;text-align:left;font-size:10.5px;font-weight:600;color:var(--text-secondary);text-transform:uppercase;letter-spacing:.04em;border-bottom:1px solid var(--border-default);white-space:nowrap;">Priority</th>
+              <th style="background:var(--bg-subtle);padding:8px 12px;text-align:left;font-size:10.5px;font-weight:600;color:var(--text-secondary);text-transform:uppercase;letter-spacing:.04em;border-bottom:1px solid var(--border-default);white-space:nowrap;">Status</th>
+              <th style="background:var(--bg-subtle);padding:8px 12px;text-align:left;font-size:10.5px;font-weight:600;color:var(--text-secondary);text-transform:uppercase;letter-spacing:.04em;border-bottom:1px solid var(--border-default);white-space:nowrap;">Dept</th>
+              <th style="background:var(--bg-subtle);padding:8px 12px;text-align:left;font-size:10.5px;font-weight:600;color:var(--text-secondary);text-transform:uppercase;letter-spacing:.04em;border-bottom:1px solid var(--border-default);white-space:nowrap;">Equipment</th>
+              <th style="background:var(--bg-subtle);padding:8px 12px;text-align:left;font-size:10.5px;font-weight:600;color:var(--text-secondary);text-transform:uppercase;letter-spacing:.04em;border-bottom:1px solid var(--border-default);white-space:nowrap;">PM Type</th>
+              <th style="background:var(--bg-subtle);padding:8px 12px;text-align:left;font-size:10.5px;font-weight:600;color:var(--text-secondary);text-transform:uppercase;letter-spacing:.04em;border-bottom:1px solid var(--border-default);white-space:nowrap;">Frequency</th>
+              <th style="background:var(--bg-subtle);padding:8px 12px;text-align:left;font-size:10.5px;font-weight:600;color:var(--text-secondary);text-transform:uppercase;letter-spacing:.04em;border-bottom:1px solid var(--border-default);white-space:nowrap;">Assigned To</th>
+            </tr></thead>
+            <tbody>
+              <sc-for list="{{ ticketRows }}" as="r" hint-placeholder-count="8">
+                <tr onClick="{{ r.onOpen }}" style="cursor:pointer;border-bottom:1px solid var(--border-default);">
+                  <td style="padding:9px 12px;vertical-align:middle;font-family:var(--font-mono);font-weight:600;color:var(--brand-navy);font-size:11.5px;">{{ r.ticketNo }}</td>
+                  <td style="padding:9px 12px;vertical-align:middle;color:var(--text-tertiary);font-size:11.5px;">{{ r.date }}</td>
+                  <td style="padding:9px 12px;vertical-align:middle;"><span style="{{ r.priStyle }}">{{ r.priLabel }}</span></td>
+                  <td style="padding:9px 12px;vertical-align:middle;"><span style="{{ r.statStyle }}">{{ r.status }}</span></td>
+                  <td style="padding:9px 12px;vertical-align:middle;color:var(--text-secondary);font-size:11.5px;">{{ r.dept }}</td>
+                  <td style="padding:9px 12px;vertical-align:middle;"><span style="font-family:var(--font-mono);font-size:11px;color:var(--text-secondary);">{{ r.asset }}</span> <span style="max-width:150px;display:inline-block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;vertical-align:bottom;">{{ r.assetName }}</span></td>
+                  <td style="padding:9px 12px;vertical-align:middle;color:var(--text-primary);">{{ r.type }}</td>
+                  <td style="padding:9px 12px;vertical-align:middle;"><span style="{{ r.freqStyle }}">{{ r.freq }}</span></td>
+                  <td style="padding:9px 12px;vertical-align:middle;color:var(--text-secondary);">{{ r.assigned }}</td>
+                </tr>
+              </sc-for>
+            </tbody>
+          </table>
+          <sc-if value="{{ ticketEmpty }}" hint-placeholder-val="{{ false }}"><div style="padding:40px 24px;text-align:center;color:var(--text-secondary);font-size:13px;">No generated PM tickets match your filters.</div></sc-if>
+        </div>
+        </sc-if>
+
+      </div>
+      </sc-if>
+
+      <sc-if value="{{ showPackets }}" hint-placeholder-val="{{ false }}">
+      <div style="padding:20px 24px;">
+
+        <sc-if value="{{ noPacketOpen }}" hint-placeholder-val="{{ true }}">
+        <div>
+          <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px;flex-wrap:wrap;">
+            <span style="font-size:15px;font-weight:700;color:var(--text-primary);flex:1;">Machine PM Packets</span>
+            <span style="font-size:12px;color:var(--text-secondary);background:var(--bg-subtle);border:1px solid var(--border-default);border-radius:4px;padding:2px 8px;">{{ packetCountLabel }}</span>
+          </div>
+          <p style="font-size:12.5px;color:var(--text-secondary);margin:0 0 18px;max-width:720px;line-height:1.5;">Each packet groups every PM due for one machine at a single interval — a manager checklist showing which PMs in the cycle are complete. Open a packet to work the checklist or print a floor sign-off sheet.</p>
+          <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:14px;">
+            <sc-for list="{{ packetCards }}" as="p" hint-placeholder-count="4">
+              <div onClick="{{ p.onOpen }}" style="background:var(--bg-surface);border:1px solid var(--border-default);border-radius:10px;padding:16px;box-shadow:var(--shadow-sm);cursor:pointer;transition:box-shadow .12s;">
+                <div style="display:flex;align-items:flex-start;gap:8px;margin-bottom:10px;">
+                  <div style="flex:1;min-width:0;">
+                    <div style="font-family:var(--font-mono);font-size:11px;color:var(--brand-navy);font-weight:600;">{{ p.asset }}</div>
+                    <div style="font-size:13.5px;font-weight:700;color:var(--text-primary);margin-top:2px;line-height:1.25;">{{ p.assetName }}</div>
+                  </div>
+                  <span style="{{ p.freqStyle }}">{{ p.freq }}</span>
+                </div>
+                <div style="display:flex;align-items:center;justify-content:space-between;font-size:11.5px;color:var(--text-secondary);margin-bottom:8px;">
+                  <span>{{ p.dept }} &middot; {{ p.window }}</span>
+                  <span style="{{ p.dueStyle }}">Due {{ p.due }}</span>
+                </div>
+                <div style="height:8px;background:var(--bg-subtle);border-radius:5px;overflow:hidden;">
+                  <div style="height:100%;width:{{ p.pct }};background:{{ p.barColor }};border-radius:5px;"></div>
+                </div>
+                <div style="display:flex;align-items:center;justify-content:space-between;margin-top:7px;">
+                  <span style="font-size:11.5px;font-weight:600;color:var(--text-primary);">{{ p.progressLabel }}</span>
+                  <span style="font-size:11.5px;color:var(--text-tertiary);">{{ p.pct }} complete</span>
+                </div>
+              </div>
+            </sc-for>
+          </div>
+        </div>
+        </sc-if>
+
+        <sc-if value="{{ openPacket }}" hint-placeholder-val="{{ false }}">
+        <div>
+          <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;flex-wrap:wrap;">
+            <button onClick="{{ closePacket }}" style="background:#fff;border:1px solid var(--border-default);border-radius:6px;padding:6px 11px;font-size:12px;color:var(--text-secondary);cursor:pointer;display:flex;align-items:center;gap:5px;">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M19 12H5M12 5l-7 7 7 7"/></svg> All packets
+            </button>
+            <div style="flex:1;"></div>
+            <button onClick="{{ printPacket }}" style="background:var(--brand-navy);color:#fff;border:1px solid var(--brand-navy);border-radius:6px;padding:7px 14px;font-size:12.5px;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;gap:6px;">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
+              Print sign-off sheet
+            </button>
+          </div>
+
+          <div style="background:var(--bg-surface);border:1px solid var(--border-default);border-radius:10px;padding:18px 20px;margin-bottom:14px;box-shadow:var(--shadow-sm);">
+            <div style="display:flex;align-items:flex-start;gap:14px;flex-wrap:wrap;">
+              <div style="flex:1;min-width:200px;">
+                <div style="font-family:var(--font-mono);font-size:12px;color:var(--brand-navy);font-weight:600;">{{ pk.asset }}</div>
+                <div style="font-size:18px;font-weight:700;color:var(--text-primary);margin-top:2px;">{{ pk.assetName }}</div>
+                <div style="font-size:12.5px;color:var(--text-secondary);margin-top:4px;">{{ pk.dept }} &middot; <span style="{{ pk.freqStyle }}">{{ pk.freq }}</span> interval &middot; {{ pk.window }} &middot; Due {{ pk.due }}</div>
+              </div>
+              <div style="text-align:right;">
+                <div style="font-size:30px;font-weight:700;color:var(--text-primary);line-height:1;">{{ pk.pct }}</div>
+                <div style="font-size:11.5px;color:var(--text-secondary);margin-top:4px;">{{ pk.progressLabel }} PMs complete</div>
+              </div>
+            </div>
+            <div style="height:8px;background:var(--bg-subtle);border-radius:5px;overflow:hidden;margin-top:14px;">
+              <div style="height:100%;width:{{ pk.pct }};background:{{ pk.barColor }};border-radius:5px;"></div>
+            </div>
+          </div>
+
+          <div style="background:var(--bg-surface);border:1px solid var(--border-default);border-radius:10px;overflow:hidden;box-shadow:var(--shadow-sm);">
+            <table style="width:100%;border-collapse:collapse;font-size:12.5px;">
+              <thead><tr>
+                <th style="background:var(--bg-subtle);padding:8px 12px;text-align:center;font-size:10.5px;font-weight:600;color:var(--text-secondary);text-transform:uppercase;letter-spacing:.04em;border-bottom:1px solid var(--border-default);width:44px;">Done</th>
+                <th style="background:var(--bg-subtle);padding:8px 12px;text-align:left;font-size:10.5px;font-weight:600;color:var(--text-secondary);text-transform:uppercase;letter-spacing:.04em;border-bottom:1px solid var(--border-default);">PM Task</th>
+                <th style="background:var(--bg-subtle);padding:8px 12px;text-align:left;font-size:10.5px;font-weight:600;color:var(--text-secondary);text-transform:uppercase;letter-spacing:.04em;border-bottom:1px solid var(--border-default);">Type</th>
+                <th style="background:var(--bg-subtle);padding:8px 12px;text-align:left;font-size:10.5px;font-weight:600;color:var(--text-secondary);text-transform:uppercase;letter-spacing:.04em;border-bottom:1px solid var(--border-default);">PM Ticket</th>
+                <th style="background:var(--bg-subtle);padding:8px 12px;text-align:left;font-size:10.5px;font-weight:600;color:var(--text-secondary);text-transform:uppercase;letter-spacing:.04em;border-bottom:1px solid var(--border-default);">Completed By</th>
+              </tr></thead>
+              <tbody>
+                <sc-for list="{{ pk.items }}" as="it" hint-placeholder-count="4">
+                  <tr style="border-bottom:1px solid var(--border-default);">
+                    <td style="padding:10px 12px;text-align:center;vertical-align:middle;"><input type="checkbox" checked="{{ it.done }}" onChange="{{ it.onToggle }}" style="width:16px;height:16px;cursor:pointer;accent-color:var(--status-success);" /></td>
+                    <td style="padding:10px 12px;vertical-align:middle;color:var(--text-primary);{{ it.labelStyle }}">{{ it.label }}</td>
+                    <td style="padding:10px 12px;vertical-align:middle;color:var(--text-secondary);font-size:11.5px;">{{ it.type }}</td>
+                    <td style="padding:10px 12px;vertical-align:middle;"><span onClick="{{ it.onOpenTicket }}" style="font-family:var(--font-mono);font-weight:600;color:var(--brand-navy);font-size:11.5px;cursor:pointer;text-decoration:underline;">{{ it.ticket }}</span></td>
+                    <td style="padding:10px 12px;vertical-align:middle;color:var(--text-secondary);font-size:11.5px;">{{ it.byLabel }}</td>
+                  </tr>
+                </sc-for>
+              </tbody>
+            </table>
+          </div>
+        </div>
+        </sc-if>
+
+      </div>
+      </sc-if>
+
+    </div>
+  </div>
+
+  <sc-if value="{{ openSchedule }}" hint-placeholder-val="{{ false }}">
+  <div style="position:fixed;top:var(--topbar-h);right:0;width:calc(100% - var(--sidebar-w));height:calc(100vh - var(--topbar-h));background:var(--bg-app);z-index:50;overflow-y:auto;display:flex;flex-direction:column;box-shadow:var(--shadow-lg);">
+    <div style="background:var(--bg-surface);border-bottom:1px solid var(--border-default);padding:12px 20px;display:flex;align-items:center;gap:12px;flex-shrink:0;position:sticky;top:0;z-index:10;flex-wrap:wrap;">
+      <button onClick="{{ closeSchedule }}" style="background:transparent;border:1px solid var(--border-default);border-radius:6px;padding:5px 10px;font-size:12px;color:var(--text-secondary);cursor:pointer;display:flex;align-items:center;gap:5px;"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M19 12H5M12 5l-7 7 7 7"/></svg> Back</button>
+      <span style="font-family:var(--font-mono);font-weight:700;font-size:14px;color:var(--brand-navy);">{{ sd.id }}</span>
+      <span style="font-size:13px;font-weight:600;color:var(--text-primary);">{{ sd.assetName }}</span>
+      <span style="{{ sd.statStyle }}">{{ sd.statLabel }}</span>
+      <div style="flex:1;"></div>
+      <sc-if value="{{ sd.isManager }}" hint-placeholder-val="{{ true }}">
+        <sc-if value="{{ sd.notEditing }}" hint-placeholder-val="{{ true }}">
+          <button onClick="{{ sd.onEdit }}" style="background:#fff;border:1px solid var(--border-default);border-radius:6px;padding:6px 11px;font-size:12px;color:var(--text-secondary);cursor:pointer;">Edit definition</button>
+          <button onClick="{{ sd.onSnooze }}" style="background:#fff;border:1px solid var(--border-default);border-radius:6px;padding:6px 11px;font-size:12px;color:var(--text-secondary);cursor:pointer;">Snooze</button>
+          <button onClick="{{ sd.onGenerate }}" style="background:var(--brand-navy);color:#fff;border:1px solid var(--brand-navy);border-radius:6px;padding:6px 12px;font-size:12px;font-weight:600;cursor:pointer;">Generate PM ticket now</button>
+        </sc-if>
+        <sc-if value="{{ sd.editing }}" hint-placeholder-val="{{ false }}">
+          <button onClick="{{ sd.onCancel }}" style="background:#fff;border:1px solid var(--border-default);border-radius:6px;padding:6px 11px;font-size:12px;color:var(--text-secondary);cursor:pointer;">Cancel</button>
+          <button onClick="{{ sd.onSave }}" style="background:var(--status-success);color:#fff;border:1px solid var(--status-success);border-radius:6px;padding:6px 12px;font-size:12px;font-weight:600;cursor:pointer;">Save changes</button>
+        </sc-if>
+      </sc-if>
+    </div>
+
+    <div style="padding:20px 24px;flex:1;max-width:1100px;">
+
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:14px;">
+        <sc-for list="{{ sd.overview }}" as="o" hint-placeholder-count="6">
+          <div style="background:var(--bg-surface);border:1px solid var(--border-default);border-radius:8px;padding:12px 14px;">
+            <div style="font-size:10.5px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;color:var(--text-tertiary);margin-bottom:5px;">{{ o.label }}</div>
+            <div style="font-size:17px;font-weight:700;color:var(--text-primary);line-height:1.2;{{ o.color }}">{{ o.value }}</div>
+            <sc-if value="{{ o.foot }}" hint-placeholder-val="{{ false }}"><div style="font-size:10.5px;color:var(--text-tertiary);margin-top:3px;">{{ o.foot }}</div></sc-if>
+          </div>
+        </sc-for>
+      </div>
+
+      <div style="background:var(--bg-surface);border:1px solid var(--border-default);border-radius:10px;padding:18px 20px;margin-bottom:14px;box-shadow:var(--shadow-sm);">
+        <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--text-secondary);margin-bottom:14px;">Schedule Definition</div>
+        <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:14px 22px;font-size:12.5px;">
+          <div><div style="font-size:10.5px;font-weight:600;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:.04em;margin-bottom:3px;">Asset ID</div><div><span onClick="{{ sd.onRegister }}" style="font-family:var(--font-mono);color:var(--brand-navy);font-weight:600;cursor:pointer;text-decoration:underline;">{{ sd.asset }}</span> <span style="color:var(--text-tertiary);font-size:11px;">→ Register</span></div></div>
+          <div><div style="font-size:10.5px;font-weight:600;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:.04em;margin-bottom:3px;">Asset name</div><div style="color:var(--text-primary);">{{ sd.assetName }}</div></div>
+          <div><div style="font-size:10.5px;font-weight:600;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:.04em;margin-bottom:3px;">Type of PM</div><div style="color:var(--text-primary);">{{ sd.type }}</div></div>
+          <div><div style="font-size:10.5px;font-weight:600;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:.04em;margin-bottom:3px;">Frequency</div><div style="color:var(--text-primary);">{{ sd.freq }}</div></div>
+          <div><div style="font-size:10.5px;font-weight:600;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:.04em;margin-bottom:3px;">Downtime type</div><div style="color:var(--text-primary);">{{ sd.downtimeType }}</div></div>
+          <div><div style="font-size:10.5px;font-weight:600;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:.04em;margin-bottom:3px;">Estimated asset downtime</div><div style="color:var(--text-primary);">{{ sd.estDowntime }}</div></div>
+          <div><div style="font-size:10.5px;font-weight:600;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:.04em;margin-bottom:3px;">Manpower requirements</div><div style="color:var(--text-primary);">{{ sd.manpower }}</div></div>
+          <div><div style="font-size:10.5px;font-weight:600;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:.04em;margin-bottom:3px;">Priority code</div><div><span style="{{ sd.priStyle }}">{{ sd.priLabel }}</span> <span style="color:var(--text-tertiary);font-size:11px;">{{ sd.priNote }}</span></div></div>
+          <div><div style="font-size:10.5px;font-weight:600;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:.04em;margin-bottom:3px;">Ticket lead time</div><div style="color:var(--text-primary);">{{ sd.leadLabel }}</div></div>
+        </div>
+      </div>
+
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px;">
+        <div style="background:var(--bg-surface);border:1px solid var(--border-default);border-radius:10px;padding:18px 20px;box-shadow:var(--shadow-sm);">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;"><span style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--text-secondary);">Parts changed regularly</span><sc-if value="{{ sd.editing }}" hint-placeholder-val="{{ false }}"><button onClick="{{ sd.onAddPartReg }}" style="font-size:11px;color:var(--brand-navy);background:none;border:none;cursor:pointer;text-decoration:underline;">+ Add</button></sc-if></div>
+          <sc-if value="{{ sd.notEditing }}" hint-placeholder-val="{{ true }}">
+            <ul style="margin:0;padding-left:18px;color:var(--text-primary);font-size:12.5px;line-height:1.7;">
+              <sc-for list="{{ sd.partsRegular }}" as="p" hint-placeholder-count="3"><li>{{ p.text }}</li></sc-for>
+            </ul>
+          </sc-if>
+          <sc-if value="{{ sd.editing }}" hint-placeholder-val="{{ false }}">
+            <div style="display:flex;flex-direction:column;gap:6px;">
+              <sc-for list="{{ sd.partsRegular }}" as="p" hint-placeholder-count="3">
+                <div style="display:flex;gap:6px;align-items:center;"><input value="{{ p.text }}" onInput="{{ p.onEdit }}" style="flex:1;height:28px;padding:0 8px;border:1px solid var(--border-default);border-radius:5px;font-size:12px;outline:none;" /><button onClick="{{ p.onRemove }}" style="background:var(--status-critical-bg);color:var(--status-critical);border:none;border-radius:5px;width:26px;height:28px;cursor:pointer;font-weight:700;">&times;</button></div>
+              </sc-for>
+            </div>
+          </sc-if>
+        </div>
+        <div style="background:var(--bg-surface);border:1px solid var(--border-default);border-radius:10px;padding:18px 20px;box-shadow:var(--shadow-sm);">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;"><span style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--text-secondary);">Parts that may need ordering</span><sc-if value="{{ sd.editing }}" hint-placeholder-val="{{ false }}"><button onClick="{{ sd.onAddPartOrder }}" style="font-size:11px;color:var(--brand-navy);background:none;border:none;cursor:pointer;text-decoration:underline;">+ Add</button></sc-if></div>
+          <sc-if value="{{ sd.notEditing }}" hint-placeholder-val="{{ true }}">
+            <ul style="margin:0;padding-left:18px;color:var(--text-primary);font-size:12.5px;line-height:1.7;">
+              <sc-for list="{{ sd.partsOrder }}" as="p" hint-placeholder-count="2"><li>{{ p.text }} <span style="color:var(--status-warn);font-size:11px;">{{ p.note }}</span></li></sc-for>
+            </ul>
+          </sc-if>
+          <sc-if value="{{ sd.editing }}" hint-placeholder-val="{{ false }}">
+            <div style="display:flex;flex-direction:column;gap:6px;">
+              <sc-for list="{{ sd.partsOrder }}" as="p" hint-placeholder-count="2">
+                <div style="display:flex;gap:6px;align-items:center;"><input value="{{ p.text }}" onInput="{{ p.onEdit }}" style="flex:1;height:28px;padding:0 8px;border:1px solid var(--border-default);border-radius:5px;font-size:12px;outline:none;" /><button onClick="{{ p.onRemove }}" style="background:var(--status-critical-bg);color:var(--status-critical);border:none;border-radius:5px;width:26px;height:28px;cursor:pointer;font-weight:700;">&times;</button></div>
+              </sc-for>
+            </div>
+          </sc-if>
+        </div>
+      </div>
+
+      <div style="background:var(--bg-surface);border:1px solid var(--border-default);border-radius:10px;padding:18px 20px;margin-bottom:14px;box-shadow:var(--shadow-sm);">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;"><span style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--text-secondary);">Task list &amp; checklist references</span><sc-if value="{{ sd.editing }}" hint-placeholder-val="{{ false }}"><button onClick="{{ sd.onAddTask }}" style="font-size:11px;color:var(--brand-navy);background:none;border:none;cursor:pointer;text-decoration:underline;">+ Add task</button></sc-if></div>
+        <sc-if value="{{ sd.notEditing }}" hint-placeholder-val="{{ true }}">
+          <div style="display:flex;flex-direction:column;gap:0;">
+            <sc-for list="{{ sd.tasks }}" as="t" hint-placeholder-count="4">
+              <div style="display:flex;gap:12px;padding:9px 0;border-bottom:1px solid var(--border-default);align-items:baseline;">
+                <span style="font-family:var(--font-mono);font-size:11px;color:var(--text-tertiary);width:20px;flex-shrink:0;">{{ t.num }}</span>
+                <span style="flex:1;font-size:12.5px;color:var(--text-primary);line-height:1.5;">{{ t.t }}</span>
+                <span style="font-family:var(--font-mono);font-size:10.5px;color:var(--brand-navy);background:var(--status-info-bg);border:1px solid #cfe6f5;border-radius:4px;padding:2px 7px;flex-shrink:0;">{{ t.ref }}</span>
+              </div>
+            </sc-for>
+          </div>
+        </sc-if>
+        <sc-if value="{{ sd.editing }}" hint-placeholder-val="{{ false }}">
+          <div style="display:flex;flex-direction:column;gap:6px;">
+            <sc-for list="{{ sd.tasks }}" as="t" hint-placeholder-count="4">
+              <div style="display:flex;gap:6px;align-items:center;">
+                <input value="{{ t.t }}" onInput="{{ t.onEditText }}" placeholder="Task description" style="flex:1;height:28px;padding:0 8px;border:1px solid var(--border-default);border-radius:5px;font-size:12px;outline:none;" />
+                <input value="{{ t.ref }}" onInput="{{ t.onEditRef }}" placeholder="CHK ref" style="width:130px;height:28px;padding:0 8px;border:1px solid var(--border-default);border-radius:5px;font-size:11.5px;font-family:var(--font-mono);outline:none;" />
+                <button onClick="{{ t.onRemove }}" style="background:var(--status-critical-bg);color:var(--status-critical);border:none;border-radius:5px;width:26px;height:28px;cursor:pointer;font-weight:700;">&times;</button>
+              </div>
+            </sc-for>
+          </div>
+        </sc-if>
+      </div>
+
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px;">
+        <div style="background:var(--bg-surface);border:1px solid var(--border-default);border-radius:10px;padding:18px 20px;box-shadow:var(--shadow-sm);">
+          <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--text-secondary);margin-bottom:12px;">Specialty tools</div>
+          <div style="display:flex;flex-wrap:wrap;gap:6px;">
+            <sc-for list="{{ sd.tools }}" as="t" hint-placeholder-count="3"><span style="font-size:12px;background:var(--bg-subtle);border:1px solid var(--border-default);border-radius:6px;padding:4px 10px;color:var(--text-primary);">{{ t.text }}</span></sc-for>
+          </div>
+        </div>
+        <div style="background:var(--bg-surface);border:1px solid var(--border-default);border-radius:10px;padding:18px 20px;box-shadow:var(--shadow-sm);">
+          <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--text-secondary);margin-bottom:12px;">Safety / Quality / Environmental</div>
+          <ul style="margin:0;padding-left:18px;color:var(--text-primary);font-size:12.5px;line-height:1.7;">
+            <sc-for list="{{ sd.safety }}" as="s" hint-placeholder-count="3"><li>{{ s.text }}</li></sc-for>
+          </ul>
+        </div>
+      </div>
+
+      <div style="background:var(--bg-surface);border:1px solid var(--border-default);border-radius:10px;padding:18px 20px;margin-bottom:14px;box-shadow:var(--shadow-sm);">
+        <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--text-secondary);margin-bottom:12px;">PM History</div>
+        <table style="width:100%;border-collapse:collapse;font-size:12px;">
+          <thead><tr>
+            <th style="background:var(--bg-subtle);padding:7px 10px;text-align:left;font-size:10.5px;font-weight:600;color:var(--text-secondary);text-transform:uppercase;letter-spacing:.04em;border-bottom:1px solid var(--border-default);">Date Completed</th>
+            <th style="background:var(--bg-subtle);padding:7px 10px;text-align:left;font-size:10.5px;font-weight:600;color:var(--text-secondary);text-transform:uppercase;letter-spacing:.04em;border-bottom:1px solid var(--border-default);">PM Ticket</th>
+            <th style="background:var(--bg-subtle);padding:7px 10px;text-align:left;font-size:10.5px;font-weight:600;color:var(--text-secondary);text-transform:uppercase;letter-spacing:.04em;border-bottom:1px solid var(--border-default);">Technician</th>
+            <th style="background:var(--bg-subtle);padding:7px 10px;text-align:left;font-size:10.5px;font-weight:600;color:var(--text-secondary);text-transform:uppercase;letter-spacing:.04em;border-bottom:1px solid var(--border-default);">Result</th>
+          </tr></thead>
+          <tbody>
+            <sc-for list="{{ sd.history }}" as="h" hint-placeholder-count="3">
+              <tr style="border-bottom:1px solid var(--border-default);">
+                <td style="padding:8px 10px;color:var(--text-secondary);">{{ h.date }}</td>
+                <td style="padding:8px 10px;font-family:var(--font-mono);font-weight:600;color:var(--brand-navy);font-size:11.5px;">{{ h.ticket }}</td>
+                <td style="padding:8px 10px;color:var(--text-primary);">{{ h.tech }}</td>
+                <td style="padding:8px 10px;color:var(--text-secondary);">{{ h.result }}</td>
+              </tr>
+            </sc-for>
+          </tbody>
+        </table>
+      </div>
+
+      <div style="font-size:11px;color:var(--text-tertiary);font-family:var(--font-mono);padding:2px 2px 16px;">{{ sd.docRef }}</div>
+    </div>
+  </div>
+  </sc-if>
+
+  <sc-if value="{{ openTicket }}" hint-placeholder-val="{{ false }}">
+  <div style="position:fixed;top:var(--topbar-h);right:0;width:calc(100% - var(--sidebar-w));height:calc(100vh - var(--topbar-h));background:var(--bg-app);z-index:60;overflow-y:auto;display:flex;flex-direction:column;box-shadow:var(--shadow-lg);">
+    <div style="background:var(--bg-surface);border-bottom:1px solid var(--border-default);padding:12px 20px;display:flex;align-items:center;gap:12px;flex-shrink:0;position:sticky;top:0;z-index:10;flex-wrap:wrap;">
+      <button onClick="{{ closeTicket }}" style="background:transparent;border:1px solid var(--border-default);border-radius:6px;padding:5px 10px;font-size:12px;color:var(--text-secondary);cursor:pointer;display:flex;align-items:center;gap:5px;"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M19 12H5M12 5l-7 7 7 7"/></svg> Back</button>
+      <span style="font-family:var(--font-mono);font-weight:700;font-size:14px;color:var(--brand-navy);">{{ tk.ticketNo }}</span>
+      <span style="{{ tk.priStyle }}">{{ tk.priLabel }}</span>
+      <span style="{{ tk.statStyle }}">{{ tk.status }}</span>
+      <div style="flex:1;"></div>
+      <span style="font-size:12px;color:var(--text-secondary);">PM &middot; {{ tk.freq }} {{ tk.type }}</span>
+    </div>
+
+    <div style="padding:20px 24px;flex:1;max-width:1000px;">
+      <div style="background:var(--bg-surface);border:1px solid var(--border-default);border-radius:10px;padding:18px 20px;margin-bottom:14px;box-shadow:var(--shadow-sm);">
+        <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:14px 22px;font-size:12.5px;">
+          <div><div style="font-size:10.5px;font-weight:600;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:.04em;margin-bottom:3px;">Equipment</div><div><span onClick="{{ tk.onRegister }}" style="font-family:var(--font-mono);color:var(--brand-navy);font-weight:600;cursor:pointer;text-decoration:underline;">{{ tk.asset }}</span> {{ tk.assetName }}</div></div>
+          <div><div style="font-size:10.5px;font-weight:600;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:.04em;margin-bottom:3px;">PM Type</div><div>{{ tk.type }}</div></div>
+          <div><div style="font-size:10.5px;font-weight:600;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:.04em;margin-bottom:3px;">Frequency</div><div>{{ tk.freq }}</div></div>
+          <div><div style="font-size:10.5px;font-weight:600;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:.04em;margin-bottom:3px;">Downtime</div><div>{{ tk.downtimeType }} &middot; {{ tk.estDowntime }}</div></div>
+          <div><div style="font-size:10.5px;font-weight:600;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:.04em;margin-bottom:3px;">Department</div><div>{{ tk.dept }}</div></div>
+          <div><div style="font-size:10.5px;font-weight:600;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:.04em;margin-bottom:3px;">Generated</div><div>{{ tk.date }}</div></div>
+          <div><div style="font-size:10.5px;font-weight:600;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:.04em;margin-bottom:3px;">Due date</div><div>{{ tk.due }}</div></div>
+          <div><div style="font-size:10.5px;font-weight:600;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:.04em;margin-bottom:3px;">Assigned to</div><div>{{ tk.assigned }}</div></div>
+          <div><div style="font-size:10.5px;font-weight:600;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:.04em;margin-bottom:3px;">Generated from</div><div><span onClick="{{ tk.onOpenSched }}" style="font-family:var(--font-mono);color:var(--brand-navy);font-weight:600;cursor:pointer;text-decoration:underline;">{{ tk.schedId }}</span></div></div>
+          <div><div style="font-size:10.5px;font-weight:600;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:.04em;margin-bottom:3px;">Manpower</div><div>{{ tk.manpower }}</div></div>
+        </div>
+      </div>
+
+      <div style="background:var(--bg-surface);border:1px solid var(--border-default);border-radius:10px;padding:18px 20px;margin-bottom:14px;box-shadow:var(--shadow-sm);">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;"><span style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--text-secondary);">Task checklist</span><span style="font-size:11.5px;color:var(--text-secondary);">{{ tk.checkProgress }}</span></div>
+        <div style="display:flex;flex-direction:column;gap:0;">
+          <sc-for list="{{ tk.tasks }}" as="t" hint-placeholder-count="4">
+            <label style="display:flex;gap:11px;padding:9px 0;border-bottom:1px solid var(--border-default);align-items:flex-start;cursor:pointer;">
+              <input type="checkbox" checked="{{ t.done }}" onChange="{{ t.onToggle }}" style="width:16px;height:16px;cursor:pointer;accent-color:var(--status-success);margin-top:1px;flex-shrink:0;" />
+              <span style="flex:1;font-size:12.5px;color:var(--text-primary);line-height:1.5;{{ t.style }}">{{ t.t }}</span>
+              <span style="font-family:var(--font-mono);font-size:10.5px;color:var(--brand-navy);background:var(--status-info-bg);border:1px solid #cfe6f5;border-radius:4px;padding:2px 7px;flex-shrink:0;">{{ t.ref }}</span>
+            </label>
+          </sc-for>
+        </div>
+      </div>
+
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px;">
+        <div style="background:var(--bg-surface);border:1px solid var(--border-default);border-radius:10px;padding:18px 20px;box-shadow:var(--shadow-sm);">
+          <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--text-secondary);margin-bottom:12px;">Parts &amp; tools</div>
+          <ul style="margin:0 0 10px;padding-left:18px;color:var(--text-primary);font-size:12.5px;line-height:1.7;">
+            <sc-for list="{{ tk.parts }}" as="p" hint-placeholder-count="3"><li>{{ p.text }}</li></sc-for>
+          </ul>
+          <div style="display:flex;flex-wrap:wrap;gap:6px;">
+            <sc-for list="{{ tk.tools }}" as="t" hint-placeholder-count="3"><span style="font-size:12px;background:var(--bg-subtle);border:1px solid var(--border-default);border-radius:6px;padding:4px 10px;color:var(--text-primary);">{{ t.text }}</span></sc-for>
+          </div>
+        </div>
+        <div style="background:var(--bg-surface);border:1px solid var(--border-default);border-radius:10px;padding:18px 20px;box-shadow:var(--shadow-sm);">
+          <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--text-secondary);margin-bottom:12px;">Safety / Quality / Environmental</div>
+          <ul style="margin:0;padding-left:18px;color:var(--text-primary);font-size:12.5px;line-height:1.7;">
+            <sc-for list="{{ tk.safety }}" as="s" hint-placeholder-count="3"><li>{{ s.text }}</li></sc-for>
+          </ul>
+        </div>
+      </div>
+
+      <div style="background:var(--bg-surface);border:1px solid var(--border-default);border-radius:10px;padding:18px 20px;box-shadow:var(--shadow-sm);">
+        <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--text-secondary);margin-bottom:12px;">Activity</div>
+        <div style="display:flex;flex-direction:column;gap:12px;">
+          <sc-for list="{{ tk.timeline }}" as="e" hint-placeholder-count="3">
+            <div style="display:flex;gap:11px;">
+              <div style="width:8px;height:8px;border-radius:50%;background:var(--brand-navy-soft);margin-top:5px;flex-shrink:0;"></div>
+              <div><div style="font-size:12px;font-weight:600;color:var(--text-primary);">{{ e.label }} <span style="font-weight:400;color:var(--text-tertiary);">&middot; {{ e.ts }}</span></div><div style="font-size:12px;color:var(--text-secondary);margin-top:1px;">{{ e.body }}</div></div>
+            </div>
+          </sc-for>
+        </div>
+      </div>
+    </div>
+  </div>
+  </sc-if>
+
+  <sc-if value="{{ toast }}" hint-placeholder-val="{{ false }}">
+  <div style="position:fixed;bottom:20px;right:20px;z-index:9999;padding:10px 14px;border-radius:8px;background:#1E293B;color:#fff;font-size:12.5px;box-shadow:var(--shadow-lg);max-width:360px;animation:slideIn .2s ease;border-left:3px solid var(--status-info);">{{ toast }}</div>
+  </sc-if>
+
+</div>
+
+<div id="pm-print">
+  <sc-if value="{{ openPacket }}" hint-placeholder-val="{{ false }}">
+  <div style="font-family:var(--font-sans);color:#0F172A;padding:4px;">
+    <div style="display:flex;align-items:flex-start;justify-content:space-between;border-bottom:2px solid #001F4F;padding-bottom:10px;margin-bottom:14px;">
+      <div>
+        <div style="font-size:20px;font-weight:800;letter-spacing:-.01em;">CSC Maintenance &mdash; PM Packet Sign-Off</div>
+        <div style="font-size:13px;color:#475569;margin-top:3px;">{{ pk.asset }} &middot; {{ pk.assetName }}</div>
+      </div>
+      <div style="text-align:right;font-size:12px;color:#475569;line-height:1.6;">
+        <div><strong>{{ pk.freq }}</strong> interval</div>
+        <div>{{ pk.window }}</div>
+        <div>Due {{ pk.due }}</div>
+      </div>
+    </div>
+    <div style="display:flex;gap:26px;font-size:12.5px;margin-bottom:16px;">
+      <div><span style="color:#64748B;">Department:</span> <strong>{{ pk.dept }}</strong></div>
+      <div><span style="color:#64748B;">Completion:</span> <strong>{{ pk.progressLabel }} ({{ pk.pct }})</strong></div>
+      <div><span style="color:#64748B;">Printed:</span> {{ printedDate }}</div>
+    </div>
+    <table style="width:100%;border-collapse:collapse;font-size:12.5px;">
+      <thead><tr>
+        <th style="border:1px solid #CBD2DA;background:#F1F3F6;padding:7px 9px;text-align:center;width:48px;">Done</th>
+        <th style="border:1px solid #CBD2DA;background:#F1F3F6;padding:7px 9px;text-align:left;">PM Task</th>
+        <th style="border:1px solid #CBD2DA;background:#F1F3F6;padding:7px 9px;text-align:left;width:120px;">Type</th>
+        <th style="border:1px solid #CBD2DA;background:#F1F3F6;padding:7px 9px;text-align:left;width:150px;">PM Ticket</th>
+        <th style="border:1px solid #CBD2DA;background:#F1F3F6;padding:7px 9px;text-align:left;width:180px;">Completed By / Date</th>
+      </tr></thead>
+      <tbody>
+        <sc-for list="{{ pk.items }}" as="it" hint-placeholder-count="4">
+          <tr>
+            <td style="border:1px solid #CBD2DA;padding:9px;text-align:center;font-size:15px;">{{ it.printMark }}</td>
+            <td style="border:1px solid #CBD2DA;padding:9px;">{{ it.label }}</td>
+            <td style="border:1px solid #CBD2DA;padding:9px;color:#475569;">{{ it.type }}</td>
+            <td style="border:1px solid #CBD2DA;padding:9px;font-family:var(--font-mono);">{{ it.ticket }}</td>
+            <td style="border:1px solid #CBD2DA;padding:9px;color:#475569;">{{ it.byLabel }}</td>
+          </tr>
+        </sc-for>
+      </tbody>
+    </table>
+    <div style="display:flex;gap:40px;margin-top:36px;font-size:12.5px;">
+      <div style="flex:1;border-top:1px solid #0F172A;padding-top:6px;">Manager signature</div>
+      <div style="flex:1;border-top:1px solid #0F172A;padding-top:6px;">Date</div>
+    </div>
+    <div style="font-size:10.5px;color:#94A3B8;font-family:var(--font-mono);margin-top:24px;">{{ pk.docRef }}</div>
+  </div>
+  </sc-if>
+</div>
+
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:1280,&quot;height&quot;:860},&quot;userRole&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;manager&quot;,&quot;technician&quot;],&quot;default&quot;:&quot;manager&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Role&quot;},&quot;showKpis&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Master PM&quot;}}">
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+
+    this.FREQS = ['Weekly','Monthly','Quarterly','6-Month','Annual'];
+    this.DEPTS = ['METAL','PLASTICS','LITHO','MACHINE SHOP','ELECTRICAL','FACILITIES'];
+    this.PM_TYPES = ['Lubrication','Inspection','Filter Change','Calibration','Cleaning','Overhaul','Belt/Drive'];
+
+    this.PRI = {
+      CRITICAL:{ bg:'var(--status-critical-bg)', fg:'var(--status-critical)' },
+      HIGH:    { bg:'var(--status-high-bg)',     fg:'var(--status-high)' },
+      MEDIUM:  { bg:'var(--status-medium-bg)',   fg:'var(--status-medium)' },
+      LOW:     { bg:'var(--status-low-bg)',      fg:'var(--status-low)' }
+    };
+    this.SCHED_STATUS = {
+      'Active':   { bg:'var(--status-success-bg)', fg:'var(--status-success)' },
+      'Due Soon': { bg:'var(--status-warn-bg)',    fg:'var(--status-warn)' },
+      'Overdue':  { bg:'var(--status-critical-bg)',fg:'var(--status-critical)' },
+      'Snoozed':  { bg:'#F1F5F9',                  fg:'#64748B' }
+    };
+    this.TICKET_STATUS = {
+      'WAITING':               { bg:'#EDE9FE',                 fg:'#5B21B6' },
+      'OPEN':                  { bg:'var(--status-info-bg)',   fg:'var(--status-info)' },
+      'PENDING VERIFICATION':  { bg:'var(--status-warn-bg)',   fg:'var(--status-warn)' },
+      'COMPLETE':              { bg:'var(--status-success-bg)',fg:'var(--status-success)' }
+    };
+
+    // ── PM schedule definitions ────────────────────────────────────────────
+    this.SCHEDULES = [
+      { id:'PMS-003-354-6M', asset:'003-354', assetName:'MOLD #48-E, 4.25 GAL ROUND', dept:'PLASTICS',
+        type:'Inspection', freq:'6-Month', downtimeType:'Asset', estDowntime:'3 h', manpower:'2 techs',
+        priorityMode:'interval', priority:'', leadDays:7, lastCompleted:'2025-12-18', nextDue:'2026-06-18', status:'Due Soon',
+        partsRegular:['Ejector pin set (spare)','O-ring kit, mold face','Molykote G-n food-grade grease'],
+        partsOrder:['Leader pins, long — Husky (long lead)'],
+        tasks:[
+          { t:'LOTO press and pull mold to bench', ref:'CHK-030-354-01' },
+          { t:'Disassemble ejector housing; inspect pins for wear/scoring', ref:'CHK-030-354-02' },
+          { t:'Gauge ejector bore, log dimensions vs spec', ref:'CHK-030-354-03' },
+          { t:'Re-grease and reassemble; verify ejection stroke', ref:'CHK-030-354-04' }
+        ],
+        tools:['Bore gauge','Torque wrench 3/8"','Mold lift eye'],
+        safety:['LOTO press before mold pull (SAF-014)','Food-contact grease only — SQF 11.2','Dispose solvent per EHS-007'],
+        history:[
+          { date:'2025-12-18', ticket:'PM-003-251211-002', tech:'Felipe Vasquez', result:'Pass — pins within spec' },
+          { date:'2025-06-16', ticket:'PM-003-250609-001', tech:'Ismael Silva', result:'Pass — o-rings replaced' }
+        ] },
+      { id:'PMS-003-354-1M', asset:'003-354', assetName:'MOLD #48-E, 4.25 GAL ROUND', dept:'PLASTICS',
+        type:'Lubrication', freq:'Monthly', downtimeType:'Asset', estDowntime:'45 min', manpower:'1 tech',
+        priorityMode:'interval', priority:'', leadDays:7, lastCompleted:'2026-05-20', nextDue:'2026-06-20', status:'Active',
+        partsRegular:['Molykote G-n food-grade grease'],
+        partsOrder:[],
+        tasks:[
+          { t:'Wipe down guide pins and bushings', ref:'CHK-030-354-11' },
+          { t:'Apply food-grade grease to slides', ref:'CHK-030-354-12' }
+        ],
+        tools:['Grease gun, dedicated food-grade'],
+        safety:['Food-contact grease only — SQF 11.2','Wipe excess to avoid product contamination'],
+        history:[ { date:'2026-05-20', ticket:'PM-003-260513-004', tech:'Felipe Vasquez', result:'Pass' } ] },
+      { id:'PMS-003-503-3M', asset:'003-503', assetName:'BLENDER NO. 3', dept:'PLASTICS',
+        type:'Calibration', freq:'Quarterly', downtimeType:'Asset', estDowntime:'2 h', manpower:'1 tech + controls',
+        priorityMode:'explicit', priority:'HIGH', leadDays:7, lastCompleted:'2026-02-24', nextDue:'2026-05-24', status:'Overdue',
+        partsRegular:['Load-cell calibration weights (on hand)'],
+        partsOrder:['PLC backup battery, Allen-Bradley'],
+        tasks:[
+          { t:'Back up PLC program before calibration', ref:'CHK-030-503-01' },
+          { t:'Run load-cell calibration routine; log offsets', ref:'CHK-030-503-02' },
+          { t:'Verify blend ratio across 3 recipes', ref:'CHK-030-503-03' }
+        ],
+        tools:['Certified cal weights','Laptop w/ RSLogix'],
+        safety:['Controls lockout — qualified personnel only (SAF-021)','Record cal in SQF calibration log 8.4','ISO 9001 traceable weights required'],
+        history:[
+          { date:'2026-02-24', ticket:'PM-003-260217-001', tech:'Ismael Silva', result:'Pass — offsets logged' },
+          { date:'2025-11-20', ticket:'PM-003-251113-002', tech:'Ismael Silva', result:'Pass' }
+        ] },
+      { id:'PMS-001-018-3M', asset:'001-018', assetName:'PRESS NO. 18', dept:'MACHINE SHOP',
+        type:'Inspection', freq:'Quarterly', downtimeType:'Asset', estDowntime:'2.5 h', manpower:'2 techs',
+        priorityMode:'interval', priority:'', leadDays:7, lastCompleted:'2026-03-14', nextDue:'2026-06-14', status:'Due Soon',
+        partsRegular:['VFD cooling fan, 120mm','Way lube, ISO 68'],
+        partsOrder:['Servo drive (spare, if flagged)'],
+        tasks:[
+          { t:'Inspect and clean VFD enclosure; check cooling fan', ref:'CHK-030-018-01' },
+          { t:'Lube ways and ball screw; check backlash', ref:'CHK-030-018-02' },
+          { t:'Test limit switches and E-stops', ref:'CHK-030-018-03' },
+          { t:'Thermal-image drive under load', ref:'CHK-030-018-04' }
+        ],
+        tools:['Thermal camera','Dial indicator','Way-lube pump'],
+        safety:['Full LOTO — electrical + hydraulic (SAF-014)','Arc-flash PPE for enclosure work','Log guard checks per OSHA 1910.212'],
+        history:[
+          { date:'2026-03-14', ticket:'PM-001-260307-001', tech:'Anthony Gonzalez', result:'Pass — fan replaced' }
+        ] },
+      { id:'PMS-001-018-1W', asset:'001-018', assetName:'PRESS NO. 18', dept:'MACHINE SHOP',
+        type:'Cleaning', freq:'Weekly', downtimeType:'Asset', estDowntime:'20 min', manpower:'1 operator',
+        priorityMode:'interval', priority:'', leadDays:2, lastCompleted:'2026-06-01', nextDue:'2026-06-08', status:'Active',
+        partsRegular:['Shop rags','Approved degreaser'],
+        partsOrder:[],
+        tasks:[
+          { t:'Clear chips from bed and guarding', ref:'CHK-030-018-21' },
+          { t:'Wipe down and check for fluid leaks', ref:'CHK-030-018-22' }
+        ],
+        tools:['Chip brush','Vacuum'],
+        safety:['Machine off before clearing chips (SAF-002)','Cut-resistant gloves'],
+        history:[ { date:'2026-06-01', ticket:'PM-001-260527-003', tech:'Christian Gavina', result:'Pass' } ] },
+      { id:'PMS-008-202-1M', asset:'008-202', assetName:'AIR COMPRESSOR NO. 2', dept:'MACHINE SHOP',
+        type:'Filter Change', freq:'Monthly', downtimeType:'Facility', estDowntime:'1 h', manpower:'1 tech',
+        priorityMode:'interval', priority:'', leadDays:7, lastCompleted:'2026-05-06', nextDue:'2026-06-06', status:'Due Soon',
+        partsRegular:['Intake air filter','Oil/water separator element'],
+        partsOrder:['Compressor oil, 5 gal (if low)'],
+        tasks:[
+          { t:'Replace intake air filter', ref:'CHK-030-202-01' },
+          { t:'Drain oil/water separator; check element', ref:'CHK-030-202-02' },
+          { t:'Inspect drive belt tension', ref:'CHK-030-202-03' }
+        ],
+        tools:['Belt tension gauge'],
+        safety:['Bleed system pressure before service (SAF-018)','Capture condensate per EHS-004 (oily water)'],
+        history:[ { date:'2026-05-06', ticket:'PM-008-260429-002', tech:'Christian Gavina', result:'Pass' } ] },
+      { id:'PMS-008-202-1Y', asset:'008-202', assetName:'AIR COMPRESSOR NO. 2', dept:'MACHINE SHOP',
+        type:'Overhaul', freq:'Annual', downtimeType:'Facility', estDowntime:'6 h', manpower:'2 techs + vendor',
+        priorityMode:'explicit', priority:'MEDIUM', leadDays:14, lastCompleted:'2025-09-12', nextDue:'2026-09-12', status:'Active',
+        partsRegular:['Full seal + gasket kit','Compressor oil, 5 gal'],
+        partsOrder:['Airend rebuild kit — vendor (long lead)'],
+        tasks:[
+          { t:'Vendor airend inspection / rebuild', ref:'CHK-030-202-31' },
+          { t:'Replace all seals and gaskets', ref:'CHK-030-202-32' },
+          { t:'Full oil change and flush', ref:'CHK-030-202-33' },
+          { t:'Run-in test and log pressures', ref:'CHK-030-202-34' }
+        ],
+        tools:['Vendor service kit','Oil evacuator'],
+        safety:['Confined-space near tank — permit (SAF-030)','Used oil to licensed hauler (EHS-002)'],
+        history:[ { date:'2025-09-12', ticket:'PM-008-250905-001', tech:'Mike Magallanes', result:'Pass — vendor rebuild' } ] },
+      { id:'PMS-008-707-6M', asset:'008-707', assetName:'FORKLIFT NO. 7', dept:'MACHINE SHOP',
+        type:'Inspection', freq:'6-Month', downtimeType:'Asset', estDowntime:'3 h', manpower:'1 tech',
+        priorityMode:'interval', priority:'', leadDays:7, lastCompleted:'2025-12-05', nextDue:'2026-06-05', status:'Due Soon',
+        partsRegular:['Hydraulic filter','Hydraulic fluid','Mast chain lube'],
+        partsOrder:['Brake shoes (if worn)'],
+        tasks:[
+          { t:'Change hydraulic fluid and filter', ref:'CHK-030-707-01' },
+          { t:'Inspect brakes and adjust', ref:'CHK-030-707-02' },
+          { t:'Lube mast chains; check tension', ref:'CHK-030-707-03' },
+          { t:'LP system leak check', ref:'CHK-030-707-04' }
+        ],
+        tools:['LP leak detector','Chain wear gauge'],
+        safety:['Chock and block mast before service (SAF-011)','LP handling per EHS-009'],
+        history:[ { date:'2025-12-05', ticket:'PM-008-251128-002', tech:'Jorge Guzman', result:'Pass' } ] },
+      { id:'PMS-004-704-1Y', asset:'004-704', assetName:'OVEN NO. 4', dept:'LITHO',
+        type:'Calibration', freq:'Annual', downtimeType:'Asset', estDowntime:'4 h', manpower:'1 tech + QA',
+        priorityMode:'explicit', priority:'HIGH', leadDays:14, lastCompleted:'2025-08-22', nextDue:'2026-08-22', status:'Active',
+        partsRegular:['Thermocouple (spare)'],
+        partsOrder:['Burner ignition module (if flagged)'],
+        tasks:[
+          { t:'Verify burner safety interlocks', ref:'CHK-030-704-01' },
+          { t:'Calibrate zone thermocouples vs reference', ref:'CHK-030-704-02' },
+          { t:'Run temperature-uniformity survey', ref:'CHK-030-704-03' }
+        ],
+        tools:['Reference pyrometer','Data logger'],
+        safety:['Gas train lockout (SAF-025)','QA sign-off on cure profile — SQF 2.4','Emissions log per EHS-011'],
+        history:[ { date:'2025-08-22', ticket:'PM-004-250815-001', tech:'Efren Becerra', result:'Pass — TUS within ±5°F' } ] },
+      { id:'PMS-004-906-1M', asset:'004-906', assetName:'LITHO VACUUM PUMP', dept:'LITHO',
+        type:'Inspection', freq:'Monthly', downtimeType:'Asset', estDowntime:'30 min', manpower:'1 tech',
+        priorityMode:'interval', priority:'', leadDays:7, lastCompleted:'2026-04-30', nextDue:'2026-05-30', status:'Snoozed',
+        partsRegular:['Vacuum filter element'],
+        partsOrder:['Festo vacuum generator VAD-M5'],
+        tasks:[
+          { t:'Check vacuum level at manifold', ref:'CHK-030-906-01' },
+          { t:'Clean/replace inlet filter', ref:'CHK-030-906-02' }
+        ],
+        tools:['Vacuum gauge'],
+        safety:['Isolate air supply before service (SAF-018)'],
+        history:[ { date:'2026-04-30', ticket:'PM-004-260423-001', tech:'Jesus Nunez', result:'Pass' } ] },
+      { id:'PMS-001-302-1W', asset:'001-302', assetName:'SEAMER NO. 2', dept:'METAL',
+        type:'Inspection', freq:'Weekly', downtimeType:'Asset', estDowntime:'25 min', manpower:'1 tech',
+        priorityMode:'explicit', priority:'HIGH', leadDays:2, lastCompleted:'2026-06-01', nextDue:'2026-06-08', status:'Active',
+        partsRegular:['Seam roll (spare set)'],
+        partsOrder:['Chuck, precision (if worn)'],
+        tasks:[
+          { t:'Inspect seam rolls and chuck for wear', ref:'CHK-030-302-01' },
+          { t:'Teardown-gauge seam thickness on sample', ref:'CHK-030-302-02' }
+        ],
+        tools:['Seam micrometer','Teardown gauge'],
+        safety:['LOTO before roll access (SAF-014)','QA seam records — SQF 2.4 (food safety critical)'],
+        history:[ { date:'2026-06-01', ticket:'PM-001-260527-001', tech:'Justino Flores', result:'Pass — seam in spec' } ] },
+      { id:'PMS-008-916-3M', asset:'008-916', assetName:'CHILLER TANK / PUMPS', dept:'MACHINE SHOP',
+        type:'Filter Change', freq:'Quarterly', downtimeType:'Facility', estDowntime:'1.5 h', manpower:'1 tech',
+        priorityMode:'interval', priority:'', leadDays:7, lastCompleted:'2026-03-30', nextDue:'2026-06-30', status:'Active',
+        partsRegular:['Coolant filter','Water treatment tablets'],
+        partsOrder:['Diaphragm pump (if flagged)'],
+        tasks:[
+          { t:'Replace coolant filter', ref:'CHK-030-916-01' },
+          { t:'Test water chemistry; dose treatment', ref:'CHK-030-916-02' },
+          { t:'Inspect pumps for leaks / cavitation', ref:'CHK-030-916-03' }
+        ],
+        tools:['Water test kit'],
+        safety:['Coolant handling PPE (SAF-016)','Dispose spent coolant per EHS-002'],
+        history:[ { date:'2026-03-30', ticket:'PM-008-260323-002', tech:'David Avila', result:'Pass' } ] }
+    ];
+
+    // ── Generated PM tickets (created within lead window) ───────────────────
+    this.BASE_TICKETS = [
+      { ticketNo:'PM-003-260611-001', schedId:'PMS-003-354-6M', date:'2026-06-11', status:'COMPLETE', assigned:'Felipe Vasquez', due:'2026-06-18' },
+      { ticketNo:'PM-003-260611-002', schedId:'PMS-003-354-6M', date:'2026-06-11', status:'COMPLETE', assigned:'Ismael Silva',   due:'2026-06-18' },
+      { ticketNo:'PM-003-260611-003', schedId:'PMS-003-354-6M', date:'2026-06-11', status:'OPEN',     assigned:'Felipe Vasquez', due:'2026-06-18' },
+      { ticketNo:'PM-003-260611-004', schedId:'PMS-003-354-6M', date:'2026-06-11', status:'OPEN',     assigned:'Unassigned',     due:'2026-06-18' },
+      { ticketNo:'PM-001-260607-001', schedId:'PMS-001-018-3M', date:'2026-06-07', status:'OPEN',     assigned:'Anthony Gonzalez',due:'2026-06-14' },
+      { ticketNo:'PM-008-260530-001', schedId:'PMS-008-202-1M', date:'2026-05-30', status:'COMPLETE', assigned:'Christian Gavina',due:'2026-06-06' },
+      { ticketNo:'PM-003-260517-001', schedId:'PMS-003-503-3M', date:'2026-05-17', status:'WAITING',  assigned:'Unassigned',     due:'2026-05-24' },
+      { ticketNo:'PM-008-260529-001', schedId:'PMS-008-707-6M', date:'2026-05-29', status:'OPEN',     assigned:'Jorge Guzman',   due:'2026-06-05' }
+    ];
+
+    // ── PM packets (machine + interval groupings) ──────────────────────────
+    this.PACKETS = [
+      { id:'PKT-003-354-6M', asset:'003-354', assetName:'MOLD #48-E, 4.25 GAL ROUND', dept:'PLASTICS', freq:'6-Month', window:'H1 2026', due:'2026-06-18',
+        items:[
+          { label:'Ejector pin inspection & wear check', type:'Inspection',   ticket:'PM-003-260611-001', done:true,  by:'Felipe Vasquez', date:'2026-06-12' },
+          { label:'Hydraulic filter change',             type:'Filter Change', ticket:'PM-003-260611-002', done:true,  by:'Ismael Silva',   date:'2026-06-12' },
+          { label:'Cooling line / water filter replace', type:'Filter Change', ticket:'PM-003-260611-003', done:false, by:'', date:'' },
+          { label:'Drive belt inspection & tension',     type:'Belt/Drive',    ticket:'PM-003-260611-004', done:false, by:'', date:'' }
+        ] },
+      { id:'PKT-001-018-3M', asset:'001-018', assetName:'PRESS NO. 18', dept:'MACHINE SHOP', freq:'Quarterly', window:'Q2 2026', due:'2026-06-14',
+        items:[
+          { label:'Way & ball-screw lubrication',   type:'Lubrication',  ticket:'PM-001-260607-001', done:true,  by:'Anthony Gonzalez', date:'2026-06-08' },
+          { label:'VFD enclosure clean & fan check', type:'Inspection',   ticket:'PM-001-260607-002', done:false, by:'', date:'' },
+          { label:'Hydraulic oil sample & analysis', type:'Inspection',   ticket:'PM-001-260607-003', done:false, by:'', date:'' },
+          { label:'Limit switch & E-stop test',      type:'Calibration',  ticket:'PM-001-260607-004', done:false, by:'', date:'' }
+        ] },
+      { id:'PKT-008-202-1M', asset:'008-202', assetName:'AIR COMPRESSOR NO. 2', dept:'MACHINE SHOP', freq:'Monthly', window:'Jun 2026', due:'2026-06-06',
+        items:[
+          { label:'Intake air filter change',        type:'Filter Change', ticket:'PM-008-260530-001', done:true, by:'Christian Gavina', date:'2026-06-02' },
+          { label:'Oil/water separator drain',       type:'Filter Change', ticket:'PM-008-260530-002', done:true, by:'Christian Gavina', date:'2026-06-02' },
+          { label:'Drive belt inspection',           type:'Belt/Drive',    ticket:'PM-008-260530-003', done:true, by:'Christian Gavina', date:'2026-06-02' }
+        ] },
+      { id:'PKT-008-707-6M', asset:'008-707', assetName:'FORKLIFT NO. 7', dept:'MACHINE SHOP', freq:'6-Month', window:'H1 2026', due:'2026-06-05',
+        items:[
+          { label:'Hydraulic fluid & filter change', type:'Filter Change', ticket:'PM-008-260529-001', done:true,  by:'Jorge Guzman', date:'2026-05-30' },
+          { label:'Brake inspection & adjust',       type:'Inspection',    ticket:'PM-008-260529-002', done:true,  by:'Jorge Guzman', date:'2026-05-30' },
+          { label:'Mast chain lube & tension',       type:'Lubrication',   ticket:'PM-008-260529-003', done:false, by:'', date:'' },
+          { label:'LP system leak check',            type:'Inspection',    ticket:'PM-008-260529-004', done:false, by:'', date:'' }
+        ] }
+    ];
+
+    // seed packet check states
+    const packChecks = {};
+    this.PACKETS.forEach(p => p.items.forEach(it => { packChecks[p.id + '::' + it.ticket] = it.done; }));
+
+    this.state = {
+      screen:'master', tab:'defs', search:'',
+      fFreq:[], fDept:[], fType:[], fPri:[],
+      filtersOpen:false,
+      openSchedId:null, openTicketId:null, openPacketId:null,
+      editing:false, editBuf:null, schedOverrides:{}, statusOverrides:{},
+      taskChecks:{}, packChecks:packChecks, extraTickets:[],
+      toast:null
+    };
+    this._toastTimer = null;
+  }
+
+  // ── helpers ───────────────────────────────────────────────────────────────
+  freqToPri(f){ return ({ Weekly:'HIGH', Monthly:'MEDIUM', Quarterly:'MEDIUM', '6-Month':'LOW', Annual:'LOW' })[f] || 'LOW'; }
+  effPriority(s){ return s.priorityMode === 'explicit' ? s.priority : this.freqToPri(s.freq); }
+  effStatus(s){ return this.state.statusOverrides[s.id] || s.status; }
+  effSched(s){ const o = this.state.schedOverrides[s.id]; return o ? Object.assign({}, s, o) : s; }
+
+  badge(map, key){ const m = (map && map[key]) || { bg:'var(--bg-subtle)', fg:'var(--text-tertiary)' };
+    return 'display:inline-block;padding:2px 8px;border-radius:4px;font-size:10.5px;font-weight:700;letter-spacing:.03em;white-space:nowrap;background:'+m.bg+';color:'+m.fg+';'; }
+  priStyle(p){ return this.badge(this.PRI, p); }
+  statStyle(s){ return this.badge(this.SCHED_STATUS, s); }
+  tstatStyle(s){ return this.badge(this.TICKET_STATUS, s); }
+  freqStyle(){ return 'display:inline-block;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600;font-family:var(--font-mono);background:var(--bg-subtle);color:#334155;white-space:nowrap;'; }
+  dueColor(s){ const st = this.effStatus(s); if(st==='Overdue') return 'color:var(--status-critical);font-weight:600;'; if(st==='Due Soon') return 'color:var(--status-warn);font-weight:600;'; return 'color:var(--text-secondary);'; }
+
+  allTickets(){ return this.BASE_TICKETS.concat(this.state.extraTickets); }
+  schedById(id){ return this.SCHEDULES.find(s => s.id === id); }
+
+  showToast(msg){
+    this.setState({ toast: msg });
+    if(this._toastTimer) clearTimeout(this._toastTimer);
+    this._toastTimer = setTimeout(() => this.setState({ toast:null }), 3200);
+  }
+
+  // ── navigation ──────────────────────────────────────────────────────────
+  goMaster(){ this.setState({ screen:'master', openPacketId:null }); }
+  goPackets(){ this.setState({ screen:'packets', openSchedId:null, openTicketId:null }); }
+  demoNav(){ this.showToast('This mockup focuses on the PM module — other screens are live in the main console.'); }
+
+  // ── filters ─────────────────────────────────────────────────────────────
+  toggleFilter(group, v){
+    const key = { freq:'fFreq', dept:'fDept', type:'fType', pri:'fPri' }[group];
+    const arr = this.state[key].slice();
+    const i = arr.indexOf(v);
+    if(i >= 0) arr.splice(i,1); else arr.push(v);
+    this.setState({ [key]: arr });
+  }
+  resetFilters(){ this.setState({ fFreq:[], fDept:[], fType:[], fPri:[], search:'' }); }
+
+  // ── schedule detail actions ──────────────────────────────────────────────
+  openSched(id){ this.setState({ openSchedId:id, editing:false, editBuf:null }); }
+  closeSchedule(){ this.setState({ openSchedId:null, editing:false, editBuf:null }); }
+  openRegister(code){ this.showToast('Opening Equipment Register → ' + code + ' (would jump to Equipment Inventory).'); }
+
+  startEdit(){
+    const s = this.effSched(this.schedById(this.state.openSchedId));
+    this.setState({ editing:true, editBuf:{
+      partsRegular: s.partsRegular.slice(),
+      partsOrder: s.partsOrder.slice(),
+      tasks: s.tasks.map(t => ({ t:t.t, ref:t.ref }))
+    }});
+  }
+  cancelEdit(){ this.setState({ editing:false, editBuf:null }); }
+  saveEdit(){
+    const id = this.state.openSchedId;
+    const ov = Object.assign({}, this.state.schedOverrides);
+    ov[id] = {
+      partsRegular: this.state.editBuf.partsRegular.slice(),
+      partsOrder: this.state.editBuf.partsOrder.slice(),
+      tasks: this.state.editBuf.tasks.map(t => ({ t:t.t, ref:t.ref }))
+    };
+    this.setState({ schedOverrides:ov, editing:false, editBuf:null });
+    this.showToast('Schedule definition updated.');
+  }
+  _mutBuf(fn){ const b = { partsRegular:this.state.editBuf.partsRegular.slice(), partsOrder:this.state.editBuf.partsOrder.slice(), tasks:this.state.editBuf.tasks.map(t=>({t:t.t,ref:t.ref})) }; fn(b); this.setState({ editBuf:b }); }
+  addPartReg(){ this._mutBuf(b => b.partsRegular.push('New part')); }
+  addPartOrder(){ this._mutBuf(b => b.partsOrder.push('New part')); }
+  addTask(){ this._mutBuf(b => b.tasks.push({ t:'', ref:'' })); }
+
+  generateTicket(){
+    const s = this.effSched(this.schedById(this.state.openSchedId));
+    const seq = String(this.allTickets().length + 1).padStart(3,'0');
+    const grp = s.asset.split('-')[0];
+    const no = 'PM-' + grp + '-260706-' + seq;
+    const tk = { ticketNo:no, schedId:s.id, date:'2026-07-06', status:'WAITING', assigned:'Unassigned', due:s.nextDue };
+    this.setState({ extraTickets: this.state.extraTickets.concat([tk]), screen:'master', tab:'tickets', openSchedId:null });
+    this.showToast('Generated ' + no + ' → now in the Waiting Queue with regular tickets.');
+  }
+  snooze(){
+    const id = this.state.openSchedId;
+    const ov = Object.assign({}, this.state.statusOverrides); ov[id] = 'Snoozed';
+    this.setState({ statusOverrides:ov });
+    this.showToast('PM schedule deferred — next generation pushed one cycle.');
+  }
+
+  // ── ticket detail ─────────────────────────────────────────────────────────
+  openTicketDetail(no){ this.setState({ openTicketId:no, openSchedId:null }); }
+  closeTicket(){ this.setState({ openTicketId:null }); }
+  toggleTask(no, idx){
+    const key = no + '::' + idx;
+    const tc = Object.assign({}, this.state.taskChecks); tc[key] = !tc[key];
+    this.setState({ taskChecks:tc });
+  }
+
+  // ── packets ─────────────────────────────────────────────────────────────
+  openPack(id){ this.setState({ openPacketId:id }); }
+  closePacket(){ this.setState({ openPacketId:null }); }
+  togglePackItem(pid, ticket){
+    const key = pid + '::' + ticket;
+    const pc = Object.assign({}, this.state.packChecks); pc[key] = !pc[key];
+    this.setState({ packChecks:pc });
+  }
+  printPacket(){ setTimeout(() => window.print(), 60); }
+
+  packetProgress(p){
+    let done = 0;
+    p.items.forEach(it => { if(this.state.packChecks[p.id + '::' + it.ticket]) done++; });
+    const total = p.items.length;
+    const pct = total ? Math.round(done/total*100) : 0;
+    return { done, total, pct };
+  }
+
+  // ── render ─────────────────────────────────────────────────────────────
+  renderVals(){
+    const st = this.state;
+    const role = this.props.userRole || 'manager';
+    const isManager = role === 'manager';
+    const showKpis = this.props.showKpis !== false;
+
+    const navSubBase = 'display:flex;align-items:center;gap:10px;padding:7px 10px;border-radius:6px;font-size:12.5px;font-weight:500;cursor:pointer;';
+    const navActive = navSubBase + 'background:rgba(255,255,255,.10);color:#fff;';
+    const navIdle   = navSubBase + 'color:var(--text-onnavy-dim);';
+
+    // ── master filter chips ──
+    const chipStyle = (on) => 'display:inline-flex;align-items:center;gap:4px;padding:3px 8px;border-radius:4px;font-size:12px;cursor:pointer;user-select:none;'
+      + (on ? 'border:1px solid var(--brand-navy);background:rgba(0,31,79,.07);color:var(--brand-navy);font-weight:600;' : 'border:1px solid var(--border-default);background:#fff;color:var(--text-primary);');
+    const mkChips = (group, values, sel) => values.map(v => ({
+      label:v, checked: sel.indexOf(v) >= 0, style: chipStyle(sel.indexOf(v) >= 0), onToggle: () => this.toggleFilter(group, v)
+    }));
+    const filterGroups = [
+      { label:'Frequency',  chips: mkChips('freq', this.FREQS, st.fFreq) },
+      { label:'Department', chips: mkChips('dept', this.DEPTS, st.fDept) },
+      { label:'PM Type',    chips: mkChips('type', this.PM_TYPES, st.fType) },
+      { label:'Priority',   chips: mkChips('pri', ['CRITICAL','HIGH','MEDIUM','LOW'], st.fPri) }
+    ];
+    const activeFilterCount = (st.fFreq.length?1:0) + (st.fDept.length?1:0) + (st.fType.length?1:0) + (st.fPri.length?1:0) + (st.search?1:0);
+
+    const matchesSched = (s) => {
+      if(st.fFreq.length && st.fFreq.indexOf(s.freq) < 0) return false;
+      if(st.fDept.length && st.fDept.indexOf(s.dept) < 0) return false;
+      if(st.fType.length && st.fType.indexOf(s.type) < 0) return false;
+      if(st.fPri.length && st.fPri.indexOf(this.effPriority(s)) < 0) return false;
+      if(st.search){ const q = st.search.toLowerCase(); const hay = (s.id+' '+s.asset+' '+s.assetName+' '+s.type+' '+s.freq+' '+s.dept).toLowerCase(); if(hay.indexOf(q) < 0) return false; }
+      return true;
+    };
+
+    const defRows = this.SCHEDULES.filter(matchesSched).map(s => {
+      const pri = this.effPriority(s);
+      return { id:s.id, asset:s.asset, assetName:s.assetName, type:s.type, freq:s.freq,
+        priLabel:pri, priStyle:this.priStyle(pri), freqStyle:this.freqStyle(),
+        downtimeType:s.downtimeType, estDowntime:s.estDowntime, manpower:s.manpower,
+        lastCompleted:s.lastCompleted, nextDue:s.nextDue, dueColor:this.dueColor(s),
+        statLabel:this.effStatus(s), statStyle:this.statStyle(this.effStatus(s)),
+        onOpen: () => this.openSched(s.id) };
+    });
+
+    const ticketMatches = (t) => {
+      const s = this.schedById(t.schedId); if(!s) return false;
+      if(st.fFreq.length && st.fFreq.indexOf(s.freq) < 0) return false;
+      if(st.fDept.length && st.fDept.indexOf(s.dept) < 0) return false;
+      if(st.fType.length && st.fType.indexOf(s.type) < 0) return false;
+      if(st.fPri.length && st.fPri.indexOf(this.effPriority(s)) < 0) return false;
+      if(st.search){ const q = st.search.toLowerCase(); const hay = (t.ticketNo+' '+s.asset+' '+s.assetName+' '+s.type+' '+s.freq+' '+s.dept+' '+t.assigned).toLowerCase(); if(hay.indexOf(q) < 0) return false; }
+      return true;
+    };
+    const ticketRows = this.allTickets().filter(ticketMatches).map(t => {
+      const s = this.schedById(t.schedId); const pri = this.effPriority(s);
+      return { ticketNo:t.ticketNo, date:t.date, priLabel:pri, priStyle:this.priStyle(pri),
+        status:t.status, statStyle:this.tstatStyle(t.status), dept:s.dept, asset:s.asset, assetName:s.assetName,
+        type:s.type, freq:s.freq, freqStyle:this.freqStyle(), assigned:t.assigned,
+        onOpen: () => this.openTicketDetail(t.ticketNo) };
+    });
+
+    // ── KPI strip ──
+    const dueSoon = this.SCHEDULES.filter(s => this.effStatus(s) === 'Due Soon').length;
+    const overdue = this.SCHEDULES.filter(s => this.effStatus(s) === 'Overdue').length;
+    const openTk = this.allTickets().filter(t => t.status !== 'COMPLETE').length;
+    const compTk = this.allTickets().filter(t => t.status === 'COMPLETE').length;
+    const compRate = this.allTickets().length ? Math.round(compTk / this.allTickets().length * 100) : 0;
+    const kpis = [
+      { label:'Active Schedules', value:this.SCHEDULES.length, color:'' },
+      { label:'Due This Week', value:dueSoon, color:dueSoon?'color:var(--status-warn);':'' },
+      { label:'Overdue', value:overdue, color:overdue?'color:var(--status-critical);':'' },
+      { label:'Open PM Tickets', value:openTk, color:'' },
+      { label:'Cycle Completion', value:compRate + '%', color:'color:var(--status-success);' }
+    ];
+
+    // ── segmented tabs ──
+    const tabBase = 'border:none;border-radius:6px;padding:6px 14px;font-size:12.5px;font-weight:600;cursor:pointer;';
+    const tabOn = tabBase + 'background:#fff;color:var(--brand-navy);box-shadow:var(--shadow-sm);';
+    const tabOff = tabBase + 'background:transparent;color:var(--text-secondary);';
+
+    const filterToggleBase = 'height:30px;padding:0 12px;border-radius:6px;font-size:12px;cursor:pointer;display:inline-flex;align-items:center;';
+    const filterToggleStyle = st.filtersOpen
+      ? filterToggleBase + 'border:1px solid var(--brand-navy);color:var(--brand-navy);background:rgba(0,31,79,.06);'
+      : filterToggleBase + 'border:1px solid var(--border-default);color:var(--text-secondary);background:#fff;';
+
+    // ── schedule detail ──
+    let sd = null;
+    if(st.openSchedId){
+      const raw = this.schedById(st.openSchedId);
+      const s = this.effSched(raw);
+      const pri = this.effPriority(raw);
+      const statLabel = this.effStatus(raw);
+      const editing = st.editing;
+      const buf = st.editBuf;
+      const partsRegSrc = editing ? buf.partsRegular : s.partsRegular;
+      const partsOrdSrc = editing ? buf.partsOrder : s.partsOrder;
+      const tasksSrc = editing ? buf.tasks : s.tasks;
+
+      sd = {
+        id:s.id, asset:s.asset, assetName:s.assetName, type:s.type, freq:s.freq,
+        downtimeType:s.downtimeType, estDowntime:s.estDowntime, manpower:s.manpower,
+        priLabel:pri, priStyle:this.priStyle(pri),
+        priNote: raw.priorityMode === 'explicit' ? '(manual override)' : '(derived from interval)',
+        leadLabel: s.leadDays + ' days before due',
+        statLabel, statStyle:this.statStyle(statLabel),
+        isManager, editing, notEditing: !editing,
+        onEdit: () => this.startEdit(), onCancel: () => this.cancelEdit(), onSave: () => this.saveEdit(),
+        onGenerate: () => this.generateTicket(), onSnooze: () => this.snooze(),
+        onRegister: () => this.openRegister(s.asset),
+        onAddPartReg: () => this.addPartReg(), onAddPartOrder: () => this.addPartOrder(), onAddTask: () => this.addTask(),
+        overview: [
+          { label:'Frequency', value:s.freq, foot:'', color:'' },
+          { label:'Next Due', value:s.nextDue, foot: statLabel, color: statLabel==='Overdue'?'color:var(--status-critical);':(statLabel==='Due Soon'?'color:var(--status-warn);':'') },
+          { label:'Last Completed', value:s.lastCompleted, foot:'', color:'' },
+          { label:'Priority', value:pri, foot: raw.priorityMode==='explicit'?'manual':'from interval', color:'color:'+((this.PRI[pri]||{}).fg||'var(--text-primary)')+';' },
+          { label:'Est. Downtime', value:s.estDowntime, foot:s.downtimeType+' downtime', color:'' },
+          { label:'Manpower', value:s.manpower, foot:'', color:'' }
+        ],
+        partsRegular: partsRegSrc.map((p, i) => ({ text:p, onEdit:(e)=>this._mutBuf(b=>{b.partsRegular[i]=e.target.value;}), onRemove:()=>this._mutBuf(b=>b.partsRegular.splice(i,1)) })),
+        partsOrder: partsOrdSrc.map((p, i) => ({ text:p, note:'(long lead)', onEdit:(e)=>this._mutBuf(b=>{b.partsOrder[i]=e.target.value;}), onRemove:()=>this._mutBuf(b=>b.partsOrder.splice(i,1)) })),
+        tasks: tasksSrc.map((t, i) => ({ num:i+1, t:t.t, ref:t.ref,
+          onEditText:(e)=>this._mutBuf(b=>{b.tasks[i].t=e.target.value;}),
+          onEditRef:(e)=>this._mutBuf(b=>{b.tasks[i].ref=e.target.value;}),
+          onRemove:()=>this._mutBuf(b=>b.tasks.splice(i,1)) })),
+        tools: s.tools.map(t => ({ text:t })),
+        safety: s.safety.map(t => ({ text:t })),
+        history: raw.history.map(h => ({ date:h.date, ticket:h.ticket, tech:h.tech, result:h.result })),
+        docRef: 'FRM-030-004 · PM Schedule Master · Rev 0 · 6/2026'
+      };
+    }
+
+    // ── ticket detail ──
+    let tk = null;
+    if(st.openTicketId){
+      const t = this.allTickets().find(x => x.ticketNo === st.openTicketId);
+      if(t){
+        const s = this.effSched(this.schedById(t.schedId));
+        const pri = this.effPriority(this.schedById(t.schedId));
+        const tasks = s.tasks.map((task, i) => {
+          const done = !!st.taskChecks[t.ticketNo + '::' + i];
+          return { t:task.t, ref:task.ref, done, style: done ? 'text-decoration:line-through;color:var(--text-tertiary);' : '', onToggle: () => this.toggleTask(t.ticketNo, i) };
+        });
+        const doneCount = tasks.filter(x => x.done).length;
+        tk = {
+          ticketNo:t.ticketNo, priLabel:pri, priStyle:this.priStyle(pri),
+          status:t.status, statStyle:this.tstatStyle(t.status),
+          asset:s.asset, assetName:s.assetName, type:s.type, freq:s.freq,
+          downtimeType:s.downtimeType, estDowntime:s.estDowntime, dept:s.dept,
+          date:t.date, due:t.due, assigned:t.assigned, schedId:s.id, manpower:s.manpower,
+          onRegister: () => this.openRegister(s.asset), onOpenSched: () => this.openSched(s.id),
+          checkProgress: doneCount + ' / ' + tasks.length + ' complete',
+          tasks,
+          parts: s.partsRegular.concat(s.partsOrder).map(p => ({ text:p })),
+          tools: s.tools.map(x => ({ text:x })),
+          safety: s.safety.map(x => ({ text:x })),
+          timeline: [
+            { label:'Generated', ts:t.date, body:'Auto-created from schedule ' + s.id + ' (' + s.leadDays + ' days before due). Prefix PM- brings it into rotation with regular tickets.' },
+            { label:'Assigned', ts:t.date, body: t.assigned === 'Unassigned' ? 'Awaiting assignment.' : 'Assigned to ' + t.assigned + '.' }
+          ].concat(t.status === 'COMPLETE' ? [{ label:'Completed', ts:t.due, body:'All checklist items signed off; pending manager verification.' }] : [])
+        };
+      }
+    }
+
+    // ── packets ──
+    const packetCards = this.PACKETS.map(p => {
+      const pr = this.packetProgress(p);
+      const barColor = pr.pct === 100 ? 'var(--status-success)' : (pr.pct === 0 ? 'var(--border-strong)' : 'var(--brand-navy-soft)');
+      return { id:p.id, asset:p.asset, assetName:p.assetName, dept:p.dept, freq:p.freq, window:p.window, due:p.due,
+        freqStyle:this.freqStyle(), pct:pr.pct + '%', barColor, progressLabel: pr.done + ' of ' + pr.total,
+        dueStyle:'color:var(--text-secondary);', onOpen: () => this.openPack(p.id) };
+    });
+
+    let pk = null;
+    if(st.openPacketId){
+      const p = this.PACKETS.find(x => x.id === st.openPacketId);
+      if(p){
+        const pr = this.packetProgress(p);
+        const barColor = pr.pct === 100 ? 'var(--status-success)' : (pr.pct === 0 ? 'var(--border-strong)' : 'var(--brand-navy-soft)');
+        pk = { asset:p.asset, assetName:p.assetName, dept:p.dept, freq:p.freq, window:p.window, due:p.due,
+          freqStyle:this.freqStyle(), pct:pr.pct + '%', barColor, progressLabel: pr.done + ' of ' + pr.total,
+          docRef:'FRM-030-005 · PM Packet Sign-Off · Rev 0 · 6/2026',
+          items: p.items.map(it => {
+            const done = !!st.packChecks[p.id + '::' + it.ticket];
+            return { label:it.label, type:it.type, ticket:it.ticket, done,
+              labelStyle: done ? '' : '', printMark: done ? '☑' : '☐',
+              byLabel: done ? (it.by ? it.by + ' · ' + it.date : 'Checked') : 'Pending',
+              onToggle: () => this.togglePackItem(p.id, it.ticket),
+              onOpenTicket: () => this.openTicketDetail(it.ticket) };
+          }) };
+      }
+    }
+
+    return {
+      // shell
+      roleLabel: isManager ? 'Metals Lead · Manager' : 'Technician',
+      topbarTitle: st.screen === 'packets' ? 'Machine PM Packets' : 'PM Schedules',
+      navMasterStyle: st.screen === 'master' ? navActive : navIdle,
+      navPacketsStyle: st.screen === 'packets' ? navActive : navIdle,
+      goMaster: () => this.goMaster(), goPackets: () => this.goPackets(), demoNav: () => this.demoNav(),
+      showMaster: st.screen === 'master', showPackets: st.screen === 'packets',
+      showKpis, kpis,
+      // master
+      search: st.search, onSearch: (e) => this.setState({ search: e.target.value }),
+      listCountLabel: (st.tab === 'defs' ? defRows.length + ' schedules' : ticketRows.length + ' tickets'),
+      toggleFilters: () => this.setState({ filtersOpen: !st.filtersOpen }),
+      filtersOpen: st.filtersOpen, filterToggleStyle,
+      hasActiveFilters: activeFilterCount > 0, activeFilterCount,
+      setTabDefs: () => this.setState({ tab:'defs' }), setTabTickets: () => this.setState({ tab:'tickets' }),
+      tabDefs: st.tab === 'defs', tabTickets: st.tab === 'tickets',
+      tabDefsStyle: st.tab === 'defs' ? tabOn : tabOff, tabTicketsStyle: st.tab === 'tickets' ? tabOn : tabOff,
+      filterGroups, resetFilters: () => this.resetFilters(),
+      defRows, defEmpty: defRows.length === 0,
+      ticketRows, ticketEmpty: ticketRows.length === 0,
+      // detail overlays
+      openSchedule: !!st.openSchedId, sd, closeSchedule: () => this.closeSchedule(),
+      openTicket: !!st.openTicketId, tk, closeTicket: () => this.closeTicket(),
+      // packets
+      packetCards, packetCountLabel: this.PACKETS.length + ' packets',
+      noPacketOpen: !st.openPacketId, openPacket: !!st.openPacketId, pk,
+      closePacket: () => this.closePacket(), printPacket: () => this.printPacket(),
+      printedDate: '2026-07-06',
+      // toast
+      toast: st.toast
+    };
+  }
+}
+</script>
+</body>
+</html>
