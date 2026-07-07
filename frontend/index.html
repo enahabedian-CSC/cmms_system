@@ -296,6 +296,7 @@ function docLabel(key) {
 <?!= include_('frontend/partials/sqf-navigation') ?>
 <?!= include_('frontend/partials/tech-work-board') ?>
 <?!= include_('frontend/partials/equipment-inventory') ?>
+<?!= include_('frontend/partials/pm-intake') ?>
 <?!= include_('frontend/partials/pm-master') ?>
 <?!= include_('frontend/partials/pm-packets') ?>
 <?!= include_('frontend/partials/admin') ?>
@@ -405,6 +406,7 @@ function getNavDef() {
   nav.push({
     section: 'Preventive Maintenance', icon: 'pm',
     items: [
+      { id: 'pm-intake',  label: 'New PM Entry',       icon: 'newticket' },
       { id: 'pm',         label: 'Master PM',          icon: 'pm' },
       { id: 'pm-packets', label: 'Machine PM Packets', icon: 'pm' }
     ]
@@ -556,6 +558,7 @@ var PAGE_TITLES = {
   'admin-techdir':         'Tech Directory',
   'admin-deptmap':         'Dept Map',
   'admin-equip':           'Equipment Cache',
+  'pm-intake':             'New PM Entry',
   'pm':                    'PM Schedules',
   'pm-packets':            'Machine PM Packets'
 };

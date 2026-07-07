@@ -81,6 +81,30 @@ const SH = {
   RPT_DB:         '📝 Report Database',
   WAITING:        '⏳ Waiting Queue',
   OPEN:           '📂 Open Tickets',
+  PM_INTAKE:      'PM Intake',
+};
+
+// PM Intake sheet column order (1-based). MUST match the header row in the
+// 'PM Intake' tab AND the field order the frontend form sends.
+// Override the sheet name at runtime with the PM_INTAKE_SHEET env var.
+const PM = {
+  PM_ID:          1,   // A — assigned by the Worker (PM-000123)
+  TICKET_NO:      2,   // B — optional link to a triggering repair ticket
+  TIMESTAMP:      3,   // C — stamped by the Worker on submit
+  ACTION:         4,   // D
+  INTERVAL:       5,   // E
+  STATUS:         6,   // F
+  DEPT:           7,   // G
+  BUILDING_ZONE:  8,   // H
+  EQUIP_TYPE:     9,   // I
+  EQUIP_CODE:     10,  // J
+  SPECIFIC_EQUIP: 11,  // K
+  DOWNTIME_TYPE:  12,  // L
+  EST_DOWNTIME:   13,  // M
+  MANPOWER:       14,  // N
+  PRIORITY:       15,  // O
+  DESCRIPTION:    16,  // P
+  SUBMITTED_BY:   17,  // Q — audit: email of the submitter
 };
 
 // ── Equipment cache column map (mirrors EquipRegistry.gs _EQUIP_COL_MAPPINGS_) ─
@@ -1708,6 +1732,79 @@ async function handleUploadPhoto(env, userEmail, body) {
   return jsonResponse({ ok: true, url: `https://drive.google.com/file/d/${file.id}/view` });
 }
 
+// ── PM Intake ─────────────────────────────────────────────────────────────────
+// Generate the next sequential PM ID (PM-000123) by scanning column A of the
+// PM Intake sheet for the highest existing numeric suffix.
+async function generatePmId(token, env, sheetName) {
+  const rows = await readSheet(token, env.SPREADSHEET_ID, sheetName, 'A2:A');
+  let max = 0;
+  for (const r of rows) {
+    const id = String(r[0] || '').trim();
+    const m = id.match(/^PM-0*(\d+)$/i);
+    if (m) { const n = parseInt(m[1], 10); if (!isNaN(n) && n > max) max = n; }
+  }
+  return 'PM-' + String(max + 1).padStart(6, '0');
+}
+
+// Append a new preventive-maintenance record to the PM Intake sheet.
+// The frontend sends every user-entered field; PM ID + Timestamp are assigned
+// here so IDs stay unique and gap-free even under concurrent submits.
+async function handlePmIntakeAdd(env, userEmail, body) {
+  const token = await getAccessToken(env);
+  const user  = await resolveUser(token, env, userEmail);
+  if (!user.isManager && !user.isTech) return jsonResponse({ error: 'Access required' }, 403);
+
+  const sheetName = env.PM_INTAKE_SHEET || SH.PM_INTAKE;
+  const s = (v) => (v != null ? String(v).trim() : '');
+
+  // Required user fields (mirrors the frontend contract; Ticket # is optional).
+  const required = {
+    action:        s(body.action),
+    interval:      s(body.interval),
+    status:        s(body.status),
+    priority:      s(body.priority),
+    department:    s(body.department),
+    buildingZone:  s(body.buildingZone),
+    equipType:     s(body.equipType),
+    equipCode:     s(body.equipCode),
+    specificEquip: s(body.specificEquip),
+    downtimeType:  s(body.downtimeType),
+    estDowntime:   s(body.estDowntime),
+    manpower:      s(body.manpower),
+    description:   s(body.description),
+  };
+  const missing = Object.keys(required).filter((k) => !required[k]);
+  if (missing.length) return jsonResponse({ error: 'Missing required fields: ' + missing.join(', ') }, 400);
+
+  const now = new Date();
+  const timestamp =
+    fmtDate(now) + ' ' +
+    String(now.getHours()).padStart(2, '0') + ':' + String(now.getMinutes()).padStart(2, '0');
+  const pmId = await generatePmId(token, env, sheetName);
+
+  const row = new Array(PM.SUBMITTED_BY).fill('');
+  row[PM.PM_ID          - 1] = pmId;
+  row[PM.TICKET_NO      - 1] = s(body.ticketNo);
+  row[PM.TIMESTAMP      - 1] = timestamp;
+  row[PM.ACTION         - 1] = required.action;
+  row[PM.INTERVAL       - 1] = required.interval;
+  row[PM.STATUS         - 1] = required.status;
+  row[PM.DEPT           - 1] = required.department;
+  row[PM.BUILDING_ZONE  - 1] = required.buildingZone;
+  row[PM.EQUIP_TYPE     - 1] = required.equipType;
+  row[PM.EQUIP_CODE     - 1] = required.equipCode;
+  row[PM.SPECIFIC_EQUIP - 1] = required.specificEquip;
+  row[PM.DOWNTIME_TYPE  - 1] = required.downtimeType;
+  row[PM.EST_DOWNTIME   - 1] = required.estDowntime;
+  row[PM.MANPOWER       - 1] = required.manpower;
+  row[PM.PRIORITY       - 1] = required.priority;
+  row[PM.DESCRIPTION    - 1] = required.description;
+  row[PM.SUBMITTED_BY   - 1] = user.email || userEmail || '';
+
+  await appendSheetRow(token, env.SPREADSHEET_ID, sheetName, row);
+  return jsonResponse({ ok: true, pmId, timestamp });
+}
+
 async function handleAddTicket(env, userEmail, body) {
   const token  = await getAccessToken(env);
   const user   = await resolveUser(token, env, userEmail);
@@ -3318,6 +3415,8 @@ export default {
       else if (p === '/api/submit/reserve-id'           && method === 'GET') res = await handleReserveTicketId(env, userEmail, url.searchParams);
       else if (p === '/api/submit/upload-photo'         && method === 'POST')res = await handleUploadPhoto(env, userEmail, body);
       else if (p === '/api/submit/add'                  && method === 'POST')res = await handleAddTicket(env, userEmail, body);
+      // Preventive Maintenance
+      else if (p === '/api/pm/intake/add'               && method === 'POST')res = await handlePmIntakeAdd(env, userEmail, body);
       // Ticket actions
       else if (p === '/api/tickets/approve'             && method === 'POST')res = await handleApproveTicket(env, userEmail, body);
       else if (p === '/api/tickets/complete'            && method === 'POST')res = await handleCompleteTicket(env, userEmail, body);
