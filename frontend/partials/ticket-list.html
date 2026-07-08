@@ -176,10 +176,21 @@ function _renderList_(tickets, queueType, deptFilter, container, userOwnedDepts)
             : queueType === 'tracker' ? (_TRACKER_TITLES_[deptFilter] || (deptFilter ? deptFilter.charAt(0) + deptFilter.slice(1).toLowerCase() + ' Tracker' : 'Dept Tracker'))
             : (deptFilter || 'Dept Tracker');
 
-  // Build unique depts and statuses from data
+  // Build unique depts and statuses from data.
+  // Include joint and pending-joint dept names so dept heads can filter by their
+  // dept even when they are only a joint party (not the primary ticket owner).
   var allDepts = [], allStas = [];
   tickets.forEach(function(t) {
-    if (t.dept   && allDepts.indexOf(t.dept)   < 0) allDepts.push(t.dept);
+    if (t.dept && allDepts.indexOf(t.dept) < 0) allDepts.push(t.dept);
+    function addJointDepts(str) {
+      if (!str) return;
+      str.split(',').forEach(function(d) {
+        d = d.trim();
+        if (d && allDepts.indexOf(d) < 0) allDepts.push(d);
+      });
+    }
+    addJointDepts(t.jointDepts);
+    addJointDepts(t.pendingJointDepts);
     if (t.status && allStas.indexOf(t.status) < 0) allStas.push(t.status);
   });
   allDepts.sort(); allStas.sort();
@@ -216,12 +227,15 @@ function _renderList_(tickets, queueType, deptFilter, container, userOwnedDepts)
 
     _filtered = tickets.filter(function(t) {
       if (checkedDepts.length) {
-        var deptOk = checkedDepts.indexOf((t.dept || '').toUpperCase().trim()) >= 0;
-        // Always show pending-joint tickets in the waiting queue — the user's dept
-        // has been invited as a fixer and should see the ticket regardless of which
-        // dept originally opened it.
-        var pjOk = qt === 'waiting' && t.isPendingJoint;
-        if (!deptOk && !pjOk) return false;
+        var primaryOk = checkedDepts.indexOf((t.dept || '').toUpperCase().trim()) >= 0;
+        if (!primaryOk) {
+          // Also match tickets where the selected dept is a joint or pending-joint party.
+          // This lets a dept head see all tickets for their dept, not just ones they own.
+          var involved = [];
+          if (t.jointDepts)        involved = involved.concat(t.jointDepts.split(',').map(function(d){return d.trim().toUpperCase();}).filter(Boolean));
+          if (t.pendingJointDepts) involved = involved.concat(t.pendingJointDepts.split(',').map(function(d){return d.trim().toUpperCase();}).filter(Boolean));
+          if (!involved.some(function(d){ return checkedDepts.indexOf(d) >= 0; })) return false;
+        }
       }
       if (checkedPris.length  && checkedPris.indexOf(t.priority) < 0) return false;
       if (checkedStas.length  && checkedStas.indexOf(t.status)   < 0) return false;
