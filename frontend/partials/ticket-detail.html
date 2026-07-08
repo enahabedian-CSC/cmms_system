@@ -1451,6 +1451,7 @@ var _tdActionUrls_ = {
   flagTempFix:          '/api/tickets/flag-temp-fix',
   transferTicket:       '/api/tickets/transfer',
   deptSignOff:          '/api/tickets/dept-sign-off',
+  adminForceSignoff:    '/api/tickets/admin-force-signoff',
   confirmJointRequest:  '/api/tickets/confirm-joint',
   rejectJointRequest:   '/api/tickets/reject-joint',
   issueEquipHoldTag:    '/api/monitoring/hold-tags/issue',
@@ -1804,6 +1805,31 @@ function _tdDeptSignOff_() {
     }, 'Sign Off');
 }
 
+// Admin-only: mark a joint dept's work as complete without the normal CAPA flow.
+// Used when the dept did the work outside the system (paper CAPA, verbal confirmation, etc.)
+// and the ticket is stuck waiting on their signoff.
+function _adminForceSignoff_(dept) {
+  var t = _tdTicket;
+  if (!t || !USER.isAdmin) return;
+  _showModal_('Admin Signoff Override — ' + esc(dept),
+    '<div style="background:#FFEBEE;border:1px solid #FFCDD2;border-radius:6px;padding:9px 12px;margin-bottom:12px;font-size:12px;color:#B71C1C;">' +
+      '<strong>Admin use only.</strong> This marks ' + esc(dept) + '\'s work as complete without requiring them to submit through the normal flow. ' +
+      'Use only when the work was done and CAPA was verified outside the system.' +
+    '</div>' +
+    '<div class="form-group"><label>Reason / Notes <span style="color:var(--error)">*</span></label>' +
+    '<input id="afs-reason" placeholder="e.g. CAPA submitted on paper form, verified by admin" /></div>',
+    function() {
+      var reason = (document.getElementById('afs-reason').value || '').trim();
+      if (!reason) { alert('Please enter a reason before overriding.'); return; }
+      _tdRunAction_(adminForceSignoff, {
+        ticketNo:  t.ticketNo,
+        dept:      dept,
+        reason:    reason,
+        updatedBy: USER.displayName
+      }, esc(dept) + ' Signoff Overridden');
+    }, 'Confirm Override');
+}
+
 // Renders joint department sign-off chips + pending request chips in the overview.
 function _renderJointStatus_(t) {
   var jd = (t.jointDepts || '').split(',').map(function(d) { return d.trim(); }).filter(Boolean);
@@ -1820,13 +1846,19 @@ function _renderJointStatus_(t) {
         esc(d) + ' · Work Complete <span style="font-weight:400;font-size:10.5px;">' + esc(s.by) + '</span>' +
         '</span>';
     } else if (s) {
-      var tip = s.by + ' · ' + s.at + (s.notes ? ': ' + s.notes : '');
-      return '<span style="display:inline-flex;align-items:center;gap:4px;padding:3px 9px;border-radius:4px;background:#DBEAFE;color:#1D4ED8;font-size:11.5px;font-weight:600;margin:2px 4px 2px 0;" title="' + esc(tip) + '">' +
-        esc(d) + ' · Signed Off <span style="font-weight:400;font-size:10.5px;">' + esc(s.by) + '</span>' +
+      var tip2 = s.by + ' · ' + s.at + (s.notes ? ': ' + s.notes : '');
+      var overBtn2 = USER.isAdmin
+        ? '<button onclick="_adminForceSignoff_(\'' + d.replace(/'/g,"\\'") + '\')" style="margin-left:5px;font-size:10px;padding:1px 6px;border:1px solid #93C5FD;border-radius:3px;background:#EFF6FF;color:#1D4ED8;cursor:pointer;font-weight:500;">Override</button>'
+        : '';
+      return '<span style="display:inline-flex;align-items:center;gap:4px;padding:3px 9px;border-radius:4px;background:#DBEAFE;color:#1D4ED8;font-size:11.5px;font-weight:600;margin:2px 4px 2px 0;" title="' + esc(tip2) + '">' +
+        esc(d) + ' · Signed Off <span style="font-weight:400;font-size:10.5px;">' + esc(s.by) + '</span>' + overBtn2 +
         '</span>';
     } else {
+      var overBtn = USER.isAdmin
+        ? '<button onclick="_adminForceSignoff_(\'' + d.replace(/'/g,"\\'") + '\')" style="margin-left:5px;font-size:10px;padding:1px 6px;border:1px solid #F59E0B;border-radius:3px;background:#FEF9C3;color:#92400E;cursor:pointer;font-weight:500;">Override</button>'
+        : '';
       return '<span style="display:inline-flex;align-items:center;gap:4px;padding:3px 9px;border-radius:4px;background:#FEF3C7;color:#92400E;font-size:11.5px;font-weight:600;margin:2px 4px 2px 0;">' +
-        esc(d) + ' · Pending' +
+        esc(d) + ' · Pending' + overBtn +
         '</span>';
     }
   });
@@ -1882,6 +1914,7 @@ function assignTicket(d)         {}
 function flagTempFix(d)          {}
 function transferTicket(d)       {}
 function deptSignOff(d)          {}
+function adminForceSignoff(d)    {}
 function confirmJointRequest(d)  {}
 function rejectJointRequest(d)   {}
 function issueEquipHoldTag(d)    {}

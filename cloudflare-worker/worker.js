@@ -2499,6 +2499,60 @@ async function handleDeptSignOff(env, userEmail, body) {
   return jsonResponse({ success: true, ticketNo });
 }
 
+// Admin-only override: mark a confirmed joint dept's work as complete without
+// requiring them to submit through the normal Mark Work Complete flow. Used when
+// the dept performed the repair and CAPA outside the system (paper forms, etc.)
+// and the ticket is stuck waiting on their electronic signoff.
+async function handleAdminForceSignoff(env, userEmail, body) {
+  const token = await getAccessToken(env);
+  const user  = await resolveUser(token, env, userEmail);
+  if (!user.isAdmin) return jsonResponse({ error: 'Admin access required' }, 403);
+
+  const ticketNo = String(body.ticketNo || '').trim();
+  const dept     = String(body.dept     || '').trim().toUpperCase();
+  const reason   = String(body.reason   || '').trim();
+  if (!ticketNo || !dept) return jsonResponse({ error: 'ticketNo and dept required' }, 400);
+
+  const best = await _ticketState_(token, env, ticketNo);
+  if (!best) return jsonResponse({ error: 'Ticket not found: ' + ticketNo }, 404);
+
+  const joint = _normDepts_(cellStr(best, ML.JOINT_DEPTS));
+  if (!joint.includes(dept))
+    return jsonResponse({ error: dept + ' is not a confirmed joint department on this ticket.' }, 400);
+
+  let signoffs = {};
+  try { signoffs = JSON.parse(cellStr(best, ML.JOINT_SIGNOFFS) || '{}'); } catch (_) {}
+  signoffs[dept] = Object.assign({}, signoffs[dept] || {}, {
+    complete: true,
+    by:    user.displayName,
+    at:    fmtDate(new Date()),
+    notes: '[Admin override' + (reason ? ': ' + reason : '') + ']',
+  });
+
+  const allDone = joint.every(d => signoffs[d] && signoffs[d].complete);
+  const owner   = normalizeDept(cellStr(best, ML.DEPT));
+
+  const logOpts = {
+    ticketNo, now: new Date(),
+    action:        allDone ? 'WORK COMPLETE' : 'DEPT WORK COMPLETE',
+    status:        allDone ? 'PENDING VERIFICATION' : '',
+    jointSignoffs: JSON.stringify(signoffs),
+    updatedBy:     user.displayName,
+    notes:         'Admin signoff override for ' + dept + (reason ? ' — ' + reason : ''),
+  };
+  if (allDone) logOpts.assignedDept = owner;
+
+  await appendMasterLog(token, env, logOpts);
+  await appendTicketHistory(token, env, ticketNo,
+    allDone ? 'WORK COMPLETE' : 'DEPT WORK COMPLETE',
+    allDone ? 'OPEN' : '', allDone ? 'PENDING VERIFICATION' : '',
+    user.displayName,
+    'Admin signoff override for ' + dept + (reason ? ' — ' + reason : '') +
+    (allDone ? ' · All joints complete — awaiting owner verification' : ''));
+
+  return jsonResponse({ success: true, ticketNo, dept, allDone });
+}
+
 // ── Reports handlers ──────────────────────────────────────────────────────────
 
 // All currently-active tickets (open + waiting + pending + on hold), one row per
@@ -3475,6 +3529,7 @@ export default {
       else if (p === '/api/tickets/add-photo'           && method === 'POST')res = await handleAddTicketPhoto(env, userEmail, body);
       else if (p === '/api/tickets/service-report'      && method === 'GET') res = await handleGetServiceReport(env, userEmail, url.searchParams.get('ticketNo') || '');
       else if (p === '/api/tickets/dept-sign-off'       && method === 'POST')res = await handleDeptSignOff(env, userEmail, body);
+      else if (p === '/api/tickets/admin-force-signoff' && method === 'POST')res = await handleAdminForceSignoff(env, userEmail, body);
       else if (p === '/api/monitoring/hold-tags/issue'  && method === 'POST')res = await handleIssueHoldTag(env, userEmail, body);
       // Reports
       else if (p === '/api/reports/data'                && method === 'GET') res = await handleReportData(env, userEmail, parseInt(url.searchParams.get('daysBack') || '30', 10));
