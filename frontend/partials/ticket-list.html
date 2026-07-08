@@ -215,7 +215,14 @@ function _renderList_(tickets, queueType, deptFilter, container, userOwnedDepts)
     staCbs.forEach(function(cb)  { if (cb.checked) checkedStas.push(cb.value); });
 
     _filtered = tickets.filter(function(t) {
-      if (checkedDepts.length && checkedDepts.indexOf((t.dept || '').toUpperCase().trim()) < 0) return false;
+      if (checkedDepts.length) {
+        var deptOk = checkedDepts.indexOf((t.dept || '').toUpperCase().trim()) >= 0;
+        // Always show pending-joint tickets in the waiting queue — the user's dept
+        // has been invited as a fixer and should see the ticket regardless of which
+        // dept originally opened it.
+        var pjOk = qt === 'waiting' && t.isPendingJoint;
+        if (!deptOk && !pjOk) return false;
+      }
       if (checkedPris.length  && checkedPris.indexOf(t.priority) < 0) return false;
       if (checkedStas.length  && checkedStas.indexOf(t.status)   < 0) return false;
       if (qv) {

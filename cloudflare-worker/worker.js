@@ -1329,6 +1329,23 @@ async function handleQueueTickets(env, userEmail, queueType, deptFilter) {
     loadDeptAliases(token, env),
   ]);
   const tickets = mergeAndFilter(mlRows, statusFilter, deptFilter || null);
+  // mergeAndFilter only sets isJoint / isPendingJoint when a dept URL filter is
+  // active. Re-derive both flags relative to the user's owned depts so the
+  // waiting queue correctly marks tickets where the user is a pending-joint fixer
+  // even when no ?dept= param is in the URL.
+  if (user.ownedDepts && user.ownedDepts.length) {
+    const owned = user.ownedDepts.map(d => d.toUpperCase().trim());
+    tickets.forEach(t => {
+      if (!t.isJoint) {
+        const jl = t.jointDepts ? t.jointDepts.split(',').map(d => d.trim().toUpperCase()).filter(Boolean) : [];
+        if (jl.some(d => owned.includes(d))) t.isJoint = true;
+      }
+      if (!t.isPendingJoint) {
+        const pl = t.pendingJointDepts ? t.pendingJointDepts.split(',').map(d => d.trim().toUpperCase()).filter(Boolean) : [];
+        if (pl.some(d => owned.includes(d))) t.isPendingJoint = true;
+      }
+    });
+  }
   return jsonResponse({ tickets: tickets.slice(0, 500), userOwnedDepts: user.ownedDepts || [] });
 }
 
@@ -1936,12 +1953,38 @@ async function handleApproveTicket(env, userEmail, body) {
   const ticketNo  = String(body.ticketNo  || '').trim();
   if (!ticketNo) return jsonResponse({ error: 'ticketNo required' }, 400);
   const updatedBy = String(body.updatedBy || user.displayName).trim();
-  await appendMasterLog(token, env, {
+
+  // If the approving manager's dept has a pending joint request on this ticket,
+  // auto-confirm the attachment (PENDING → JOINT) in the same ML row so they
+  // become an active fixer the moment the ticket is opened.
+  let jointDepts = undefined, pendingJointDepts = undefined;
+  const myDepts = (user.ownedDepts || []).map(d => d.toUpperCase().trim());
+  if (myDepts.length) {
+    const best = await _ticketState_(token, env, ticketNo);
+    if (best) {
+      const pending = _normDepts_(cellStr(best, ML.PENDING_JOINT_DEPTS));
+      const myDept  = myDepts.find(d => pending.includes(d));
+      if (myDept) {
+        const joint = _normDepts_(cellStr(best, ML.JOINT_DEPTS));
+        if (!joint.includes(myDept)) joint.push(myDept);
+        jointDepts        = joint.join(', ');
+        pendingJointDepts = pending.filter(d => d !== myDept).join(', ');
+      }
+    }
+  }
+
+  const logOpts = {
     ticketNo, now: new Date(), action: 'APPROVED', status: 'OPEN',
     priority: body.priority || '', assignedTo: body.assignedTo || '',
     estHours: body.estHours || '', updatedBy, notes: body.notes || '',
-  });
-  await appendTicketHistory(token, env, ticketNo, 'APPROVED', 'WAITING', 'OPEN', updatedBy, body.notes || '');
+  };
+  if (jointDepts        !== undefined) logOpts.jointDepts        = jointDepts;
+  if (pendingJointDepts !== undefined) logOpts.pendingJointDepts = pendingJointDepts;
+
+  await appendMasterLog(token, env, logOpts);
+  const histNote = (body.notes ? body.notes + ' | ' : '') +
+    (jointDepts !== undefined ? 'Joint attachment auto-confirmed on approval' : '');
+  await appendTicketHistory(token, env, ticketNo, 'APPROVED', 'WAITING', 'OPEN', updatedBy, histNote || '');
   return jsonResponse({ success: true, ticketNo });
 }
 

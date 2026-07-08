@@ -210,6 +210,11 @@ function _isFixerDept_(t) {
   var mine = USER.ownedDepts || [];
   return jd.some(function(d) { return mine.indexOf(d) >= 0; });
 }
+function _isPendingJointDept_(t) {
+  var pd   = String(t.pendingJointDepts || '').split(',').map(function(d) { return d.trim(); }).filter(Boolean);
+  var mine = USER.ownedDepts || [];
+  return pd.some(function(d) { return mine.indexOf(d) >= 0; });
+}
 
 // ── Public API ────────────────────────────────────────────────────────────────
 
@@ -279,10 +284,23 @@ function _renderDetail_(result) {
   document.getElementById('td-dept-label').textContent = t.dept;
 
   // ── Joint role banner ─────────────────────────────────────────────────────
-  var isOwner   = _isOwnerDept_(t);
-  var isFixer   = _isFixerDept_(t);
-  var isJoint   = _isJoint_(t);
-  var jointBanner = '';
+  var isOwner        = _isOwnerDept_(t);
+  var isFixer        = _isFixerDept_(t);
+  var isJoint        = _isJoint_(t);
+  var isPendingJoint = _isPendingJointDept_(t);
+  var jointBanner    = '';
+
+  // Banner for pending-joint dept viewing a WAITING ticket — invite them to approve
+  if (!isJoint && isPendingJoint && isManager && t.status === 'WAITING') {
+    var _pjMyDepts = (USER.ownedDepts || []).filter(function(d) {
+      return (t.pendingJointDepts || '').split(',').map(function(x){return x.trim();}).indexOf(d) >= 0;
+    });
+    jointBanner = '<div class="joint-banner role-fixer">' +
+      '<span>🔗</span><div class="joint-banner-body">Your department (' + esc(_pjMyDepts.join(', ') || '—') + ') has been invited as a joint fixer on this ticket.' +
+      '<div class="jb-sub">Click <strong>Approve → Open</strong> to open the ticket and confirm your joint attachment in one step.</div>' +
+      '</div></div>';
+  }
+
   if (isJoint && isManager) {
     var _jbSignoffs = {};
     try { _jbSignoffs = JSON.parse(t.jointSignoffs || '{}'); } catch(e) {}
@@ -333,10 +351,15 @@ function _renderDetail_(result) {
   // single-dept tickets) performs the repair + CAPA; the owner verifies & closes.
   var canWork   = isManager && (isJoint ? isFixer : isOwner);
   var canVerify = isManager && isOwner;
-  var canManage = isManager && isOwner;
+  // Pending-joint dept managers can approve WAITING tickets — doing so opens the
+  // ticket and auto-confirms their joint attachment in one step.
+  var canManage = isManager && (isOwner || isPendingJoint);
 
   if (t.status === 'WAITING' && canManage) {
-    actions += '<button class="btn-action btn-approve" onclick="_tdApprove_()">✓ Approve → Open</button>';
+    var approveLabel = isPendingJoint && !isOwner
+      ? '✓ Approve → Open (confirm joint)'
+      : '✓ Approve → Open';
+    actions += '<button class="btn-action btn-approve" onclick="_tdApprove_()">' + approveLabel + '</button>';
   }
   if ((t.status === 'OPEN' || t.status === 'PENDING PARTS') && canWork) {
     actions += '<button class="btn-action btn-complete" onclick="_tdComplete_()">✓ Mark Work Complete</button>';
