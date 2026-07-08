@@ -2342,7 +2342,7 @@ async function handleEditTicketFields(env, userEmail, body) {
     const mine  = (user.ownedDepts || []).map(d => d.toUpperCase().trim());
     const myJointDept = mine.find(d => joint.includes(d));
 
-    if (myJointDept && (st === 'OPEN' || st === 'PENDING PARTS')) {
+    if (myJointDept && (st === 'OPEN' || st === 'PENDING PARTS' || st === 'PENDING VERIFICATION')) {
       let signoffs = {};
       try { signoffs = JSON.parse(cellStr(best, ML.JOINT_SIGNOFFS) || '{}'); } catch (_) {}
 
