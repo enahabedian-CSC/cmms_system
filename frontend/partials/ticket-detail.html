@@ -633,19 +633,45 @@ function _tdApprove_() {
 function _tdComplete_() {
   var t = _tdTicket;
   if (!t) return;
+
+  // Pre-fill from existing CAPA data so partially-saved work isn't lost.
+  // On joint tickets, the current dept's own signoff entry takes priority over
+  // the global merged columns (which may contain another dept's values).
+  var _pf = {
+    correctiveAct:    t.correctiveAct    || '',
+    rootCause:        t.rootCause        || '',
+    preventiveAct:    t.preventiveAct    || '',
+    fixType:          t.fixType          || '',
+    actualHours:      t.actualHours      || '',
+    downtimeDuration: t.downtimeDuration || '',
+  };
+  if (_isJoint_(t) && _isFixerDept_(t)) {
+    var _so = {};
+    try { _so = JSON.parse(t.jointSignoffs || '{}'); } catch(e) {}
+    var _jdList = (t.jointDepts || '').split(',').map(function(d){ return d.trim(); }).filter(Boolean);
+    var _myDept = (USER.ownedDepts || []).find(function(d){ return _jdList.indexOf(d) >= 0; });
+    var _myEntry = _myDept ? (_so[_myDept] || null) : null;
+    if (_myEntry) {
+      if (_myEntry.correctiveAct) _pf.correctiveAct = _myEntry.correctiveAct;
+      if (_myEntry.rootCause)     _pf.rootCause     = _myEntry.rootCause;
+      if (_myEntry.preventiveAct) _pf.preventiveAct = _myEntry.preventiveAct;
+      if (_myEntry.actualHours)   _pf.actualHours   = _myEntry.actualHours;
+    }
+  }
+
   // C05: all three CAPA fields are required on every ticket (SQF 13.2.8)
   // C16: downtime duration captured for monthly reporting (data only this round)
   _showModal_('Mark Work Complete — ' + esc(t.ticketNo),
     '<div style="background:#FFF3E0;border:1px solid #FFB74D;border-radius:6px;padding:9px 12px;margin-bottom:12px;font-size:12px;color:#E65100;">' +
       '<strong>SQF 13.2.8:</strong> All three CAPA fields below are required on every ticket.' +
     '</div>' +
-    '<div class="form-group"><label>Corrective Action *</label><textarea id="mc-corrective" placeholder="What action was taken to fix the immediate problem?"></textarea></div>' +
-    '<div class="form-group"><label>Root Cause *</label><input id="mc-root" placeholder="Why did the problem occur?" /></div>' +
-    '<div class="form-group"><label>Preventive Action *</label><textarea id="mc-summary" placeholder="What will prevent this from recurring?"></textarea></div>' +
+    '<div class="form-group"><label>Corrective Action *</label><textarea id="mc-corrective" placeholder="What action was taken to fix the immediate problem?">' + esc(_pf.correctiveAct) + '</textarea></div>' +
+    '<div class="form-group"><label>Root Cause *</label><input id="mc-root" value="' + esc(_pf.rootCause) + '" placeholder="Why did the problem occur?" /></div>' +
+    '<div class="form-group"><label>Preventive Action *</label><textarea id="mc-summary" placeholder="What will prevent this from recurring?">' + esc(_pf.preventiveAct) + '</textarea></div>' +
     '<div class="form-group"><label>Fix Type</label>' +
-    '<select id="mc-fix"><option value="">—</option><option>Permanent</option><option>Temporary</option></select></div>' +
-    '<div class="form-group"><label>Actual Hours</label><input id="mc-hours" type="number" min="0" step="0.5" /></div>' +
-    '<div class="form-group"><label>Downtime Duration (minutes)</label><input id="mc-downtime" type="number" min="0" step="1" placeholder="How long was the equipment down?" /></div>' +
+    '<select id="mc-fix"><option value="">—</option><option' + (_pf.fixType === 'Permanent' ? ' selected' : '') + '>Permanent</option><option' + (_pf.fixType === 'Temporary' ? ' selected' : '') + '>Temporary</option></select></div>' +
+    '<div class="form-group"><label>Actual Hours</label><input id="mc-hours" type="number" min="0" step="0.5" value="' + esc(_pf.actualHours) + '" /></div>' +
+    '<div class="form-group"><label>Downtime Duration (minutes)</label><input id="mc-downtime" type="number" min="0" step="1" placeholder="How long was the equipment down?" value="' + esc(_pf.downtimeDuration) + '" /></div>' +
     '<div style="background:#E8F5E9;border:1px solid #A5D6A7;border-radius:6px;padding:9px 12px;margin:6px 0 4px;font-size:11.5px;color:#1B5E20;">' +
       '<strong>Post-Repair Clearance (SQF 2.14.3):</strong> confirm you removed all of your tools. The owning department verifies cleaning &amp; sanitation at close.</div>' +
     '<div class="form-group"><label>All tools removed? *</label><select id="mc-clr-tools"><option value=""></option><option>Yes</option><option>No</option></select></div>' +
