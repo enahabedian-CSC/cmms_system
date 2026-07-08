@@ -301,6 +301,8 @@ function _renderDetail_(result) {
       '</div></div>';
   }
 
+  // Compute my signoff status before the banner block so the button section can use it too.
+  var _jbMyDone = true; // defaults to true (no action needed from me)
   if (isJoint && isManager) {
     var _jbSignoffs = {};
     try { _jbSignoffs = JSON.parse(t.jointSignoffs || '{}'); } catch(e) {}
@@ -308,7 +310,7 @@ function _renderDetail_(result) {
     var _jbDone  = _jbDepts.filter(function(d){ return _jbSignoffs[d] && _jbSignoffs[d].complete; });
     var _jbLeft  = _jbDepts.filter(function(d){ return !(_jbSignoffs[d] && _jbSignoffs[d].complete); });
     var _jbMyDepts = (USER.ownedDepts || []).filter(function(d){ return _jbDepts.indexOf(d) >= 0; });
-    var _jbMyDone  = _jbMyDepts.every(function(d){ return _jbSignoffs[d] && _jbSignoffs[d].complete; });
+    _jbMyDone  = _jbMyDepts.every(function(d){ return _jbSignoffs[d] && _jbSignoffs[d].complete; });
     var _jbDeptRows = function(list, done) {
       return list.map(function(d) {
         return '<div class="joint-dept-row"><div class="joint-dept-dot ' + (done ? 'jd-complete' : 'jd-pending') + '"></div>' + esc(d) + '</div>';
@@ -320,10 +322,17 @@ function _renderDetail_(result) {
         jointBanner = '<div class="joint-banner role-owner-ready">' +
           '<span>✅</span><div class="joint-banner-body">All joint departments have completed their work.' +
           '<div class="jb-sub">You can now verify and close this ticket.</div></div></div>';
-      } else if (isFixer) {
+      } else if (isFixer && _jbMyDone) {
+        // My signoff is recorded — just waiting for the owner to close.
         jointBanner = '<div class="joint-banner role-pending-close">' +
           '<span>⏳</span><div class="joint-banner-body">Your department\'s work is recorded.' +
           '<div class="jb-sub">' + esc(t.dept) + ' is now reviewing and will close this ticket.</div></div></div>';
+      } else if (isFixer && !_jbMyDone) {
+        // My signoff is MISSING — the ticket moved to Pending Verification without it.
+        // Show a warning and surface Mark Work Complete so they can unblock the close.
+        jointBanner = '<div class="joint-banner role-fixer" style="border-color:#FCA5A5;background:#FEF2F2;color:#991B1B;">' +
+          '<span>⚠️</span><div class="joint-banner-body">Your department\'s signoff is still required.' +
+          '<div class="jb-sub">Click <strong>Mark Work Complete</strong> below to submit your CAPA and unblock ' + esc(t.dept) + '\'s close.</div></div></div>';
       }
     } else if (t.status === 'OPEN' || t.status === 'PENDING PARTS') {
       if (isFixer && _jbMyDone && _jbLeft.length) {
@@ -361,16 +370,24 @@ function _renderDetail_(result) {
       : '✓ Approve → Open';
     actions += '<button class="btn-action btn-approve" onclick="_tdApprove_()">' + approveLabel + '</button>';
   }
-  if ((t.status === 'OPEN' || t.status === 'PENDING PARTS') && canWork) {
+  // A joint fixer who hasn't yet signed off needs Mark Work Complete even when
+  // the ticket is already in Pending Verification (e.g. ticket moved there before
+  // their joint dept was added, or they missed the normal submission window).
+  var _needsMyComplete = canWork && isJoint && isFixer && !_jbMyDone;
+  if ((t.status === 'OPEN' || t.status === 'PENDING PARTS' || (t.status === 'PENDING VERIFICATION' && _needsMyComplete)) && canWork) {
     actions += '<button class="btn-action btn-complete" onclick="_tdComplete_()">✓ Mark Work Complete</button>';
-    if (!t.tempFixFlag) {
-      actions += '<button class="btn-action btn-tempfix" onclick="_tdFlagTF_()">Flag Temp Fix</button>';
+    if (t.status !== 'PENDING VERIFICATION') {
+      if (!t.tempFixFlag) {
+        actions += '<button class="btn-action btn-tempfix" onclick="_tdFlagTF_()">Flag Temp Fix</button>';
+      }
+      actions += '<button class="btn-action btn-void" onclick="_tdIssueTag_()">🏷 Issue Hold Tag</button>';
     }
-    actions += '<button class="btn-action btn-void" onclick="_tdIssueTag_()">🏷 Issue Hold Tag</button>';
   }
   if (t.status === 'PENDING VERIFICATION' && canVerify) {
     actions += '<button class="btn-action btn-verify" onclick="_tdVerifyClose_()">✓ Verify &amp; Close</button>';
-  } else if (t.status === 'PENDING VERIFICATION') {
+  } else if (t.status === 'PENDING VERIFICATION' && !_needsMyComplete) {
+    // Only show the "owner must close" notice when the viewer isn't a fixer who
+    // still needs to submit their own signoff — otherwise the banner above covers it.
     actions += '<span class="td-pending-close">⏳ ' + esc(t.dept) + ' Manager must close this ticket</span>';
   }
   if (t.status !== 'CLOSED' && t.status !== 'VOIDED' && canManage) {
