@@ -2328,6 +2328,45 @@ async function handleEditTicketFields(env, userEmail, body) {
     if (body[f] !== undefined) { opts[f] = body[f]; changed.push(f); }
   });
 
+  // If a confirmed joint-dept fixer fills in all three core CAPA fields via the
+  // Edit CAPA form, treat it as equivalent to Mark Work Complete for their dept.
+  // This covers the case where a fixer submits their CAPA through the edit path
+  // rather than the Mark Work Complete flow, so the joint signoff gate doesn't block.
+  const capaComplete = ['correctiveAct', 'rootCause', 'preventiveAct']
+    .every(f => body[f] !== undefined && String(body[f]).trim());
+
+  if (capaComplete) {
+    const best  = await _ticketState_(token, env, ticketNo);
+    const st    = best ? String(cellStr(best, ML.STATUS) || '').trim().toUpperCase() : '';
+    const joint = best ? _normDepts_(cellStr(best, ML.JOINT_DEPTS)) : [];
+    const mine  = (user.ownedDepts || []).map(d => d.toUpperCase().trim());
+    const myJointDept = mine.find(d => joint.includes(d));
+
+    if (myJointDept && (st === 'OPEN' || st === 'PENDING PARTS')) {
+      let signoffs = {};
+      try { signoffs = JSON.parse(cellStr(best, ML.JOINT_SIGNOFFS) || '{}'); } catch (_) {}
+
+      if (!(signoffs[myJointDept] && signoffs[myJointDept].complete)) {
+        signoffs[myJointDept] = Object.assign({}, signoffs[myJointDept] || {}, {
+          complete:      true,
+          by:            updatedBy,
+          at:            fmtDate(new Date()),
+          correctiveAct: body.correctiveAct || '',
+          rootCause:     body.rootCause     || '',
+          preventiveAct: body.preventiveAct || '',
+        });
+        opts.jointSignoffs = JSON.stringify(signoffs);
+
+        const allDone = joint.every(d => signoffs[d] && signoffs[d].complete);
+        if (allDone) {
+          opts.status      = 'PENDING VERIFICATION';
+          opts.assignedDept = normalizeDept(cellStr(best, ML.DEPT));
+        }
+        changed.push('joint-signoff:' + myJointDept + (allDone ? ' (all done)' : ''));
+      }
+    }
+  }
+
   await appendMasterLog(token, env, opts);
   await appendTicketHistory(token, env, ticketNo, 'DIRECT EDIT', '', '', updatedBy,
     'Edited: ' + changed.join(', '));
