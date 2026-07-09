@@ -72,7 +72,28 @@ Per project convention, bump `[vars] APP_VERSION` to the next patch (e.g. `4.02 
 
 ---
 
-## Backend contract (when wiring the Worker)
+## Backend contract (WIRED — worker v3.85)
+
+Live as of APP_VERSION 3.85. Data lives in two tabs (names overridable via the
+`PM_SCHED_SHEET` / `PM_TICKETS_SHEET` env vars):
+
+- **`PM Schedules`** (22 cols, A→V) — schedule definitions. Written by the intake
+  form, read by the master view. List cells (parts/tools/safety) are newline-
+  separated; task cells are one-per-line as `text ::: CHK-ref`. See the `PM`
+  column map + `handlePmScheduleAdd()` in `cloudflare-worker/worker.js`.
+- **`PM Tickets`** (7 cols, A→G) — generated PM work orders. Appended by
+  `/api/pm/generate`, read into the master view's "Generated PM Tickets" tab.
+
+Endpoints (all require a resolvable `X-User-Email`; `/snooze`, `/schedule/save`
+and `/generate` require manager):
+
+- `GET  /api/pm/schedules`      → `{ schedules:[…], tickets:[…] }`
+- `POST /api/pm/schedules/add`  → intake form → append schedule (worker assigns
+  `pmId`, `nextDue` from frequency, `status`, timestamps). `/api/pm/intake/add`
+  is kept as a legacy alias.
+- `POST /api/pm/snooze`         `{ schedId }` → Status→Snoozed, Next Due +1 cycle.
+- `POST /api/pm/schedule/save`  `{ schedId, partsRegular, partsOrder, tasks }`.
+- `POST /api/pm/generate`       `{ schedId }` → `{ ticketNo }` (logged in PM Tickets).
 
 **`GET /api/pm/schedules`** → `{ schedules: [...], tickets: [...] }`
 

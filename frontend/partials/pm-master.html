@@ -285,12 +285,37 @@ function _pmDueStyle_(s){ var st = _pmEffStatus_(s); if(st==='Overdue') return '
 PAGES['pm'] = function(c) { _pmLoad_(c); };
 
 function _pmLoad_(container) {
-  // TODO(backend): when PM endpoints land, replace the sample-data block below with:
-  //   fetch(WORKER_URL + '/api/pm/schedules', { headers:{ 'X-User-Email': USER ? USER.email : '' } })
-  //     .then(function(r){ return r.json(); })
-  //     .then(function(data){ window._PM_SAMPLE_ = data; _pmRender_(container); })
-  //     .catch(function(err){ container.innerHTML = '<div class="pm-empty">Error loading PM schedules: ' + esc(err.message||String(err)) + '</div>'; });
-  _pmRender_(container);
+  // Live data: GET /api/pm/schedules → { schedules:[…], tickets:[…] }.
+  // The embedded _PM_SAMPLE_ is only a last-resort fallback if WORKER_URL is unset.
+  if (typeof WORKER_URL === 'undefined' || !WORKER_URL) { _pmRender_(container); return; }
+  container.innerHTML = '<div class="loading-overlay"><div class="spinner"></div><span>Loading PM schedules&#8230;</span></div>';
+  fetch(WORKER_URL + '/api/pm/schedules', { headers: { 'X-User-Email': (typeof USER !== 'undefined' && USER ? USER.email : '') } })
+    .then(function(r){ return r.json().then(function(j){ return { ok: r.ok, status: r.status, body: j }; }); })
+    .then(function(res){
+      if (res.ok && res.body && Array.isArray(res.body.schedules)) {
+        window._PM_SAMPLE_ = { schedules: res.body.schedules, tickets: res.body.tickets || [] };
+        _pmSchedOv_ = {}; _pmStatusOv_ = {}; _pmTaskChecks_ = {};
+        _pmRender_(container);
+      } else {
+        container.innerHTML = '<div class="pm-wrap"><div class="pm-empty">Could not load PM schedules: ' + esc((res.body && res.body.error) || ('HTTP ' + res.status)) + '<br><br><button onclick="_pmLoad_(document.getElementById(\'page-pm\'))" style="height:30px;padding:0 14px;border:1px solid var(--border-default);border-radius:6px;background:#fff;cursor:pointer;">Retry</button></div></div>';
+      }
+    })
+    .catch(function(err){
+      container.innerHTML = '<div class="pm-wrap"><div class="pm-empty">Error loading PM schedules: ' + esc(err.message || String(err)) + '<br><br><button onclick="_pmLoad_(document.getElementById(\'page-pm\'))" style="height:30px;padding:0 14px;border:1px solid var(--border-default);border-radius:6px;background:#fff;cursor:pointer;">Retry</button></div></div>';
+    });
+}
+
+// Shared POST helper for PM write actions. cb(ok, body).
+function _pmPost_(path, payload, cb) {
+  if (typeof WORKER_URL === 'undefined' || !WORKER_URL) { showToast('Backend not configured.', 'error'); return; }
+  fetch(WORKER_URL + path, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-User-Email': (typeof USER !== 'undefined' && USER ? USER.email : '') },
+    body: JSON.stringify(payload)
+  })
+    .then(function(r){ return r.json().then(function(j){ return { ok: r.ok, body: j }; }); })
+    .then(function(res){ cb(!!(res.ok && res.body && res.body.ok), res.body || {}); })
+    .catch(function(err){ showToast('Request failed: ' + esc(err.message || String(err)), 'error', 6000); });
 }
 
 function _pmRender_(container) {
@@ -618,14 +643,21 @@ function _pmStartEdit_(id) {
 function _pmCancelEdit_() { var id = _pmEditId_; _pmEditId_ = null; _pmEditBuf_ = null; _pmRenderSched_(id); }
 function _pmSaveEdit_() {
   var id = _pmEditId_;
-  _pmSchedOv_[id] = {
+  var buf = {
     partsRegular: _pmEditBuf_.partsRegular.slice(),
-    partsOrder: _pmEditBuf_.partsOrder.slice(),
-    tasks: _pmEditBuf_.tasks.map(function(t){ return { t:t.t, ref:t.ref }; })
+    partsOrder:   _pmEditBuf_.partsOrder.slice(),
+    tasks:        _pmEditBuf_.tasks.map(function(t){ return { t: t.t, ref: t.ref }; })
   };
-  _pmEditId_ = null; _pmEditBuf_ = null;
-  _pmRenderSched_(id);
-  showToast('Schedule definition updated.', 'success');
+  _pmPost_('/api/pm/schedule/save', { schedId: id, partsRegular: buf.partsRegular, partsOrder: buf.partsOrder, tasks: buf.tasks }, function(ok, body){
+    if (!ok) { showToast('Save failed: ' + esc(body.error || 'error'), 'error', 6000); return; }
+    // Reflect the saved values on the in-memory schedule so the view stays in sync.
+    var sched = _pmSchedById_(id);
+    if (sched) { sched.partsRegular = buf.partsRegular; sched.partsOrder = buf.partsOrder; sched.tasks = buf.tasks; }
+    _pmEditId_ = null; _pmEditBuf_ = null;
+    _pmRenderSched_(id);
+    _pmApply_();
+    showToast('Schedule definition saved.', 'success');
+  });
 }
 function _pmEditPart_(key, i, val) { _pmEditBuf_[key][i] = val; }
 function _pmRemovePart_(key, i) { _pmEditBuf_[key].splice(i, 1); _pmRenderSched_(_pmEditId_); }
@@ -636,23 +668,22 @@ function _pmAddTask_() { _pmEditBuf_.tasks.push({ t:'', ref:'' }); _pmRenderSche
 
 /* ── Generate / Snooze ─────────────────────────────────────────────────── */
 function _pmGenerate_(id) {
-  var s = _pmEffSched_(_pmSchedById_(id));
-  var seq = String((window._PM_SAMPLE_.tickets || []).length + 1).padStart(3, '0');
-  var grp = s.asset.split('-')[0];
-  var no = 'PM-' + grp + '-260706-' + seq;
-  window._PM_SAMPLE_.tickets.push({ ticketNo:no, schedId:id, date:'2026-07-06', status:'WAITING', assigned:'Unassigned', due:s.nextDue });
-  // In production this POSTs to the Worker, which creates the PM- ticket in the
-  // Waiting Queue alongside regular MT- tickets.
-  _pmCloseSched_();
-  _pmTab_ = 'tickets';
-  _pmRender_(document.getElementById('page-pm'));
-  showToast('Generated ' + no + ' → now in the Waiting Queue with regular tickets.', 'success');
+  showToast('Generating PM ticket&#8230;', 'info');
+  _pmPost_('/api/pm/generate', { schedId: id }, function(ok, body){
+    if (!ok) { showToast('Generate failed: ' + esc(body.error || 'error'), 'error', 6000); return; }
+    _pmCloseSched_();
+    _pmTab_ = 'tickets';
+    _pmLoad_(document.getElementById('page-pm'));
+    showToast('Generated ' + esc(body.ticketNo || '') + ' → logged in Generated PM Tickets.', 'success');
+  });
 }
 function _pmSnooze_(id) {
-  _pmStatusOv_[id] = 'Snoozed';
-  _pmRenderSched_(id);
-  _pmApply_();
-  showToast('PM schedule deferred — next generation pushed one cycle.', 'info');
+  _pmPost_('/api/pm/snooze', { schedId: id }, function(ok, body){
+    if (!ok) { showToast('Snooze failed: ' + esc(body.error || 'error'), 'error', 6000); return; }
+    _pmCloseSched_();
+    _pmLoad_(document.getElementById('page-pm'));
+    showToast('PM schedule deferred one cycle' + (body.nextDue ? ' — next due ' + esc(body.nextDue) : '') + '.', 'info');
+  });
 }
 
 /* ══════════════════════════════════════════════════════════════════════════
