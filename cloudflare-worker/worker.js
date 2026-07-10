@@ -2181,10 +2181,24 @@ async function handleFlagTempFix(env, userEmail, body) {
   const updatedBy = String(body.updatedBy || user.displayName).trim();
   const now       = new Date();
 
-  const mlRows = await readSheet(token, env.SPREADSHEET_ID, SH.MASTER_LOG, 'A2:AQ');
+  const [mlRows, tfRows] = await Promise.all([
+    readSheet(token, env.SPREADSHEET_ID, SH.MASTER_LOG, 'A2:AQ'),
+    readSheet(token, env.SPREADSHEET_ID, SH.TEMP_FIX, `A${HIST_HEADER_ROW + 1}:V`),
+  ]);
   const rows   = mlRows.filter(r => cellStr(r, ML.TICKET_NO) === ticketNo);
   const best   = rows.length ? rows[0].slice() : [];
   for (let i = 1; i < rows.length; i++) rows[i].forEach((v, c) => { if (v != null && v !== '') best[c] = v; });
+
+  const existingActive = tfRows.find(r => {
+    if (cellStr(r, TF.TICKET_NO) !== ticketNo) return false;
+    const st = cellStr(r, TF.STATUS).toUpperCase();
+    return st === 'ACTIVE' || st === 'PAST DUE';
+  });
+  if (existingActive) {
+    return jsonResponse({
+      error: 'A temp fix is already active for this ticket (' + cellStr(existingActive, TF.TEMP_ID) + '). Clear or inspect the existing record before flagging a new one.',
+    }, 409);
+  }
 
   await appendMasterLog(token, env, {
     ticketNo, now, action: 'TEMP FIX FLAGGED', tempFixFlag: true,
