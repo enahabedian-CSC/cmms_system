@@ -81,31 +81,113 @@ const SH = {
   RPT_DB:         '📝 Report Database',
   WAITING:        '⏳ Waiting Queue',
   OPEN:           '📂 Open Tickets',
-  PM_INTAKE:      'PM Intake',
+  PM_SCHED:       'PM Schedules',   // preventive-maintenance schedule definitions
+  PM_TICKETS:     'PM Tickets',     // generated PM work orders (tracking)
 };
 
-// PM Intake sheet column order (1-based). MUST match the header row in the
-// 'PM Intake' tab AND the field order the frontend form sends.
-// Override the sheet name at runtime with the PM_INTAKE_SHEET env var.
+// ── Preventive Maintenance ─────────────────────────────────────────────────────
+// PM Schedules sheet column order (1-based). MUST match the header row in the
+// 'PM Schedules' tab AND the field order the intake form sends.
+// Override the sheet name at runtime with the PM_SCHED_SHEET env var.
+//
+// Required header row (row 1), A→V:
+//   PM ID | Asset Code | Asset Name | Department | Type of PM | Frequency |
+//   Downtime Type | Est. Downtime | Manpower | Parts (Regular) | Parts (Order) |
+//   Tasks | Specialty Tools | Safety/Quality/Env | Priority Mode | Priority |
+//   Lead Days | Last Completed | Next Due | Status | Submitted By | Created At
 const PM = {
-  PM_ID:          1,   // A — assigned by the Worker (PM-000123)
-  TICKET_NO:      2,   // B — optional link to a triggering repair ticket
-  TIMESTAMP:      3,   // C — stamped by the Worker on submit
-  ACTION:         4,   // D
-  INTERVAL:       5,   // E
-  STATUS:         6,   // F
-  DEPT:           7,   // G
-  BUILDING_ZONE:  8,   // H
-  EQUIP_TYPE:     9,   // I
-  EQUIP_CODE:     10,  // J
-  SPECIFIC_EQUIP: 11,  // K
-  DOWNTIME_TYPE:  12,  // L
-  EST_DOWNTIME:   13,  // M
-  MANPOWER:       14,  // N
-  PRIORITY:       15,  // O
-  DESCRIPTION:    16,  // P
-  SUBMITTED_BY:   17,  // Q — audit: email of the submitter
+  PM_ID:          1,   // A — schedule id, assigned by the Worker (PM-000123)
+  ASSET_CODE:     2,   // B — Asset ID (links to Equipment Register)
+  ASSET_NAME:     3,   // C — asset description
+  DEPT:           4,   // D — department (canonical)
+  TYPE:           5,   // E — Type of PM (Inspection, Lubrication, …)
+  FREQUENCY:      6,   // F — Frequency (Weekly, Monthly, Quarterly, 6-Month, Annual, …)
+  DOWNTIME_TYPE:  7,   // G — Asset | Facility
+  EST_DOWNTIME:   8,   // H — Estimated asset downtime (free text, e.g. "3 h")
+  MANPOWER:       9,   // I — Manpower requirements (free text, e.g. "2 techs")
+  PARTS_REGULAR:  10,  // J — Parts changed regularly (newline-separated list)
+  PARTS_ORDER:    11,  // K — Parts that may need ordering (newline-separated list)
+  TASKS:          12,  // L — Task list + checklist refs (one/line: "text ::: CHK-ref")
+  TOOLS:          13,  // M — Specialty tools (newline-separated list)
+  SAFETY:         14,  // N — Safety/Quality/Environmental procedures (newline list)
+  PRIORITY_MODE:  15,  // O — 'interval' | 'explicit'
+  PRIORITY:       16,  // P — Priority code (LOW/MEDIUM/HIGH/CRITICAL); blank if interval
+  LEAD_DAYS:      17,  // Q — generate the PM ticket this many days before Next Due
+  LAST_COMPLETED: 18,  // R — ISO date of last completion (blank on create)
+  NEXT_DUE:       19,  // S — ISO date the PM is next due (computed on create)
+  STATUS:         20,  // T — Active | Due Soon | Overdue | Snoozed
+  SUBMITTED_BY:   21,  // U — audit: email of the submitter
+  CREATED_AT:     22,  // V — created timestamp
 };
+
+// PM Tickets sheet column order (1-based). Generated PM work orders.
+// Required header row (row 1): PM Ticket # | Schedule ID | Generated | Status |
+//   Assigned To | Due | Created By
+const PMT = {
+  TICKET_NO:  1,   // A — PM-{grp}-{YYMMDD}-{NNN}
+  SCHED_ID:   2,   // B — parent PM Schedule id (PM-000123)
+  DATE:       3,   // C — ISO date generated
+  STATUS:     4,   // D — WAITING | OPEN | COMPLETE
+  ASSIGNED:   5,   // E — technician name (or 'Unassigned')
+  DUE:        6,   // F — ISO due date
+  CREATED_BY: 7,   // G — audit: email of the generator
+};
+
+// List/task cell encoding: one item per line; each task is "text ::: CHK-ref".
+function pmParseList(cell) {
+  return String(cell == null ? '' : cell).split(/\r?\n/).map(x => x.trim()).filter(Boolean);
+}
+function pmJoinList(arr) {
+  return (Array.isArray(arr) ? arr : []).map(x => String(x == null ? '' : x).trim()).filter(Boolean).join('\n');
+}
+function pmParseTasks(cell) {
+  return pmParseList(cell).map(line => {
+    const i = line.indexOf(' ::: ');
+    return i >= 0 ? { t: line.slice(0, i).trim(), ref: line.slice(i + 5).trim() } : { t: line, ref: '' };
+  });
+}
+function pmJoinTasks(arr) {
+  return (Array.isArray(arr) ? arr : []).map(t => {
+    const tt = String((t && t.t) || '').trim();
+    const rf = String((t && t.ref) || '').trim();
+    return rf ? tt + ' ::: ' + rf : tt;
+  }).filter(Boolean).join('\n');
+}
+
+// Advance a date by one PM interval. Returns a new Date.
+function pmAddInterval(date, freq) {
+  const d = new Date(date.getTime());
+  switch (String(freq || '').toLowerCase().trim()) {
+    case 'daily':                        d.setDate(d.getDate() + 1);  break;
+    case 'weekly':                       d.setDate(d.getDate() + 7);  break;
+    case 'bi-weekly': case 'biweekly':   d.setDate(d.getDate() + 14); break;
+    case 'monthly':                      d.setMonth(d.getMonth() + 1); break;
+    case 'quarterly':                    d.setMonth(d.getMonth() + 3); break;
+    case '6-month': case 'semi-annual':  d.setMonth(d.getMonth() + 6); break;
+    case 'annual': case 'yearly':        d.setFullYear(d.getFullYear() + 1); break;
+    default:                             d.setMonth(d.getMonth() + 1); break;
+  }
+  return d;
+}
+function pmIsoDate(d) {
+  if (!d) return '';
+  const y = d.getFullYear(), m = String(d.getMonth() + 1).padStart(2, '0'), day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+// Derive live status from the stored status + dates. A stored 'Snoozed' sticks;
+// everything else is recomputed so Due Soon / Overdue stay fresh without a cron.
+function pmComputeStatus(stored, nextDueIso, leadDays) {
+  if (String(stored || '').toLowerCase() === 'snoozed') return 'Snoozed';
+  if (!nextDueIso) return 'Active';
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  const due = new Date(String(nextDueIso) + 'T00:00:00');
+  if (isNaN(due.getTime())) return 'Active';
+  const days = Math.round((due - today) / 86400000);
+  const lead = Number(leadDays) || 7;
+  if (days < 0) return 'Overdue';
+  if (days <= lead) return 'Due Soon';
+  return 'Active';
+}
 
 // ── Equipment cache column map (mirrors EquipRegistry.gs _EQUIP_COL_MAPPINGS_) ─
 // Used by handleFormData, handleEquipCacheStatus, and handleEquipInventory.
@@ -1763,63 +1845,249 @@ async function generatePmId(token, env, sheetName) {
   return 'PM-' + String(max + 1).padStart(6, '0');
 }
 
-// Append a new preventive-maintenance record to the PM Intake sheet.
-// The frontend sends every user-entered field; PM ID + Timestamp are assigned
-// here so IDs stay unique and gap-free even under concurrent submits.
-async function handlePmIntakeAdd(env, userEmail, body) {
+// Parse one PM Schedules row into the object shape the frontend consumes.
+function pmRowToSchedule(row) {
+  const c = (n) => cellStr(row, n);
+  const priorityMode = (c(PM.PRIORITY_MODE) || 'interval').toLowerCase() === 'explicit' ? 'explicit' : 'interval';
+  const leadDays = parseInt(c(PM.LEAD_DAYS), 10);
+  const nextDue  = c(PM.NEXT_DUE);
+  return {
+    id:            c(PM.PM_ID),
+    asset:         c(PM.ASSET_CODE),
+    assetName:     c(PM.ASSET_NAME),
+    dept:          c(PM.DEPT),
+    type:          c(PM.TYPE),
+    freq:          c(PM.FREQUENCY),
+    downtimeType:  c(PM.DOWNTIME_TYPE),
+    estDowntime:   c(PM.EST_DOWNTIME),
+    manpower:      c(PM.MANPOWER),
+    partsRegular:  pmParseList(c(PM.PARTS_REGULAR)),
+    partsOrder:    pmParseList(c(PM.PARTS_ORDER)),
+    tasks:         pmParseTasks(c(PM.TASKS)),
+    tools:         pmParseList(c(PM.TOOLS)),
+    safety:        pmParseList(c(PM.SAFETY)),
+    priorityMode,
+    priority:      c(PM.PRIORITY),
+    leadDays:      isNaN(leadDays) ? 7 : leadDays,
+    lastCompleted: c(PM.LAST_COMPLETED),
+    nextDue,
+    status:        pmComputeStatus(c(PM.STATUS), nextDue, isNaN(leadDays) ? 7 : leadDays),
+    history:       [],
+  };
+}
+
+// GET /api/pm/schedules → { schedules:[…], tickets:[…] }
+// schedules come from the 'PM Schedules' tab; tickets from the 'PM Tickets' tab.
+// Both tabs are optional — a missing tab yields an empty list rather than an error.
+async function handlePmSchedulesGet(env, userEmail) {
   const token = await getAccessToken(env);
   const user  = await resolveUser(token, env, userEmail);
   if (!user.isManager && !user.isTech) return jsonResponse({ error: 'Access required' }, 403);
 
-  const sheetName = env.PM_INTAKE_SHEET || SH.PM_INTAKE;
+  const schedSheet = env.PM_SCHED_SHEET || SH.PM_SCHED;
+  const tktSheet   = env.PM_TICKETS_SHEET || SH.PM_TICKETS;
+
+  const [schedRows, tktRows] = await Promise.all([
+    readSheet(token, env.SPREADSHEET_ID, schedSheet, 'A2:V').catch(() => []),
+    readSheet(token, env.SPREADSHEET_ID, tktSheet,   'A2:G').catch(() => []),
+  ]);
+
+  const schedules = schedRows
+    .filter(r => cellStr(r, PM.PM_ID))
+    .map(pmRowToSchedule);
+
+  const tickets = tktRows
+    .filter(r => cellStr(r, PMT.TICKET_NO))
+    .map(r => ({
+      ticketNo: cellStr(r, PMT.TICKET_NO),
+      schedId:  cellStr(r, PMT.SCHED_ID),
+      date:     cellStr(r, PMT.DATE),
+      status:   (cellStr(r, PMT.STATUS) || 'WAITING').toUpperCase(),
+      assigned: cellStr(r, PMT.ASSIGNED) || 'Unassigned',
+      due:      cellStr(r, PMT.DUE),
+    }));
+
+  return jsonResponse({ schedules, tickets });
+}
+
+// POST /api/pm/schedules/add — append a new PM schedule definition.
+// The intake form sends every user-entered field; PM ID, Next Due, Status and
+// timestamps are assigned here so IDs stay unique and dates stay authoritative.
+async function handlePmScheduleAdd(env, userEmail, body) {
+  const token = await getAccessToken(env);
+  const user  = await resolveUser(token, env, userEmail);
+  if (!user.isManager && !user.isTech) return jsonResponse({ error: 'Access required' }, 403);
+
+  const sheetName = env.PM_SCHED_SHEET || SH.PM_SCHED;
   const s = (v) => (v != null ? String(v).trim() : '');
 
-  // Required user fields (mirrors the frontend contract; Ticket # is optional).
+  // Required scalar fields (mirrors the intake-form contract).
   const required = {
-    action:        s(body.action),
-    interval:      s(body.interval),
-    status:        s(body.status),
-    priority:      s(body.priority),
-    department:    s(body.department),
-    buildingZone:  s(body.buildingZone),
-    equipType:     s(body.equipType),
-    equipCode:     s(body.equipCode),
-    specificEquip: s(body.specificEquip),
-    downtimeType:  s(body.downtimeType),
-    estDowntime:   s(body.estDowntime),
-    manpower:      s(body.manpower),
-    description:   s(body.description),
+    assetCode:    s(body.assetCode),
+    assetName:    s(body.assetName),
+    department:   normalizeDept(s(body.department)),
+    type:         s(body.type),
+    frequency:    s(body.frequency),
+    downtimeType: s(body.downtimeType),
+    estDowntime:  s(body.estDowntime),
+    manpower:     s(body.manpower),
   };
   const missing = Object.keys(required).filter((k) => !required[k]);
   if (missing.length) return jsonResponse({ error: 'Missing required fields: ' + missing.join(', ') }, 400);
 
-  const now = new Date();
-  const timestamp =
-    fmtDate(now) + ' ' +
-    String(now.getHours()).padStart(2, '0') + ':' + String(now.getMinutes()).padStart(2, '0');
-  const pmId = await generatePmId(token, env, sheetName);
+  const priorityMode = s(body.priorityMode).toLowerCase() === 'explicit' ? 'explicit' : 'interval';
+  const priority     = priorityMode === 'explicit' ? (s(body.priority) || 'MEDIUM') : '';
+  const leadDaysNum  = parseInt(s(body.leadDays), 10);
+  const leadDays     = isNaN(leadDaysNum) || leadDaysNum < 0 ? 7 : leadDaysNum;
 
-  const row = new Array(PM.SUBMITTED_BY).fill('');
+  // Normalize collection fields (accept arrays from the form, or a raw string).
+  const partsRegular = Array.isArray(body.partsRegular) ? pmJoinList(body.partsRegular) : s(body.partsRegular);
+  const partsOrder   = Array.isArray(body.partsOrder)   ? pmJoinList(body.partsOrder)   : s(body.partsOrder);
+  const tools        = Array.isArray(body.tools)        ? pmJoinList(body.tools)        : s(body.tools);
+  const safety       = Array.isArray(body.safety)       ? pmJoinList(body.safety)       : s(body.safety);
+  const tasks        = Array.isArray(body.tasks)        ? pmJoinTasks(body.tasks)       : s(body.tasks);
+
+  const now      = new Date();
+  const nextDue  = pmIsoDate(pmAddInterval(now, required.frequency));
+  const status   = pmComputeStatus('', nextDue, leadDays);
+  const pmId     = await generatePmId(token, env, sheetName);
+  const stamp    = fmtDate(now) + ' ' +
+    String(now.getHours()).padStart(2, '0') + ':' + String(now.getMinutes()).padStart(2, '0');
+
+  const row = new Array(PM.CREATED_AT).fill('');
   row[PM.PM_ID          - 1] = pmId;
-  row[PM.TICKET_NO      - 1] = s(body.ticketNo);
-  row[PM.TIMESTAMP      - 1] = timestamp;
-  row[PM.ACTION         - 1] = required.action;
-  row[PM.INTERVAL       - 1] = required.interval;
-  row[PM.STATUS         - 1] = required.status;
+  row[PM.ASSET_CODE     - 1] = required.assetCode;
+  row[PM.ASSET_NAME     - 1] = required.assetName;
   row[PM.DEPT           - 1] = required.department;
-  row[PM.BUILDING_ZONE  - 1] = required.buildingZone;
-  row[PM.EQUIP_TYPE     - 1] = required.equipType;
-  row[PM.EQUIP_CODE     - 1] = required.equipCode;
-  row[PM.SPECIFIC_EQUIP - 1] = required.specificEquip;
+  row[PM.TYPE           - 1] = required.type;
+  row[PM.FREQUENCY      - 1] = required.frequency;
   row[PM.DOWNTIME_TYPE  - 1] = required.downtimeType;
   row[PM.EST_DOWNTIME   - 1] = required.estDowntime;
   row[PM.MANPOWER       - 1] = required.manpower;
-  row[PM.PRIORITY       - 1] = required.priority;
-  row[PM.DESCRIPTION    - 1] = required.description;
+  row[PM.PARTS_REGULAR  - 1] = partsRegular;
+  row[PM.PARTS_ORDER    - 1] = partsOrder;
+  row[PM.TASKS          - 1] = tasks;
+  row[PM.TOOLS          - 1] = tools;
+  row[PM.SAFETY         - 1] = safety;
+  row[PM.PRIORITY_MODE  - 1] = priorityMode;
+  row[PM.PRIORITY       - 1] = priority;
+  row[PM.LEAD_DAYS      - 1] = leadDays;
+  row[PM.LAST_COMPLETED - 1] = '';
+  row[PM.NEXT_DUE       - 1] = nextDue;
+  row[PM.STATUS         - 1] = status;
   row[PM.SUBMITTED_BY   - 1] = user.email || userEmail || '';
+  row[PM.CREATED_AT     - 1] = stamp;
 
   await appendSheetRow(token, env.SPREADSHEET_ID, sheetName, row);
-  return jsonResponse({ ok: true, pmId, timestamp });
+  return jsonResponse({ ok: true, pmId, timestamp: stamp, nextDue, status });
+}
+
+// Locate a PM schedule's 1-based sheet row by its PM ID. Returns -1 if absent.
+async function pmFindSchedRow(token, env, sheetName, schedId) {
+  return findMonitorRow(token, env.SPREADSHEET_ID, sheetName, schedId, 2);
+}
+
+// POST /api/pm/snooze — defer a schedule one cycle (Status→Snoozed, push Next Due).
+async function handlePmSnooze(env, userEmail, body) {
+  const token = await getAccessToken(env);
+  const user  = await resolveUser(token, env, userEmail);
+  if (!user.isManager) return jsonResponse({ error: 'Manager access required' }, 403);
+
+  const schedId = String(body.schedId || '').trim();
+  if (!schedId) return jsonResponse({ error: 'schedId required' }, 400);
+
+  const sheetName = env.PM_SCHED_SHEET || SH.PM_SCHED;
+  const rowNum = await pmFindSchedRow(token, env, sheetName, schedId);
+  if (rowNum < 0) return jsonResponse({ error: 'Schedule not found: ' + schedId }, 404);
+
+  const rows = await readSheet(token, env.SPREADSHEET_ID, sheetName, `A${rowNum}:V${rowNum}`);
+  const row  = rows[0] || [];
+  const freq = cellStr(row, PM.FREQUENCY);
+  const baseIso = cellStr(row, PM.NEXT_DUE);
+  const base = baseIso ? new Date(baseIso + 'T00:00:00') : new Date();
+  const nextDue = pmIsoDate(pmAddInterval(isNaN(base.getTime()) ? new Date() : base, freq));
+
+  await writeSheetCells(token, env.SPREADSHEET_ID, sheetName, rowNum, [
+    { col: PM.NEXT_DUE, value: nextDue },
+    { col: PM.STATUS,   value: 'Snoozed' },
+  ]);
+  return jsonResponse({ ok: true, schedId, nextDue, status: 'Snoozed' });
+}
+
+// POST /api/pm/schedule/save — persist edited parts lists + task list.
+async function handlePmScheduleSave(env, userEmail, body) {
+  const token = await getAccessToken(env);
+  const user  = await resolveUser(token, env, userEmail);
+  if (!user.isManager) return jsonResponse({ error: 'Manager access required' }, 403);
+
+  const schedId = String(body.schedId || '').trim();
+  if (!schedId) return jsonResponse({ error: 'schedId required' }, 400);
+
+  const sheetName = env.PM_SCHED_SHEET || SH.PM_SCHED;
+  const rowNum = await pmFindSchedRow(token, env, sheetName, schedId);
+  if (rowNum < 0) return jsonResponse({ error: 'Schedule not found: ' + schedId }, 404);
+
+  await writeSheetCells(token, env.SPREADSHEET_ID, sheetName, rowNum, [
+    { col: PM.PARTS_REGULAR, value: pmJoinList(body.partsRegular) },
+    { col: PM.PARTS_ORDER,   value: pmJoinList(body.partsOrder) },
+    { col: PM.TASKS,         value: pmJoinTasks(body.tasks) },
+  ]);
+  return jsonResponse({ ok: true, schedId });
+}
+
+// Next sequential PM ticket number for a schedule's dept group: PM-{grp}-{YYMMDD}-{NNN}.
+async function pmGenerateTicketNo(token, env, tktSheet, grp) {
+  const now = new Date();
+  const yy  = String(now.getFullYear()).slice(2);
+  const mm  = String(now.getMonth() + 1).padStart(2, '0');
+  const dd  = String(now.getDate()).padStart(2, '0');
+  const prefix = `PM-${grp}-${yy}${mm}${dd}-`;
+  const rows = await readSheet(token, env.SPREADSHEET_ID, tktSheet, 'A2:A').catch(() => []);
+  let max = 0;
+  for (const r of rows) {
+    const id = String(r[0] || '').trim();
+    if (id.startsWith(prefix)) {
+      const n = parseInt(id.slice(prefix.length), 10);
+      if (!isNaN(n) && n > max) max = n;
+    }
+  }
+  return prefix + String(max + 1).padStart(3, '0');
+}
+
+// POST /api/pm/generate — create a PM work order from a schedule and log it in
+// the 'PM Tickets' tab so it appears in the Generated PM Tickets view.
+async function handlePmGenerate(env, userEmail, body) {
+  const token = await getAccessToken(env);
+  const user  = await resolveUser(token, env, userEmail);
+  if (!user.isManager) return jsonResponse({ error: 'Manager access required' }, 403);
+
+  const schedId = String(body.schedId || '').trim();
+  if (!schedId) return jsonResponse({ error: 'schedId required' }, 400);
+
+  const schedSheet = env.PM_SCHED_SHEET || SH.PM_SCHED;
+  const rowNum = await pmFindSchedRow(token, env, schedSheet, schedId);
+  if (rowNum < 0) return jsonResponse({ error: 'Schedule not found: ' + schedId }, 404);
+
+  const rows = await readSheet(token, env.SPREADSHEET_ID, schedSheet, `A${rowNum}:V${rowNum}`);
+  const sched = pmRowToSchedule(rows[0] || []);
+  const grp = (sched.asset.split('-')[0] || '000').trim() || '000';
+
+  const tktSheet  = env.PM_TICKETS_SHEET || SH.PM_TICKETS;
+  const ticketNo  = await pmGenerateTicketNo(token, env, tktSheet, grp);
+  const today     = pmIsoDate(new Date());
+  const due       = sched.nextDue || today;
+
+  const tRow = new Array(PMT.CREATED_BY).fill('');
+  tRow[PMT.TICKET_NO  - 1] = ticketNo;
+  tRow[PMT.SCHED_ID   - 1] = schedId;
+  tRow[PMT.DATE       - 1] = today;
+  tRow[PMT.STATUS     - 1] = 'WAITING';
+  tRow[PMT.ASSIGNED   - 1] = 'Unassigned';
+  tRow[PMT.DUE        - 1] = due;
+  tRow[PMT.CREATED_BY - 1] = user.email || userEmail || '';
+
+  await appendSheetRow(token, env.SPREADSHEET_ID, tktSheet, tRow);
+  return jsonResponse({ ok: true, ticketNo, schedId, due });
 }
 
 async function handleAddTicket(env, userEmail, body) {
@@ -3566,7 +3834,12 @@ export default {
       else if (p === '/api/submit/upload-photo'         && method === 'POST')res = await handleUploadPhoto(env, userEmail, body);
       else if (p === '/api/submit/add'                  && method === 'POST')res = await handleAddTicket(env, userEmail, body);
       // Preventive Maintenance
-      else if (p === '/api/pm/intake/add'               && method === 'POST')res = await handlePmIntakeAdd(env, userEmail, body);
+      else if (p === '/api/pm/schedules'                && method === 'GET') res = await handlePmSchedulesGet(env, userEmail);
+      else if (p === '/api/pm/schedules/add'            && method === 'POST')res = await handlePmScheduleAdd(env, userEmail, body);
+      else if (p === '/api/pm/intake/add'               && method === 'POST')res = await handlePmScheduleAdd(env, userEmail, body); // legacy alias
+      else if (p === '/api/pm/snooze'                   && method === 'POST')res = await handlePmSnooze(env, userEmail, body);
+      else if (p === '/api/pm/schedule/save'            && method === 'POST')res = await handlePmScheduleSave(env, userEmail, body);
+      else if (p === '/api/pm/generate'                 && method === 'POST')res = await handlePmGenerate(env, userEmail, body);
       // Ticket actions
       else if (p === '/api/tickets/approve'             && method === 'POST')res = await handleApproveTicket(env, userEmail, body);
       else if (p === '/api/tickets/complete'            && method === 'POST')res = await handleCompleteTicket(env, userEmail, body);
