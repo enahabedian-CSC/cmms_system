@@ -14,7 +14,10 @@ compatibility_date = "2025-01-01"
 #                           e.g. https://your-org.github.io
 #   PHOTO_FOLDER_ID       — Google Drive folder ID for ticket photo uploads
 #                           (share the folder with the service account email)
+#   COST_SPREADSHEET_ID   — David's external "Costs 2024" spreadsheet ID (raw
+#                           labor/material log, one tab per department). Must be
+#                           shared with the service account email as a Viewer.
 #
 # ── Optional vars ─────────────────────────────────────────────────────────────
 [vars]
-APP_VERSION = "3.85"
+APP_VERSION = "3.86"
