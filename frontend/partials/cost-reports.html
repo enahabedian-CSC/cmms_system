@@ -104,41 +104,6 @@ function _crNum_(n) { return Number(n || 0).toLocaleString('en-US', { maximumFra
 function _crLabor_(r)  { return r.hours * _crRate_(r.dept); }
 function _crTotal_(r)  { return _crLabor_(r) + (r.material || 0); }
 
-// Deterministic PRNG (mulberry32) — stable sample data across reloads.
-function _crRng_(seed) {
-  return function() {
-    seed |= 0; seed = (seed + 0x6D2B79F5) | 0;
-    var t = Math.imul(seed ^ (seed >>> 15), 1 | seed);
-    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-  };
-}
-
-// Build ~24 weekly logs (Fridays through 2025) for every department.
-function _crGenerate_() {
-  var recs = [];
-  var id = 0;
-  _CR_DEPTS_.forEach(function(dept, di) {
-    var rnd = _crRng_(20250103 + di * 7919);
-    var d = new Date(2025, 0, 3);
-    for (var w = 0; w < 24; w++) {
-      var iso = _crIso_(d);
-      var lines = dept.perWeek[0] + Math.floor(rnd() * (dept.perWeek[1] - dept.perWeek[0] + 1));
-      for (var i = 0; i < lines; i++) {
-        var ai = Math.floor(rnd() * rnd() * dept.assets.length);   // front-weighted
-        var person = dept.people[Math.floor(rnd() * dept.people.length)];
-        var h = Math.round((0.5 + rnd() * 9.5) * 2) / 2;
-        if (rnd() > 0.9) h = Math.round((10 + rnd() * 26) * 2) / 2;
-        var mat = Math.round(dept.matBand[0] + rnd() * rnd() * (dept.matBand[1] - dept.matBand[0]));
-        recs.push({ id: dept.id + '-' + _crPad_(++id), dept: dept.id, date: iso,
-                    asset: dept.assets[ai], person: person, hours: h, material: mat });
-      }
-      d.setDate(d.getDate() + 7);
-    }
-  });
-  return recs;
-}
-
 // ── localStorage entries (from the data-entry form) ─────────────────────────
 function _crLoadLocal_() {
   try {
@@ -161,20 +126,40 @@ function _crAddEntry_(rec) {
 }
 
 // ── Init / mount ────────────────────────────────────────────────────────────
-function _crEnsureData_() {
-  if (_crData_) return;
-  _crData_ = _crGenerate_();
-  var local = _crLoadLocal_();
-  if (local.length) _crData_ = _crData_.concat(local);
-  var dates = _crData_.map(function(r) { return r.date; }).sort();
-  _crStart_ = dates[0];
-  _crEnd_   = dates[dates.length - 1];
-}
+// _crConfiguredDepts_ tracks which departments the Worker actually has a real
+// tab wired for (see COST_DEPTS in worker.js) — everything else shows an
+// explicit "not wired yet" state rather than any fake/sample numbers.
+var _crConfiguredDepts_ = [];
+
 // Entry point called by the Reports page when the Cost family is selected.
+// Fetches real records from the 'Costs 2024' spreadsheet via the Worker on
+// first load; re-renders from the cached _crData_ on subsequent switches.
 function _crRenderInto_(host) {
   _crRoot_ = host;
-  _crEnsureData_();
-  _crRenderBody_();
+  if (_crData_) { _crRenderBody_(); return; }
+
+  host.innerHTML = '<div class="loading-overlay"><div class="spinner"></div><span>Loading cost data…</span></div>';
+  fetch(WORKER_URL + '/api/reports/cost-data', {
+    headers: { 'X-User-Email': USER ? USER.email : '' }
+  })
+    .then(function(r) { return r.json(); })
+    .then(function(res) {
+      if (!res || res.error) {
+        host.innerHTML = '<div class="cr-empty">Error loading cost data: ' + esc((res && res.error) || 'Unknown error') + '</div>';
+        return;
+      }
+      _crData_ = res.records || [];
+      var local = _crLoadLocal_();
+      if (local.length) _crData_ = _crData_.concat(local);
+      _crConfiguredDepts_ = res.depts || [];
+      var dates = _crData_.map(function(r) { return r.date; }).sort();
+      _crStart_ = dates[0] || null;
+      _crEnd_   = dates[dates.length - 1] || null;
+      _crRenderBody_();
+    })
+    .catch(function(err) {
+      host.innerHTML = '<div class="cr-empty">Error loading cost data: ' + esc(err.message || String(err)) + '</div>';
+    });
 }
 function _crShowView_(v) { _crView_ = v; _crPage_ = 1; _crRenderBody_(); }
 
@@ -295,8 +280,10 @@ function _crControlsHtml_() {
 function _crRenderBody_() {
   if (!_crRoot_) return;
   var body = _crView_ === 'overview' ? _crOverviewHtml_() : _crDeptHtml_(_crView_);
+  var wiredLabel = _crConfiguredDepts_.map(function(id) { var d = _crDept_(id); return d ? d.label : id; }).join(', ') || 'none yet';
   _crRoot_.innerHTML = _crControlsHtml_() +
-    '<div class="cr-local-note">Sample data for visualization. New entries you add are saved in this browser and will sync to the database once the live connection is enabled.</div>' +
+    '<div class="cr-local-note">Live data from David\'s Costs 2024 spreadsheet — wired departments: ' + esc(wiredLabel) +
+    '. Other departments will show real numbers once their tabs are confirmed. Entries you add via "Add Cost Entry" are saved in this browser only, for now.</div>' +
     body;
 }
 
@@ -379,6 +366,9 @@ function _crShowViewSync_(id) {
 // ── Department view ──────────────────────────────────────────────────────────
 function _crDeptHtml_(deptId) {
   var dept = _crDept_(deptId);
+  if (_crConfiguredDepts_.indexOf(deptId) < 0) {
+    return '<div class="rpt-table-wrap"><div class="cr-empty">' + esc(dept.label) + ' is not wired to a live data source yet.</div></div>';
+  }
   var rows = _crFiltered_(deptId);
   if (!rows.length) return '<div class="rpt-table-wrap"><div class="cr-empty">No ' + esc(dept.label) + ' records in the selected date range.</div></div>';
 
@@ -397,7 +387,9 @@ function _crDeptHtml_(deptId) {
   '</div>';
 
   var costPerAsset = byAsset.slice(0, 10).map(function(g) { return { label: g.key, value: g.value, disp: _crMoney_(g.value) }; });
-  var hoursByPerson = _crGroup_(rows, function(r) { return r.person; }, function(r) { return r.hours; })
+  // Material-only rows (person: '', hours: 0) don't belong in a per-person labor chart.
+  var laborRows = rows.filter(function(r) { return r.hours > 0; });
+  var hoursByPerson = _crGroup_(laborRows, function(r) { return r.person; }, function(r) { return r.hours; })
     .map(function(g) { return { label: g.key, value: g.hours, disp: _crNum_(g.hours) + ' h' }; });
 
   var charts = '<div class="cr-charts">' +
