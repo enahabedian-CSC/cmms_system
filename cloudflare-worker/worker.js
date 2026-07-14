@@ -3267,6 +3267,126 @@ async function handleDowntimeCompare(env, userEmail, params) {
   return jsonResponse({ periodA: buildPeriod(startA, endA), periodB: buildPeriod(startB, endB) });
 }
 
+// ── Cost Reports — external "Costs 2024" spreadsheet (owned by David, dchoye@cscmfg.com) ──
+// One tab per department; each tab has Date | Job#/Asset | Hours | Name in columns
+// A–D, and some tabs (confirmed: Injection Mold) also carry a Material Cost column.
+// Override the spreadsheet id at runtime with the COST_SPREADSHEET_ID env var.
+//
+// Only 'machine-shop' is confirmed/wired so far. To add another department: read
+// its tab, confirm the column letters, and add an entry below — MATERIAL_COL: null
+// means the tab has no material-cost column (labor-only, like Machine Shop).
+const COST_DEPTS = {
+  'machine-shop': { tab: 'Machine Shop', label: 'Machine Shop', rate: 28.39,
+    DATE_COL: 1, ASSET_COL: 2, HOURS_COL: 3, NAME_COL: 4, MATERIAL_COL: null },
+  // 'plastic-mfg':    { tab: '???', label: 'Plastic Mfg',       rate: 24.50, DATE_COL:1, ASSET_COL:2, HOURS_COL:3, NAME_COL:4, MATERIAL_COL: null }, // TODO confirm tab name + columns
+  // 'injection-mold': { tab: '???', label: 'Injection Mold',    rate: 32.00, DATE_COL:1, ASSET_COL:2, HOURS_COL:3, NAME_COL:4, MATERIAL_COL: 5 },    // TODO confirm tab name (material cost is col E)
+  // 'plant-maint':    { tab: '???', label: 'Plant Maintenance', rate: 26.75, DATE_COL:1, ASSET_COL:2, HOURS_COL:3, NAME_COL:4, MATERIAL_COL: null }, // TODO confirm tab name + columns
+  // 'forklift':       { tab: '???', label: 'Forklift',          rate: 22.00, DATE_COL:1, ASSET_COL:2, HOURS_COL:3, NAME_COL:4, MATERIAL_COL: null }, // TODO confirm tab name + columns
+  // 'csc-building':   { tab: '???', label: 'CSC Building',      rate: 25.00, DATE_COL:1, ASSET_COL:2, HOURS_COL:3, NAME_COL:4, MATERIAL_COL: null }, // TODO confirm tab name + columns
+};
+
+// Normalizes messy hand-entered job/asset numbers per the handwritten notes in
+// the 'Costs 2024' sheet: '-' is used as a decimal separator like '.', and a
+// trailing 'B' means '.2' (e.g. '500-1' -> '500.1', '916B' -> '916.2').
+function costNormalizeAssetId(raw) {
+  let s = String(raw == null ? '' : raw).trim();
+  if (!s) return s;
+  s = s.replace(/-/g, '.');
+  if (/b$/i.test(s)) s = s.replace(/b$/i, '') + '.2';
+  return s;
+}
+
+// 'Data Material' tab — a single shared material-cost log for ALL departments
+// (not one tab per dept like labor). Columns A–F: Date | Job | Acct | Dept |
+// Combined | Amount. Each row is attributed to a department via its Dept code
+// (col D) against the Dept legend tab (COST_DEPT_CODE_MAP below) — Dept is
+// reliably populated on every row, so no Job-legend fallback is needed.
+const COST_MATERIAL_TAB = 'Data Material';
+const COST_MATERIAL_COLS = { DATE: 1, JOB: 2, ACCT: 3, DEPT: 4, COMBINED: 5, AMOUNT: 6 };
+
+// Dept legend tab (code -> department), from the 'Dept' tab in Costs 2024.
+// Only codes with a confirmed match to a COST_DEPTS entry are mapped here —
+// the rest (Metal, Litho, Plastic Deco, QA, S/R, Sales, G&A) have no Cost
+// Reports department to attribute to yet, so their material rows are skipped.
+const COST_DEPT_CODE_MAP = {
+  '008': 'machine-shop', // M/S
+  // '001': ?,  // Metal
+  // '003': ?,  // Plastic
+  // '004': ?,  // Litho
+  // '006': ?,  // Plastic Deco
+  // '007': ?,  // QA
+  // '009': ?,  // S/R
+  // '030': ?,  // Sales
+  // '031': ?,  // G&A
+};
+
+// GET /api/reports/cost-data — reads every configured department's labor tab
+// plus the shared material tab from the external Costs spreadsheet, and
+// returns unified records for cost-reports.html: { id, dept, date, asset,
+// person, hours, material }. Unconfigured departments are simply absent (the
+// frontend shows an empty state, never fake data).
+async function handleCostData(env, userEmail) {
+  const token = await getAccessToken(env);
+  const user  = await resolveUser(token, env, userEmail);
+  if (!user.isManager) return jsonResponse({ error: 'Manager access required' }, 403);
+
+  const costSheetId = env.COST_SPREADSHEET_ID;
+  if (!costSheetId) return jsonResponse({ error: 'COST_SPREADSHEET_ID not configured' }, 500);
+
+  const records = [];
+
+  // Labor rows — one tab per department.
+  for (const [deptId, cfg] of Object.entries(COST_DEPTS)) {
+    let rows;
+    try {
+      rows = await readSheet(token, costSheetId, cfg.tab, 'A2:Z');
+    } catch (_) {
+      continue; // tab missing/renamed — skip rather than fail the whole report
+    }
+    rows.forEach((r, i) => {
+      const dateRaw = r[cfg.DATE_COL - 1];
+      const hours   = parseFloat(r[cfg.HOURS_COL - 1]);
+      if (!dateRaw || !hours) return;
+      const d = cellDate(r, cfg.DATE_COL);
+      records.push({
+        id:       deptId + '-labor-' + (i + 2),
+        dept:     deptId,
+        date:     pmIsoDate(d),
+        asset:    costNormalizeAssetId(r[cfg.ASSET_COL - 1]),
+        person:   String(r[cfg.NAME_COL - 1] || '').trim(),
+        hours,
+        material: cfg.MATERIAL_COL ? (parseFloat(r[cfg.MATERIAL_COL - 1]) || 0) : 0,
+      });
+    });
+  }
+
+  // Material rows — one shared tab, attributed to a department via Dept code.
+  // Each becomes its own material-only record (hours: 0) so it adds to that
+  // department's material total without needing a matching labor row.
+  try {
+    const matRows = await readSheet(token, costSheetId, COST_MATERIAL_TAB, 'A2:F');
+    matRows.forEach((r, i) => {
+      const deptCode = String(r[COST_MATERIAL_COLS.DEPT - 1] || '').trim().padStart(3, '0');
+      const deptId   = COST_DEPT_CODE_MAP[deptCode];
+      const amount   = parseFloat(r[COST_MATERIAL_COLS.AMOUNT - 1]);
+      const dateRaw  = r[COST_MATERIAL_COLS.DATE - 1];
+      if (!deptId || !dateRaw || !amount) return;
+      const d = cellDate(r, COST_MATERIAL_COLS.DATE);
+      records.push({
+        id:       deptId + '-material-' + (i + 2),
+        dept:     deptId,
+        date:     pmIsoDate(d),
+        asset:    costNormalizeAssetId(r[COST_MATERIAL_COLS.JOB - 1]),
+        person:   '',
+        hours:    0,
+        material: amount,
+      });
+    });
+  } catch (_) { /* material tab missing/renamed — labor data still returns */ }
+
+  return jsonResponse({ records, depts: Object.keys(COST_DEPTS) });
+}
+
 async function handleEMRLData(env, userEmail, params) {
   const token = await getAccessToken(env);
   const user  = await resolveUser(token, env, userEmail);
@@ -4023,6 +4143,7 @@ export default {
       else if (p === '/api/reports/active-tickets'       && method === 'GET') res = await handleActiveTickets(env, userEmail);
       else if (p === '/api/reports/emrl'                && method === 'GET') res = await handleEMRLData(env, userEmail, Object.fromEntries(url.searchParams));
       else if (p === '/api/reports/downtime-compare'    && method === 'GET') res = await handleDowntimeCompare(env, userEmail, Object.fromEntries(url.searchParams));
+      else if (p === '/api/reports/cost-data'           && method === 'GET') res = await handleCostData(env, userEmail);
       // Bug / Feature Request intake
       else if (p === '/api/feedback/submit'             && method === 'POST')res = await handleFeedbackSubmit(env, userEmail, body);
       // Admin
