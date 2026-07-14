@@ -83,6 +83,7 @@ const SH = {
   OPEN:           '📂 Open Tickets',
   PM_SCHED:       'PM Schedules',   // preventive-maintenance schedule definitions
   PM_TICKETS:     'PM Tickets',     // generated PM work orders (tracking)
+  FEEDBACK:       'Feedback Log',   // bug reports + feature requests from the intake button
 };
 
 // ── Preventive Maintenance ─────────────────────────────────────────────────────
@@ -187,6 +188,69 @@ function pmComputeStatus(stored, nextDueIso, leadDays) {
   if (days < 0) return 'Overdue';
   if (days <= lead) return 'Due Soon';
   return 'Active';
+}
+
+// ── Bug / Feature Request intake ──────────────────────────────────────────────
+// 'Feedback Log' sheet column order (1-based). Override the tab name at runtime
+// with the FEEDBACK_SHEET env var.
+//
+// Required header row (row 1), A→H:
+//   Report ID | Timestamp | Type | Area | Subject | Description | Submitted By | Status
+const FB = {
+  ID:            1,  // A — FB-000001
+  TIMESTAMP:     2,  // B — "MM/dd/yyyy HH:mm:ss"
+  TYPE:          3,  // C — BUG | FEATURE
+  AREA:          4,  // D — app page/section the report is about (nav label)
+  SUBJECT:       5,  // E — standardized: "BUG FIX -> CMMS: {area}" / "FEATURE REQUEST -> CMMS: {area}"
+  DESCRIPTION:   6,  // F — free text from the reporter
+  SUBMITTED_BY:  7,  // G — audit: email of the submitter
+  STATUS:        8,  // H — NEW | IN PROGRESS | DONE (manual triage for now)
+};
+
+async function generateFeedbackId(token, env, sheetName) {
+  const rows = await readSheet(token, env.SPREADSHEET_ID, sheetName, 'A2:A');
+  let max = 0;
+  for (const r of rows) {
+    const id = String(r[0] || '').trim();
+    const m = id.match(/^FB-0*(\d+)$/i);
+    if (m) { const n = parseInt(m[1], 10); if (!isNaN(n) && n > max) max = n; }
+  }
+  return 'FB-' + String(max + 1).padStart(6, '0');
+}
+
+// POST /api/feedback/submit — bug report or feature request from the intake button.
+// Any authenticated user may submit; no manager/tech gate (matches ticket-creation intent).
+async function handleFeedbackSubmit(env, userEmail, body) {
+  const token = await getAccessToken(env);
+  const user  = await resolveUser(token, env, userEmail);
+  if (!user.email) return jsonResponse({ error: 'Access required' }, 403);
+
+  const s = (v) => (v != null ? String(v).trim() : '');
+  const type        = s(body.type).toUpperCase() === 'FEATURE' ? 'FEATURE' : 'BUG';
+  const area        = s(body.area) || 'Other';
+  const description = s(body.description);
+  if (!description) return jsonResponse({ error: 'Description required' }, 400);
+
+  const sheetName = env.FEEDBACK_SHEET || SH.FEEDBACK;
+  const subject   = (type === 'FEATURE' ? 'FEATURE REQUEST -> CMMS' : 'BUG FIX -> CMMS') + ': ' + area;
+  const now       = new Date();
+  const stamp     = fmtDate(now) + ' ' +
+    String(now.getHours()).padStart(2, '0') + ':' + String(now.getMinutes()).padStart(2, '0') + ':' +
+    String(now.getSeconds()).padStart(2, '0');
+  const id = await generateFeedbackId(token, env, sheetName);
+
+  const row = new Array(FB.STATUS).fill('');
+  row[FB.ID           - 1] = id;
+  row[FB.TIMESTAMP    - 1] = stamp;
+  row[FB.TYPE         - 1] = type;
+  row[FB.AREA         - 1] = area;
+  row[FB.SUBJECT      - 1] = subject;
+  row[FB.DESCRIPTION  - 1] = description;
+  row[FB.SUBMITTED_BY - 1] = user.email;
+  row[FB.STATUS       - 1] = 'NEW';
+
+  await appendSheetRow(token, env.SPREADSHEET_ID, sheetName, row);
+  return jsonResponse({ ok: true, id, timestamp: stamp, subject });
 }
 
 // ── Equipment cache column map (mirrors EquipRegistry.gs _EQUIP_COL_MAPPINGS_) ─
@@ -3861,6 +3925,8 @@ export default {
       else if (p === '/api/reports/data'                && method === 'GET') res = await handleReportData(env, userEmail, parseInt(url.searchParams.get('daysBack') || '30', 10));
       else if (p === '/api/reports/active-tickets'       && method === 'GET') res = await handleActiveTickets(env, userEmail);
       else if (p === '/api/reports/emrl'                && method === 'GET') res = await handleEMRLData(env, userEmail, Object.fromEntries(url.searchParams));
+      // Bug / Feature Request intake
+      else if (p === '/api/feedback/submit'             && method === 'POST')res = await handleFeedbackSubmit(env, userEmail, body);
       // Admin
       else if (p === '/api/admin/tech-dir'               && method === 'POST')res = await handleAdminTechDir(env, userEmail, body);
       else if (p === '/api/admin/dept-aliases'           && method === 'POST')res = await handleAdminDeptAliases(env, userEmail, body);
