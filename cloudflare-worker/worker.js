@@ -512,11 +512,30 @@ async function resolveUser(token, env, userEmail) {
     } catch (_) { /* sheet unavailable — isTech stays false */ }
   }
 
-  return { email, isAdmin, isManager, ownedDepts, displayDepts, displayName, announcement, isTech, techDept, techManager };
+  // PM full-visibility departments: managers whose owned depts include one of
+  // these see every department's PM schedules, not just their own. Config-driven
+  // via 'PM Full Visibility Depts' (comma-separated); defaults to Electrical +
+  // Machine Shop per Michael's rule (2026-07-14 SQF follow-up).
+  const pmFullVisDepts = String(config['PM Full Visibility Depts'] || 'ELECTRICAL,MACHINE SHOP')
+    .split(',').map(d => normalizeDept(d.trim())).filter(Boolean);
+  const pmFullVisibility = isAdmin || (isManager && ownedDepts.some(d => pmFullVisDepts.includes(d)));
+
+  return { email, isAdmin, isManager, ownedDepts, displayDepts, displayName, announcement, isTech, techDept, techManager, pmFullVisibility };
 }
 
 function allowed(user, dept) {
   return user.isAdmin || user.ownedDepts.includes(dept.toUpperCase().trim());
+}
+
+// PM-specific access check — respects pmFullVisibility (Electrical / Machine
+// Shop managers, or Admin) in addition to the caller's own owned dept(s).
+function pmCanAccessDept(user, dept) {
+  if (user.pmFullVisibility) return true;
+  const d = normalizeDept(dept);
+  const viewDepts = (user.ownedDepts && user.ownedDepts.length)
+    ? user.ownedDepts
+    : String(user.techDept || '').split(',').map(x => normalizeDept(x.trim())).filter(Boolean);
+  return viewDepts.includes(d);
 }
 
 // ── Handlers ──────────────────────────────────────────────────────────────────
@@ -586,9 +605,14 @@ async function handleMe(env, userEmail) {
   const initials = displayName.trim().split(/\s+/)
     .map(w => w[0] || '').join('').substring(0, 2).toUpperCase() || '?';
 
+  // Mirrors the same rule in resolveUser() — see that function for the full note.
+  const pmFullVisDepts = String(config['PM Full Visibility Depts'] || 'ELECTRICAL,MACHINE SHOP')
+    .split(',').map(d => normalizeDept(d.trim())).filter(Boolean);
+  const pmFullVisibility = isAdmin || ((isManager || isAdmin) && ownedDepts.some(d => pmFullVisDepts.includes(d)));
+
   const user = { email, displayName, initials, role,
                  isAdmin, isManager: isManager || isAdmin, ownedDepts, displayDepts, teamEmails,
-                 announcement, techDept, techManager };
+                 announcement, techDept, techManager, pmFullVisibility };
 
   // Replicate getDocControlMap_() from Config.gs
   function pick(noKey, revKey, dateKey, dNo, dRev, dDate) {
@@ -1653,6 +1677,8 @@ async function handleEquipTicketHistory(env, userEmail, equipCode) {
     problemType: cellStr(r, ML.PROBLEM_TYPE),
     estHours:    r[ML.EST_HOURS    - 1] || '',
     actualHours: r[ML.ACTUAL_HOURS - 1] || '',
+    downtimeType:     cellStr(r, ML.DOWNTIME_TYPE).toUpperCase(),
+    downtimeDuration: r[ML.DOWNTIME_DURATION - 1] || '',
   }));
 
   result.sort((a, b) => (b.dateOpened || '').localeCompare(a.dateOpened || ''));
@@ -1956,9 +1982,15 @@ async function handlePmSchedulesGet(env, userEmail) {
     readSheet(token, env.SPREADSHEET_ID, tktSheet,   'A2:G').catch(() => []),
   ]);
 
-  const schedules = schedRows
+  let schedules = schedRows
     .filter(r => cellStr(r, PM.PM_ID))
     .map(pmRowToSchedule);
+
+  // Scope to the caller's own department(s) unless they hold PM full visibility
+  // (Admin, or a manager in a PM_FULL_VISIBILITY dept — see resolveUser()).
+  schedules = schedules.filter(s => pmCanAccessDept(user, s.dept));
+
+  const visibleIds = new Set(schedules.map(s => s.id));
 
   const tickets = tktRows
     .filter(r => cellStr(r, PMT.TICKET_NO))
@@ -1969,7 +2001,8 @@ async function handlePmSchedulesGet(env, userEmail) {
       status:   (cellStr(r, PMT.STATUS) || 'WAITING').toUpperCase(),
       assigned: cellStr(r, PMT.ASSIGNED) || 'Unassigned',
       due:      cellStr(r, PMT.DUE),
-    }));
+    }))
+    .filter(t => visibleIds.has(t.schedId));
 
   return jsonResponse({ schedules, tickets });
 }
@@ -2066,6 +2099,7 @@ async function handlePmSnooze(env, userEmail, body) {
 
   const rows = await readSheet(token, env.SPREADSHEET_ID, sheetName, `A${rowNum}:V${rowNum}`);
   const row  = rows[0] || [];
+  if (!pmCanAccessDept(user, cellStr(row, PM.DEPT))) return jsonResponse({ error: 'Not authorized for this department' }, 403);
   const freq = cellStr(row, PM.FREQUENCY);
   const baseIso = cellStr(row, PM.NEXT_DUE);
   const base = baseIso ? new Date(baseIso + 'T00:00:00') : new Date();
@@ -2090,6 +2124,9 @@ async function handlePmScheduleSave(env, userEmail, body) {
   const sheetName = env.PM_SCHED_SHEET || SH.PM_SCHED;
   const rowNum = await pmFindSchedRow(token, env, sheetName, schedId);
   if (rowNum < 0) return jsonResponse({ error: 'Schedule not found: ' + schedId }, 404);
+
+  const deptRow = await readSheet(token, env.SPREADSHEET_ID, sheetName, `A${rowNum}:V${rowNum}`);
+  if (!pmCanAccessDept(user, cellStr(deptRow[0] || [], PM.DEPT))) return jsonResponse({ error: 'Not authorized for this department' }, 403);
 
   await writeSheetCells(token, env.SPREADSHEET_ID, sheetName, rowNum, [
     { col: PM.PARTS_REGULAR, value: pmJoinList(body.partsRegular) },
@@ -2134,6 +2171,7 @@ async function handlePmGenerate(env, userEmail, body) {
 
   const rows = await readSheet(token, env.SPREADSHEET_ID, schedSheet, `A${rowNum}:V${rowNum}`);
   const sched = pmRowToSchedule(rows[0] || []);
+  if (!pmCanAccessDept(user, sched.dept)) return jsonResponse({ error: 'Not authorized for this department' }, 403);
   const grp = (sched.asset.split('-')[0] || '000').trim() || '000';
 
   const tktSheet  = env.PM_TICKETS_SHEET || SH.PM_TICKETS;
@@ -3170,6 +3208,65 @@ async function handleReportData(env, userEmail, daysBack) {
   });
 }
 
+// GET /api/reports/downtime-compare?startA=YYYY-MM-DD&endA=YYYY-MM-DD&startB=YYYY-MM-DD&endB=YYYY-MM-DD
+// Compares total downtime between two arbitrary date ranges (e.g. January vs June),
+// bucketed by DATE_OPENED, summing the DOWNTIME_DURATION column (minutes).
+async function handleDowntimeCompare(env, userEmail, params) {
+  const token = await getAccessToken(env);
+  const user  = await resolveUser(token, env, userEmail);
+  if (!user.isManager) return jsonResponse({ error: 'Manager access required' }, 403);
+
+  const parseRangeDate = (s, endOfDay) => {
+    if (!s) return null;
+    const d = new Date(String(s) + (endOfDay ? 'T23:59:59' : 'T00:00:00'));
+    return isNaN(d.getTime()) ? null : d;
+  };
+  const startA = parseRangeDate(params.startA, false);
+  const endA   = parseRangeDate(params.endA,   true);
+  const startB = parseRangeDate(params.startB, false);
+  const endB   = parseRangeDate(params.endB,   true);
+  if (!startA || !endA || !startB || !endB) {
+    return jsonResponse({ error: 'startA, endA, startB, endB are all required (YYYY-MM-DD)' }, 400);
+  }
+
+  const mlRows = await readSheet(token, env.SPREADSHEET_ID, SH.MASTER_LOG, 'A2:AQ');
+  const byTicket = {};
+  mlRows.forEach(r => {
+    const tn = cellStr(r, ML.TICKET_NO);
+    if (!tn) return;
+    if (!byTicket[tn]) { byTicket[tn] = r.slice(); return; }
+    r.forEach((v, i) => { if (v != null && v !== '') byTicket[tn][i] = v; });
+  });
+
+  function buildPeriod(start, end) {
+    let totalMinutes = 0, plannedMinutes = 0, unplannedMinutes = 0, ticketCount = 0;
+    const byDeptMinutes = {};
+    Object.values(byTicket).forEach(r => {
+      const doDate = cellDate(r, ML.DATE_OPENED);
+      if (!doDate || doDate < start || doDate > end) return;
+      const mins = parseFloat(r[ML.DOWNTIME_DURATION - 1]) || 0;
+      if (!mins) return;
+      const dept = normalizeDept(cellStr(r, ML.DEPT));
+      ticketCount++;
+      totalMinutes += mins;
+      if (cellStr(r, ML.DOWNTIME_TYPE).toUpperCase() === 'PLANNED') plannedMinutes += mins;
+      else unplannedMinutes += mins;
+      byDeptMinutes[dept] = (byDeptMinutes[dept] || 0) + mins;
+    });
+    return {
+      totalHours:     +(totalMinutes / 60).toFixed(1),
+      plannedHours:   +(plannedMinutes / 60).toFixed(1),
+      unplannedHours: +(unplannedMinutes / 60).toFixed(1),
+      ticketCount,
+      byDept: Object.entries(byDeptMinutes)
+        .map(([dept, minutes]) => ({ dept, hours: +(minutes / 60).toFixed(1) }))
+        .sort((a, b) => b.hours - a.hours),
+    };
+  }
+
+  return jsonResponse({ periodA: buildPeriod(startA, endA), periodB: buildPeriod(startB, endB) });
+}
+
 async function handleEMRLData(env, userEmail, params) {
   const token = await getAccessToken(env);
   const user  = await resolveUser(token, env, userEmail);
@@ -3925,6 +4022,7 @@ export default {
       else if (p === '/api/reports/data'                && method === 'GET') res = await handleReportData(env, userEmail, parseInt(url.searchParams.get('daysBack') || '30', 10));
       else if (p === '/api/reports/active-tickets'       && method === 'GET') res = await handleActiveTickets(env, userEmail);
       else if (p === '/api/reports/emrl'                && method === 'GET') res = await handleEMRLData(env, userEmail, Object.fromEntries(url.searchParams));
+      else if (p === '/api/reports/downtime-compare'    && method === 'GET') res = await handleDowntimeCompare(env, userEmail, Object.fromEntries(url.searchParams));
       // Bug / Feature Request intake
       else if (p === '/api/feedback/submit'             && method === 'POST')res = await handleFeedbackSubmit(env, userEmail, body);
       // Admin

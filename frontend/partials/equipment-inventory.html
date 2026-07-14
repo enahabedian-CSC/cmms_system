@@ -246,6 +246,17 @@ function _eiCloseDetail_() {
 function _eiRenderDetail_(e, hist) {
   var openTickets  = e.openTickets  || 0;
   var totalTickets = e.totalTickets || 0;
+
+  // Downtime roll-up from ticket history — Downtime Duration is stored in minutes.
+  var totalDowntimeMin = 0, unplannedDowntimeMin = 0;
+  hist.forEach(function(h) {
+    var mins = parseFloat(h.downtimeDuration) || 0;
+    totalDowntimeMin += mins;
+    if (String(h.downtimeType).toUpperCase() === 'UNPLANNED') unplannedDowntimeMin += mins;
+  });
+  var totalDowntimeH     = (totalDowntimeMin / 60).toFixed(1);
+  var unplannedDowntimeH = (unplannedDowntimeMin / 60).toFixed(1);
+
   var kpis =
     '<div class="ei-detail-kpi-grid">' +
       _eiDKpi_('All-time Tickets', totalTickets, 'total work orders')  +
@@ -253,6 +264,8 @@ function _eiRenderDetail_(e, hist) {
       _eiDKpi_('Avg Close Time',   e.avgCloseDays != null ? e.avgCloseDays + 'd' : '—', 'mean days to close') +
       _eiDKpi_('MTBF',             e.mtbf         != null ? e.mtbf + 'd'  : '—', 'mean time between failures') +
       _eiDKpi_('MTTR',             e.mttr         != null ? e.mttr + 'h'  : '—', 'mean actual repair hours') +
+      _eiDKpi_('Total Downtime',   totalDowntimeMin > 0 ? totalDowntimeH + 'h' : '—', 'all recorded downtime') +
+      _eiDKpi_('Unplanned Downtime', unplannedDowntimeMin > 0 ? unplannedDowntimeH + 'h' : '—', 'unplanned only', unplannedDowntimeMin > 0 ? 'warn' : 'good') +
       _eiDKpi_('Last Ticket',      e.lastTicketDate || '—', '') +
     '</div>';
 
