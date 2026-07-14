@@ -3272,17 +3272,33 @@ async function handleDowntimeCompare(env, userEmail, params) {
 // A–D, and some tabs (confirmed: Injection Mold) also carry a Material Cost column.
 // Override the spreadsheet id at runtime with the COST_SPREADSHEET_ID env var.
 //
-// Only 'machine-shop' is confirmed/wired so far. To add another department: read
-// its tab, confirm the column letters, and add an entry below — MATERIAL_COL: null
-// means the tab has no material-cost column (labor-only, like Machine Shop).
+// Two tab shapes exist in Costs 2024:
+//  - 'transactional': one row per labor entry (Date | Job# | Hours | Name).
+//    Only Machine Shop Hours is this shape — rate is a flat $/hr, labor cost
+//    is computed as hours * rate.
+//  - 'summary': one row per machine/job, already aggregated — no Date, no
+//    Name. HOURS_COL is Total Hours; LABOR_COL is the sheet's own pre-computed
+//    labor dollar figure for that row (its "Hourly Cost" column — despite the
+//    name, this is a $ amount, not a $/hr rate) so it's used directly instead
+//    of being recomputed from hours * rate. Plastic, Injection Mold, Plant
+//    Maintenance, Forklift, and CSC Building are all this shape (confirmed by
+//    Michael 2026-07-14). Plant Maintenance has no per-asset column at all —
+//    Dept (col A) is the closest identifier. Injection Mold's col G "Outside
+//    Work Cost" is folded into MATERIAL_COL below since the frontend only has
+//    a 2-bucket (labor/material) cost model, not a 3rd category.
 const COST_DEPTS = {
-  'machine-shop': { tab: 'Machine Shop', label: 'Machine Shop', rate: 28.39,
+  'machine-shop':   { shape: 'transactional', tab: 'Machine Shop Hours', label: 'Machine Shop', rate: 28.39,
     DATE_COL: 1, ASSET_COL: 2, HOURS_COL: 3, NAME_COL: 4, MATERIAL_COL: null },
-  // 'plastic-mfg':    { tab: '???', label: 'Plastic Mfg',       rate: 24.50, DATE_COL:1, ASSET_COL:2, HOURS_COL:3, NAME_COL:4, MATERIAL_COL: null }, // TODO confirm tab name + columns
-  // 'injection-mold': { tab: '???', label: 'Injection Mold',    rate: 32.00, DATE_COL:1, ASSET_COL:2, HOURS_COL:3, NAME_COL:4, MATERIAL_COL: 5 },    // TODO confirm tab name (material cost is col E)
-  // 'plant-maint':    { tab: '???', label: 'Plant Maintenance', rate: 26.75, DATE_COL:1, ASSET_COL:2, HOURS_COL:3, NAME_COL:4, MATERIAL_COL: null }, // TODO confirm tab name + columns
-  // 'forklift':       { tab: '???', label: 'Forklift',          rate: 22.00, DATE_COL:1, ASSET_COL:2, HOURS_COL:3, NAME_COL:4, MATERIAL_COL: null }, // TODO confirm tab name + columns
-  // 'csc-building':   { tab: '???', label: 'CSC Building',      rate: 25.00, DATE_COL:1, ASSET_COL:2, HOURS_COL:3, NAME_COL:4, MATERIAL_COL: null }, // TODO confirm tab name + columns
+  'plastic-mfg':    { shape: 'summary', tab: 'Plastic Mfg Costs', label: 'Plastic Mfg',
+    ASSET_COL: 1, HOURS_COL: 2, LABOR_COL: 3, MATERIAL_COL: 4 },
+  'injection-mold': { shape: 'summary', tab: 'Injection Mold', label: 'Injection Mold',
+    ASSET_COL: 1, HOURS_COL: 3, LABOR_COL: 4, MATERIAL_COL: 5, EXTRA_COST_COL: 7 },
+  'plant-maint':    { shape: 'summary', tab: 'Plant Maintenance', label: 'Plant Maintenance',
+    ASSET_COL: 1, HOURS_COL: 2, LABOR_COL: 3, MATERIAL_COL: 4 },
+  'forklift':       { shape: 'summary', tab: 'Forklift', label: 'Forklift',
+    ASSET_COL: 1, HOURS_COL: 3, LABOR_COL: 4, MATERIAL_COL: 5 },
+  'csc-building':   { shape: 'summary', tab: 'CSC Building', label: 'CSC Building',
+    ASSET_COL: 1, HOURS_COL: 3, LABOR_COL: 4, MATERIAL_COL: 5 },
 };
 
 // Normalizes messy hand-entered job/asset numbers per the handwritten notes in
@@ -3310,14 +3326,17 @@ const COST_MATERIAL_COLS = { DATE: 1, JOB: 2, ACCT: 3, DEPT: 4, COMBINED: 5, AMO
 // Reports department to attribute to yet, so their material rows are skipped.
 const COST_DEPT_CODE_MAP = {
   '008': 'machine-shop', // M/S
-  // '001': ?,  // Metal
-  // '003': ?,  // Plastic
-  // '004': ?,  // Litho
-  // '006': ?,  // Plastic Deco
-  // '007': ?,  // QA
-  // '009': ?,  // S/R
-  // '030': ?,  // Sales
-  // '031': ?,  // G&A
+  '003': 'plastic-mfg',  // Plastic — best-effort match on name; confirm with Michael
+  // '001': ?,  // Metal — no matching Cost Reports department
+  // '004': ?,  // Litho — no matching Cost Reports department
+  // '006': ?,  // Plastic Deco — no matching Cost Reports department
+  // '007': ?,  // QA — no matching Cost Reports department
+  // '009': ?,  // S/R — no matching Cost Reports department
+  // '030': ?,  // Sales — no matching Cost Reports department
+  // '031': ?,  // G&A — no matching Cost Reports department
+  // Injection Mold / Plant Maintenance / Forklift / CSC Building have no code
+  // in the Dept legend at all — their material costs (if any exist beyond
+  // Injection Mold's own embedded column) would need a different source.
 };
 
 // GET /api/reports/cost-data — reads every configured department's labor tab
@@ -3335,7 +3354,7 @@ async function handleCostData(env, userEmail) {
 
   const records = [];
 
-  // Labor rows — one tab per department.
+  // Labor rows — one tab per department, in one of two shapes (see COST_DEPTS).
   for (const [deptId, cfg] of Object.entries(COST_DEPTS)) {
     let rows;
     try {
@@ -3343,21 +3362,43 @@ async function handleCostData(env, userEmail) {
     } catch (_) {
       continue; // tab missing/renamed — skip rather than fail the whole report
     }
-    rows.forEach((r, i) => {
-      const dateRaw = r[cfg.DATE_COL - 1];
-      const hours   = parseFloat(r[cfg.HOURS_COL - 1]);
-      if (!dateRaw || !hours) return;
-      const d = cellDate(r, cfg.DATE_COL);
-      records.push({
-        id:       deptId + '-labor-' + (i + 2),
-        dept:     deptId,
-        date:     pmIsoDate(d),
-        asset:    costNormalizeAssetId(r[cfg.ASSET_COL - 1]),
-        person:   String(r[cfg.NAME_COL - 1] || '').trim(),
-        hours,
-        material: cfg.MATERIAL_COL ? (parseFloat(r[cfg.MATERIAL_COL - 1]) || 0) : 0,
+    if (cfg.shape === 'summary') {
+      // One row per machine/job, already aggregated — no date, no name. Not
+      // filterable by date range (the frontend treats a blank date as
+      // "always visible" rather than excluding it).
+      rows.forEach((r, i) => {
+        const hours = parseFloat(r[cfg.HOURS_COL - 1]);
+        if (!hours) return;
+        const material = (parseFloat(r[cfg.MATERIAL_COL - 1]) || 0) +
+          (cfg.EXTRA_COST_COL ? (parseFloat(r[cfg.EXTRA_COST_COL - 1]) || 0) : 0);
+        records.push({
+          id:     deptId + '-summary-' + (i + 2),
+          dept:   deptId,
+          date:   '',
+          asset:  costNormalizeAssetId(r[cfg.ASSET_COL - 1]),
+          person: '',
+          hours,
+          labor:  parseFloat(r[cfg.LABOR_COL - 1]) || 0,
+          material,
+        });
       });
-    });
+    } else {
+      rows.forEach((r, i) => {
+        const dateRaw = r[cfg.DATE_COL - 1];
+        const hours   = parseFloat(r[cfg.HOURS_COL - 1]);
+        if (!dateRaw || !hours) return;
+        const d = cellDate(r, cfg.DATE_COL);
+        records.push({
+          id:       deptId + '-labor-' + (i + 2),
+          dept:     deptId,
+          date:     pmIsoDate(d),
+          asset:    costNormalizeAssetId(r[cfg.ASSET_COL - 1]),
+          person:   String(r[cfg.NAME_COL - 1] || '').trim(),
+          hours,
+          material: cfg.MATERIAL_COL ? (parseFloat(r[cfg.MATERIAL_COL - 1]) || 0) : 0,
+        });
+      });
+    }
   }
 
   // Material rows — one shared tab, attributed to a department via Dept code.
