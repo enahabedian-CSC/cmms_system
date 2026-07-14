@@ -27,16 +27,65 @@ Owned by `dchoye@cscmfg.com`. Already set as the `COST_SPREADSHEET_ID` secret.
 | `Departments` | Dept Code → Department Name → Description, canonical reference copy. |
 | `Job Number List`, `Buildings`, `Accounts`, `Po Log` | Not yet investigated. |
 
-## Recommended architecture for the rebuild
-1. Read `DATA Hours` (Costs 2024) — real dates, real hours, per job#.
-2. Read `FRM-030-001 Equipment Inventory` (Equipment Register) once, build a Job# → Department map (canonical CMMS dept names).
-3. Attribute every `DATA Hours` row to a department via that map — this covers **every** department in one pass, not just Machine Shop.
-4. Read `DATA Material` and attribute via its own Dept code column (already working — see `COST_DEPT_CODE_MAP` in `worker.js`, though it should be re-keyed to match the canonical dept list from step 2 instead of the partial guesses made this round).
-5. This unlocks real date-range filtering and the Monthly Cost Trend chart on the Cost Reports page — which the summary "Costs" tabs structurally cannot support (no date column).
-6. Cost Reports' department list (`_CR_DEPTS_` in `cost-reports.html`, currently 6 hardcoded depts with sample hourly rates) should be reconciled against the real canonical department list rather than assumed.
+## What was actually built (2026-07-14, second pass)
 
-## State of code as of this write-up
+The canonical-CMMS-department approach above was **not** what Michael wanted: he wants
+Cost Reports organized by the tabs as they already appear (Plastic Mfg, Injection Mold,
+Forklift, CSC Building, Machine Shop, Plant Maintenance) — not collapsed into the
+9-department taxonomy used elsewhere in CMMS. Reading every formula in the 5 summary
+tabs (via a downloaded snapshot, not just the visible cell values) surfaced a much
+clearer picture than either the "use the tabs as-is" or "rebuild by canonical dept"
+options originally on the table:
+
+1. **Every dollar figure in every summary tab is a simple, fully-replicable formula** —
+   `SUMIFS(DATA Hours, date range, job# in {list}) × $28.39/hr` for labor, and the same
+   pattern against `DATA Material` for material cost. No hidden pivots. This meant the
+   rebuild could recompute everything from `DATA Hours` + `DATA Material` directly,
+   without ever touching the summary tabs' own (partially buggy) precomputed columns.
+2. **"Plant Maintenance Costs" is not a peer department tab** — its 9 rows are a clean,
+   non-overlapping partition of essentially every job# in the workbook (395 unique jobs
+   across 9 buckets, zero overlap, confirmed programmatically). That total **is** the
+   whole-company total. It became the Cost Reports "Overview."
+3. Plastic Mfg Costs + Injection Mold Costs are both finer breakdowns of Plant
+   Maintenance's single "Plastic Manuf." bucket (by machine vs. by mold); Forklift Cost
+   is a partial breakdown of "Trucks, Lifts & Autos"; CSC Building Costs is a full
+   breakdown of "Buildings." These became drill-down views nested under their parent
+   Overview bucket, not separate additive categories (summing all 6 tabs would have
+   multiply-counted almost everything).
+4. **"Machine Shop Hours" is misleadingly named** — its real header is "Plastic
+   Manufacturing," and its ~40 lines (across 7 sections: Plastic Manufacturing, Metal
+   Manufacturing, Metal Decorating, Shipping, Automobiles/Buildings/Customer Equipment,
+   Plastic Decorating, Building Support Equipment) are an hours-only, no-$ breakdown of
+   **every hour the Machine Shop crew logged, by which department's equipment they
+   serviced** — not a Machine Shop-only log. Per Michael: "Machine Shop works across the
+   board so their display should be across the board." This tab's job-code partition
+   became `MACHINE_SHOP_SECTIONS` in `worker.js`, now with real $ added, as a single
+   unified "where did the Machine Shop's time and money go" view — merging what used to
+   be split across an unrelated cost line (jobs 500-502 only) and this separate
+   hours-only tab.
+5. Several verified copy/paste bugs in the source formulas were fixed rather than
+   replicated: mismatched job#s between a row's Hours and Material formulas (Plastic
+   Mfg's "Machine #10", Plant Maintenance's "Trks. Lifts Autos"), a hardcoded $0
+   material cost (Forklift unit #29), and material formulas pointing at a different
+   building's job# entirely (CSC Building's "Metal Deco. Building" / "Rental Building").
+
+Implemented in `handleCostData()` in `worker.js` — see the architecture comment directly
+above that function for the full bucket/asset job-code reference. `cost-reports.html`
+now renders: an Overview of the 9 Plant Maintenance buckets, drill-downs into
+Plastic Mfg/Injection Mold (under "Plastic Manufacturing"), Forklift (under "Trucks,
+Lifts & Autos"), and CSC Building (under "Buildings"), and a dedicated cross-department
+Machine Shop view. Real date-range filtering (`dateFrom`/`dateTo` query params) now
+works, unlike the original summary tabs which had no date column to filter on.
+
+**Known limitation carried over intentionally:** `DATA Hours` also has a legacy
+2022-2024 block in columns O–R (different shape, no header) that none of the original
+summary-tab formulas ever read either. This rebuild matches that prior behavior and
+reads only the primary A–D block (2025-present) — worth addressing in a future pass if
+older history needs to show up in Cost Reports.
+
+## State of code as of this second write-up
+
 - `feat/pm-dept-scoping` — merged (PM dept segmentation, downtime comparison report, equipment downtime KPI tiles, stuck-overlay nav fix). Live.
-- `feat/cost-report-all-depts` — **uncommitted, superseded by this finding.** It wired the 5 "Costs" summary tabs directly (per Michael's column descriptions before this deeper investigation). Given those tabs are semi-annual snapshots with bespoke pivots, this branch should probably be discarded/redone against DATA Hours + DATA Material + the Equipment Register instead, not merged as-is.
-- `COST_SPREADSHEET_ID` secret is set (Edward). The Equipment Register spreadsheet ID would need its own secret (or reuse of an existing one, if the Worker already has an Equipment Register ID configured from the legacy equip-cache feature — worth checking `env` for an existing var before adding a new one).
+- `feat/cost-report-all-depts` — this branch, now rebuilt per the "what was actually built" section above. `worker.js`'s `handleCostData()` and `frontend/partials/cost-reports.html` were both rewritten; `wrangler.toml` `APP_VERSION` bumped to 3.89.
+- `COST_SPREADSHEET_ID` secret is set (Edward). The Equipment Register spreadsheet is **no longer needed** for Cost Reports — the canonical-CMMS-department approach was superseded by the tab-parity approach above.
 - Downtime Duration (ML col 42) is manual-entry-only, added in Workshop 4 (`a4b92ec`, 2026-06-09, "C16"), optional field, no auto-calculation — confirmed with Michael this stays manual, no fallback from ticket timestamps.

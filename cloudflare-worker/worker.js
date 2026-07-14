@@ -3267,84 +3267,278 @@ async function handleDowntimeCompare(env, userEmail, params) {
   return jsonResponse({ periodA: buildPeriod(startA, endA), periodB: buildPeriod(startB, endB) });
 }
 
-// ── Cost Reports — external "Costs 2024" spreadsheet (owned by David, dchoye@cscmfg.com) ──
-// One tab per department; each tab has Date | Job#/Asset | Hours | Name in columns
-// A–D, and some tabs (confirmed: Injection Mold) also carry a Material Cost column.
+// -- Cost Reports -- external "Costs 2024" spreadsheet (owned by David, dchoye@cscmfg.com) --
 // Override the spreadsheet id at runtime with the COST_SPREADSHEET_ID env var.
 //
-// Two tab shapes exist in Costs 2024:
-//  - 'transactional': one row per labor entry (Date | Job# | Hours | Name).
-//    Only Machine Shop Hours is this shape — rate is a flat $/hr, labor cost
-//    is computed as hours * rate.
-//  - 'summary': one row per machine/job, already aggregated — no Date, no
-//    Name. HOURS_COL is Total Hours; LABOR_COL is the sheet's own pre-computed
-//    labor dollar figure for that row (its "Hourly Cost" column — despite the
-//    name, this is a $ amount, not a $/hr rate) so it's used directly instead
-//    of being recomputed from hours * rate. Plastic, Injection Mold, Plant
-//    Maintenance, Forklift, and CSC Building are all this shape (confirmed by
-//    Michael 2026-07-14). Plant Maintenance has no per-asset column at all —
-//    Dept (col A) is the closest identifier. Injection Mold's col G "Outside
-//    Work Cost" is folded into MATERIAL_COL below since the frontend only has
-//    a 2-bucket (labor/material) cost model, not a 3rd category.
-const COST_DEPTS = {
-  'machine-shop':   { shape: 'transactional', tab: 'Machine Shop Hours', label: 'Machine Shop', rate: 28.39,
-    DATE_COL: 1, ASSET_COL: 2, HOURS_COL: 3, NAME_COL: 4, MATERIAL_COL: null },
-  'plastic-mfg':    { shape: 'summary', tab: 'Plastic Mfg Costs', label: 'Plastic Mfg',
-    ASSET_COL: 1, HOURS_COL: 2, LABOR_COL: 3, MATERIAL_COL: 4 },
-  'injection-mold': { shape: 'summary', tab: 'Injection Mold', label: 'Injection Mold',
-    ASSET_COL: 1, HOURS_COL: 3, LABOR_COL: 4, MATERIAL_COL: 5, EXTRA_COST_COL: 7 },
-  'plant-maint':    { shape: 'summary', tab: 'Plant Maintenance', label: 'Plant Maintenance',
-    ASSET_COL: 1, HOURS_COL: 2, LABOR_COL: 3, MATERIAL_COL: 4 },
-  'forklift':       { shape: 'summary', tab: 'Forklift', label: 'Forklift',
-    ASSET_COL: 1, HOURS_COL: 3, LABOR_COL: 4, MATERIAL_COL: 5 },
-  'csc-building':   { shape: 'summary', tab: 'CSC Building', label: 'CSC Building',
-    ASSET_COL: 1, HOURS_COL: 3, LABOR_COL: 4, MATERIAL_COL: 5 },
-};
+// Every dollar figure here is computed live from the two raw logs (DATA Hours + DATA
+// Material), filtered by job#/date and multiplied by the shop's flat hourly rate -- never
+// read from the summary tabs' own precomputed columns. Those tabs (Plastic Mfg Costs,
+// Injection Mold Costs, Plant Maintenance Costs, Forklift Cost, CSC Building Costs)
+// contain several verified copy/paste errors: mismatched job#s between a row's Hours and
+// Material formulas (Plastic Mfg's "Machine #10", Plant Maintenance's "Trks. Lifts Autos"),
+// a hardcoded $0 material cost (Forklift unit #29), and material formulas pointing at a
+// different building's job# entirely (CSC Building's "Metal Deco. Building" / "Rental
+// Building"). Confirmed against every formula in the workbook, 2026-07-14.
+//
+// How the sheet is actually organized (also reverse-engineered 2026-07-14 -- none of this
+// is documented anywhere in the sheet itself):
+//   - "Plant Maintenance Costs" is NOT a peer department tab. Its 9 buckets are a clean,
+//     non-overlapping partition of essentially every job# in the workbook -- that total IS
+//     the whole-company total. This is COST_OVERVIEW_BUCKETS below.
+//   - Plastic Mfg Costs + Injection Mold Costs are both finer breakdowns of the single
+//     "Plastic Manuf." bucket (by machine vs. by mold) -- not separate categories from it.
+//   - Forklift Cost is a partial breakdown of "Trucks, Lifts & Autos" (forklifts only --
+//     that bucket also covers golf carts/other vehicles with no per-asset tab).
+//   - CSC Building Costs is a full breakdown of "Buildings."
+//   - "Machine Shop Hours" is misleadingly named: its real header is "Plastic
+//     Manufacturing" and its ~40 lines (across 7 sections) are hours-only (no $)
+//     attribution of the Machine Shop crew's labor by WHICH department's equipment they
+//     serviced that day -- every hour in DATA Hours is Machine Shop's own labor; Job# just
+//     says who benefited. MACHINE_SHOP_SECTIONS below reuses that same job-code
+//     partition, now with real $ added (hours x rate + material), as a single unified
+//     "where did the Machine Shop's time and money go" drill-down -- replacing what used to
+//     be split across an unrelated cost line (jobs 500-502 only) and a separate hours-only
+//     tab.
+const COST_RATE = 28.39; // flat shop rate, 'DATA Hours'!G1 in the source sheet
+const COST_HOURS_TAB = 'DATA Hours';
+const COST_MATERIAL_TAB = 'DATA Material';
+const COST_HOURS_COLS = { DATE: 1, JOB: 2, HOURS: 3 };
+const COST_MATERIAL_COLS = { DATE: 1, JOB: 2, AMOUNT: 6 };
 
-// Normalizes messy hand-entered job/asset numbers per the handwritten notes in
-// the 'Costs 2024' sheet: '-' is used as a decimal separator like '.', and a
-// trailing 'B' means '.2' (e.g. '500-1' -> '500.1', '916B' -> '916.2').
-function costNormalizeAssetId(raw) {
-  let s = String(raw == null ? '' : raw).trim();
-  if (!s) return s;
-  s = s.replace(/-/g, '.');
-  if (/b$/i.test(s)) s = s.replace(/b$/i, '') + '.2';
-  return s;
+// Plant Maintenance's 9 buckets -- the whole-company overview. Jobs 501 and 502 were listed
+// in both Metal Manuf./Trucks-Lifts AND the Machine Shop bucket in the source sheet (a
+// 2-job overlap bug) -- assigned exclusively to Machine Shop here, matching Machine Shop
+// Hours' own "Machine Shop and Quality Assurance" grouping. Jobs 848/849 (Forklift Cost's
+// units #34/#35) and 1010 (Machine Shop Hours' extra building) existed in the finer-grained
+// tabs but were missing from Plant Maintenance's own stale bucket lists -- added here so no
+// real cost is silently dropped from the overview.
+const COST_OVERVIEW_BUCKETS = [
+  { id: "plastic-manuf", label: "Plastic Manufacturing", jobs: new Set(["301", "302", "303", "304", "305", "306", "307", "308", "309", "310", "311", "312", "313", "314", "315", "316", "317", "318", "319", "320", "321", "322", "323", "324", "325", "326", "327", "347", "348", "349", "350", "351", "352", "353", "354", "355", "356", "357", "358", "359", "360", "361", "362", "363", "364", "365", "366", "367", "368", "369", "370", "371", "372", "373", "374", "375", "376", "377", "378", "379", "380", "381", "382", "383", "384", "385", "386", "387", "388", "389", "390", "391", "392", "393", "394", "395", "396", "397", "398", "399"]) },
+  { id: "metal-manuf", label: "Metal Manufacturing", jobs: new Set(["20", "21", "22", "23", "24", "25", "26", "27", "28", "29", "20.2", "21.2", "22.2", "23.2", "24.2", "25.2", "26.2", "27.2", "28.2", "29.2", "30", "31", "32", "33", "34", "35", "36", "37", "38", "39", "40", "41", "41.1", "42", "43", "44", "46", "47", "48", "49", "50", "51", "52", "53", "54", "55", "56", "57", "58", "59", "60", "61", "62", "62.1", "63", "63.1", "64", "64.1", "66.1", "67", "68", "68.1", "69", "69.1", "74", "151", "152", "163", "164", "165", "166", "167", "168", "169", "170", "171", "172", "173", "174", "200", "202", "203", "204", "205", "206", "207", "208", "209", "210", "215", "216", "217", "218", "221", "222", "223", "224", "225", "226", "227", "228", "229", "230", "231", "232", "233", "234", "235", "236", "237", "238", "239", "240", "241", "242", "243", "245", "246", "247", "248", "249", "250", "251", "253", "255", "256", "257", "258", "259", "260", "262", "263", "264", "265", "266", "267", "268", "269", "270", "271", "272", "273", "274", "275", "277", "278", "110", "111", "112", "113", "114", "115", "116", "117", "118", "119", "120", "122", "123", "130", "131", "132", "133", "134", "135", "136", "137", "126.1", "127.1", "128.1", "129.1", "130.1", "131.1", "132.1", "133.1", "134.1", "135.1", "136.1", "137.1", "138.1", "139.1"]) },
+  { id: "trucks-lifts", label: "Trucks, Lifts & Autos", jobs: new Set(["601", "602", "611", "612", "613", "614", "615", "621", "622", "623", "624", "625", "626", "627", "628", "650", "701", "711", "712", "713", "714", "715", "716", "717", "718", "719", "720", "721", "722", "723", "724", "725", "726", "727", "750", "800", "801", "802", "803", "804", "805", "806", "807", "808", "809", "810", "811", "812", "813", "814", "815", "816", "817", "818", "819", "820", "821", "822", "823", "824", "825", "826", "827", "828", "829", "830", "845", "846", "847", "850", "848", "849"]) },
+  { id: "metal-deco", label: "Metal Decorating", jobs: new Set(["401.1", "402.1", "402.2", "403.1", "403.2", "404.1", "405.1", "406.1", "407.1", "408.1", "409.1", "414.1", "425", "426", "427", "428", "401", "402", "403", "404", "405", "406", "407", "408", "409", "422", "423"]) },
+  { id: "plastic-deco", label: "Plastic Decorating", jobs: new Set(["430", "431", "432", "433", "434"]) },
+  { id: "machine-shop", label: "Machine Shop", jobs: new Set(["500", "501", "502"]) },
+  { id: "buildings", label: "Buildings", jobs: new Set(["1001", "1002", "1003", "1004", "1005", "1006", "1000", "1010"]) },
+  { id: "support-equip", label: "Support Equipment", jobs: new Set(["900", "903", "905", "906", "907", "908", "910", "912", "915.1", "915.2", "916", "916.1", "916.2", "916.3", "916.4", "917", "918", "919"]) },
+  { id: "customer-equip", label: "Customer Equipment", jobs: new Set(["11"]) },
+];
+
+const PLASTIC_MFG_ASSETS = [
+  { label: "Aux. Equipment", hoursJobs: ["324.1", "303", "304", "305", "306", "307", "310", "322", "323", "324", "325", "340", "326", "327", "329"], materialJobs: ["303", "304", "305", "306", "307", "310", "322", "323", "324", "325", "326", "327", "329"] },
+  { label: "Supplies", hoursJobs: ["300"], materialJobs: ["300"] },
+  { label: "Molds", hoursJobs: ["347", "348", "349", "350", "351", "352", "353", "354", "355", "356", "357", "358", "359", "360", "361", "362", "363", "364", "365", "366", "367", "368", "369", "370", "371", "372", "373", "374", "375", "376", "377", "378", "379", "380", "381", "382", "383", "384", "385", "386", "387", "388", "389", "390", "391", "392", "393", "394", "395", "396", "397", "398", "399"], materialJobs: ["348", "349", "350", "351", "352", "353", "354", "355", "356", "357", "358", "359", "360", "361", "362", "363", "364", "365", "366", "367", "368", "369", "370", "371", "372", "373", "374", "375", "376", "377", "378", "379", "380", "381", "382", "383", "384", "385", "386", "387", "388", "389", "390", "391", "392", "393", "394", "395", "396", "397", "398", "399"] },
+  { label: "Machine #1", hoursJobs: ["311"], materialJobs: ["311"] },
+  { label: "Machine #2", hoursJobs: ["312"], materialJobs: ["312"] },
+  { label: "Machine #3", hoursJobs: ["313"], materialJobs: ["313"] },
+  { label: "Machine #4", hoursJobs: ["315"], materialJobs: ["315"] },
+  { label: "Machine #5 NEW KM 2025", hoursJobs: ["328"], materialJobs: ["328"] },
+  { label: "Machine #6", hoursJobs: ["314"], materialJobs: ["314"] },
+  { label: "Machine #7", hoursJobs: ["318"], materialJobs: ["318"] },
+  { label: "Machine #8", hoursJobs: ["319"], materialJobs: ["319"] },
+  { label: "Machine #9", hoursJobs: ["320"], materialJobs: ["320"] },
+  { label: "Machine #10", hoursJobs: ["321"], materialJobs: ["321"] },
+  { label: "All Machines", hoursJobs: ["301"], materialJobs: ["301"] },
+];
+
+const INJECTION_MOLD_ASSETS = [
+  { job: "302", label: "INJECTION MOLDS, GENERAL" },
+  { job: "347", label: "MOLD, 4 GAL LID 4 CAVITY STACKTECK" },
+  { job: "348", label: "MOLD, 6.5 POUND PAIL 4 CAVITY" },
+  { job: "349", label: "MOLD, 4 GAL. RD. T. S. LID 4 CAVITY" },
+  { job: "350", label: "MOLD, 4 GAL. RD. T. S. LID 2 CAVITY" },
+  { job: "351", label: "MOLD, #33, 3 GALLON ROUND" },
+  { job: "352", label: "MOLD, #40, 4 GALLON ROUND" },
+  { job: "353", label: "MOLD, #48-D, 4.25 GAL. ROUND" },
+  { job: "354", label: "MOLD, #42, 4 GALLON ROUND" },
+  { job: "355", label: "MOLD, #45, 4 GALLON ROUND" },
+  { job: "356", label: "MOLD, #48-A, 4.25 GAL. ROUND" },
+  { job: "357", label: "MOLD, #48-E, 4.25 GAL. ROUND" },
+  { job: "358", label: "MOLD, #48, 4.5 GAL. ROUND" },
+  { job: "359", label: "MOLD, #49, 4.25 GAL. ROUND" },
+  { job: "360", label: "MOLD, #50, 5 GALLON ROUND" },
+  { job: "361", label: "MOLD, 4 GL. HI VIS, H.D. LID STK. #3" },
+  { job: "362", label: "MOLD, #54, 5 GALLON ROUND" },
+  { job: "363", label: "MOLD, S-3, 4 GALLON SQUARE" },
+  { job: "364", label: "MOLD, S-4, 4 GALLON SQUARE" },
+  { job: "365", label: "MOLD, S-4.5, 4.25 GALLON SQUARE" },
+  { job: "366", label: "MOLD, 6.5 POUND PAIL 2 CAVITY" },
+  { job: "367", label: "MOLD, 3 / 4 / 5 GAL. RD. HDL. 4 CAV." },
+  { job: "368", label: "MOLD, 3 GALLON ICE CREAM TUB" },
+  { job: "369", label: "MOLD, 2.5 GALLON ICE CREAM TUB" },
+  { job: "370", label: "MOLD, 2.5 / 3 GAL. I.C. LID 2 CAVITY" },
+  { job: "371", label: "MOLD, 4 / 4.25 GL. SQ. T. S. LID 2 CA." },
+  { job: "372", label: "MOLD, 2.5 / 3 GAL. ICE CREAM LID" },
+  { job: "373", label: "MOLD, 4 GAL. REG. LID 2 CAVITY" },
+  { job: "374", label: "MOLD, 6.5 POUND PAIL 4 CAVITY #5" },
+  { job: "375", label: "MOLD, 4 GAL. H. DUTY LID STACK #1" },
+  { job: "376", label: "MOLD, 5 GAL. LOW HEAD LID 2 CAV." },
+  { job: "377", label: "MOLD, 5 GAL. HIGH HEAD LID 2 CAV." },
+  { job: "378", label: "MOLD, 4 / 4.25 GAL. SQ. LID 2 CAVITY" },
+  { job: "379", label: "MOLD, #48-B, 4.25 GAL. ROUND" },
+  { job: "380", label: "MOLD, 6.5 POUND PAIL 4 CAVITY #4" },
+  { job: "381", label: "MOLD, 4 GALLON SKIRTED \"B\"" },
+  { job: "382", label: "MOLD, #48-C, 4.25 GAL. ROUND" },
+  { job: "383", label: "MOLD, 4 / 4.25 GAL. SQ. LID STACK" },
+  { job: "384", label: "MOLD, 5 QUART LID 4 CAVITY" },
+  { job: "385", label: "MOLD, 5 QUART PAIL 2 CAVITY" },
+  { job: "386", label: "MOLD, 5 QUART HANDLE 8 CAVITY" },
+  { job: "387", label: "MOLD, S-5, 4 GALLON SQUARE" },
+  { job: "388", label: "MOLD, S-5.5, 4.25 GALLON SQUARE" },
+  { job: "389", label: "MOLD, 4 GAL. H. DUTY LID STACK #2" },
+  { job: "390", label: "MOLD, #44, 4 GALLON ROUND" },
+  { job: "391", label: "MOLD, 3 GAL. I. C. TUB 2 CAVITY" },
+  { job: "392", label: "MOLD, 5 GAL. L. H. T. S. LID 2 CAVITY" },
+  { job: "393", label: "MOLD, #33-B, 3 GALLON ROUND" },
+  { job: "394", label: "MOLD, #30, 3 GAL. ROUND/SHORT" },
+  { job: "395", label: "MOLD, #55, 5 GAL. RD. STRETCH" },
+  { job: "396", label: "MOLD, 6.5 POUND PAIL 4 CAVITY #3" },
+  { job: "397", label: "MOLD, 6.5 POUND LID 8 CAVITY" },
+  { job: "398", label: "MOLD, #43-B, 4 GALLON ROUND" },
+  { job: "399", label: "MOLD, S-1, 4 GALLON SQUARE" },
+];
+
+const FORKLIFT_ASSETS = [
+  { id: "1", dept: "Plastic Dec.", job: "801" },
+  { id: "2", dept: "Plastic Dec.", job: "802" },
+  { id: "3", dept: "Metal", job: "803" },
+  { id: "4", dept: "Metal", job: "804" },
+  { id: "5", dept: "Metal", job: "805" },
+  { id: "6", dept: "Plastic Dec.", job: "806" },
+  { id: "7", dept: "Shipping", job: "807" },
+  { id: "8", dept: "Plastic", job: "808" },
+  { id: "9", dept: "Plastic", job: "809" },
+  { id: "10", dept: "Metal", job: "810" },
+  { id: "11", dept: "Metal", job: "811" },
+  { id: "12", dept: "Metal", job: "812" },
+  { id: "13", dept: "Shipping", job: "813" },
+  { id: "14", dept: "Metal", job: "814" },
+  { id: "15", dept: "Metal Dec.", job: "815" },
+  { id: "16", dept: "Metal", job: "816" },
+  { id: "17", dept: "Shipping", job: "817" },
+  { id: "18", dept: "Shipping", job: "818" },
+  { id: "19", dept: "Metal", job: "819" },
+  { id: "20", dept: "Metal Dec.", job: "820" },
+  { id: "21", dept: "Metal", job: "821" },
+  { id: "22", dept: "Metal", job: "822" },
+  { id: "23", dept: "Plastic", job: "823" },
+  { id: "24", dept: "Shipping", job: "824" },
+  { id: "25", dept: "Shipping", job: "825" },
+  { id: "26", dept: "Shipping", job: "826" },
+  { id: "27", dept: "Shipping", job: "827" },
+  { id: "28", dept: "Metal", job: "828" },
+  { id: "29", dept: "Metal Dec.", job: "829" },
+  { id: "30", dept: "Shipping", job: "830" },
+  { id: "31", dept: "Shipping", job: "847" },
+  { id: "34", dept: "Shipping", job: "848" },
+  { id: "35", dept: "Plastic", job: "849" },
+  { id: "SL", dept: "Machine Shop", job: "850" },
+];
+
+const CSC_BUILDING_ASSETS = [
+  { label: "C.S.C. Buildings/All", job: "1001" },
+  { label: "Front Office", job: "1006" },
+  { label: "Plastic Mfg. Building", job: "1003" },
+  { label: "Metal Mfg. Building", job: "1002" },
+  { label: "Shipping Building", job: "1005" },
+  { label: "Metal Deco. Building", job: "1004" },
+  { label: "Rental Building", job: "1000" },
+];
+
+const MACHINE_SHOP_SECTIONS = [
+  { section: "Plastic Manufacturing", lines: [
+    { label: "Auxiliary Equipment", jobs: ["303", "304", "305", "306", "307", "310", "322", "323", "324", "325", "340", "326", "327"], range: null },
+    { label: "Injection Machines", jobs: ["300", "301", "311", "312", "313", "314", "315", "316", "317", "318", "319", "320", "321", "330"], range: null },
+    { label: "Injection Molds", jobs: ["302", "308", "309", "347", "348", "349", "350", "351", "352", "353", "354", "355", "356", "357", "358", "359", "360", "361", "362", "363", "364", "365", "366", "367", "368", "369", "370", "371", "372", "373", "374", "375", "376", "377", "378", "379", "380", "381", "382", "383", "384", "385", "386", "387", "388", "389", "390", "391", "392", "393", "394", "395", "396", "397", "398", "399"], range: null },
+    { label: "Support Equipment", jobs: ["907", "915.1", "915.2", "916", "916.1", "916.2", "916.3", "916.4", "918", "919"], range: null },
+    { label: "Forklifts", jobs: ["806", "808", "809", "823"], range: null },
+  ] },
+  { section: "Metal Manufacturing", lines: [
+    { label: "Automatic Lines", jobs: ["1", "20", "21", "22", "23", "24", "25", "26", "27", "28", "29", "30", "20.2", "21.2", "22.2", "23.2", "24.2", "25.2", "26.2", "27.2", "28.2", "29.2", "30", "31", "32", "33", "34", "35", "36", "37", "38", "39", "40", "41", "41.1", "42", "43", "44", "46", "47", "48", "49", "50", "51", "52", "53", "54", "55", "56", "57", "58", "59", "60", "61", "62", "62.1", "63", "63.1", "64", "64.1", "65", "65.1", "66", "66.1", "67", "67.1", "68", "68.1", "69", "69.1"], range: null },
+    { label: "Press Department", jobs: null, range: [150, 299] },
+    { label: "Forklifts", jobs: ["803", "804", "805", "810", "811", "812", "814", "816", "819", "821", "822", "828"], range: null },
+    { label: "Machine Shop and Quality Assurance", jobs: ["140", "500", "501", "502"], range: null },
+    { label: "Support Equipment", jobs: ["905"], range: null },
+    { label: "Slitters", jobs: null, range: [110, 123] },
+    { label: "Coil Lines", jobs: ["130", "131", "132", "133", "134", "135", "136", "137", "126.1", "127.1", "128.1", "129.1", "130.1", "131.1", "132.1", "133.1", "134.1", "135.1", "136.1", "137.1", "138.1", "139.1"], range: null },
+    { label: "Hand Lines", jobs: ["74"], range: null },
+  ] },
+  { section: "Metal Decorating", lines: [
+    { label: "Line #3, Conventional Oven", jobs: ["400.1", "401.1", "402.1", "402.2", "403.1", "403.2", "404.1", "405.1", "406.1", "407.1", "408.1", "409.1", "414.1"], range: null },
+    { label: "Line #1, Conventional Oven", jobs: ["400", "401", "402", "403", "404", "405", "406", "407", "408", "409"], range: null },
+    { label: "Auxiliary Equipment", jobs: ["422", "423", "425", "426", "427", "428"], range: null },
+    { label: "Forklifts", jobs: ["815", "820", "829"], range: null },
+    { label: "Support Equipment", jobs: ["900", "906", "917"], range: null },
+    { label: "Printing Plate Line", jobs: ["429"], range: null },
+  ] },
+  { section: "Shipping Department", lines: [
+    { label: "Forklifts", jobs: ["800", "807", "813", "817", "818", "824", "825", "826", "827"], range: null },
+    { label: "Trucks/Trailers", jobs: ["600", "601", "602", "611", "612", "613", "614", "615", "621", "622", "623", "624", "625", "626", "627", "628", "650"], range: null },
+  ] },
+  { section: "Automobiles, Buildings & Customer Equipment", lines: [
+    { label: "Container Supply Company Buildings", jobs: ["1001", "1002", "1003", "1004", "1005", "1006", "1010"], range: null },
+    { label: "Automobiles", jobs: ["502", "701", "711", "712", "713", "714", "715", "716", "717", "718", "719", "720", "721", "722", "723", "724", "725", "726", "727", "850"], range: null },
+    { label: "Rental Buildings", jobs: ["1000"], range: null },
+    { label: "Outside Customer Equipment", jobs: ["11"], range: null },
+  ] },
+  { section: "Plastic Decorating", lines: [
+    { label: "Line #1", jobs: ["433"], range: null },
+    { label: "Line #2", jobs: ["434"], range: null },
+    { label: "Line #4", jobs: ["431"], range: null },
+    { label: "Line #5", jobs: ["432"], range: null },
+    { label: "Line #6", jobs: ["430"], range: null },
+    { label: "Forklifts", jobs: ["801", "802"], range: null },
+    { label: "Support Equipment", jobs: [], range: null },
+  ] },
+  { section: "Building Support Equipment", lines: [
+    { label: "All Building Support Equipment", jobs: ["910", "912", "908"], range: null },
+  ] },
+];
+
+function jobKey(v) { return String(v == null ? '' : v).trim(); }
+
+// One pass over a raw log building job# -> summed value, respecting an optional date range.
+function buildJobTotals(rows, jobCol, valCol, dateCol, dateFrom, dateTo) {
+  const map = new Map();
+  rows.forEach(r => {
+    const d = cellDate(r, dateCol);
+    if (dateFrom && d && d < dateFrom) return;
+    if (dateTo   && d && d > dateTo)   return;
+    const job = jobKey(r[jobCol - 1]);
+    if (!job) return;
+    const val = parseFloat(r[valCol - 1]) || 0;
+    map.set(job, (map.get(job) || 0) + val);
+  });
+  return map;
 }
 
-// 'Data Material' tab — a single shared material-cost log for ALL departments
-// (not one tab per dept like labor). Columns A–F: Date | Job | Acct | Dept |
-// Combined | Amount. Each row is attributed to a department via its Dept code
-// (col D) against the Dept legend tab (COST_DEPT_CODE_MAP below) — Dept is
-// reliably populated on every row, so no Job-legend fallback is needed.
-const COST_MATERIAL_TAB = 'Data Material';
-const COST_MATERIAL_COLS = { DATE: 1, JOB: 2, ACCT: 3, DEPT: 4, COMBINED: 5, AMOUNT: 6 };
+function sumJobs(map, jobs, range) {
+  let total = 0;
+  if (range) {
+    for (const [job, val] of map) {
+      const n = parseFloat(job);
+      if (!isNaN(n) && n >= range[0] && n <= range[1]) total += val;
+    }
+    return total;
+  }
+  (jobs || []).forEach(j => { total += map.get(j) || 0; });
+  return total;
+}
 
-// Dept legend tab (code -> department), from the 'Dept' tab in Costs 2024.
-// Only codes with a confirmed match to a COST_DEPTS entry are mapped here —
-// the rest (Metal, Litho, Plastic Deco, QA, S/R, Sales, G&A) have no Cost
-// Reports department to attribute to yet, so their material rows are skipped.
-const COST_DEPT_CODE_MAP = {
-  '008': 'machine-shop', // M/S
-  '003': 'plastic-mfg',  // Plastic — best-effort match on name; confirm with Michael
-  // '001': ?,  // Metal — no matching Cost Reports department
-  // '004': ?,  // Litho — no matching Cost Reports department
-  // '006': ?,  // Plastic Deco — no matching Cost Reports department
-  // '007': ?,  // QA — no matching Cost Reports department
-  // '009': ?,  // S/R — no matching Cost Reports department
-  // '030': ?,  // Sales — no matching Cost Reports department
-  // '031': ?,  // G&A — no matching Cost Reports department
-  // Injection Mold / Plant Maintenance / Forklift / CSC Building have no code
-  // in the Dept legend at all — their material costs (if any exist beyond
-  // Injection Mold's own embedded column) would need a different source.
-};
+function costTotals(hoursMap, materialMap, hoursJobs, materialJobs, range) {
+  const hours    = sumJobs(hoursMap, hoursJobs, range);
+  const material = sumJobs(materialMap, materialJobs === undefined ? hoursJobs : materialJobs, range);
+  const labor    = +(hours * COST_RATE).toFixed(2);
+  return { hours: +hours.toFixed(2), labor, material: +material.toFixed(2), total: +(labor + material).toFixed(2) };
+}
 
-// GET /api/reports/cost-data — reads every configured department's labor tab
-// plus the shared material tab from the external Costs spreadsheet, and
-// returns unified records for cost-reports.html: { id, dept, date, asset,
-// person, hours, material }. Unconfigured departments are simply absent (the
-// frontend shows an empty state, never fake data).
-async function handleCostData(env, userEmail) {
+// GET /api/reports/cost-data -- computes every Cost Reports figure live from DATA Hours +
+// DATA Material (see architecture notes above). Optional dateFrom/dateTo (YYYY-MM-DD)
+// filter both logs; omitted, the full history in each log is used. Known limitation: DATA
+// Hours also has a legacy 2022-2024 block in columns O-R (different shape, no header) that
+// none of the original summary-tab formulas ever read either -- matching that prior
+// behavior, this rebuild reads only the primary A-D block (2025-present).
+async function handleCostData(env, userEmail, params) {
   const token = await getAccessToken(env);
   const user  = await resolveUser(token, env, userEmail);
   if (!user.isManager) return jsonResponse({ error: 'Manager access required' }, 403);
@@ -3352,80 +3546,51 @@ async function handleCostData(env, userEmail) {
   const costSheetId = env.COST_SPREADSHEET_ID;
   if (!costSheetId) return jsonResponse({ error: 'COST_SPREADSHEET_ID not configured' }, 500);
 
-  const records = [];
+  const dateFrom = params && params.dateFrom ? new Date(params.dateFrom) : null;
+  const dateTo   = params && params.dateTo   ? new Date(params.dateTo + 'T23:59:59') : null;
 
-  // Labor rows — one tab per department, in one of two shapes (see COST_DEPTS).
-  for (const [deptId, cfg] of Object.entries(COST_DEPTS)) {
-    let rows;
-    try {
-      rows = await readSheet(token, costSheetId, cfg.tab, 'A2:Z');
-    } catch (_) {
-      continue; // tab missing/renamed — skip rather than fail the whole report
-    }
-    if (cfg.shape === 'summary') {
-      // One row per machine/job, already aggregated — no date, no name. Not
-      // filterable by date range (the frontend treats a blank date as
-      // "always visible" rather than excluding it).
-      rows.forEach((r, i) => {
-        const hours = parseFloat(r[cfg.HOURS_COL - 1]);
-        if (!hours) return;
-        const material = (parseFloat(r[cfg.MATERIAL_COL - 1]) || 0) +
-          (cfg.EXTRA_COST_COL ? (parseFloat(r[cfg.EXTRA_COST_COL - 1]) || 0) : 0);
-        records.push({
-          id:     deptId + '-summary-' + (i + 2),
-          dept:   deptId,
-          date:   '',
-          asset:  costNormalizeAssetId(r[cfg.ASSET_COL - 1]),
-          person: '',
-          hours,
-          labor:  parseFloat(r[cfg.LABOR_COL - 1]) || 0,
-          material,
-        });
-      });
-    } else {
-      rows.forEach((r, i) => {
-        const dateRaw = r[cfg.DATE_COL - 1];
-        const hours   = parseFloat(r[cfg.HOURS_COL - 1]);
-        if (!dateRaw || !hours) return;
-        const d = cellDate(r, cfg.DATE_COL);
-        records.push({
-          id:       deptId + '-labor-' + (i + 2),
-          dept:     deptId,
-          date:     pmIsoDate(d),
-          asset:    costNormalizeAssetId(r[cfg.ASSET_COL - 1]),
-          person:   String(r[cfg.NAME_COL - 1] || '').trim(),
-          hours,
-          material: cfg.MATERIAL_COL ? (parseFloat(r[cfg.MATERIAL_COL - 1]) || 0) : 0,
-        });
-      });
-    }
-  }
+  const [hoursRows, materialRows] = await Promise.all([
+    readSheet(token, costSheetId, COST_HOURS_TAB, 'A2:D'),
+    readSheet(token, costSheetId, COST_MATERIAL_TAB, 'A2:F'),
+  ]);
 
-  // Material rows — one shared tab, attributed to a department via Dept code.
-  // Each becomes its own material-only record (hours: 0) so it adds to that
-  // department's material total without needing a matching labor row.
-  try {
-    const matRows = await readSheet(token, costSheetId, COST_MATERIAL_TAB, 'A2:F');
-    matRows.forEach((r, i) => {
-      const deptCode = String(r[COST_MATERIAL_COLS.DEPT - 1] || '').trim().padStart(3, '0');
-      const deptId   = COST_DEPT_CODE_MAP[deptCode];
-      const amount   = parseFloat(r[COST_MATERIAL_COLS.AMOUNT - 1]);
-      const dateRaw  = r[COST_MATERIAL_COLS.DATE - 1];
-      if (!deptId || !dateRaw || !amount) return;
-      const d = cellDate(r, COST_MATERIAL_COLS.DATE);
-      records.push({
-        id:       deptId + '-material-' + (i + 2),
-        dept:     deptId,
-        date:     pmIsoDate(d),
-        asset:    costNormalizeAssetId(r[COST_MATERIAL_COLS.JOB - 1]),
-        person:   '',
-        hours:    0,
-        material: amount,
-      });
-    });
-  } catch (_) { /* material tab missing/renamed — labor data still returns */ }
+  const hoursMap    = buildJobTotals(hoursRows, COST_HOURS_COLS.JOB, COST_HOURS_COLS.HOURS, COST_HOURS_COLS.DATE, dateFrom, dateTo);
+  const materialMap = buildJobTotals(materialRows, COST_MATERIAL_COLS.JOB, COST_MATERIAL_COLS.AMOUNT, COST_MATERIAL_COLS.DATE, dateFrom, dateTo);
 
-  return jsonResponse({ records, depts: Object.keys(COST_DEPTS) });
+  const overview = COST_OVERVIEW_BUCKETS.map(b => ({
+    id: b.id, label: b.label, ...costTotals(hoursMap, materialMap, [...b.jobs]),
+  }));
+
+  const plasticMfg = PLASTIC_MFG_ASSETS.map(a => ({
+    label: a.label, ...costTotals(hoursMap, materialMap, a.hoursJobs, a.materialJobs),
+  }));
+
+  const injectionMold = INJECTION_MOLD_ASSETS.map(a => ({
+    job: a.job, label: a.label, ...costTotals(hoursMap, materialMap, [a.job]),
+  }));
+
+  const forklift = FORKLIFT_ASSETS.map(a => ({
+    id: a.id, dept: a.dept, job: a.job, ...costTotals(hoursMap, materialMap, [a.job]),
+  }));
+
+  const cscBuilding = CSC_BUILDING_ASSETS.map(a => ({
+    label: a.label, job: a.job, ...costTotals(hoursMap, materialMap, [a.job]),
+  }));
+
+  const machineShop = MACHINE_SHOP_SECTIONS.map(s => ({
+    section: s.section,
+    lines: s.lines.map(l => ({ label: l.label, ...costTotals(hoursMap, materialMap, l.jobs, l.jobs, l.range) })),
+  }));
+
+  return jsonResponse({
+    overview,
+    machineShop,
+    drilldowns: {
+      'plastic-manuf': { plasticMfg, injectionMold },
+      'trucks-lifts':  { forklift },
+      'buildings':     { cscBuilding },
+    },
+  });
 }
 
 async function handleEMRLData(env, userEmail, params) {
@@ -4184,7 +4349,7 @@ export default {
       else if (p === '/api/reports/active-tickets'       && method === 'GET') res = await handleActiveTickets(env, userEmail);
       else if (p === '/api/reports/emrl'                && method === 'GET') res = await handleEMRLData(env, userEmail, Object.fromEntries(url.searchParams));
       else if (p === '/api/reports/downtime-compare'    && method === 'GET') res = await handleDowntimeCompare(env, userEmail, Object.fromEntries(url.searchParams));
-      else if (p === '/api/reports/cost-data'           && method === 'GET') res = await handleCostData(env, userEmail);
+      else if (p === '/api/reports/cost-data'           && method === 'GET') res = await handleCostData(env, userEmail, Object.fromEntries(url.searchParams));
       // Bug / Feature Request intake
       else if (p === '/api/feedback/submit'             && method === 'POST')res = await handleFeedbackSubmit(env, userEmail, body);
       // Admin
