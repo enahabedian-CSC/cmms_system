@@ -311,9 +311,21 @@ function _renderDetail_(result) {
     var _jbLeft  = _jbDepts.filter(function(d){ return !(_jbSignoffs[d] && _jbSignoffs[d].complete); });
     var _jbMyDepts = (USER.ownedDepts || []).filter(function(d){ return _jbDepts.indexOf(d) >= 0; });
     _jbMyDone  = _jbMyDepts.every(function(d){ return _jbSignoffs[d] && _jbSignoffs[d].complete; });
+    var _jbAssignments = {};
+    try { _jbAssignments = JSON.parse(t.jointAssignedTo || '{}'); } catch(e) {}
     var _jbDeptRows = function(list, done) {
       return list.map(function(d) {
-        return '<div class="joint-dept-row"><div class="joint-dept-dot ' + (done ? 'jd-complete' : 'jd-pending') + '"></div>' + esc(d) + '</div>';
+        var tech = _jbAssignments[d] || '';
+        var techStr = tech
+          ? '<span style="font-size:11px;color:#6B7280;margin-left:8px;">→ ' + esc(tech) + '</span>'
+          : '';
+        var canAssign = isManager && (USER.isAdmin || (USER.ownedDepts || []).indexOf(d) >= 0) && !done;
+        var assignBtn = canAssign
+          ? '<button onclick="_jdAssignTech_(\'' + d.replace(/'/g,"\\'") + '\')" style="margin-left:8px;font-size:10px;padding:1px 7px;border:1px solid #D1D5DB;border-radius:3px;background:#F9FAFB;color:#374151;cursor:pointer;">'
+            + (tech ? 'Reassign' : 'Assign Tech') + '</button>'
+          : '';
+        return '<div class="joint-dept-row"><div class="joint-dept-dot ' + (done ? 'jd-complete' : 'jd-pending') + '"></div>'
+          + esc(d) + techStr + assignBtn + '</div>';
       }).join('');
     };
 
@@ -1495,6 +1507,7 @@ var _tdActionUrls_ = {
   transferTicket:       '/api/tickets/transfer',
   deptSignOff:          '/api/tickets/dept-sign-off',
   adminForceSignoff:    '/api/tickets/admin-force-signoff',
+  jointAssign:          '/api/tickets/joint-assign',
   confirmJointRequest:  '/api/tickets/confirm-joint',
   rejectJointRequest:   '/api/tickets/reject-joint',
   issueEquipHoldTag:    '/api/monitoring/hold-tags/issue',
@@ -1873,6 +1886,27 @@ function _adminForceSignoff_(dept) {
     }, 'Confirm Override');
 }
 
+// Assign a technician for a joint department on this ticket.
+function _jdAssignTech_(dept) {
+  var t = _tdTicket;
+  if (!t) return;
+  var assignments = {};
+  try { assignments = JSON.parse(t.jointAssignedTo || '{}'); } catch(e) {}
+  var current = assignments[dept] || '';
+  _showModal_('Assign Tech — ' + esc(dept),
+    '<div class="form-group"><label>Technician Name</label>' +
+    '<input id="jda-name" placeholder="Enter technician name" value="' + esc(current) + '" /></div>',
+    function() {
+      var name = (document.getElementById('jda-name').value || '').trim();
+      _tdRunAction_(jointAssign, {
+        ticketNo:   t.ticketNo,
+        dept:       dept,
+        assignedTo: name,
+        updatedBy:  USER.displayName,
+      }, esc(dept) + ' Tech Assigned' + (name ? ': ' + esc(name) : ' (cleared)'));
+    }, 'Save');
+}
+
 // Renders joint department sign-off chips + pending request chips in the overview.
 function _renderJointStatus_(t) {
   var jd = (t.jointDepts || '').split(',').map(function(d) { return d.trim(); }).filter(Boolean);
@@ -1958,6 +1992,7 @@ function flagTempFix(d)          {}
 function transferTicket(d)       {}
 function deptSignOff(d)          {}
 function adminForceSignoff(d)    {}
+function jointAssign(d)          {}
 function confirmJointRequest(d)  {}
 function rejectJointRequest(d)   {}
 function issueEquipHoldTag(d)    {}

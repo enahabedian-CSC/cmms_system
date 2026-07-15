@@ -30,6 +30,7 @@ const ML = {
   // columns — existing 43-col reads stay valid.
   CLR_TOOLS_REMOVED:44, CLR_AREA_CLEAN:45, CLR_QA_REQUIRED:46,
   ASSIGNED_DEPT:47,
+  JOINT_ASSIGNED_TO:48, // JSON map: { "DEPT": "Tech Name" }
 };
 
 const TF = {
@@ -1030,7 +1031,8 @@ async function appendMasterLog(token, env, opts) {
   if (opts.clrToolsRemoved !== undefined) row[ML.CLR_TOOLS_REMOVED - 1] = opts.clrToolsRemoved || '';
   if (opts.clrAreaClean    !== undefined) row[ML.CLR_AREA_CLEAN    - 1] = opts.clrAreaClean    || '';
   if (opts.clrQaRequired   !== undefined) row[ML.CLR_QA_REQUIRED   - 1] = opts.clrQaRequired   || '';
-  if (opts.assignedDept    !== undefined) row[ML.ASSIGNED_DEPT     - 1] = opts.assignedDept    || '';
+  if (opts.assignedDept      !== undefined) row[ML.ASSIGNED_DEPT      - 1] = opts.assignedDept      || '';
+  if (opts.jointAssignedTo  !== undefined) row[ML.JOINT_ASSIGNED_TO  - 1] = opts.jointAssignedTo  || '';
   if (opts.addedBy       !== undefined) row[ML.ADDED_BY       - 1] = opts.addedBy       || '';
   if (opts.buildingZone  !== undefined) row[ML.BUILDING_ZONE  - 1] = opts.buildingZone  || '';
   if (opts.equipType     !== undefined) row[ML.EQUIP_TYPE     - 1] = opts.equipType     || '';
@@ -1584,6 +1586,7 @@ async function handleTicketDetail(env, userEmail, ticketNo) {
     clrAreaClean:     cellStr(best, ML.CLR_AREA_CLEAN),
     clrQaRequired:    cellStr(best, ML.CLR_QA_REQUIRED),
     assignedDept:     normalizeDept(cellStr(best, ML.ASSIGNED_DEPT)) || normalizeDept(cellStr(best, ML.DEPT)),
+    jointAssignedTo:  cellStr(best, ML.JOINT_ASSIGNED_TO),
   };
 
   // Sort chronologically by the real timestamp column. Raw sheet-append order
@@ -2248,6 +2251,44 @@ async function handleAddTicket(env, userEmail, body) {
 }
 
 // ── Joint request handlers ────────────────────────────────────────────────────
+
+async function handleJointAssign(env, userEmail, body) {
+  const token = await getAccessToken(env);
+  const user  = await resolveUser(token, env, userEmail);
+  if (!user.isManager) return jsonResponse({ error: 'Manager access required' }, 403);
+
+  const ticketNo   = String(body.ticketNo   || '').trim();
+  const dept       = String(body.dept       || '').trim().toUpperCase();
+  const assignedTo = String(body.assignedTo || '').trim();
+  const updatedBy  = String(body.updatedBy  || user.displayName).trim();
+
+  if (!ticketNo || !dept) return jsonResponse({ error: 'ticketNo and dept required' }, 400);
+  if (!user.isAdmin && !user.ownedDepts.includes(dept))
+    return jsonResponse({ error: 'You can only assign techs for your own department' }, 403);
+
+  const best  = await _ticketState_(token, env, ticketNo);
+  if (!best) return jsonResponse({ error: 'Ticket not found: ' + ticketNo }, 404);
+
+  const joint = _normDepts_(cellStr(best, ML.JOINT_DEPTS));
+  if (!joint.includes(dept))
+    return jsonResponse({ error: dept + ' is not a confirmed joint department on this ticket' }, 400);
+
+  let assignments = {};
+  try { assignments = JSON.parse(cellStr(best, ML.JOINT_ASSIGNED_TO) || '{}'); } catch (_) {}
+  assignments[dept] = assignedTo;
+
+  await appendMasterLog(token, env, {
+    ticketNo, now: new Date(),
+    action: 'JOINT TECH ASSIGNED',
+    jointAssignedTo: JSON.stringify(assignments),
+    updatedBy,
+    notes: dept + ' assigned to: ' + (assignedTo || '(unassigned)'),
+  });
+  await appendTicketHistory(token, env, ticketNo, 'JOINT TECH ASSIGNED', '', '', updatedBy,
+    'Joint dept ' + dept + ' assigned to: ' + (assignedTo || '(unassigned)'));
+
+  return jsonResponse({ success: true, ticketNo, dept, assignedTo });
+}
 
 async function handleConfirmJoint(env, userEmail, body) {
   const token = await getAccessToken(env);
@@ -4312,6 +4353,7 @@ export default {
       else if (p === '/api/tickets/closed'              && method === 'GET') res = await handleClosedTickets(env, userEmail);
       else if (p === '/api/tickets/equip-history'       && method === 'GET') res = await handleEquipTicketHistory(env, userEmail, url.searchParams.get('equipCode') || '');
       else if (p === '/api/tickets/confirm-joint'       && method === 'POST')res = await handleConfirmJoint(env, userEmail, body);
+      else if (p === '/api/tickets/joint-assign'        && method === 'POST')res = await handleJointAssign(env, userEmail, body);
       else if (p === '/api/tickets/reject-joint'        && method === 'POST')res = await handleRejectJoint(env, userEmail, body);
       else if (p === '/api/tickets/rollover'            && method === 'POST')res = await handleRollover(env, userEmail, body);
       // Submit ticket
