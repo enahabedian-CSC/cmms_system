@@ -30,7 +30,6 @@ const ML = {
   // columns — existing 43-col reads stay valid.
   CLR_TOOLS_REMOVED:44, CLR_AREA_CLEAN:45, CLR_QA_REQUIRED:46,
   ASSIGNED_DEPT:47,
-  JOINT_ASSIGNED_TO:48, // JSON map: { "DEPT": "Tech Name" }
 };
 
 const TF = {
@@ -63,6 +62,28 @@ const EHL = {
   WHAT_DONE:19,      // what was done with the equipment on release (2.6.3.3)
 };
 const EHL_COLS = 19;
+
+// ASSIGNED_TO is comma-separated when joint depts are involved.
+// Primary tech has no label; joint entries are formatted "Name (DEPT)".
+function _parseAssignedTo_(raw) {
+  const joint = {};
+  let primary = '';
+  (raw || '').split(',').forEach(e => {
+    const s = e.trim();
+    const m = s.match(/^(.+?)\s*\(([^)]+)\)$/);
+    if (m) joint[m[2].trim().toUpperCase()] = m[1].trim();
+    else if (s) primary = s;
+  });
+  return { primary, joint };
+}
+function _buildAssignedTo_(primary, joint) {
+  const parts = [];
+  if (primary) parts.push(primary);
+  for (const [dept, tech] of Object.entries(joint)) {
+    if (tech) parts.push(tech + ' (' + dept + ')');
+  }
+  return parts.join(', ');
+}
 
 const HIST_HEADER_ROW = 5; // data starts at row HIST_HEADER_ROW + 1
 
@@ -1032,7 +1053,6 @@ async function appendMasterLog(token, env, opts) {
   if (opts.clrAreaClean    !== undefined) row[ML.CLR_AREA_CLEAN    - 1] = opts.clrAreaClean    || '';
   if (opts.clrQaRequired   !== undefined) row[ML.CLR_QA_REQUIRED   - 1] = opts.clrQaRequired   || '';
   if (opts.assignedDept      !== undefined) row[ML.ASSIGNED_DEPT      - 1] = opts.assignedDept      || '';
-  if (opts.jointAssignedTo  !== undefined) row[ML.JOINT_ASSIGNED_TO  - 1] = opts.jointAssignedTo  || '';
   if (opts.addedBy       !== undefined) row[ML.ADDED_BY       - 1] = opts.addedBy       || '';
   if (opts.buildingZone  !== undefined) row[ML.BUILDING_ZONE  - 1] = opts.buildingZone  || '';
   if (opts.equipType     !== undefined) row[ML.EQUIP_TYPE     - 1] = opts.equipType     || '';
@@ -1586,7 +1606,6 @@ async function handleTicketDetail(env, userEmail, ticketNo) {
     clrAreaClean:     cellStr(best, ML.CLR_AREA_CLEAN),
     clrQaRequired:    cellStr(best, ML.CLR_QA_REQUIRED),
     assignedDept:     normalizeDept(cellStr(best, ML.ASSIGNED_DEPT)) || normalizeDept(cellStr(best, ML.DEPT)),
-    jointAssignedTo:  cellStr(best, ML.JOINT_ASSIGNED_TO),
   };
 
   // Sort chronologically by the real timestamp column. Raw sheet-append order
@@ -2273,14 +2292,15 @@ async function handleJointAssign(env, userEmail, body) {
   if (!joint.includes(dept))
     return jsonResponse({ error: dept + ' is not a confirmed joint department on this ticket' }, 400);
 
-  let assignments = {};
-  try { assignments = JSON.parse(cellStr(best, ML.JOINT_ASSIGNED_TO) || '{}'); } catch (_) {}
-  assignments[dept] = assignedTo;
+  const parsed = _parseAssignedTo_(cellStr(best, ML.ASSIGNED_TO));
+  if (assignedTo) parsed.joint[dept] = assignedTo;
+  else delete parsed.joint[dept];
+  const newAssignedTo = _buildAssignedTo_(parsed.primary, parsed.joint);
 
   await appendMasterLog(token, env, {
     ticketNo, now: new Date(),
     action: 'JOINT TECH ASSIGNED',
-    jointAssignedTo: JSON.stringify(assignments),
+    assignedTo: newAssignedTo,
     updatedBy,
     notes: dept + ' assigned to: ' + (assignedTo || '(unassigned)'),
   });
@@ -2574,12 +2594,18 @@ async function handleAssignTicket(env, userEmail, body) {
   if (!user.isManager) return jsonResponse({ error: 'Manager access required' }, 403);
   const ticketNo  = String(body.ticketNo  || '').trim();
   if (!ticketNo) return jsonResponse({ error: 'ticketNo required' }, 400);
-  const updatedBy = String(body.updatedBy || user.displayName).trim();
+  const updatedBy  = String(body.updatedBy || user.displayName).trim();
+  const primaryTech = String(body.assignedTo || '').trim();
+  // Preserve any existing joint-dept entries in the comma-separated ASSIGNED_TO field.
+  const best = await _ticketState_(token, env, ticketNo);
+  const parsed = best ? _parseAssignedTo_(cellStr(best, ML.ASSIGNED_TO)) : { primary: '', joint: {} };
+  parsed.primary = primaryTech;
+  const newAssignedTo = _buildAssignedTo_(parsed.primary, parsed.joint);
   await appendMasterLog(token, env, {
     ticketNo, now: new Date(), action: 'ASSIGNED',
-    assignedTo: body.assignedTo || '', estHours: body.estHours || '', updatedBy,
+    assignedTo: newAssignedTo, estHours: body.estHours || '', updatedBy,
   });
-  await appendTicketHistory(token, env, ticketNo, 'ASSIGNED', '', '', updatedBy, 'Assigned to: ' + (body.assignedTo || 'Unassigned'));
+  await appendTicketHistory(token, env, ticketNo, 'ASSIGNED', '', '', updatedBy, 'Assigned to: ' + (primaryTech || 'Unassigned'));
   return jsonResponse({ success: true, ticketNo });
 }
 

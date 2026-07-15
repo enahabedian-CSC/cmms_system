@@ -311,8 +311,12 @@ function _renderDetail_(result) {
     var _jbLeft  = _jbDepts.filter(function(d){ return !(_jbSignoffs[d] && _jbSignoffs[d].complete); });
     var _jbMyDepts = (USER.ownedDepts || []).filter(function(d){ return _jbDepts.indexOf(d) >= 0; });
     _jbMyDone  = _jbMyDepts.every(function(d){ return _jbSignoffs[d] && _jbSignoffs[d].complete; });
+    // Parse comma-separated "John Smith, Jane Doe (ELECTRICAL)" into a dept→tech map.
     var _jbAssignments = {};
-    try { _jbAssignments = JSON.parse(t.jointAssignedTo || '{}'); } catch(e) {}
+    (t.assignedTo || '').split(',').forEach(function(e) {
+      var m = e.trim().match(/^(.+?)\s*\(([^)]+)\)$/);
+      if (m) _jbAssignments[m[2].trim().toUpperCase()] = m[1].trim();
+    });
     var _jbDeptRows = function(list, done) {
       return list.map(function(d) {
         var tech = _jbAssignments[d] || '';
@@ -1891,7 +1895,10 @@ function _jdAssignTech_(dept) {
   var t = _tdTicket;
   if (!t) return;
   var assignments = {};
-  try { assignments = JSON.parse(t.jointAssignedTo || '{}'); } catch(e) {}
+  (t.assignedTo || '').split(',').forEach(function(e) {
+    var m = e.trim().match(/^(.+?)\s*\(([^)]+)\)$/);
+    if (m) assignments[m[2].trim().toUpperCase()] = m[1].trim();
+  });
   var current = assignments[dept] || '';
   _showModal_('Assign Tech — ' + esc(dept),
     '<div class="form-group"><label>Technician Name</label>' +
