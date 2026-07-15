@@ -413,6 +413,17 @@ function getNavDef() {
     ]
   });
 
+  // Preventive Maintenance — Master schedule + per-machine PM packets.
+  // ungrouped: true keeps it flat (non-collapsible), same as Monitoring above.
+  nav.push({
+    section: 'Preventive Maintenance', icon: 'pm', ungrouped: true,
+    items: [
+      { id: 'pm-intake',  label: 'New PM Entry',       icon: 'newticket' },
+      { id: 'pm',         label: 'Master PM',          icon: 'pm' },
+      { id: 'pm-packets', label: 'Machine PM Packets', icon: 'pm' }
+    ]
+  });
+
   if (isManager) {
     nav.push({
       section: 'Reports & SQF', icon: 'reports', ungrouped: true,
@@ -436,16 +447,6 @@ function getNavDef() {
       ]
     });
   }
-
-  // Preventive Maintenance — Master schedule + per-machine PM packets.
-  nav.push({
-    section: 'Preventive Maintenance', icon: 'pm',
-    items: [
-      { id: 'pm-intake',  label: 'New PM Entry',       icon: 'newticket' },
-      { id: 'pm',         label: 'Master PM',          icon: 'pm' },
-      { id: 'pm-packets', label: 'Machine PM Packets', icon: 'pm' }
-    ]
-  });
 
   return nav;
 }
