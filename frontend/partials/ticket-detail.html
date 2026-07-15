@@ -359,7 +359,8 @@ function _renderDetail_(result) {
       } else if (isFixer && !_jbMyDone) {
         jointBanner = '<div class="joint-banner role-fixer">' +
           '<span>🔗</span><div class="joint-banner-body">Your department (' + esc(_jbMyDepts.join(', ') || '—') + ') is a joint fixer on this ticket.' +
-          '<div class="jb-sub">Complete your repair, then click <strong>Mark Work Complete</strong>.</div></div></div>';
+          '<div class="jb-sub">Complete your repair, then click <strong>Mark Work Complete</strong>.</div>' +
+          _jbDeptRows(_jbMyDepts, false) + '</div></div>';
       } else if (isOwner) {
         jointBanner = '<div class="joint-banner role-owner-waiting">' +
           '<span>⏳</span><div class="joint-banner-body">Waiting on joint departments to complete their work.' +
