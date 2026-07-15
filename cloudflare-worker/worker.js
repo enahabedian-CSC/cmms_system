@@ -3590,10 +3590,15 @@ async function handleCostData(env, userEmail, params) {
   const dateFrom = params && params.dateFrom ? new Date(params.dateFrom) : null;
   const dateTo   = params && params.dateTo   ? new Date(params.dateTo + 'T23:59:59') : null;
 
-  const [hoursRows, materialRows] = await Promise.all([
-    readSheet(token, costSheetId, COST_HOURS_TAB, 'A2:D'),
-    readSheet(token, costSheetId, COST_MATERIAL_TAB, 'A2:F'),
-  ]);
+  let hoursRows, materialRows;
+  try {
+    [hoursRows, materialRows] = await Promise.all([
+      readSheet(token, costSheetId, COST_HOURS_TAB, 'A2:D'),
+      readSheet(token, costSheetId, COST_MATERIAL_TAB, 'A2:F'),
+    ]);
+  } catch (e) {
+    return jsonResponse({ error: 'Could not read cost data: ' + e.message + '. Make sure the "Costs 2024" spreadsheet (COST_SPREADSHEET_ID) is shared with the service account (' + (env.GOOGLE_SA_EMAIL || 'see GOOGLE_SA_EMAIL secret') + ') as a Viewer.' }, 500);
+  }
 
   const hoursMap    = buildJobTotals(hoursRows, COST_HOURS_COLS.JOB, COST_HOURS_COLS.HOURS, COST_HOURS_COLS.DATE, dateFrom, dateTo);
   const materialMap = buildJobTotals(materialRows, COST_MATERIAL_COLS.JOB, COST_MATERIAL_COLS.AMOUNT, COST_MATERIAL_COLS.DATE, dateFrom, dateTo);
