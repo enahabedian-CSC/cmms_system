@@ -222,7 +222,7 @@ function _rptRenderCats_(data) {
 
   host.innerHTML =
     cat('insights',     meta.insights.label,     meta.insights.desc,
-        _rptKpiBarHtml_(data) + _rptInsightsHtml_(data) + _rptHotspotsHtml_(data) + _rptTrendHtml_(data)) +
+        _rptKpiBarHtml_(data) + _rptInsightsHtml_(data) + _rptHotspotsHtml_(data) + _rptTrendHtml_(data) + _rptDowntimeCompareHtml_()) +
     cat('workload',     meta.workload.label,     meta.workload.desc,
         _rptDeptSummaryHtml_(data) + _rptTeamWorkloadHtml_(data)) +
     cat('distribution', meta.distribution.label, meta.distribution.desc,
@@ -425,6 +425,92 @@ function _rptTrendHtml_(data) {
     '</div>' +
     '<svg viewBox="0 0 ' + W + ' ' + H + '" style="width:100%;height:auto;display:block;">' + rects + '</svg>' +
   '</div>';
+}
+
+// Downtime Comparison — pick two arbitrary months and compare total downtime.
+// Independent of the page's daysBack window; calls its own endpoint on demand.
+function _rptDowntimeCompareHtml_() {
+  return '<div class="rpt-analytics-card" style="margin-bottom:14px;">' +
+    '<div class="rpt-analytics-hdr">Downtime Comparison</div>' +
+    '<div style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;margin-bottom:12px;">' +
+      '<div class="form-group"><label class="form-label">Period A</label>' +
+        '<input type="month" class="form-input" id="rpt-dtc-a" style="width:160px;"></div>' +
+      '<div class="form-group"><label class="form-label">Period B</label>' +
+        '<input type="month" class="form-input" id="rpt-dtc-b" style="width:160px;"></div>' +
+      '<button class="rpt-btn primary" onclick="_rptRunDowntimeCompare_()">Compare</button>' +
+    '</div>' +
+    '<div id="rpt-dtc-results" style="font-size:12.5px;color:var(--text-secondary);">Pick two months and click Compare.</div>' +
+  '</div>';
+}
+
+// Converts an <input type="month"> value ('YYYY-MM') into first/last calendar
+// day ISO strings for the downtime-compare endpoint.
+function _rptMonthRange_(monthStr) {
+  if (!monthStr) return null;
+  var parts = monthStr.split('-');
+  var y = parseInt(parts[0], 10), m = parseInt(parts[1], 10);
+  if (!y || !m) return null;
+  var lastDay = new Date(y, m, 0).getDate();
+  return {
+    start: y + '-' + String(m).padStart(2, '0') + '-01',
+    end:   y + '-' + String(m).padStart(2, '0') + '-' + String(lastDay).padStart(2, '0'),
+  };
+}
+
+function _rptRunDowntimeCompare_() {
+  var out = document.getElementById('rpt-dtc-results');
+  var a = _rptMonthRange_(document.getElementById('rpt-dtc-a').value);
+  var b = _rptMonthRange_(document.getElementById('rpt-dtc-b').value);
+  if (!a || !b) { out.innerHTML = '<span style="color:var(--status-critical);">Pick both months.</span>'; return; }
+
+  var labelA = document.getElementById('rpt-dtc-a').value;
+  var labelB = document.getElementById('rpt-dtc-b').value;
+  out.innerHTML = '<div class="rpt-analytics-loading">Comparing…</div>';
+
+  var qs = 'startA=' + a.start + '&endA=' + a.end + '&startB=' + b.start + '&endB=' + b.end;
+  fetch(WORKER_URL + '/api/reports/downtime-compare?' + qs, {
+    headers: { 'X-User-Email': USER ? USER.email : '' }
+  })
+    .then(function(r) { return r.json(); })
+    .then(function(res) {
+      if (!res || res.error) { out.innerHTML = '<span style="color:var(--status-critical);">' + esc((res && res.error) || 'Error') + '</span>'; return; }
+      out.innerHTML = _rptDowntimeCompareResultsHtml_(res, labelA, labelB);
+    })
+    .catch(function(err) { out.innerHTML = '<span style="color:var(--status-critical);">Error: ' + esc(err.message || String(err)) + '</span>'; });
+}
+
+function _rptDowntimeCompareResultsHtml_(res, labelA, labelB) {
+  var a = res.periodA, b = res.periodB;
+  var delta = +(a.totalHours - b.totalHours).toFixed(1);
+  var deltaCls = delta > 0 ? 'critical' : delta < 0 ? 'success' : '';
+  var deltaTxt = (delta > 0 ? '+' : '') + delta + 'h vs ' + esc(labelB);
+
+  function deptBars(period) {
+    if (!period.byDept.length) return '<div style="color:var(--text-tertiary);font-size:12px;">No downtime recorded.</div>';
+    var max = Math.max.apply(null, period.byDept.map(function(d) { return d.hours; }));
+    return period.byDept.map(function(d) {
+      var pct = max > 0 ? Math.round((d.hours / max) * 100) : 0;
+      return '<div class="rpt-pt-row"><span class="rpt-pt-label">' + esc(d.dept) + '</span>' +
+        '<div class="rpt-pt-bar-wrap"><div class="rpt-pt-bar" style="width:' + pct + '%;"></div></div>' +
+        '<span class="rpt-pt-count">' + d.hours + 'h</span></div>';
+    }).join('');
+  }
+
+  return '<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">' +
+    '<div><div style="font-weight:700;font-size:12.5px;margin-bottom:6px;color:var(--text-primary);">' + esc(labelA) + ' — ' + a.totalHours + 'h total</div>' +
+      _rptStatRow_('Planned', a.plannedHours + 'h', '') +
+      _rptStatRow_('Unplanned', a.unplannedHours + 'h', a.unplannedHours > 0 ? 'critical' : 'success') +
+      _rptStatRow_('Tickets w/ downtime', a.ticketCount, '') +
+      deptBars(a) +
+    '</div>' +
+    '<div><div style="font-weight:700;font-size:12.5px;margin-bottom:6px;color:var(--text-primary);">' + esc(labelB) + ' — ' + b.totalHours + 'h total</div>' +
+      _rptStatRow_('Planned', b.plannedHours + 'h', '') +
+      _rptStatRow_('Unplanned', b.unplannedHours + 'h', b.unplannedHours > 0 ? 'critical' : 'success') +
+      _rptStatRow_('Tickets w/ downtime', b.ticketCount, '') +
+      deptBars(b) +
+    '</div>' +
+  '</div>' +
+  '<div style="margin-top:12px;font-size:12.5px;font-weight:600;color:var(--status-' + (deltaCls || 'info') + ');">' + esc(labelA) + ' is ' + deltaTxt + '</div>';
 }
 
 // ── WORKLOAD ──────────────────────────────────────────────────────────────

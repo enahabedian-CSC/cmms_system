@@ -106,6 +106,11 @@ a{color:inherit;text-decoration:none;}
 .topbar-title{font-weight:600;font-size:14px;color:var(--text-primary);}
 .topbar-spacer{flex:1;}
 .topbar-live{display:flex;align-items:center;gap:7px;font-size:11.5px;color:var(--text-secondary);padding:4px 10px;background:var(--bg-app);border-radius:4px;border:1px solid var(--border-default);}
+.topbar-feedback-btn{display:flex;align-items:center;gap:6px;height:30px;padding:0 12px;border:1px solid var(--border-default);border-radius:6px;background:#fff;color:var(--text-secondary);font-size:12px;font-weight:600;cursor:pointer;}
+.topbar-feedback-btn:hover{background:var(--bg-hover);color:var(--text-primary);}
+.fb-type-toggle{display:flex;gap:8px;}
+.fb-type-btn{flex:1;height:36px;border:1px solid var(--border-default);border-radius:6px;background:#fff;color:var(--text-secondary);font-size:12.5px;font-weight:600;cursor:pointer;}
+.fb-type-btn.active{border-color:var(--brand-navy);background:var(--brand-navy);color:#fff;}
 .live-dot{width:7px;height:7px;border-radius:50%;background:var(--status-success);position:relative;}
 .live-dot::after{content:'';position:absolute;inset:-3px;border-radius:50%;background:var(--status-success);opacity:.3;animation:pulse 2.4s ease-out infinite;}
 @keyframes pulse{0%{transform:scale(.5);opacity:.5;}70%{transform:scale(1.4);opacity:0;}100%{transform:scale(1.4);opacity:0;}}
@@ -266,6 +271,10 @@ function docLabel(key) {
     <header class="topbar">
       <span class="topbar-title" id="topbar-title">Dashboard</span>
       <div class="topbar-spacer"></div>
+      <button class="topbar-feedback-btn" onclick="openFeedbackModal()" title="Report a bug or request a feature">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+        Feedback
+      </button>
       <div class="topbar-live">
         <div class="live-dot"></div>
         <span id="topbar-company">CSC Maintenance</span>
@@ -302,6 +311,32 @@ function docLabel(key) {
 <?!= include_('frontend/partials/admin') ?>
 
 <div id="toast-container"></div>
+
+<!-- ── Bug / Feature Request modal ─────────────────────────────────────────── -->
+<div class="td-modal-backdrop" id="fb-modal-backdrop" data-static="1" style="display:none;" onclick="if(event.target===this)closeFeedbackModal()">
+  <div class="td-modal" style="width:460px;">
+    <h3 style="margin:0 0 14px;font-size:15px;">Report a Bug / Request a Feature</h3>
+    <div class="form-group" style="margin-bottom:12px;">
+      <label class="form-label">Type</label>
+      <div class="fb-type-toggle">
+        <button type="button" class="fb-type-btn active" id="fb-type-bug" onclick="_fbSetType_('BUG')">🐛 Bug Fix</button>
+        <button type="button" class="fb-type-btn" id="fb-type-feature" onclick="_fbSetType_('FEATURE')">✨ Feature Request</button>
+      </div>
+    </div>
+    <div class="form-group" style="margin-bottom:12px;">
+      <label class="form-label">Where did you find this / which area?</label>
+      <select class="form-select" id="fb-area"></select>
+    </div>
+    <div class="form-group" style="margin-bottom:6px;">
+      <label class="form-label">Description</label>
+      <textarea class="form-textarea" id="fb-description" style="height:100px;" placeholder="What happened, or what would you like added?"></textarea>
+    </div>
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="closeFeedbackModal()">Cancel</button>
+      <button class="btn-cancel" style="background:var(--brand-navy);color:#fff;border-color:var(--brand-navy);" onclick="submitFeedback()">Submit</button>
+    </div>
+  </div>
+</div>
 
 <script>
 // ── SVG icon helpers ─────────────────────────────────────────────────────────
@@ -569,15 +604,40 @@ var _currentPage = 'home';
 // Global panel/modal reset — closes any open detail panel, modal, or sub-view.
 // Called once at the top of navigate() so every tab change starts clean.
 // Project-wide single handler (R2): never patch this per-screen.
+// Registry of every slide-over / detail-panel close function added across the
+// partials. EVERY new modal/overlay MUST add its close function here — see the
+// "Navigation must close open panels" rule in CLAUDE.md. Each entry is guarded
+// (typeof check) since partials load asynchronously and may not be present yet.
+var _PANEL_CLOSERS_ = [
+  'closeTicketDetail',  // ticket-detail.html — #td-overlay
+  '_eiCloseDetail_',    // equipment-inventory.html — #ei-detail-overlay
+  '_tfDetailClose_',    // monitoring.html — #tf-detail-back (temp fix detail)
+  '_tfInspectClose_',   // monitoring.html — #tf-inspect-back (temp fix inspect)
+  '_monModalClose_',    // monitoring.html — #mon-modal-back (hold tag / parts)
+  '_pmCloseSched_',     // pm-master.html — #pm-sched-overlay
+  '_pmCloseTicket_',    // pm-master.html — #pm-ticket-overlay
+  'closeFeedbackModal', // index.html — #fb-modal-backdrop (static, data-static)
+];
+
 function _closeAllPanels_() {
-  // Ticket detail slide-over (defined in ticket-detail partial; guard for load order)
-  try { if (typeof closeTicketDetail === 'function') closeTicketDetail(); } catch (e) {}
-  var overlay = document.getElementById('td-overlay');
-  if (overlay) overlay.classList.remove('open');
+  _PANEL_CLOSERS_.forEach(function(fnName) {
+    try { if (typeof window[fnName] === 'function') window[fnName](); } catch (e) {}
+  });
+  // Belt-and-suspenders: also directly clear the .open class on any overlay,
+  // in case a partial hasn't loaded yet (its close fn wouldn't exist) but its
+  // markup was server-inserted and already has .open from a prior session.
+  document.querySelectorAll('.open').forEach(function(el) {
+    if (el.id && /overlay|-back$/.test(el.id)) el.classList.remove('open');
+  });
   // Any modal rendered into the shared modal container + its backdrop
   var modalC = document.getElementById('td-modal-container');
   if (modalC) modalC.innerHTML = '';
-  var backdrops = document.querySelectorAll('.td-modal-backdrop, .modal-backdrop');
+  // Dynamically-rendered modal backdrops get torn down entirely (they rebuild
+  // from scratch next time they're opened). Static, always-in-DOM modals
+  // (marked data-static) are closed via their own function above instead —
+  // removing them here would delete them permanently with no code path to
+  // recreate them.
+  var backdrops = document.querySelectorAll('.td-modal-backdrop:not([data-static]), .modal-backdrop:not([data-static])');
   for (var i = 0; i < backdrops.length; i++) {
     var b = backdrops[i];
     if (b && b.parentNode) b.parentNode.removeChild(b);
@@ -671,6 +731,61 @@ function signOut() {
 // ── HTML escape helper ────────────────────────────────────────────────────────
 function esc(s) {
   return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+// ── Bug / Feature Request intake modal ────────────────────────────────────────
+// POSTs to WORKER_URL + '/api/feedback/submit' (handleFeedbackSubmit() in
+// cloudflare-worker/worker.js), which logs the report to the 'Feedback Log'
+// sheet tab (no email — a future triage agent will read that tab directly).
+var _fbType_ = 'BUG';
+
+function _fbSetType_(type) {
+  _fbType_ = type;
+  document.getElementById('fb-type-bug').classList.toggle('active', type === 'BUG');
+  document.getElementById('fb-type-feature').classList.toggle('active', type === 'FEATURE');
+}
+
+function openFeedbackModal() {
+  _fbSetType_('BUG');
+  document.getElementById('fb-description').value = '';
+
+  var areaSel = document.getElementById('fb-area');
+  var areas = [];
+  getNavDef().forEach(function(section) {
+    (section.items || []).forEach(function(item) {
+      if (!item.disabled) areas.push(item.label);
+    });
+  });
+  areas.push('Other');
+  areaSel.innerHTML = areas.map(function(a) { return '<option value="' + esc(a) + '">' + esc(a) + '</option>'; }).join('');
+
+  document.getElementById('fb-modal-backdrop').style.display = 'flex';
+}
+
+function closeFeedbackModal() {
+  document.getElementById('fb-modal-backdrop').style.display = 'none';
+}
+
+function submitFeedback() {
+  var description = document.getElementById('fb-description').value.trim();
+  if (!description) { showToast('Please enter a description', 'error'); return; }
+  var area = document.getElementById('fb-area').value;
+
+  fetch(WORKER_URL + '/api/feedback/submit', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-User-Email': (typeof USER !== 'undefined' && USER ? USER.email : '') },
+    body: JSON.stringify({ type: _fbType_, area: area, description: description })
+  })
+    .then(function(r) { return r.json().then(function(j) { return { ok: r.ok, body: j }; }); })
+    .then(function(res) {
+      if (res.ok && res.body && res.body.ok) {
+        showToast('Thanks — your ' + (_fbType_ === 'BUG' ? 'bug report' : 'feature request') + ' was submitted.', 'success');
+        closeFeedbackModal();
+      } else {
+        showToast((res.body && res.body.error) || 'Failed to submit', 'error');
+      }
+    })
+    .catch(function() { showToast('Network error — please try again', 'error'); });
 }
 
 // Coerce a list-endpoint response into an array. The deployed Worker may return

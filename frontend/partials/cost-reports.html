@@ -5,9 +5,10 @@
 <!-- ║    _CR_VIEWS_        — [{id,label}] for the report selector       ║ -->
 <!-- ║    _crRenderInto_(el)— mount the cost report into a host element  ║ -->
 <!-- ║    _crShowView_(id)  — switch the active report view              ║ -->
-<!-- ║    _crAddEntry_(rec) — append a record (used by the entry form)   ║ -->
-<!-- ║  Runs on a self-contained sample dataset + localStorage entries;  ║ -->
-<!-- ║  record shape matches a future live worker endpoint.              ║ -->
+<!-- ║  Every number comes from GET /api/reports/cost-data, which the    ║ -->
+<!-- ║  Worker computes live from the raw DATA Hours / DATA Material     ║ -->
+<!-- ║  logs (see the architecture notes above handleCostData in         ║ -->
+<!-- ║  worker.js, and docs/COST_REPORTS_DATA_SOURCES.md).                ║ -->
 <!-- ╚══════════════════════════════════════════════════════════════════╝ -->
 <style>
 /* ── Cost Reports ──────────────────────────────────────────────────────── */
@@ -16,7 +17,6 @@
 .cr-ctl-label{font-size:10.5px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--text-secondary);}
 .cr-input{height:32px;padding:0 10px;border:1px solid var(--border-default);border-radius:6px;font-size:12.5px;background:#fff;color:var(--text-primary);outline:none;}
 .cr-input:focus{border-color:var(--brand-navy);}
-.cr-input.narrow{width:100px;}
 .cr-daterange{display:flex;align-items:flex-end;gap:10px;padding:8px 12px;border:1.5px solid var(--brand-navy);border-radius:8px;background:var(--status-info-bg);}
 .cr-daterange .cr-ctl-label{color:var(--brand-navy);}
 .cr-presets{display:flex;gap:4px;flex-wrap:wrap;margin-top:2px;}
@@ -26,120 +26,74 @@
 .cr-grow{flex:1;}
 .cr-charts{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px;}
 @media (max-width:900px){.cr-charts{grid-template-columns:1fr;}}
-.cr-th{cursor:pointer;user-select:none;white-space:nowrap;}
-.cr-th:hover{color:var(--brand-navy);}
-.cr-th .cr-arrow{color:var(--brand-navy);margin-left:3px;font-size:9px;}
 .cr-td-num{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap;}
 .cr-td-asset{font-family:var(--font-mono);font-weight:600;color:var(--brand-navy);}
-.cr-pager{display:flex;align-items:center;justify-content:space-between;padding:10px 14px;border-top:1px solid var(--border-default);font-size:12px;color:var(--text-secondary);}
-.cr-pager-btns{display:flex;gap:6px;}
 .cr-empty{padding:28px;text-align:center;color:var(--text-secondary);font-size:13px;}
 .cr-local-note{font-size:11px;color:var(--text-tertiary);font-family:var(--font-mono);margin:-6px 0 14px;}
+.cr-scroll{max-height:480px;overflow:auto;}
+.cr-section-row td{background:var(--bg-subtle);font-weight:700;color:var(--brand-navy);}
 </style>
 
 <script>
 /* ══════════════════════════════════════════════════════════════════════════
-   COST REPORTS — client-side analytics over a self-contained sample set.
+   COST REPORTS — renders GET /api/reports/cost-data's pre-aggregated totals.
 
-   Record shape (also produced by the data-entry form):
-     { id, dept, date:'YYYY-MM-DD', asset, person, hours, material }
-   Labor cost  = hours × dept rate      Total cost = labor + material
+   Response shape (see handleCostData in worker.js for the full architecture
+   notes on why it's organized this way):
+     {
+       overview:   [{ id, label, hours, labor, material, total }, ...] — 9
+                   non-overlapping whole-company buckets (Plant Maintenance's
+                   own categories) — this total IS the company total.
+       machineShop:[{ section, lines:[{label,hours,labor,material,total}] }]
+                   — cross-department view of where the Machine Shop crew's
+                   labor + material went, by department. NOT additive with
+                   the 'machine-shop' overview bucket — that bucket is only
+                   jobs 500-502 (the crew's own unattributed time); this is
+                   the full picture of ALL their logged hours company-wide.
+       drilldowns: {
+         'plastic-manuf': { plasticMfg:[...], injectionMold:[...] },
+         'trucks-lifts':  { forklift:[...] },
+         'buildings':     { cscBuilding:[...] },
+       }
+     }
    ══════════════════════════════════════════════════════════════════════════ */
 
-// Department config: rate ($/hr), the label used for the "asset" column, and
-// the sample asset/person pools + a material-cost band for generation.
-var _CR_DEPTS_ = [
-  { id: 'machine-shop',   label: 'Machine Shop',      rate: 28.39, assetLabel: 'Machine ID',
-    assets: ['405.1','1003.0','406.1','916.0','433.0','62.1','1010.0','318.0','432.0','404.1','500.0','812.0'],
-    people: ['Gonzalez','Messina','Melchor','Nunez','Ignacio'], perWeek: [10,16], matBand: [0,140] },
-  { id: 'plastic-mfg',    label: 'Plastic Mfg',       rate: 24.50, assetLabel: 'Machine',
-    assets: ['PM-01','PM-02','PM-03','PM-04','PM-05','PM-06','PM-07','PM-08'],
-    people: ['Ramirez','Cortez','Vega','Diaz','Flores'], perWeek: [8,14], matBand: [40,650] },
-  { id: 'injection-mold', label: 'Injection Mold',    rate: 32.00, assetLabel: 'Mold',
-    assets: ['IM-101','IM-102','IM-103','IM-104','IM-105','IM-106'],
-    people: ['Torres','Patel','Owens','Reyes','Vega'], perWeek: [6,11], matBand: [90,950] },
-  { id: 'plant-maint',    label: 'Plant Maintenance', rate: 26.75, assetLabel: 'System',
-    assets: ['HVAC','Electrical','Plumbing','Compressed Air','Boiler','Lighting','Roofing'],
-    people: ['Ward','Hoang','Silva','Brooks','Kaur'], perWeek: [5,10], matBand: [20,800] },
-  { id: 'forklift',       label: 'Forklift',          rate: 22.00, assetLabel: 'Unit',
-    assets: ['FL-01','FL-02','FL-03','FL-04','FL-05','FL-06'],
-    people: ['Ward','Silva','Brooks','Nunez'], perWeek: [3,7], matBand: [15,520] },
-  { id: 'csc-building',   label: 'CSC Building',      rate: 25.00, assetLabel: 'Area / System',
-    assets: ['Bldg A','Bldg B','Warehouse','Offices','Grounds','Parking','Dock'],
-    people: ['Ward','Hoang','Brooks','Kaur'], perWeek: [3,7], matBand: [25,1250] }
+// Client-side mirror of the Worker's overview bucket ids/labels, for the view
+// selector and generic bucket rendering. Job-code lists live only in
+// worker.js — the frontend never needs them, it just displays totals.
+var _CR_BUCKETS_ = [
+  { id: 'plastic-manuf',  label: 'Plastic Manufacturing' },
+  { id: 'metal-manuf',    label: 'Metal Manufacturing' },
+  { id: 'trucks-lifts',   label: 'Trucks, Lifts & Autos' },
+  { id: 'metal-deco',     label: 'Metal Decorating' },
+  { id: 'plastic-deco',   label: 'Plastic Decorating' },
+  { id: 'machine-shop',   label: 'Machine Shop' },
+  { id: 'buildings',      label: 'Buildings' },
+  { id: 'support-equip',  label: 'Support Equipment' },
+  { id: 'customer-equip', label: 'Customer Equipment' },
 ];
-
-// Report selector options (Overview first, then one per department).
-var _CR_VIEWS_ = [{ id: 'overview', label: 'Overview — All Departments' }]
-  .concat(_CR_DEPTS_.map(function(d) { return { id: d.id, label: d.label }; }));
-
-var _CR_LS_KEY_ = 'cmms_cost_entries_v1';
-var _CR_PAGE_   = 15;
-var _CR_MONTHS_ = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-
-// ── State ─────────────────────────────────────────────────────────────────
-var _crData_   = null;         // full record set (sample + local), built once
-var _crRoot_   = null;         // host element inside the Reports page
-var _crView_   = 'overview';   // 'overview' | <deptId>
-var _crStart_  = null;
-var _crEnd_    = null;
-var _crPreset_ = 'all';
-var _crSort_   = { key: 'date', dir: 'desc' };
-var _crPage_   = 1;
-
-// ── Helpers ────────────────────────────────────────────────────────────────
-function _crDept_(id) {
-  for (var i = 0; i < _CR_DEPTS_.length; i++) if (_CR_DEPTS_[i].id === id) return _CR_DEPTS_[i];
+function _crBucket_(id) {
+  for (var i = 0; i < _CR_BUCKETS_.length; i++) if (_CR_BUCKETS_[i].id === id) return _CR_BUCKETS_[i];
   return null;
 }
-function _crRate_(id) { var d = _crDept_(id); return d ? d.rate : 0; }
-function _crPad_(n) { return (n < 10 ? '0' : '') + n; }
-function _crIso_(d) { return d.getFullYear() + '-' + _crPad_(d.getMonth() + 1) + '-' + _crPad_(d.getDate()); }
-function _crDisp_(iso) { var p = iso.split('-'); return p[1] + '/' + p[2] + '/' + p[0]; }
-function _crMoney_(n, dec) {
-  return '$' + Number(n || 0).toLocaleString('en-US',
-    { minimumFractionDigits: dec == null ? 0 : dec, maximumFractionDigits: dec == null ? 0 : dec });
-}
-function _crNum_(n) { return Number(n || 0).toLocaleString('en-US', { maximumFractionDigits: 1 }); }
-function _crLabor_(r)  { return r.hours * _crRate_(r.dept); }
-function _crTotal_(r)  { return _crLabor_(r) + (r.material || 0); }
 
-// Deterministic PRNG (mulberry32) — stable sample data across reloads.
-function _crRng_(seed) {
-  return function() {
-    seed |= 0; seed = (seed + 0x6D2B79F5) | 0;
-    var t = Math.imul(seed ^ (seed >>> 15), 1 | seed);
-    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-  };
-}
+// Report selector options (Overview first, then one per bucket).
+var _CR_VIEWS_ = [{ id: 'overview', label: 'Overview — All Departments' }]
+  .concat(_CR_BUCKETS_.map(function(b) { return { id: b.id, label: b.label }; }));
 
-// Build ~24 weekly logs (Fridays through 2025) for every department.
-function _crGenerate_() {
-  var recs = [];
-  var id = 0;
-  _CR_DEPTS_.forEach(function(dept, di) {
-    var rnd = _crRng_(20250103 + di * 7919);
-    var d = new Date(2025, 0, 3);
-    for (var w = 0; w < 24; w++) {
-      var iso = _crIso_(d);
-      var lines = dept.perWeek[0] + Math.floor(rnd() * (dept.perWeek[1] - dept.perWeek[0] + 1));
-      for (var i = 0; i < lines; i++) {
-        var ai = Math.floor(rnd() * rnd() * dept.assets.length);   // front-weighted
-        var person = dept.people[Math.floor(rnd() * dept.people.length)];
-        var h = Math.round((0.5 + rnd() * 9.5) * 2) / 2;
-        if (rnd() > 0.9) h = Math.round((10 + rnd() * 26) * 2) / 2;
-        var mat = Math.round(dept.matBand[0] + rnd() * rnd() * (dept.matBand[1] - dept.matBand[0]));
-        recs.push({ id: dept.id + '-' + _crPad_(++id), dept: dept.id, date: iso,
-                    asset: dept.assets[ai], person: person, hours: h, material: mat });
-      }
-      d.setDate(d.getDate() + 7);
-    }
-  });
-  return recs;
-}
-
-// ── localStorage entries (from the data-entry form) ─────────────────────────
+// ── Kept for the separate, still-provisional "Add Cost Entry" page ─────────
+// (cost-entry.html) — that page saves manual entries to localStorage only
+// ("syncs to the DB later" per its own header) and is independent of the
+// live report below, which is fully server-computed from raw sheet data.
+var _CR_DEPTS_ = [
+  { id: 'machine-shop',   label: 'Machine Shop',      rate: 28.39, assetLabel: 'Machine ID' },
+  { id: 'plastic-mfg',    label: 'Plastic Mfg',       rate: 28.39, assetLabel: 'Machine' },
+  { id: 'injection-mold', label: 'Injection Mold',    rate: 28.39, assetLabel: 'Mold' },
+  { id: 'plant-maint',    label: 'Plant Maintenance', rate: 28.39, assetLabel: 'System' },
+  { id: 'forklift',       label: 'Forklift',          rate: 28.39, assetLabel: 'Unit' },
+  { id: 'csc-building',   label: 'CSC Building',      rate: 28.39, assetLabel: 'Area / System' },
+];
+var _CR_LS_KEY_ = 'cmms_cost_entries_v1';
 function _crLoadLocal_() {
   try {
     var raw = window.localStorage ? window.localStorage.getItem(_CR_LS_KEY_) : null;
@@ -147,58 +101,104 @@ function _crLoadLocal_() {
     return Array.isArray(arr) ? arr : [];
   } catch (e) { return []; }
 }
-function _crSaveLocal_(arr) {
-  try { if (window.localStorage) window.localStorage.setItem(_CR_LS_KEY_, JSON.stringify(arr)); } catch (e) {}
-}
-// Append a record from the entry form: persist locally and, if the report is
-// already loaded, splice it into the live dataset so it shows up immediately.
 function _crAddEntry_(rec) {
   var local = _crLoadLocal_();
   local.push(rec);
-  _crSaveLocal_(local);
-  if (_crData_) _crData_.push(rec);
+  try { if (window.localStorage) window.localStorage.setItem(_CR_LS_KEY_, JSON.stringify(local)); } catch (e) {}
   return rec;
 }
 
-// ── Init / mount ────────────────────────────────────────────────────────────
-function _crEnsureData_() {
-  if (_crData_) return;
-  _crData_ = _crGenerate_();
-  var local = _crLoadLocal_();
-  if (local.length) _crData_ = _crData_.concat(local);
-  var dates = _crData_.map(function(r) { return r.date; }).sort();
-  _crStart_ = dates[0];
-  _crEnd_   = dates[dates.length - 1];
+// ── State ─────────────────────────────────────────────────────────────────
+var _crData_    = null;        // { overview, machineShop, drilldowns } from the Worker
+var _crRoot_    = null;        // host element inside the Reports page
+var _crView_    = 'overview';  // 'overview' | <bucket id>
+var _crStart_   = null;        // 'YYYY-MM-DD' or null (all time)
+var _crEnd_     = null;
+var _crPreset_  = 'all';
+
+// ── Helpers ────────────────────────────────────────────────────────────────
+function _crPad_(n) { return (n < 10 ? '0' : '') + n; }
+function _crIso_(d) { return d.getFullYear() + '-' + _crPad_(d.getMonth() + 1) + '-' + _crPad_(d.getDate()); }
+function _crMoney_(n, dec) {
+  return '$' + Number(n || 0).toLocaleString('en-US',
+    { minimumFractionDigits: dec == null ? 0 : dec, maximumFractionDigits: dec == null ? 0 : dec });
 }
+function _crNum_(n) { return Number(n || 0).toLocaleString('en-US', { maximumFractionDigits: 1 }); }
+
+// ── Init / mount ────────────────────────────────────────────────────────────
 // Entry point called by the Reports page when the Cost family is selected.
+// Fetches the live aggregate from the Worker on first load / range change;
+// re-renders from the cached _crData_ on view switches within the same range.
 function _crRenderInto_(host) {
   _crRoot_ = host;
-  _crEnsureData_();
-  _crRenderBody_();
+  if (_crData_) { _crRenderBody_(); return; }
+  _crFetch_();
 }
-function _crShowView_(v) { _crView_ = v; _crPage_ = 1; _crRenderBody_(); }
+function _crFetch_() {
+  var host = _crRoot_;
+  if (!host) return;
+  host.innerHTML = '<div class="loading-overlay"><div class="spinner"></div><span>Loading cost data…</span></div>';
+  var qs = [];
+  if (_crStart_) qs.push('dateFrom=' + encodeURIComponent(_crStart_));
+  if (_crEnd_)   qs.push('dateTo='   + encodeURIComponent(_crEnd_));
+  fetch(WORKER_URL + '/api/reports/cost-data' + (qs.length ? '?' + qs.join('&') : ''), {
+    headers: { 'X-User-Email': USER ? USER.email : '' }
+  })
+    .then(function(r) { return r.json(); })
+    .then(function(res) {
+      if (!res || res.error) {
+        host.innerHTML = '<div class="cr-empty">Error loading cost data: ' + esc((res && res.error) || 'Unknown error') + '</div>';
+        return;
+      }
+      _crData_ = res;
+      _crRenderBody_();
+    })
+    .catch(function(err) {
+      host.innerHTML = '<div class="cr-empty">Error loading cost data: ' + esc(err.message || String(err)) + '</div>';
+    });
+}
+function _crShowView_(v) { _crView_ = v; _crRenderBody_(); }
 
-// ── Data slicing ────────────────────────────────────────────────────────────
-function _crFiltered_(deptId) {
-  return _crData_.filter(function(r) {
-    if (deptId && r.dept !== deptId) return false;
-    if (_crStart_ && r.date < _crStart_) return false;
-    if (_crEnd_   && r.date > _crEnd_)   return false;
-    return true;
-  });
+// ── Controls (date range only — everything else is server-computed) ────────
+function _crControlsHtml_() {
+  var presets = [
+    { id: 'all', label: 'All time' }, { id: '30', label: 'Last 30 days' },
+    { id: '90', label: 'Last 90 days' }, { id: 'ytd', label: 'Year to date' }
+  ];
+  return '<div class="cr-controls">' +
+    '<div class="cr-daterange">' +
+      '<div class="cr-ctl"><label class="cr-ctl-label">From</label>' +
+        '<input type="date" class="cr-input" value="' + esc(_crStart_ || '') + '" onchange="_crSetRange_(\'start\', this.value)"/></div>' +
+      '<div class="cr-ctl"><label class="cr-ctl-label">To</label>' +
+        '<input type="date" class="cr-input" value="' + esc(_crEnd_ || '') + '" onchange="_crSetRange_(\'end\', this.value)"/></div>' +
+    '</div>' +
+    '<div class="cr-ctl"><label class="cr-ctl-label">Quick range</label>' +
+      '<div class="cr-presets">' + presets.map(function(p) {
+        return '<button class="cr-preset' + (p.id === _crPreset_ ? ' active' : '') + '" onclick="_crPresetRange_(\'' + p.id + '\')">' + esc(p.label) + '</button>';
+      }).join('') + '</div></div>' +
+    '<div class="cr-grow"></div>' +
+    '<div class="cr-ctl"><label class="cr-ctl-label">&nbsp;</label>' +
+      '<button class="rpt-btn" onclick="navigate(\'cost-entry\')">＋ Add Cost Entry</button></div>' +
+  '</div>';
 }
-function _crGroup_(rows, keyFn, valFn) {
-  var m = {};
-  rows.forEach(function(r) {
-    var k = keyFn(r);
-    if (!m[k]) m[k] = { key: k, value: 0, hours: 0, count: 0 };
-    m[k].value += valFn(r); m[k].hours += r.hours; m[k].count++;
-  });
-  return Object.keys(m).map(function(k) { return m[k]; })
-    .sort(function(a, b) { return b.value - a.value; });
+function _crSetRange_(which, v) {
+  if (which === 'start') _crStart_ = v || null; else _crEnd_ = v || null;
+  _crPreset_ = 'custom'; _crData_ = null; _crFetch_();
+}
+function _crPresetRange_(id) {
+  _crPreset_ = id;
+  if (id === 'all') { _crStart_ = null; _crEnd_ = null; }
+  else if (id === 'ytd') { var now = new Date(); _crStart_ = now.getFullYear() + '-01-01'; _crEnd_ = _crIso_(now); }
+  else {
+    var days = parseInt(id, 10);
+    var end = new Date();
+    var s = new Date(end.getTime()); s.setDate(s.getDate() - days);
+    _crStart_ = _crIso_(s); _crEnd_ = _crIso_(end);
+  }
+  _crData_ = null; _crFetch_();
 }
 
-// ── Shared KPI / chart builders ─────────────────────────────────────────────
+// ── Shared KPI / bar-chart builders ─────────────────────────────────────────
 function _crKpi_(val, label, accent, foot) {
   return '<div class="kpi' + (accent ? ' kpi-' + accent : '') + '">' +
     '<div class="kpi-accent"></div>' +
@@ -207,7 +207,6 @@ function _crKpi_(val, label, accent, foot) {
     (foot ? '<div class="kpi-foot">' + esc(foot) + '</div>' : '') +
   '</div>';
 }
-// Horizontal bar card. rows = [{label, value, disp}].
 function _crBarCard_(title, legend, rows) {
   var max = rows.reduce(function(m, b) { return Math.max(m, b.value); }, 1);
   return '<div class="rpt-analytics-card">' +
@@ -222,143 +221,56 @@ function _crBarCard_(title, legend, rows) {
     }).join('') : '<div style="font-size:12px;color:var(--text-tertiary);padding:6px 0;">No data.</div>') +
   '</div>';
 }
-// SVG line/area chart. pts = [{label, value}]; fmt formats the y-axis value.
-function _crLineCard_(title, legend, pts, fmt) {
-  fmt = fmt || function(v) { return _crMoney_(v); };
-  var W = 520, H = 200, padL = 48, padR = 12, padT = 14, padB = 26;
-  var plotW = W - padL - padR, plotH = H - padT - padB;
-  var maxV = pts.reduce(function(m, p) { return Math.max(m, p.value); }, 1);
-  var n = pts.length;
-  var x = function(i) { return padL + (n <= 1 ? plotW / 2 : (i / (n - 1)) * plotW); };
-  var y = function(v) { return padT + plotH - (v / maxV) * plotH; };
-  var line = pts.map(function(p, i) { return (i ? 'L' : 'M') + x(i).toFixed(1) + ' ' + y(p.value).toFixed(1); }).join(' ');
-  var area = line + ' L' + x(n - 1).toFixed(1) + ' ' + (padT + plotH) + ' L' + x(0).toFixed(1) + ' ' + (padT + plotH) + ' Z';
-  var grid = '';
-  for (var g = 0; g <= 3; g++) {
-    var gy = padT + plotH - (g / 3) * plotH;
-    grid += '<line x1="' + padL + '" y1="' + gy.toFixed(1) + '" x2="' + (W - padR) + '" y2="' + gy.toFixed(1) + '" stroke="var(--border-default)" stroke-width="1"/>';
-    grid += '<text x="' + (padL - 6) + '" y="' + (gy + 3).toFixed(1) + '" text-anchor="end" font-size="9" fill="var(--text-tertiary)" font-family="var(--font-mono)">' + esc(fmt(maxV * g / 3)) + '</text>';
-  }
-  var xl = '';
-  [0, Math.floor((n - 1) / 2), n - 1].forEach(function(i) {
-    if (i < 0 || i >= n || !pts[i]) return;
-    xl += '<text x="' + x(i).toFixed(1) + '" y="' + (H - 8) + '" text-anchor="middle" font-size="9" fill="var(--text-tertiary)" font-family="var(--font-mono)">' + esc(pts[i].label) + '</text>';
-  });
-  var dots = pts.map(function(p, i) {
-    return '<circle cx="' + x(i).toFixed(1) + '" cy="' + y(p.value).toFixed(1) + '" r="2.4" fill="var(--brand-navy)"><title>' + esc(p.label) + ' — ' + esc(fmt(p.value)) + '</title></circle>';
-  }).join('');
-  return '<div class="rpt-analytics-card">' +
-    '<div class="rpt-analytics-hdr">' + esc(title) + (legend ? '<span class="rpt-legend">' + esc(legend) + '</span>' : '') + '</div>' +
-    (n ? '<svg viewBox="0 0 ' + W + ' ' + H + '" style="width:100%;height:auto;display:block;">' +
-      grid + '<path d="' + area + '" fill="var(--brand-navy)" opacity=".08"/>' +
-      '<path d="' + line + '" fill="none" stroke="var(--brand-navy)" stroke-width="1.8"/>' + dots + xl +
-    '</svg>' : '<div style="font-size:12px;color:var(--text-tertiary);padding:6px 0;">No data.</div>') +
-  '</div>';
-}
-// Cost-per-month points for a set of rows (buckets on YYYY-MM).
-function _crMonthly_(rows) {
-  var m = {};
-  rows.forEach(function(r) { var k = r.date.slice(0, 7); m[k] = (m[k] || 0) + _crTotal_(r); });
-  return Object.keys(m).sort().map(function(k) {
-    var mo = parseInt(k.slice(5, 7), 10) - 1;
-    return { label: _CR_MONTHS_[mo] + " '" + k.slice(2, 4), value: m[k] };
-  });
-}
-
-// ── Controls (date range, presets, rate) ─────────────────────────────────────
-function _crControlsHtml_() {
-  var presets = [
-    { id: 'all', label: 'All time' }, { id: '30', label: 'Last 30 days' },
-    { id: '90', label: 'Last 90 days' }, { id: 'ytd', label: 'Year to date' }
-  ];
-  var dept = _crView_ === 'overview' ? null : _crDept_(_crView_);
-  return '<div class="cr-controls">' +
-    '<div class="cr-daterange">' +
-      '<div class="cr-ctl"><label class="cr-ctl-label">From</label>' +
-        '<input type="date" class="cr-input" value="' + esc(_crStart_ || '') + '" onchange="_crSetRange_(\'start\', this.value)"/></div>' +
-      '<div class="cr-ctl"><label class="cr-ctl-label">To</label>' +
-        '<input type="date" class="cr-input" value="' + esc(_crEnd_ || '') + '" onchange="_crSetRange_(\'end\', this.value)"/></div>' +
-    '</div>' +
-    '<div class="cr-ctl"><label class="cr-ctl-label">Quick range</label>' +
-      '<div class="cr-presets">' + presets.map(function(p) {
-        return '<button class="cr-preset' + (p.id === _crPreset_ ? ' active' : '') + '" onclick="_crPresetRange_(\'' + p.id + '\')">' + esc(p.label) + '</button>';
-      }).join('') + '</div></div>' +
-    (dept ? '<div class="cr-ctl"><label class="cr-ctl-label">' + esc(dept.label) + ' Rate ($/hr)</label>' +
-      '<input type="number" min="0" step="0.01" class="cr-input narrow" value="' + dept.rate + '" onchange="_crSetRate_(\'' + dept.id + '\', this.value)"/></div>' : '') +
-    '<div class="cr-grow"></div>' +
-    '<div class="cr-ctl"><label class="cr-ctl-label">&nbsp;</label>' +
-      '<button class="rpt-btn" onclick="navigate(\'cost-entry\')">＋ Add Cost Entry</button></div>' +
-  '</div>';
-}
 
 // ── Body render (dispatch on view) ───────────────────────────────────────────
 function _crRenderBody_() {
-  if (!_crRoot_) return;
-  var body = _crView_ === 'overview' ? _crOverviewHtml_() : _crDeptHtml_(_crView_);
+  if (!_crRoot_ || !_crData_) return;
+  var body = _crView_ === 'overview' ? _crOverviewHtml_() : _crBucketHtml_(_crView_);
   _crRoot_.innerHTML = _crControlsHtml_() +
-    '<div class="cr-local-note">Sample data for visualization. New entries you add are saved in this browser and will sync to the database once the live connection is enabled.</div>' +
+    '<div class="cr-local-note">Live data computed from David\'s Costs 2024 spreadsheet (raw DATA Hours + DATA Material logs) — every figure is hours × the shop rate ($28.39/hr) plus a matching material sum, filtered by job# and date.</div>' +
     body;
 }
 
-// ── Overview — all departments ───────────────────────────────────────────────
+// ── Overview — the 9 whole-company buckets ───────────────────────────────────
 function _crOverviewHtml_() {
-  var rows = _crFiltered_(null);
-  if (!rows.length) return '<div class="rpt-table-wrap"><div class="cr-empty">No cost records in the selected date range.</div></div>';
-
-  var totalHours = 0, totalLabor = 0, totalMat = 0;
-  rows.forEach(function(r) { totalHours += r.hours; totalLabor += _crLabor_(r); totalMat += (r.material || 0); });
-  var totalCost = totalLabor + totalMat;
-
-  // Per-department roll-up.
-  var byDept = {};
-  _CR_DEPTS_.forEach(function(d) { byDept[d.id] = { id: d.id, label: d.label, count: 0, hours: 0, labor: 0, mat: 0 }; });
-  rows.forEach(function(r) {
-    var b = byDept[r.dept]; if (!b) return;
-    b.count++; b.hours += r.hours; b.labor += _crLabor_(r); b.mat += (r.material || 0);
-  });
-  var deptArr = Object.keys(byDept).map(function(k) { return byDept[k]; })
-    .filter(function(b) { return b.hours > 0 || b.labor > 0 || b.mat > 0; })
-    .sort(function(a, b) { return (b.labor + b.mat) - (a.labor + a.mat); });
-  var topDept = deptArr[0];
+  var rows = _crData_.overview || [];
+  var totalHours = 0, totalLabor = 0, totalMat = 0, totalCost = 0;
+  rows.forEach(function(b) { totalHours += b.hours; totalLabor += b.labor; totalMat += b.material; totalCost += b.total; });
+  var top = rows.slice().sort(function(a, b) { return b.total - a.total; })[0];
 
   var kpis = '<div class="kpi-band" style="grid-template-columns:repeat(auto-fit,minmax(180px,1fr));margin-bottom:16px;">' +
-    _crKpi_(_crMoney_(totalCost), 'Total Cost — All Depts', 'info', rows.length + ' records') +
+    _crKpi_(_crMoney_(totalCost), 'Total Cost — All Departments', 'info', '') +
     _crKpi_(_crMoney_(totalLabor), 'Total Labor Cost', '', _crNum_(totalHours) + ' hrs') +
     _crKpi_(_crMoney_(totalMat), 'Total Material Cost', 'warn', '') +
-    _crKpi_(topDept ? esc(topDept.label) : '—', 'Top Department', 'success', topDept ? _crMoney_(topDept.labor + topDept.mat) : '') +
+    _crKpi_(top ? esc(top.label) : '—', 'Top Category', 'success', top ? _crMoney_(top.total) : '') +
   '</div>';
-
-  var matBars = deptArr.slice().sort(function(a, b) { return b.mat - a.mat; })
-    .map(function(b) { return { label: b.label, value: b.mat, disp: _crMoney_(b.mat) }; });
-  var hourBars = deptArr.slice().sort(function(a, b) { return b.hours - a.hours; })
-    .map(function(b) { return { label: b.label, value: b.hours, disp: _crNum_(b.hours) + ' h' }; });
 
   var charts = '<div class="cr-charts">' +
-    _crLineCard_('Monthly Cost Trend — All Departments', 'labor + material', _crMonthly_(rows)) +
-    _crBarCard_('Total Cost by Department', 'labor + material',
-      deptArr.map(function(b) { return { label: b.label, value: b.labor + b.mat, disp: _crMoney_(b.labor + b.mat) }; })) +
-    _crBarCard_('Total Material Cost by Department', 'in selected range', matBars) +
-    _crBarCard_('Labor Hours by Department', 'in selected range', hourBars) +
+    _crBarCard_('Total Cost by Category', 'labor + material',
+      rows.slice().sort(function(a, b) { return b.total - a.total; })
+        .map(function(b) { return { label: b.label, value: b.total, disp: _crMoney_(b.total) }; })) +
+    _crBarCard_('Labor Hours by Category', '', rows.slice().sort(function(a, b) { return b.hours - a.hours; })
+      .map(function(b) { return { label: b.label, value: b.hours, disp: _crNum_(b.hours) + ' h' }; })) +
   '</div>';
 
+  var hasDrilldown = { 'plastic-manuf': 1, 'trucks-lifts': 1, 'buildings': 1, 'machine-shop': 1 };
   var table = '<div class="rpt-table-wrap">' +
-    '<div class="rpt-section-hdr">Department Summary</div>' +
+    '<div class="rpt-section-hdr">Category Summary</div>' +
     '<table class="rpt-table"><thead><tr>' +
-      '<th>Department</th><th class="cr-td-num">Records</th><th class="cr-td-num">Labor Hrs</th>' +
+      '<th>Category</th><th class="cr-td-num">Labor Hrs</th>' +
       '<th class="cr-td-num">Labor Cost</th><th class="cr-td-num">Material Cost</th><th class="cr-td-num">Total Cost</th>' +
     '</tr></thead><tbody>' +
-    deptArr.map(function(b) {
-      return '<tr onclick="_crShowViewSync_(\'' + b.id + '\')">' +
-        '<td style="font-weight:600;color:var(--brand-navy);">' + esc(b.label) + '</td>' +
-        '<td class="cr-td-num">' + b.count + '</td>' +
+    rows.map(function(b) {
+      return '<tr onclick="_crShowViewSync_(\'' + b.id + '\')" style="cursor:pointer;">' +
+        '<td style="font-weight:600;color:var(--brand-navy);">' + esc(b.label) + (hasDrilldown[b.id] ? ' ›' : '') + '</td>' +
         '<td class="cr-td-num">' + _crNum_(b.hours) + '</td>' +
         '<td class="cr-td-num">' + esc(_crMoney_(b.labor)) + '</td>' +
-        '<td class="cr-td-num">' + esc(_crMoney_(b.mat)) + '</td>' +
-        '<td class="cr-td-num" style="font-weight:600;">' + esc(_crMoney_(b.labor + b.mat)) + '</td>' +
+        '<td class="cr-td-num">' + esc(_crMoney_(b.material)) + '</td>' +
+        '<td class="cr-td-num" style="font-weight:600;">' + esc(_crMoney_(b.total)) + '</td>' +
       '</tr>';
     }).join('') +
     '<tr style="background:var(--bg-subtle);font-weight:700;">' +
-      '<td>All Departments</td><td class="cr-td-num">' + rows.length + '</td>' +
+      '<td>All Departments</td>' +
       '<td class="cr-td-num">' + _crNum_(totalHours) + '</td>' +
       '<td class="cr-td-num">' + esc(_crMoney_(totalLabor)) + '</td>' +
       '<td class="cr-td-num">' + esc(_crMoney_(totalMat)) + '</td>' +
@@ -369,127 +281,94 @@ function _crOverviewHtml_() {
   return kpis + charts + table;
 }
 
-// Row-click helper for the overview summary — drill into a department and keep
-// the head report dropdown in sync.
+// Row-click helper — drill into a category and keep the head dropdown in sync.
 function _crShowViewSync_(id) {
-  if (typeof _rptSyncCostView_ === 'function') _rptSyncCostView_(id);   // keep head dropdown in sync
+  if (typeof _rptSyncCostView_ === 'function') _rptSyncCostView_(id);
   else _crShowView_(id);
 }
 
-// ── Department view ──────────────────────────────────────────────────────────
-function _crDeptHtml_(deptId) {
-  var dept = _crDept_(deptId);
-  var rows = _crFiltered_(deptId);
-  if (!rows.length) return '<div class="rpt-table-wrap"><div class="cr-empty">No ' + esc(dept.label) + ' records in the selected date range.</div></div>';
-
-  var totalHours = 0, totalLabor = 0, totalMat = 0;
-  rows.forEach(function(r) { totalHours += r.hours; totalLabor += _crLabor_(r); totalMat += (r.material || 0); });
-  var totalCost = totalLabor + totalMat;
-  var byAsset = _crGroup_(rows, function(r) { return r.asset; }, function(r) { return _crTotal_(r); });
-  var topAsset = _crGroup_(rows, function(r) { return r.asset; }, function(r) { return r.hours; })[0];
-
-  var kpis = '<div class="kpi-band" style="grid-template-columns:repeat(auto-fit,minmax(170px,1fr));margin-bottom:16px;">' +
-    _crKpi_(_crMoney_(totalCost), 'Total Cost', 'info', rows.length + ' records') +
-    _crKpi_(_crMoney_(totalLabor), 'Labor Cost', '', _crNum_(totalHours) + ' hrs') +
-    _crKpi_(_crMoney_(totalMat), 'Material Cost', 'warn', '') +
-    _crKpi_(_crMoney_(totalHours ? totalCost / totalHours : 0, 2), 'Cost / Hour', 'success', 'blended') +
-    _crKpi_(topAsset ? esc(topAsset.key) : '—', 'Most Utilized ' + dept.assetLabel, '', topAsset ? _crNum_(topAsset.hours) + ' hrs' : '') +
-  '</div>';
-
-  var costPerAsset = byAsset.slice(0, 10).map(function(g) { return { label: g.key, value: g.value, disp: _crMoney_(g.value) }; });
-  var hoursByPerson = _crGroup_(rows, function(r) { return r.person; }, function(r) { return r.hours; })
-    .map(function(g) { return { label: g.key, value: g.hours, disp: _crNum_(g.hours) + ' h' }; });
-
-  var charts = '<div class="cr-charts">' +
-    _crBarCard_('Cost per ' + dept.assetLabel, 'top 10 · labor + material', costPerAsset) +
-    _crLineCard_('Cost Over Time', 'per logged day',
-      (function() {
-        var m = {}; rows.forEach(function(r) { m[r.date] = (m[r.date] || 0) + _crTotal_(r); });
-        return Object.keys(m).sort().map(function(d) { return { label: _crDisp_(d).slice(0, 5), value: m[d] }; });
-      })()) +
-    _crBarCard_('Labor Hours by Operator / Tech', 'total hours', hoursByPerson) +
-    _crBarCard_('Monthly Cost Trend', 'labor + material', _crMonthly_(rows).map(function(p) { return { label: p.label, value: p.value, disp: _crMoney_(p.value) }; })) +
-  '</div>';
-
-  return kpis + charts + _crDeptTableHtml_(dept, rows);
-}
-
-function _crDeptTableHtml_(dept, rows) {
-  var recs = rows.map(function(r) {
-    return { date: r.date, asset: r.asset, person: r.person, hours: r.hours,
-             labor: _crLabor_(r), material: r.material || 0, total: _crTotal_(r) };
-  });
-  var k = _crSort_.key, dir = _crSort_.dir === 'asc' ? 1 : -1;
-  recs.sort(function(a, b) {
-    var av = a[k], bv = b[k];
-    if (typeof av === 'string') return av < bv ? -dir : av > bv ? dir : 0;
-    return (av - bv) * dir;
-  });
-  var pages = Math.max(1, Math.ceil(recs.length / _CR_PAGE_));
-  if (_crPage_ > pages) _crPage_ = pages;
-  var start = (_crPage_ - 1) * _CR_PAGE_;
-  var page = recs.slice(start, start + _CR_PAGE_);
-
-  function hdr(key, label, extra) {
-    var arrow = _crSort_.key === key ? '<span class="cr-arrow">' + (_crSort_.dir === 'asc' ? '▲' : '▼') + '</span>' : '';
-    return '<th class="cr-th' + (extra ? ' ' + extra : '') + '" onclick="_crSetSort_(\'' + key + '\')">' + esc(label) + arrow + '</th>';
-  }
+// ── Generic asset-table renderer, shared by the 4 drill-down views ─────────
+function _crAssetTable_(title, rows, idCol) {
+  if (!rows.length) return '';
   return '<div class="rpt-table-wrap">' +
-    '<div class="rpt-section-hdr">Raw Records — ' + recs.length + ' entr' + (recs.length === 1 ? 'y' : 'ies') + '</div>' +
-    '<table class="rpt-table"><thead><tr>' +
-      hdr('date', 'Date') + hdr('asset', dept.assetLabel) + hdr('person', 'Operator / Tech') +
-      hdr('hours', 'Hours', 'cr-td-num') + hdr('labor', 'Labor $', 'cr-td-num') +
-      hdr('material', 'Material $', 'cr-td-num') + hdr('total', 'Total $', 'cr-td-num') +
+    '<div class="rpt-section-hdr">' + esc(title) + ' — ' + rows.length + ' item' + (rows.length === 1 ? '' : 's') + '</div>' +
+    '<div class="cr-scroll"><table class="rpt-table"><thead><tr>' +
+      (idCol ? '<th>' + esc(idCol) + '</th>' : '') + '<th>Label</th>' +
+      '<th class="cr-td-num">Hours</th><th class="cr-td-num">Labor $</th>' +
+      '<th class="cr-td-num">Material $</th><th class="cr-td-num">Total $</th>' +
     '</tr></thead><tbody>' +
-    page.map(function(r) {
+    rows.slice().sort(function(a, b) { return b.total - a.total; }).map(function(r) {
       return '<tr>' +
-        '<td>' + esc(_crDisp_(r.date)) + '</td>' +
-        '<td class="cr-td-asset">' + esc(r.asset) + '</td>' +
-        '<td>' + esc(r.person) + '</td>' +
+        (idCol ? '<td class="cr-td-asset">' + esc(r.id != null ? r.id : (r.job != null ? r.job : '')) + '</td>' : '') +
+        '<td>' + esc(r.label) + (r.dept ? ' <span style="color:var(--text-tertiary);font-size:11px;">(' + esc(r.dept) + ')</span>' : '') + '</td>' +
         '<td class="cr-td-num">' + _crNum_(r.hours) + '</td>' +
         '<td class="cr-td-num">' + esc(_crMoney_(r.labor, 2)) + '</td>' +
         '<td class="cr-td-num">' + esc(_crMoney_(r.material, 2)) + '</td>' +
         '<td class="cr-td-num" style="font-weight:600;">' + esc(_crMoney_(r.total, 2)) + '</td>' +
       '</tr>';
     }).join('') +
-    '</tbody></table>' +
-    '<div class="cr-pager">' +
-      '<span>Page ' + _crPage_ + ' of ' + pages + ' · showing ' + (page.length ? (start + 1) : 0) + '–' + (start + page.length) + '</span>' +
-      '<div class="cr-pager-btns">' +
-        '<button class="rpt-btn" ' + (_crPage_ <= 1 ? 'disabled style="opacity:.5;cursor:default;"' : 'onclick="_crGoPage_(' + (_crPage_ - 1) + ')"') + '>‹ Prev</button>' +
-        '<button class="rpt-btn" ' + (_crPage_ >= pages ? 'disabled style="opacity:.5;cursor:default;"' : 'onclick="_crGoPage_(' + (_crPage_ + 1) + ')"') + '>Next ›</button>' +
-      '</div>' +
-    '</div>' +
-  '</div>';
+    '</tbody></table></div></div>';
 }
 
-// ── Event handlers ───────────────────────────────────────────────────────────
-function _crSetRange_(which, v) {
-  if (which === 'start') _crStart_ = v || null; else _crEnd_ = v || null;
-  _crPreset_ = 'custom'; _crPage_ = 1; _crRenderBody_();
-}
-function _crPresetRange_(id) {
-  _crPreset_ = id; _crPage_ = 1;
-  var dates = _crData_.map(function(r) { return r.date; }).sort();
-  var min = dates[0], max = dates[dates.length - 1];
-  if (id === 'all') { _crStart_ = min; _crEnd_ = max; }
-  else if (id === 'ytd') { _crStart_ = max.slice(0, 4) + '-01-01'; _crEnd_ = max; }
-  else {
-    var days = parseInt(id, 10);
-    var end = new Date(max + 'T00:00:00');
-    var s = new Date(end.getTime()); s.setDate(s.getDate() - days);
-    _crStart_ = _crIso_(s); _crEnd_ = max;
+// ── Bucket view — the selected category's own KPIs, plus any drill-down ─────
+function _crBucketHtml_(id) {
+  var bucket = _crBucket_(id);
+  var row = (_crData_.overview || []).filter(function(b) { return b.id === id; })[0];
+  if (!bucket || !row) return '<div class="rpt-table-wrap"><div class="cr-empty">Unknown category.</div></div>';
+
+  var kpis = '<div class="kpi-band" style="grid-template-columns:repeat(auto-fit,minmax(170px,1fr));margin-bottom:16px;">' +
+    _crKpi_(_crMoney_(row.total), 'Total Cost', 'info', '') +
+    _crKpi_(_crMoney_(row.labor), 'Labor Cost', '', _crNum_(row.hours) + ' hrs') +
+    _crKpi_(_crMoney_(row.material), 'Material Cost', 'warn', '') +
+    _crKpi_(_crMoney_(row.hours ? row.total / row.hours : 0, 2), 'Cost / Hour', 'success', 'blended') +
+  '</div>';
+
+  var dd = (_crData_.drilldowns || {})[id];
+  var detail = '';
+  if (id === 'plastic-manuf' && dd) {
+    detail = _crAssetTable_('Plastic Mfg — by Machine', dd.plasticMfg || [], null) +
+             _crAssetTable_('Injection Mold — by Mold', dd.injectionMold || [], 'Job #');
+  } else if (id === 'trucks-lifts' && dd) {
+    detail = _crAssetTable_('Forklift Fleet — by Unit', dd.forklift || [], 'Unit #');
+  } else if (id === 'buildings' && dd) {
+    detail = _crAssetTable_('CSC Buildings — by Building', dd.cscBuilding || [], null);
+  } else if (id === 'machine-shop') {
+    detail = _crMachineShopHtml_();
+  } else {
+    detail = '<div class="rpt-table-wrap"><div class="cr-empty">No per-asset breakdown is available for ' + esc(bucket.label) + ' yet — only the category total above.</div></div>';
   }
-  _crRenderBody_();
+
+  return kpis + detail;
 }
-function _crSetRate_(deptId, v) {
-  var n = parseFloat(v); var d = _crDept_(deptId);
-  if (d && !isNaN(n) && n >= 0) { d.rate = Math.round(n * 100) / 100; _crRenderBody_(); }
+
+// ── Machine Shop — cross-department view of where the crew's time went ─────
+// Deliberately separate from the KPI tiles above (which are jobs 500-502
+// only, the crew's own unattributed time) — this table is the full picture
+// of ALL of the Machine Shop's logged hours + cost, broken down by which
+// department's equipment they serviced. The two totals are NOT meant to add
+// up to the same number; see the architecture note above handleCostData.
+function _crMachineShopHtml_() {
+  var sections = _crData_.machineShop || [];
+  var grandTotal = 0;
+  sections.forEach(function(s) { s.lines.forEach(function(l) { grandTotal += l.total; }); });
+  var rowsHtml = sections.map(function(s) {
+    var sectionTotal = s.lines.reduce(function(sum, l) { return sum + l.total; }, 0);
+    return '<tr class="cr-section-row"><td colspan="4">' + esc(s.section) + '</td>' +
+      '<td class="cr-td-num">' + esc(_crMoney_(sectionTotal)) + '</td></tr>' +
+      s.lines.map(function(l) {
+        return '<tr>' +
+          '<td style="padding-left:22px;">' + esc(l.label) + '</td>' +
+          '<td class="cr-td-num">' + _crNum_(l.hours) + '</td>' +
+          '<td class="cr-td-num">' + esc(_crMoney_(l.labor)) + '</td>' +
+          '<td class="cr-td-num">' + esc(_crMoney_(l.material)) + '</td>' +
+          '<td class="cr-td-num" style="font-weight:600;">' + esc(_crMoney_(l.total)) + '</td>' +
+        '</tr>';
+      }).join('');
+  }).join('');
+  return '<div class="cr-local-note">This is where all of the Machine Shop\'s logged time (and its matching material cost) went, department by department — not just the jobs the crew logs against itself. Total across every department: ' + esc(_crMoney_(grandTotal)) + '.</div>' +
+    '<div class="rpt-table-wrap"><div class="cr-scroll"><table class="rpt-table"><thead><tr>' +
+    '<th>Department / Line</th><th class="cr-td-num">Hours</th><th class="cr-td-num">Labor $</th>' +
+    '<th class="cr-td-num">Material $</th><th class="cr-td-num">Total $</th>' +
+    '</tr></thead><tbody>' + rowsHtml + '</tbody></table></div></div>';
 }
-function _crSetSort_(key) {
-  if (_crSort_.key === key) _crSort_.dir = _crSort_.dir === 'asc' ? 'desc' : 'asc';
-  else { _crSort_.key = key; _crSort_.dir = (key === 'date' || key === 'asset' || key === 'person') ? 'asc' : 'desc'; }
-  _crRenderBody_();
-}
-function _crGoPage_(n) { _crPage_ = n; _crRenderBody_(); }
 </script>
