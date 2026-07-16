@@ -143,6 +143,14 @@ const PM = {
   CREATED_AT:     22,  // V — created timestamp
 };
 
+// Header row for the 'PM Schedules' tab, A→V — must match the PM column order above.
+const PM_SCHED_HEADERS = [
+  'PM ID', 'Asset Code', 'Asset Name', 'Department', 'Type of PM', 'Frequency',
+  'Downtime Type', 'Est. Downtime', 'Manpower', 'Parts (Regular)', 'Parts (Order)',
+  'Tasks', 'Specialty Tools', 'Safety/Quality/Env', 'Priority Mode', 'Priority',
+  'Lead Days', 'Last Completed', 'Next Due', 'Status', 'Submitted By', 'Created At',
+];
+
 // PM Tickets sheet column order (1-based). Generated PM work orders.
 // Required header row (row 1): PM Ticket # | Schedule ID | Generated | Status |
 //   Assigned To | Due | Created By
@@ -1003,6 +1011,30 @@ async function appendSheetRow(token, spreadsheetId, sheetName, row) {
     }
   );
   if (!res.ok) throw new Error(`Sheets append error: ${await res.text()}`);
+}
+
+// Ensure a tab exists before it's read/written — Sheets API returns the same
+// "Unable to parse range" 400 for a malformed range AND a missing tab, which
+// otherwise surfaces as a confusing parse error to the user. Auto-creates the
+// tab (+ header row) on first use instead of failing.
+async function ensureSheetTab(token, spreadsheetId, sheetName, headerRow) {
+  const metaUrl = `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}?fields=sheets.properties.title`;
+  const metaRes = await fetch(metaUrl, { headers: { Authorization: `Bearer ${token}` } });
+  if (!metaRes.ok) throw new Error(`Sheets API error (metadata): ${await metaRes.text()}`);
+  const meta = await metaRes.json();
+  const exists = (meta.sheets || []).some((sh) => sh.properties && sh.properties.title === sheetName);
+  if (exists) return;
+
+  const addRes = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}:batchUpdate`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ requests: [{ addSheet: { properties: { title: sheetName } } }] }),
+  });
+  if (!addRes.ok) throw new Error(`Sheets API error (create tab "${sheetName}"): ${await addRes.text()}`);
+
+  if (headerRow && headerRow.length) {
+    await appendSheetRow(token, spreadsheetId, sheetName, headerRow);
+  }
 }
 
 // Find 1-based sheet row where col A = id, searching from startRow down.  Returns -1 if not found.
@@ -2069,6 +2101,7 @@ async function handlePmScheduleAdd(env, userEmail, body) {
   const now      = new Date();
   const nextDue  = pmIsoDate(pmAddInterval(now, required.frequency));
   const status   = pmComputeStatus('', nextDue, leadDays);
+  await ensureSheetTab(token, env.SPREADSHEET_ID, sheetName, PM_SCHED_HEADERS);
   const pmId     = await generatePmId(token, env, sheetName);
   const stamp    = fmtDate(now) + ' ' +
     String(now.getHours()).padStart(2, '0') + ':' + String(now.getMinutes()).padStart(2, '0');
