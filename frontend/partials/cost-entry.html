@@ -81,12 +81,12 @@ function _ceRender_(keepDate) {
 
         '<div class="ce-field"><label class="ce-label">' + esc(dept.assetLabel) + '<span class="req">*</span></label>' +
           '<input class="ce-inp" id="ce-asset" list="ce-asset-list" placeholder="Select or type…" autocomplete="off"/>' +
-          '<datalist id="ce-asset-list">' + dept.assets.map(function(a) { return '<option value="' + esc(a) + '"></option>'; }).join('') + '</datalist>' +
+          '<datalist id="ce-asset-list">' + (dept.assets || []).map(function(a) { return '<option value="' + esc(a) + '"></option>'; }).join('') + '</datalist>' +
         '</div>' +
 
         '<div class="ce-field"><label class="ce-label">Operator / Tech</label>' +
           '<input class="ce-inp" id="ce-person" list="ce-person-list" placeholder="Select or type…" autocomplete="off"/>' +
-          '<datalist id="ce-person-list">' + dept.people.map(function(p) { return '<option value="' + esc(p) + '"></option>'; }).join('') + '</datalist>' +
+          '<datalist id="ce-person-list">' + (dept.people || []).map(function(p) { return '<option value="' + esc(p) + '"></option>'; }).join('') + '</datalist>' +
         '</div>' +
 
         '<div class="ce-field"><label class="ce-label">Labor Hours<span class="req">*</span></label>' +
