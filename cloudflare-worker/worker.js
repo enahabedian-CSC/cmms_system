@@ -2253,11 +2253,12 @@ async function handleAddTicket(env, userEmail, body) {
     partsNeeded:   !!body.partsNeeded,
     tempFixFlag:   false,
     estHours:      body.estHours      || '',
-    addedBy:       addedBy,
-    updatedBy:     addedBy,
-    dateOpened:    fmtDate(now),
-    notes:         body.observations  || '',
-    photoUrl:      photoCell,
+    addedBy:           addedBy,
+    updatedBy:         addedBy,
+    dateOpened:        fmtDate(now),
+    notes:             body.observations  || '',
+    photoUrl:          photoCell,
+    pendingJointDepts: String(body.pendingJointDepts || '').trim() || undefined,
   });
   // Extended ML fields via batch write on the newly-appended row (best-effort)
   await appendTicketHistory(token, env, ticketNo, 'CREATED', '', status, addedBy,

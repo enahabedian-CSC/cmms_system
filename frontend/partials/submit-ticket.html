@@ -70,6 +70,12 @@
 .sf-hrs-val{font-size:20px;font-weight:700;color:var(--text-primary);min-width:40px;text-align:center;}
 .sf-hrs-unit{font-size:13px;color:var(--text-secondary);}
 
+/* Joint dept chips */
+.sf-joint-grid{display:flex;flex-wrap:wrap;gap:8px;margin-top:4px;}
+.sf-joint-chip{padding:6px 14px;border:1px solid var(--border-default);border-radius:20px;font-size:12px;font-weight:600;background:#fff;color:var(--text-secondary);cursor:pointer;transition:all .12s;}
+.sf-joint-chip:hover{border-color:var(--brand-navy);color:var(--brand-navy);}
+.sf-joint-chip.active{background:var(--brand-navy);color:#fff;border-color:var(--brand-navy);}
+
 /* Photo capture */
 .sf-photo-btns{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px;}
 .sf-photo-btn{padding:12px 10px;border:none;border-radius:8px;cursor:pointer;font-size:13px;font-weight:600;color:#fff;display:flex;align-items:center;justify-content:center;gap:6px;transition:opacity .15s;-webkit-tap-highlight-color:transparent;}
@@ -118,6 +124,7 @@ var _sfPriority     = 'LOW';
 var _sfEquipCode    = '';
 var _sfEquipSpec    = '';
 var _sfPhotos_      = [];
+var _sfJointDepts_  = [];
 var _sfSel          = { dept: '', level2: '', level3: '', level4: '' };
 var _sfRows         = [];
 var _sfResolvedCode = '';
@@ -126,7 +133,7 @@ var _sfEstHours     = 1;
 window.PAGES = window.PAGES || {};
 
 PAGES['submit'] = function(container) {
-  _sfPriority = 'LOW'; _sfEquipCode = ''; _sfEquipSpec = ''; _sfPhotos_ = [];
+  _sfPriority = 'LOW'; _sfEquipCode = ''; _sfEquipSpec = ''; _sfPhotos_ = []; _sfJointDepts_ = [];
   _sfSel = { dept: '', level2: '', level3: '', level4: '' };
   _sfRows = []; _sfResolvedCode = ''; _sfEstHours = 1;
   container.innerHTML = _buildSubmitHTML_();
@@ -283,10 +290,21 @@ function _buildSubmitHTML_() {
       '<div id="sf-routing-banner" style="display:none;margin-top:4px;padding:7px 12px;background:var(--bg-subtle);border:1px solid var(--border-default);border-radius:6px;font-size:11.5px;color:var(--text-secondary);"></div>' +
     '</div>' +
 
-    // § 9 — Photos
+    // § 9 — Joint Department
     '<div class="sf-section">' +
       '<div class="sf-section-hdr">' +
         '<div class="sf-step-num">9</div>' +
+        '<div class="sf-section-title">Joint Department</div>' +
+        '<div style="font-size:11px;color:var(--text-tertiary);margin-left:auto;">(optional)</div>' +
+      '</div>' +
+      '<div style="font-size:12px;color:var(--text-secondary);margin-bottom:10px;">Select any additional department(s) that need to perform work on this ticket.</div>' +
+      '<div class="sf-joint-grid" id="sf-joint-dept-grid"></div>' +
+    '</div>' +
+
+    // § 10 — Photos
+    '<div class="sf-section">' +
+      '<div class="sf-section-hdr">' +
+        '<div class="sf-step-num">10</div>' +
         '<div class="sf-section-title">Photos</div>' +
         '<div style="font-size:11px;color:var(--text-tertiary);margin-left:auto;">(optional — up to 6)</div>' +
       '</div>' +
@@ -424,6 +442,8 @@ function _sfPopulate_(d) {
       }
     }
   }
+
+  _sfRenderJointDeptGrid_();
 }
 
 // ── Dept grid ────────────────────────────────────────────────────────────────
@@ -473,6 +493,27 @@ function _sfNextCol_(prevCol) {
 }
 
 // Dept button click — resets entire cascade, then advances.
+function _sfRenderJointDeptGrid_() {
+  var grid = document.getElementById('sf-joint-dept-grid');
+  if (!grid) return;
+  var allDepts = (_sfData && _sfData.departments) || [];
+  var ownDept  = (_sfSel.dept || '').toUpperCase();
+  var available = allDepts.filter(function(d) { return d.toUpperCase() !== ownDept; });
+  // Remove own dept from selection if it was previously chosen
+  _sfJointDepts_ = _sfJointDepts_.filter(function(d) { return d.toUpperCase() !== ownDept; });
+  if (!available.length) { grid.innerHTML = '<span style="font-size:12px;color:var(--text-tertiary);">Select a department first.</span>'; return; }
+  grid.innerHTML = available.map(function(d) {
+    var active = _sfJointDepts_.indexOf(d) >= 0;
+    return '<button type="button" class="sf-joint-chip' + (active ? ' active' : '') + '" onclick="_sfToggleJointDept_(this,\'' + d.replace(/'/g,"\\'") + '\')">' + esc(d) + '</button>';
+  }).join('');
+}
+
+function _sfToggleJointDept_(btn, dept) {
+  var idx = _sfJointDepts_.indexOf(dept);
+  if (idx >= 0) { _sfJointDepts_.splice(idx, 1); btn.classList.remove('active'); }
+  else          { _sfJointDepts_.push(dept);      btn.classList.add('active'); }
+}
+
 function _sfSelectDept_(btn, dept) {
   _sfSel = { dept: dept, level2: '', level3: '', level4: '' };
   _sfResolvedCode = ''; _sfEquipCode = ''; _sfEquipSpec = '';
@@ -514,6 +555,7 @@ function _sfSelectDept_(btn, dept) {
 
   _sfUpdateRoutingBanner_();
   _sfUpdatePreview_();
+  _sfRenderJointDeptGrid_();
 }
 
 // Level button click (level2, level3, level4).
@@ -824,8 +866,9 @@ function submitTicket() {
     problemDesc:   desc,
     observations:  val('sf-obs').trim(),
     addedBy:       addedBy,
-    partsNeeded:   !!((document.getElementById('sf-parts') || {}).checked),
-    estHours:      _sfEstHours || 1,
+    partsNeeded:        !!((document.getElementById('sf-parts') || {}).checked),
+    estHours:           _sfEstHours || 1,
+    pendingJointDepts:  _sfJointDepts_.join(', '),
   };
 
   if (_sfPhotos_.length === 0) {
@@ -937,7 +980,7 @@ function copyTicketNo(tn) {
 }
 
 function submitAnotherTicket() {
-  _sfPriority = 'LOW'; _sfEquipCode = ''; _sfEquipSpec = ''; _sfPhotos_ = [];
+  _sfPriority = 'LOW'; _sfEquipCode = ''; _sfEquipSpec = ''; _sfPhotos_ = []; _sfJointDepts_ = [];
   _sfSel = { dept: '', level2: '', level3: '', level4: '' };
   _sfRows = []; _sfResolvedCode = ''; _sfEstHours = 1;
   var container = document.getElementById('page-submit');
