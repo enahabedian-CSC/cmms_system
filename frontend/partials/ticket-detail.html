@@ -311,8 +311,12 @@ function _renderDetail_(result) {
     var _jbLeft  = _jbDepts.filter(function(d){ return !(_jbSignoffs[d] && _jbSignoffs[d].complete); });
     var _jbMyDepts = (USER.ownedDepts || []).filter(function(d){ return _jbDepts.indexOf(d) >= 0; });
     _jbMyDone  = _jbMyDepts.every(function(d){ return _jbSignoffs[d] && _jbSignoffs[d].complete; });
+    // Parse comma-separated "John Smith, Jane Doe (ELECTRICAL)" into a dept→tech map.
     var _jbAssignments = {};
-    try { _jbAssignments = JSON.parse(t.jointAssignedTo || '{}'); } catch(e) {}
+    (t.assignedTo || '').split(',').forEach(function(e) {
+      var m = e.trim().match(/^(.+?)\s*\(([^)]+)\)$/);
+      if (m) _jbAssignments[m[2].trim().toUpperCase()] = m[1].trim();
+    });
     var _jbDeptRows = function(list, done) {
       return list.map(function(d) {
         var tech = _jbAssignments[d] || '';
@@ -355,7 +359,8 @@ function _renderDetail_(result) {
       } else if (isFixer && !_jbMyDone) {
         jointBanner = '<div class="joint-banner role-fixer">' +
           '<span>🔗</span><div class="joint-banner-body">Your department (' + esc(_jbMyDepts.join(', ') || '—') + ') is a joint fixer on this ticket.' +
-          '<div class="jb-sub">Complete your repair, then click <strong>Mark Work Complete</strong>.</div></div></div>';
+          '<div class="jb-sub">Complete your repair, then click <strong>Mark Work Complete</strong>.</div>' +
+          _jbDeptRows(_jbMyDepts, false) + '</div></div>';
       } else if (isOwner) {
         jointBanner = '<div class="joint-banner role-owner-waiting">' +
           '<span>⏳</span><div class="joint-banner-body">Waiting on joint departments to complete their work.' +
@@ -1890,21 +1895,31 @@ function _adminForceSignoff_(dept) {
 function _jdAssignTech_(dept) {
   var t = _tdTicket;
   if (!t) return;
-  var assignments = {};
-  try { assignments = JSON.parse(t.jointAssignedTo || '{}'); } catch(e) {}
-  var current = assignments[dept] || '';
-  _showModal_('Assign Tech — ' + esc(dept),
-    '<div class="form-group"><label>Technician Name</label>' +
-    '<input id="jda-name" placeholder="Enter technician name" value="' + esc(current) + '" /></div>',
-    function() {
-      var name = (document.getElementById('jda-name').value || '').trim();
-      _tdRunAction_(jointAssign, {
-        ticketNo:   t.ticketNo,
-        dept:       dept,
-        assignedTo: name,
-        updatedBy:  USER.displayName,
-      }, esc(dept) + ' Tech Assigned' + (name ? ': ' + esc(name) : ' (cleared)'));
-    }, 'Save');
+  _tdEnsureTechs_(function() {
+    var assignments = {};
+    (t.assignedTo || '').split(',').forEach(function(e) {
+      var m = e.trim().match(/^(.+?)\s*\(([^)]+)\)$/);
+      if (m) assignments[m[2].trim().toUpperCase()] = m[1].trim();
+    });
+    var current = assignments[dept] || '';
+    _showModal_('Assign Tech — ' + esc(dept),
+      '<div class="form-group"><label>Technician</label>' +
+      '<select id="jda-name">' +
+      '<option value="">— Unassigned —</option>' +
+      (window._tdTechs_ || []).map(function(name) {
+        return '<option value="' + esc(name) + '"' + (name === current ? ' selected' : '') + '>' + esc(name) + '</option>';
+      }).join('') +
+      '</select></div>',
+      function() {
+        var name = (document.getElementById('jda-name').value || '').trim();
+        _tdRunAction_(jointAssign, {
+          ticketNo:   t.ticketNo,
+          dept:       dept,
+          assignedTo: name,
+          updatedBy:  USER.displayName,
+        }, esc(dept) + ' Tech Assigned' + (name ? ': ' + esc(name) : ' (cleared)'));
+      }, 'Save');
+  });
 }
 
 // Renders joint department sign-off chips + pending request chips in the overview.
