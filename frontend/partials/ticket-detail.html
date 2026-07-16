@@ -1895,24 +1895,31 @@ function _adminForceSignoff_(dept) {
 function _jdAssignTech_(dept) {
   var t = _tdTicket;
   if (!t) return;
-  var assignments = {};
-  (t.assignedTo || '').split(',').forEach(function(e) {
-    var m = e.trim().match(/^(.+?)\s*\(([^)]+)\)$/);
-    if (m) assignments[m[2].trim().toUpperCase()] = m[1].trim();
+  _tdEnsureTechs_(function() {
+    var assignments = {};
+    (t.assignedTo || '').split(',').forEach(function(e) {
+      var m = e.trim().match(/^(.+?)\s*\(([^)]+)\)$/);
+      if (m) assignments[m[2].trim().toUpperCase()] = m[1].trim();
+    });
+    var current = assignments[dept] || '';
+    _showModal_('Assign Tech — ' + esc(dept),
+      '<div class="form-group"><label>Technician</label>' +
+      '<select id="jda-name">' +
+      '<option value="">— Unassigned —</option>' +
+      (window._tdTechs_ || []).map(function(name) {
+        return '<option value="' + esc(name) + '"' + (name === current ? ' selected' : '') + '>' + esc(name) + '</option>';
+      }).join('') +
+      '</select></div>',
+      function() {
+        var name = (document.getElementById('jda-name').value || '').trim();
+        _tdRunAction_(jointAssign, {
+          ticketNo:   t.ticketNo,
+          dept:       dept,
+          assignedTo: name,
+          updatedBy:  USER.displayName,
+        }, esc(dept) + ' Tech Assigned' + (name ? ': ' + esc(name) : ' (cleared)'));
+      }, 'Save');
   });
-  var current = assignments[dept] || '';
-  _showModal_('Assign Tech — ' + esc(dept),
-    '<div class="form-group"><label>Technician Name</label>' +
-    '<input id="jda-name" placeholder="Enter technician name" value="' + esc(current) + '" /></div>',
-    function() {
-      var name = (document.getElementById('jda-name').value || '').trim();
-      _tdRunAction_(jointAssign, {
-        ticketNo:   t.ticketNo,
-        dept:       dept,
-        assignedTo: name,
-        updatedBy:  USER.displayName,
-      }, esc(dept) + ' Tech Assigned' + (name ? ': ' + esc(name) : ' (cleared)'));
-    }, 'Save');
 }
 
 // Renders joint department sign-off chips + pending request chips in the overview.
