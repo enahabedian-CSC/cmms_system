@@ -237,7 +237,7 @@ function _pmpPrint_(id) {
 
   document.getElementById('pm-print-sheet').innerHTML =
     '<div class="pmp-ps-head">' +
-      '<div><div class="pmp-ps-title">CSC Maintenance &mdash; PM Packet Sign-Off</div>' +
+      '<div><div class="pmp-ps-title">CSC Maintenance &mdash; Preventative Maintenance Packet</div>' +
         '<div class="pmp-ps-sub">' + esc(p.asset) + ' &middot; ' + esc(p.assetName) + '</div></div>' +
       '<div class="pmp-ps-meta"><div><strong>' + esc(p.freq) + '</strong> interval</div><div>' + esc(p.window) + '</div><div>Due ' + esc(p.due) + '</div></div>' +
     '</div>' +
@@ -250,7 +250,7 @@ function _pmpPrint_(id) {
       '<th style="text-align:center;width:48px;">Done</th><th>PM Task</th><th style="width:120px;">Type</th><th style="width:150px;">PM Ticket</th><th style="width:180px;">Completed By / Date</th>' +
     '</tr></thead><tbody>' + rows + '</tbody></table>' +
     '<div class="pmp-ps-sign"><div>Manager signature</div><div>Date</div></div>' +
-    '<div class="pmp-ps-doc">' + (docLabel('pmPacket') || 'FRM-030-005 · PM Packet Sign-Off · Rev 0 · 6/2026') + '</div>';
+    '<div class="pmp-ps-doc">' + (docLabel('pmPacket') || 'FRM-030-006 · Preventative Maintenance Packet · Rev 0 · 7/16/2026') + '</div>';
 
   document.body.classList.add('pm-printing');
   var _cleanup = function() { document.body.classList.remove('pm-printing'); window.removeEventListener('afterprint', _cleanup); };
