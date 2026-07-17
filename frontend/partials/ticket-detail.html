@@ -1974,8 +1974,11 @@ function _renderJointStatus_(t) {
 function _tdAcceptJoint_() {
   var t = _tdTicket;
   if (!t) return;
-  if (!confirm('Accept the joint attachment request for ticket ' + esc(t.ticketNo) + '?\n\nYour department will be added to this ticket and required to sign off before it closes.')) return;
-  _tdRunAction_(confirmJointRequest, { ticketNo: t.ticketNo, updatedBy: USER.displayName }, 'Joint Request Accepted');
+  _showModal_('Accept Joint Request — ' + esc(t.ticketNo),
+    '<p style="margin:0 0 12px;">Your department will be added to this ticket and required to sign off before it can be closed.</p>',
+    function() {
+      _tdRunAction_(confirmJointRequest, { ticketNo: t.ticketNo, updatedBy: USER.displayName }, 'Joint Request Accepted');
+    }, 'Accept');
 }
 
 function _tdRejectJoint_() {
