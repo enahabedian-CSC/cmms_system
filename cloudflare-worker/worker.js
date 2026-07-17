@@ -30,6 +30,10 @@ const ML = {
   // columns — existing 43-col reads stay valid.
   CLR_TOOLS_REMOVED:44, CLR_AREA_CLEAN:45, CLR_QA_REQUIRED:46,
   ASSIGNED_DEPT:47,
+  // Manager's Yes/No/N/A acknowledgment of the Downtime Duration entered at
+  // Mark Work Complete, captured at Verify & Close (FB-000003). Additive
+  // column — existing 47-col reads stay valid.
+  DOWNTIME_VERIFIED:48,
 };
 
 const TF = {
@@ -1085,6 +1089,7 @@ async function appendMasterLog(token, env, opts) {
   if (opts.clrAreaClean    !== undefined) row[ML.CLR_AREA_CLEAN    - 1] = opts.clrAreaClean    || '';
   if (opts.clrQaRequired   !== undefined) row[ML.CLR_QA_REQUIRED   - 1] = opts.clrQaRequired   || '';
   if (opts.assignedDept      !== undefined) row[ML.ASSIGNED_DEPT      - 1] = opts.assignedDept      || '';
+  if (opts.downtimeVerified  !== undefined) row[ML.DOWNTIME_VERIFIED  - 1] = opts.downtimeVerified  || '';
   if (opts.addedBy       !== undefined) row[ML.ADDED_BY       - 1] = opts.addedBy       || '';
   if (opts.buildingZone  !== undefined) row[ML.BUILDING_ZONE  - 1] = opts.buildingZone  || '';
   if (opts.equipType     !== undefined) row[ML.EQUIP_TYPE     - 1] = opts.equipType     || '';
@@ -1638,6 +1643,7 @@ async function handleTicketDetail(env, userEmail, ticketNo) {
     clrAreaClean:     cellStr(best, ML.CLR_AREA_CLEAN),
     clrQaRequired:    cellStr(best, ML.CLR_QA_REQUIRED),
     assignedDept:     normalizeDept(cellStr(best, ML.ASSIGNED_DEPT)) || normalizeDept(cellStr(best, ML.DEPT)),
+    downtimeVerified: cellStr(best, ML.DOWNTIME_VERIFIED),
   };
 
   // Sort chronologically by the real timestamp column. Raw sheet-append order
@@ -2602,6 +2608,8 @@ async function handleVerifyClose(env, userEmail, body) {
     // Owner's Post-Repair Clearance confirmation (SQF 2.14.3)
     clrToolsRemoved: body.clrToolsRemoved || '', clrAreaClean: body.clrAreaClean || '',
     clrQaRequired: body.clrQaRequired || '',
+    // Manager's Yes/No/N/A acknowledgment of Downtime Duration (FB-000003, optional)
+    downtimeVerified: body.downtimeVerified || '',
     updatedBy, notes: body.notes || '',
   });
   await appendTicketHistory(token, env, ticketNo, 'VERIFIED & CLOSED', 'PENDING VERIFICATION', 'CLOSED', updatedBy, body.notes || '');

@@ -122,8 +122,36 @@ a{color:inherit;text-decoration:none;}
 
 /* ── Loading / skeleton ──────────────────────────────────────────────────── */
 .loading-overlay{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;height:100%;color:var(--text-secondary);}
-.spinner{width:24px;height:24px;border:2.5px solid var(--border-strong);border-top-color:var(--brand-navy);border-radius:50%;animation:spin .7s linear infinite;}
-@keyframes spin{to{transform:rotate(360deg);}}
+/* Can-seaming spinner: a can body with its lid dropping into place and
+   being crimped on, looping. Purely decorative — same .spinner element
+   used everywhere, no markup changes needed at call sites. */
+.spinner{
+  position:relative;
+  width:22px;height:26px;
+  background:linear-gradient(180deg,#D3DBE2 0%,#98A5B3 45%,#727F8D 100%);
+  border-radius:40% 40% 22% 22% / 16% 16% 10% 10%;
+  box-shadow:inset 0 -3px 4px rgba(0,0,0,.20), inset 0 2px 2px rgba(255,255,255,.55);
+}
+.spinner::before{
+  content:'';
+  position:absolute;
+  left:50%;top:0;
+  width:22px;height:7px;
+  margin-left:-11px;
+  background:linear-gradient(180deg,#EEF2F5 0%,#B6C1CB 100%);
+  border-radius:50%;
+  box-shadow:0 1px 1px rgba(0,0,0,.28);
+  animation:can-seam 1.6s ease-in-out infinite;
+}
+@keyframes can-seam{
+  0%   { transform:translateY(-15px) scale(1); opacity:0; }
+  8%   { opacity:1; }
+  42%  { transform:translateY(-3px)  scale(1); opacity:1; }
+  50%  { transform:translateY(-3px)  scaleX(1.22) scaleY(.7); filter:brightness(1.6); }
+  60%  { transform:translateY(-3px)  scaleX(1)    scaleY(1);  filter:brightness(1); }
+  88%  { opacity:1; }
+  100% { transform:translateY(-3px)  scale(1); opacity:0; }
+}
 
 /* ── Welcome / home ──────────────────────────────────────────────────────── */
 .home-welcome{padding:24px 24px 0;}
@@ -841,6 +869,7 @@ window.PAGES['home'] = function(container) {
 
     // Three collapsible category sections (Module 10 — declutter to 3 categories)
     '<div style="padding:0 24px 24px;display:flex;flex-direction:column;gap:14px;">' +
+      _homeCatCard_('cat-pending-joint', '📩', 'Pending Joint Requests', '#6A1B9A',          'open')    +
       _homeCatCard_('cat-joint',  '🔗', 'Joint Tickets',          'var(--status-warn)',    'open')    +
       _homeCatCard_('cat-verify', '✅', 'Awaiting Verification',  'var(--status-success)', 'open')    +
       _homeCatCard_('cat-temp',   '🔧', 'Temp Fix Alerts',        'var(--status-high)',    'tempfix') +
@@ -861,13 +890,13 @@ window.PAGES['home'] = function(container) {
     }).then(function(r) { return r.json(); })
       .then(function(panels) { _homeRenderPanels_(panels); })
       .catch(function() {
-        ['cat-joint','cat-assign','cat-verify','cat-temp'].forEach(function(id) {
+        ['cat-pending-joint','cat-joint','cat-assign','cat-verify','cat-temp'].forEach(function(id) {
           var el = document.getElementById(id + '-body');
           if (el) el.innerHTML = '<div style="padding:10px 0;color:var(--text-tertiary);font-size:12px;">Unable to load.</div>';
         });
       });
   } else {
-    ['cat-joint','cat-assign','cat-verify','cat-temp'].forEach(function(id) {
+    ['cat-pending-joint','cat-joint','cat-assign','cat-verify','cat-temp'].forEach(function(id) {
       var el = document.getElementById(id + '-body');
       if (el) el.innerHTML = '<div style="padding:10px 0;color:var(--text-tertiary);font-size:12px;">Dashboard categories are available to managers.</div>';
     });
@@ -966,10 +995,91 @@ function _homeRenderPanels_(panels) {
   var attn    = panels.attentionItems || [];
   // review → Awaiting Assignment (WAITING), complete → Awaiting Verification
   // (PENDING VERIFICATION), temp → Temp Fix Alerts (past-due temp fixes).
+  _homeFillJointRequests_(panels.pendingJointRequests || []);
   _homeFillCat_('cat-joint',  panels.jointItems || [],                                    'No active joint tickets.');
   _homeFillCat_('cat-assign', attn.filter(function(i){ return i.kind === 'review';   }), 'No tickets awaiting assignment.');
   _homeFillCat_('cat-verify', attn.filter(function(i){ return i.kind === 'complete'; }), 'No tickets awaiting verification.');
   _homeFillCat_('cat-temp',   attn.filter(function(i){ return i.kind === 'temp';     }), 'No past-due temp fixes.');
+}
+
+// Fills the "Pending Joint Requests" card with real Accept/Reject buttons
+// (mirrors ticket-list.html's renderPendingRows/_tlAcceptJoint_/_tlRejectJoint_,
+// but refreshes the Dashboard panels in place on success instead of a tracker queue).
+function _homeFillJointRequests_(items) {
+  var cnt = document.getElementById('cat-pending-joint-count');
+  if (cnt) cnt.textContent = items.length;
+  var body = document.getElementById('cat-pending-joint-body');
+  if (!body) return;
+  if (items.length === 0) {
+    body.innerHTML = '<div style="padding:8px 0;font-size:12px;color:var(--text-tertiary);">No pending joint requests.</div>';
+    return;
+  }
+  body.innerHTML = items.map(function(item) {
+    return '<div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--border-default);">' +
+      '<div onclick="openTicketDetail(\'' + esc(item.ticketNo) + '\')" style="flex:1;min-width:0;cursor:pointer;">' +
+        '<div style="font-size:12.5px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' +
+          '<span style="font-family:var(--font-mono);font-size:10.5px;color:var(--brand-navy);margin-right:5px;">' + esc(item.ticketNo) + '</span>' +
+          esc(item.title) +
+        '</div>' +
+        '<div style="font-size:11px;color:var(--text-secondary);margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + esc(item.sub) + '</div>' +
+      '</div>' +
+      '<div style="white-space:nowrap;flex-shrink:0;">' +
+        '<button onclick="_homeAcceptJoint_(\'' + esc(item.ticketNo) + '\')" ' +
+          'style="height:26px;padding:0 10px;border:1px solid #2E7D32;border-radius:4px;font-size:11.5px;font-weight:600;background:#E8F5E9;color:#2E7D32;cursor:pointer;margin-right:4px;">&#10003; Accept</button>' +
+        '<button onclick="_homeRejectJoint_(\'' + esc(item.ticketNo) + '\')" ' +
+          'style="height:26px;padding:0 10px;border:1px solid #C62828;border-radius:4px;font-size:11.5px;font-weight:600;background:#FFEBEE;color:#C62828;cursor:pointer;">&#10007; Reject</button>' +
+      '</div>' +
+    '</div>';
+  }).join('');
+}
+
+// Re-fetches /api/dashboard/panels and re-renders the category cards in place
+// (Dashboard equivalent of ticket-list.html's _refreshQueuePage_ used after joint actions).
+function _homeRefreshPanels_() {
+  fetch(WORKER_URL + '/api/dashboard/panels', {
+    headers: { 'X-User-Email': (USER && USER.email) || '' }
+  }).then(function(r) { return r.json(); })
+    .then(function(panels) { _homeRenderPanels_(panels); })
+    .catch(function() {});
+}
+
+function _homeAcceptJoint_(ticketNo) {
+  if (!confirm('Accept the joint attachment request for ticket ' + ticketNo + '?\n\nYour department will be added to this ticket and you will be required to sign off before it can be closed.')) return;
+  fetch(WORKER_URL + '/api/tickets/confirm-joint', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-User-Email': USER ? USER.email : '' },
+    body: JSON.stringify({ ticketNo: ticketNo })
+  })
+    .then(function(r) { return r.json(); })
+    .then(function(r) {
+      if (r && r.success) {
+        showToast('✓ Joint request accepted for ' + ticketNo, 'success');
+        _homeRefreshPanels_();
+      } else {
+        showToast('Error: ' + ((r && r.error) || 'Unknown error'), 'error');
+      }
+    })
+    .catch(function(err) { showToast('Server error: ' + String(err.message || err), 'error'); });
+}
+
+function _homeRejectJoint_(ticketNo) {
+  var reason = prompt('Reason for rejecting the joint request on ' + ticketNo + ' (optional):');
+  if (reason === null) return;  // user cancelled
+  fetch(WORKER_URL + '/api/tickets/reject-joint', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-User-Email': USER ? USER.email : '' },
+    body: JSON.stringify({ ticketNo: ticketNo, reason: reason })
+  })
+    .then(function(r) { return r.json(); })
+    .then(function(r) {
+      if (r && r.success) {
+        showToast('Joint request rejected for ' + ticketNo, 'info');
+        _homeRefreshPanels_();
+      } else {
+        showToast('Error: ' + ((r && r.error) || 'Unknown error'), 'error');
+      }
+    })
+    .catch(function(err) { showToast('Server error: ' + String(err.message || err), 'error'); });
 }
 
 // Fills one collapsible category section (Module 10) and updates its count badge.
