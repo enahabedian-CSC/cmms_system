@@ -120,5 +120,10 @@ interval (`Weekly→HIGH, Monthly/Quarterly→MEDIUM, 6-Month/Annual→LOW`) unl
 `priorityMode==='explicit'` sets it manually.
 
 **Doc control:** `docLabel('pmSchedule')` / `docLabel('pmPacket')` are used for the
-form footers — add those keys to the `DOC_CONTROL` payload from `/api/me` (they fall
-back to `FRM-030-004` / `FRM-030-005` if absent).
+form footers. `pmPacket` is now wired into the `DOC_CONTROL` payload from `/api/me`
+(`worker.js` → `docControl.pmPacket`, real number **FRM-030-006 · Preventative
+Maintenance Packet · Rev 0 · 7/16/2026**, Configuration-sheet overridable via
+`Doc No (PM Packet)` / `Rev (PM Packet)` / `Rev Date (PM Packet)`). `pmSchedule`
+remains unwired and still falls back to its placeholder `FRM-030-004`, which collides
+with the real Ticket Form number — still an open item, out of scope for the PM
+Packet numbering round.

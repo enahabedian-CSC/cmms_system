@@ -665,6 +665,7 @@ async function handleMe(env, userEmail) {
     holdTag:         pick('Doc No (Hold Tag)',        'Rev (Hold Tag)',        'Rev Date (Hold Tag)',        'FRM-029-002', '0', '6/15/26'),
     ncrRegister:     pick('Doc No (NCR Register)',    'Rev (NCR Register)',    'Rev Date (NCR Register)',    'FRM-029-001', '0', ''),
     ticketForm:      pick('Doc No (Ticket Form)',     'Rev (Ticket Form)',     'Rev Date (Ticket Form)',     'FRM-030-004', '0', ''),
+    pmPacket:        pick('Doc No (PM Packet)',        'Rev (PM Packet)',       'Rev Date (PM Packet)',       'FRM-030-006', '0', '7/16/2026'),
   };
 
   const company = config['Company Name'] || 'Container Supply Co.';

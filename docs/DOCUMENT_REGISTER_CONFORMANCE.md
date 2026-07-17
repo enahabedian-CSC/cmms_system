@@ -17,6 +17,7 @@
 | (unnumbered) | Maintenance Activity / **Temporary Repair Log** | Temp Fix Monitor | **Data matched (M7); number deferred** | pending # (see §3) |
 | **FRM-029-002** | Equipment Quality Hold Tag | Hold-tag print | **Built — auditor form ported, printable** | ✅ `docLabel('holdTag')` |
 | **FRM-029-001** | Non-Conforming Equipment Register | Equipment Hold Log | **Partial — register view + label; full field set pending** | ✅ `docLabel('ncrRegister')` |
+| **FRM-030-006** | Preventative Maintenance Packet | Machine PM Packets → print sign-off sheet | **Built — 2026-07-17 round: fresh number assigned (030-002 stays with Repair Log per prior Flag 1 resolution)** | ✅ `docLabel('pmPacket')` |
 
 ---
 
@@ -27,7 +28,7 @@ These are register rows not (fully) satisfied by the CMMS. **None invented; all 
 | Register doc | Source clause | Register status | App gap | Notes |
 |---|---|---|---|---|
 | Master Preventative Maintenance Schedule (FRM-030-002 *disputed*) | 2.2.4.x, 2.5 | Not Built | No PM module | Deferred (PM module is a later round). Number collision resolved (Flag 1): Repair Log keeps 030-002; Schedule needs a fresh number. |
-| FRM-030-### PM Forms (per department) | 2.2.4.11, 2.5.1 | Open | No PM forms | Tied to PM module. |
+| FRM-030-### PM Forms (per department) | 2.2.4.11, 2.5.1 | Partial | PM Packet sign-off resolved (see §1, FRM-030-006); PM Schedule Master still unnumbered | PM Schedule Master (`pm-master.html`) still runs on a placeholder that collides with the real Ticket Form FRM-030-004 — needs its own fresh number in a later round. |
 | Downtime Review / Completion-Rate Record | 2.17.1-.4 | Open | No dedicated record | Cadence conflict unresolved (Flag 4). Dashboard surfaces some data but not the controlled record. |
 | Equipment Approval Procedure | 2.2.3, 2.15.1 | Open | None | Procedure (not a form); needs PRO/SOP number — Michael + Compliance (Flag 9). |
 | 3rd-Party Service Record System | 2.1.2, 2.16.2 | Open | None | Forklift/chillers/leased equipment service records (Flag 10). |
@@ -52,9 +53,9 @@ The app uses an **FRM-040-xxx** series that does **not appear in the Maintenance
 
 ## 4. Net conformance posture after this round
 
-- **Built & conformant (maintenance-owned, in register):** FRM-030-001, FRM-030-002, FRM-030-003 (+ embedded Clearance), FRM-029-002.
-- **Partial:** FRM-029-001 (register view + label present; full NCR field set pending), Temporary Repair Log (data matched; number pending).
-- **Open / later round:** PM Schedule + PM forms, Downtime Review record, Equipment Approval Procedure, 3rd-party service records.
+- **Built & conformant (maintenance-owned, in register):** FRM-030-001, FRM-030-002, FRM-030-003 (+ embedded Clearance), FRM-029-002, FRM-030-006 (Preventative Maintenance Packet, assigned this round — see §1).
+- **Partial:** FRM-029-001 (register view + label present; full NCR field set pending), Temporary Repair Log (data matched; number pending), PM Schedule Master (still unnumbered, placeholder collides with FRM-030-004).
+- **Open / later round:** PM Schedule Master numbering, Downtime Review record, Equipment Approval Procedure, 3rd-party service records.
 - **Link-only (not ours):** FRM-017, FRM-031.
 - **Numbering corrected:** Service Report now FRM-030-003 everywhere (no FRM-040-002 / FRM-003-003 remnants in printed output).
 
