@@ -514,6 +514,7 @@ PAGES['pm-intake'] = function(container) { _pmiRender_(container); _pmiLoadAsset
 function _pmiRender_(container) {
   // (Re)initialise state from defaults every time the form is rendered fresh.
   _pmiState_ = {};
+  _pmiTlPicker_ = {}; // task-library browse tab/query — don't carry over from a previous form (e.g. a prior Duplicate)
   _pmiOrderedKeys_().forEach(function(k) {
     var f = _pmiField_(k);
     if (f.type === 'list')          _pmiState_[k] = [''];
