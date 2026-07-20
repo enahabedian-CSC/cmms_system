@@ -596,7 +596,7 @@ function _pmRenderSched_(id) {
     var taskLibSelect = '<div style="margin-bottom:8px;">' +
       '<select class="pm-ein" style="max-width:340px;" onchange="_pmAddTaskFromLib_(this)">' +
         '<option value="">+ Add from task library&#8230;</option>' +
-        (window._pmTaskLibOptionsHtml_ ? window._pmTaskLibOptionsHtml_() : '') +
+        (window._pmTaskLibOptionsHtml_ ? window._pmTaskLibOptionsHtml_(s.dept) : '') +
       '</select></div>';
     tasksInner = taskLibSelect + '<div style="display:flex;flex-direction:column;gap:6px;">' + tasks.map(function(t, i) {
       return '<div style="display:flex;gap:6px;align-items:center;">' +
