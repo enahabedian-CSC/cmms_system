@@ -73,9 +73,22 @@
 .pmi-add{align-self:flex-start;font-size:11.5px;color:var(--brand-navy);background:none;border:1px dashed var(--border-strong,#c7d0da);border-radius:6px;padding:5px 12px;cursor:pointer;font-weight:600;margin-top:2px;}
 .pmi-add:hover{background:var(--bg-subtle);}
 .pmi-listempty{font-size:11.5px;color:var(--text-tertiary);font-style:italic;padding:2px 0;}
-.pmi-task-dept{flex-shrink:0;font-size:10px;font-weight:700;color:var(--brand-navy);background:var(--status-info-bg);border:1px solid #cfe6f5;border-radius:4px;padding:2px 6px;white-space:nowrap;}
 .pmi-tl-manage-btn{font-size:11px;color:var(--text-secondary);background:none;border:1px solid var(--border-default);border-radius:6px;padding:0 10px;height:32px;cursor:pointer;white-space:nowrap;}
 .pmi-tl-manage-btn:hover{background:var(--bg-hover);}
+
+/* Task-library browse/filter combo ("add from task library") */
+.pmi-tl-combo{display:flex;flex-direction:column;gap:6px;margin-bottom:2px;}
+.pmi-tl-combo-row{display:flex;gap:6px;align-items:center;}
+.pmi-tl-tabs{display:flex;gap:5px;flex-wrap:wrap;}
+.pmi-tl-tab{font-size:11px;font-weight:600;color:var(--text-secondary);background:var(--bg-subtle);border:1px solid var(--border-default);border-radius:14px;padding:3px 11px;cursor:pointer;}
+.pmi-tl-tab:hover{background:var(--bg-hover);}
+.pmi-tl-tab.active{background:var(--brand-navy);color:#fff;border-color:var(--brand-navy);}
+.pmi-tl-list{max-height:180px;overflow-y:auto;border:1px solid var(--border-default);border-radius:6px;background:#fff;}
+.pmi-tl-list-item{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:7px 10px;font-size:12px;color:var(--text-primary);cursor:pointer;border-bottom:1px solid var(--border-default);}
+.pmi-tl-list-item:last-child{border-bottom:0;}
+.pmi-tl-list-item:hover{background:var(--bg-hover);}
+.pmi-tl-list-dept{flex-shrink:0;font-size:9.5px;font-weight:700;color:var(--brand-navy);background:var(--status-info-bg);border:1px solid #cfe6f5;border-radius:4px;padding:1px 6px;white-space:nowrap;}
+.pmi-tl-list-empty{padding:10px;font-size:11.5px;color:var(--text-tertiary);font-style:italic;text-align:center;}
 
 /* Manage Task Library modal */
 .pmi-tasklib-modal{width:640px;}
@@ -176,7 +189,7 @@ window.PM_INTAKE_CONFIG = {
     nextDue:  { label: 'Next Due', type: 'auto', autoText: 'Computed from Frequency on submit' },
 
     assetCode:  { label: 'Asset ID', type: 'text', required: true, datalist: 'assets',
-                  placeholder: 'e.g. 003-354', hint: 'Equipment Register asset code. Start typing to search; name & department auto-fill.' },
+                  placeholder: 'e.g. 003-354', hint: 'Equipment Register asset code. Start typing to search; name & department <strong>auto-fill</strong>.' },
     assetName:  { label: 'Asset Name', type: 'text', required: true,
                   placeholder: 'e.g. MOLD #48-E, 4.25 GAL ROUND' },
     department: { label: 'Department', type: 'select', required: true,
@@ -213,7 +226,7 @@ window.PM_INTAKE_CONFIG = {
 
     tasks:        { label: 'Tasks', type: 'tasklist', span2: true, required: true, taskLibrary: true,
                     placeholder: 'e.g. Disassemble ejector housing; inspect pins',
-                    hint: 'Pick from the task library or type your own — the checklist reference (e.g. CHK-030-354-02) is filled in for you automatically. At least one task required.' },
+                    hint: 'Pick from the task library or type your own — the checklist reference (e.g. CHK-030-354-02) is filled in for you <strong>automatically</strong>. <strong>At least one task required.</strong>' },
 
     tools:        { label: 'Specialty Tools', type: 'list', span2: true,
                     placeholder: 'e.g. Bore gauge', hint: 'Special tools/equipment needed for the job.' },
@@ -400,9 +413,22 @@ window.PM_TASK_LIBRARY_ = [
 // pm-master.html's schedule-edit mode.
 // Task text may be a plain string (the built-in seed list) or a {id, task}
 // object (entries loaded from the backend via _pmiLoadTaskLib_ — the id is
-// what lets _pmiTaskLibAdd_/the Manage Task Library panel edit or delete it).
+// what lets the Manage Task Library panel edit or delete it).
 function _pmTlText_(t) { return typeof t === 'string' ? t : (t.task || ''); }
 function _pmTlId_(t)   { return typeof t === 'string' ? '' : (t.id || ''); }
+
+// Safely embed a JS value as an argument inside an inline onclick="..." string.
+// Department/task text ultimately comes from Sheet data (writable via
+// /api/pm/tasklib/add, which does not restrict `dept` to the fixed dropdown
+// list), so it must never be spliced into a single-quoted JS string literal
+// via esc() alone — esc() only HTML-escapes &<>", it does not escape the `'`
+// that inline handlers here use to delimit JS strings, so an untrusted value
+// containing a quote could break out of the handler. JSON.stringify produces
+// a properly-escaped double-quoted JS string literal; esc() on top of that
+// only needs to HTML-escape its own quote characters for the surrounding
+// HTML attribute — the browser undoes that HTML-escaping before the JS
+// engine ever sees it, so the two escaping layers compose safely.
+function _jsAttr_(v) { return esc(JSON.stringify(v)); }
 
 window._pmTaskLibOptionsHtml_ = function(dept) {
   var lib = window.PM_TASK_LIBRARY_ || [];
@@ -560,7 +586,9 @@ function _pmiFieldHTML_(key) {
     '<div class="pmi-group' + span + '">' +
       '<label class="pmi-label" for="pmi-' + key + '">' + esc(f.label) + ' ' + reqMark + '</label>' +
       control +
-      (f.hint ? '<div class="pmi-hint">' + esc(f.hint) + '</div>' : '') +
+      // f.hint is static, developer-authored config text (not user input) —
+      // rendered as-is (not esc()'d) so a hint can bold a key term via <strong>.
+      (f.hint ? '<div class="pmi-hint">' + f.hint + '</div>' : '') +
       '<div class="pmi-err" id="pmi-err-' + key + '"></div>' +
     '</div>';
 }
@@ -632,9 +660,7 @@ function _pmiTaskInner_(key) {
   var arr = _pmiState_[key] || [];
   var dlId = 'pmi-dl-tasklib-' + key;
   var rows = arr.map(function(t, i) {
-    var badge = t.dept ? '<span class="pmi-task-dept">' + esc(t.dept) + '</span>' : '';
     return '<div class="pmi-listrow">' +
-      badge +
       '<input type="text" class="pmi-input" list="' + dlId + '" placeholder="' + esc(f.placeholder || 'Task step') + '" value="' + esc(t.t || '') + '" ' +
         'oninput="_pmiTaskSet_(\'' + key + '\',' + i + ',\'t\',this.value)">' +
       '<input type="text" class="pmi-input pmi-tref" placeholder="CHK ref" value="' + esc(t.ref || '') + '" ' +
@@ -646,40 +672,99 @@ function _pmiTaskInner_(key) {
   var datalist = f.taskLibrary ? '<datalist id="' + dlId + '">' + (window._pmiTaskLibDatalistOptions_ ? window._pmiTaskLibDatalistOptions_(_pmiState_.department) : '') + '</datalist>' : '';
   return libPicker + datalist + rows + '<button type="button" class="pmi-add" onclick="_pmiTaskAdd_(\'' + key + '\')">+ Add task</button>';
 }
+// "Add from task library" browse/filter widget — department tabs to browse
+// (Plastic/Metal/Litho/All) plus a text box to narrow those results as you
+// type, so it works as either a dropdown-style browse or a search depending
+// on whether you already know the wording. Per-key state (active dept tab +
+// typed query) persists across re-renders in _pmiTlPicker_.
+var _pmiTlPicker_ = {}; // key -> { dept, query }
+function _pmiTlPickerState_(key) {
+  if (!_pmiTlPicker_[key]) _pmiTlPicker_[key] = { dept: _pmiState_.department || 'ALL', query: '' };
+  return _pmiTlPicker_[key];
+}
+function _pmiTlLibDepts_() {
+  var lib = window.PM_TASK_LIBRARY_ || [];
+  var seen = {}, out = [];
+  lib.forEach(function(g) { if (!seen[g.dept]) { seen[g.dept] = true; out.push(g.dept); } });
+  return out;
+}
+// Flat {dept, text} list for the active tab ('ALL' = every department),
+// filtered by the typed query.
+function _pmiTlFilteredItems_(key) {
+  var st = _pmiTlPickerState_(key);
+  var lib = window.PM_TASK_LIBRARY_ || [];
+  var q = st.query.trim().toLowerCase();
+  var groups = st.dept === 'ALL' ? lib : lib.filter(function(g) { return g.dept === st.dept; });
+  var out = [];
+  groups.forEach(function(g) {
+    g.items.forEach(function(t) {
+      var text = _pmTlText_(t);
+      if (q && text.toLowerCase().indexOf(q) === -1) return;
+      out.push({ dept: g.dept, text: text });
+    });
+  });
+  return out;
+}
+function _pmiTlListHtml_(key) {
+  var items = _pmiTlFilteredItems_(key);
+  if (!items.length) return '<div class="pmi-tl-list-empty">No matching tasks.</div>';
+  return items.map(function(it, i) {
+    var badge = it.dept !== _pmiState_.department ? '<span class="pmi-tl-list-dept">' + esc(it.dept) + '</span>' : '';
+    return '<div class="pmi-tl-list-item" onclick="_pmiTlPickTask_(\'' + key + '\',' + i + ')">' +
+      '<span>' + esc(it.text) + '</span>' + badge +
+    '</div>';
+  }).join('');
+}
 function _pmiTaskLibPicker_(key) {
-  return '<div class="pmi-listrow">' +
-    '<select class="pmi-select" id="pmi-tasklib-' + key + '" onchange="_pmiTaskLibAdd_(\'' + key + '\',this)">' +
-      '<option value="">+ Add from task library&#8230;</option>' +
-      (window._pmTaskLibOptionsHtml_ ? window._pmTaskLibOptionsHtml_(_pmiState_.department) : '') +
-    '</select>' +
-    '<button type="button" class="pmi-tl-manage-btn" title="Fix a typo or add/remove a task in the library" onclick="_pmiOpenTaskLibMgr_()">Manage Task Library</button>' +
+  var st = _pmiTlPickerState_(key);
+  var tabs = _pmiTlLibDepts_().concat(['ALL']).map(function(d) {
+    var label = d === 'ALL' ? 'All' : d;
+    return '<button type="button" class="pmi-tl-tab' + (st.dept === d ? ' active' : '') + '" onclick="_pmiTlPickDept_(' + _jsAttr_(key) + ',' + _jsAttr_(d) + ')">' + esc(label) + '</button>';
+  }).join('');
+  return '<div class="pmi-tl-combo">' +
+    '<div class="pmi-tl-combo-row">' +
+      '<input type="text" class="pmi-input" placeholder="Type to filter, or browse below&#8230;" value="' + esc(st.query) + '" oninput="_pmiTlFilterInput_(\'' + key + '\',this.value)">' +
+      '<button type="button" class="pmi-tl-manage-btn" title="Fix a typo or add/remove a task in the library" onclick="_pmiOpenTaskLibMgr_()">Manage Task Library</button>' +
+    '</div>' +
+    '<div class="pmi-tl-tabs">' + tabs + '</div>' +
+    '<div class="pmi-tl-list" id="pmi-tl-list-' + key + '">' + _pmiTlListHtml_(key) + '</div>' +
   '</div>';
 }
-// Re-render the task-library picker's <option>s AND the type-ahead <datalist>
-// when department changes (via the select or via asset autofill) — leaves
-// already-added task rows untouched.
-function _pmiRefreshTaskLibPickers_() {
-  _pmiOrderedKeys_().forEach(function(key) {
-    if (_pmiField_(key).type !== 'tasklist' || !_pmiField_(key).taskLibrary) return;
-    var sel = document.getElementById('pmi-tasklib-' + key);
-    if (sel && window._pmTaskLibOptionsHtml_) {
-      sel.innerHTML = '<option value="">+ Add from task library&#8230;</option>' + window._pmTaskLibOptionsHtml_(_pmiState_.department);
-    }
-    var dl = document.getElementById('pmi-dl-tasklib-' + key);
-    if (dl && window._pmiTaskLibDatalistOptions_) dl.innerHTML = window._pmiTaskLibDatalistOptions_(_pmiState_.department);
-  });
+// Typing narrows the list live — only swap the list's innerHTML (not the
+// whole picker) so the input keeps focus while the user types.
+function _pmiTlFilterInput_(key, val) {
+  _pmiTlPickerState_(key).query = val;
+  var list = document.getElementById('pmi-tl-list-' + key);
+  if (list) list.innerHTML = _pmiTlListHtml_(key);
 }
-function _pmiTaskLibAdd_(key, sel) {
-  var text = sel.value;
-  if (!text) return;
-  var opt = sel.options[sel.selectedIndex];
-  var dept = opt ? (opt.getAttribute('data-dept') || '') : '';
+// A tab click isn't mid-typing, so a full re-render (to refresh which tab is
+// highlighted) is safe here.
+function _pmiTlPickDept_(key, dept) {
+  _pmiTlPickerState_(key).dept = dept;
+  _pmiRerenderList_(key);
+}
+function _pmiTlPickTask_(key, idx) {
+  var it = _pmiTlFilteredItems_(key)[idx];
+  if (!it) return;
   var arr = _pmiState_[key];
   if (arr.length === 1 && !arr[0].t && !arr[0].ref) arr.length = 0; // drop the pristine blank row
   var seq = arr.filter(function(t) { return t.ref; }).length + 1;
-  arr.push({ t: text, ref: window._pmGenChkRef_ ? window._pmGenChkRef_(_pmiState_.assetCode, seq) : '', dept: dept });
-  sel.value = '';
+  arr.push({ t: it.text, ref: window._pmGenChkRef_ ? window._pmGenChkRef_(_pmiState_.assetCode, seq) : '' });
   _pmiRerenderList_(key); _pmiUpdateSummary_(); _pmiClearErr_(key);
+}
+// When department changes (via the select or asset autofill), default the
+// browse tab to the new department, clear any stale query, and refresh the
+// per-row type-ahead datalist — leaves already-added task rows untouched.
+function _pmiRefreshTaskLibPickers_() {
+  _pmiOrderedKeys_().forEach(function(key) {
+    if (_pmiField_(key).type !== 'tasklist' || !_pmiField_(key).taskLibrary) return;
+    var st = _pmiTlPickerState_(key);
+    st.dept = _pmiState_.department || st.dept;
+    st.query = '';
+    _pmiRerenderList_(key);
+    var rowDl = document.getElementById('pmi-dl-tasklib-' + key);
+    if (rowDl && window._pmiTaskLibDatalistOptions_) rowDl.innerHTML = window._pmiTaskLibDatalistOptions_(_pmiState_.department);
+  });
 }
 function _pmiTaskSet_(key, i, which, val) { _pmiState_[key][i][which] = val; _pmiUpdateSummary_(); }
 function _pmiTaskAdd_(key) {
@@ -792,8 +877,8 @@ function _pmiRenderTaskLibMgr_() {
       if (!id) return ''; // seed entries with no backend id yet — re-add via the form below to make one editable
       return '<div class="pmi-tl-row">' +
         '<input type="text" class="pmi-input" id="pmi-tl-edit-' + esc(id) + '" value="' + esc(text) + '">' +
-        '<button type="button" class="pmi-tl-save" onclick="_pmiTaskLibSave_(\'' + esc(id) + '\')">Save</button>' +
-        '<button type="button" class="pmi-rm" title="Delete" onclick="_pmiTaskLibDelete_(\'' + esc(id) + '\')">&times;</button>' +
+        '<button type="button" class="pmi-tl-save" onclick="_pmiTaskLibSave_(' + _jsAttr_(id) + ')">Save</button>' +
+        '<button type="button" class="pmi-rm" title="Delete" onclick="_pmiTaskLibDelete_(' + _jsAttr_(id) + ')">&times;</button>' +
       '</div>';
     }).join('');
     if (!rows) return '';

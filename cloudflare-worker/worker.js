@@ -186,6 +186,168 @@ const PM_TASKLIB_HEADERS = [
   'Task ID', 'Department', 'Frequency', 'Task', 'Added By', 'Added At',
 ];
 
+// One-time seed for the 'PM Task Library' tab — the task list that used to be
+// hardcoded as window.PM_TASK_LIBRARY_ in frontend/partials/pm-intake.html.
+// Ported here so the very first read seeds the Sheet with these tasks (each
+// gets a real Task ID), making every pre-loaded task editable from day one
+// instead of only tasks added after the backend existed.
+const PM_TASKLIB_SEED = [
+  { dept: 'PLASTIC', freq: 'Weekly', items: [
+    'Grease injection skate fittings with P-64 (Shell Gadus S3 V220)',
+  ]},
+  { dept: 'PLASTIC', freq: 'Monthly', items: [
+    'Coat ejector butterfly guides with SAE-30',
+    'Inspect fuses',
+    'Test GFCI receptacles',
+    'Inspect grease level in auto lubricator',
+    'Inspect Oil level in Main reservoir (P-70)',
+    'Inspect oil level in traverse platen (P-63)',
+    'Drain air inlet moisture trap',
+    'Inspect Auto Lube (P72) and Filter',
+    'Inspect and Clean Inj. Unit',
+    'Clean Hopper Magnets',
+    'Oil tank filter cart',
+    'grease zerk fittings',
+    'grease injection barrel support',
+  ]},
+  { dept: 'PLASTIC', freq: 'Quarterly', items: [
+    'Inspect air breathers on oil reservoirs',
+  ]},
+  { dept: 'PLASTIC', freq: 'Every 6 Months', items: [
+    'Tie bar nuts',
+    'Oil filter (main) HRS.',
+    'Change injection servo filter/ HRS',
+    'Change clamp servo filters/ HRS X2',
+    'OIL LEAKS',
+    'Grease motor bearings 8000hrs or 3 years',
+    'Hopper cone',
+    'Hopper magnet',
+    'Hopper air lines',
+    'Hopper material lines and filters',
+    'Inspect hopper flaps, cylinders and gaskets',
+    'Hydraulic hoses (label bad hoses)',
+    'Measure transformer voltages',
+    'Inspect motor connections',
+    'Inspect Hyd. Hoses and fittings',
+    'Replace oil filter element',
+    'Check color loader gear box oil level',
+    'Clean Heat Exchanger Strainer & Inspect Anode (Performed Quarterly)',
+    'Inspect and Clean Vent Tube',
+    'Inspect Tightness of Feed Screw Retainer Rings',
+    'Check Barrel Temps to RTD (Annually)',
+    'Inspect Extruder Gear Box Oil Level (change bi-yearly)',
+    'Test GFCI Receptacles (biennial)',
+    'Inspect and Gauge Acc. PSI',
+    'Change clamp servo filters/ HRs',
+    'Change Ejector servo filters/ HRS',
+    'Check water saver valves',
+    'Mold stroke column guide bushings .590 min. check',
+    'Clean "Y" strainer screen',
+    'Grease motor bearings Yearly (21Gr)',
+    'Check safety switches and guards',
+    'Replace oil tank breather',
+    'Inspect barrel heaters and wires/accuracy',
+    'Inspect EXTR. coupling and "SET SCREWS"',
+    'Grease mold stroke clevis\'s',
+    'Check accumulator p.s.i',
+    'Inspect motor coupling and "SET SCREWS"',
+    'check extruder gear box oil level',
+    'Clean Oil tank (yearly)',
+    'Inspect hopper flap, cylinders and gaskets',
+    'Clean & inspect shut off linkage & cylinder',
+    'Check barrel temps to RTD (yearly)',
+    'Level Machine',
+    'Inspect motor couplings and "SET SCREWS"',
+    'CHECK STATIONARY AND MOVING PLATEN BOLTS',
+    'clean and inspect mold shoes',
+    'Change ejector servo filters/ HRs',
+    'inspect water saver valves',
+    'Inspect clamp bellows',
+    'Inspect toggle linkage',
+    'AIR LEAKS and filters',
+    'Check plunger spline bushing',
+    'Check water hoses and valves',
+    'Grease injection leaner guides',
+    'Grease inj. barrel support rail/ monthly',
+    'clean or Replace clamp gear box breather',
+    'Check safety switches, sensors, cables etc.',
+    'Air lubricator and filter',
+    'Clean and inspect vent tube',
+    'Lube Die height strain rods and gears',
+  ]},
+  { dept: 'PLASTIC', freq: 'Yearly', items: [
+    'Oil tank & hose (yearly)',
+    'Inspect feed screw retainer ring screws',
+    'Level Machine (Yearly)',
+    'Change Hyd. Fluid (Pending Analysis)',
+    'change batteries if applicable',
+    'OIL ANALYSES (YEARLY)',
+    'Oil magnets (yearly)',
+    'Oil strainers (yearly)',
+    'Level machine (yearly)',
+  ]},
+  { dept: 'PLASTIC', freq: 'Every 24 Months', items: [
+    'Level Machine',
+    'change batteries',
+  ]},
+  { dept: 'METAL', freq: 'Weekly', items: [
+    'Clean Seamer complete',
+    'Clean complete, inspect and oil pocket shaft on tester',
+    'Clean Flanger complete',
+    'Clean Beader complete',
+    'Inspect Hourglass Rolls',
+    'Inspect Gearbox Levels',
+    'Inspect Wire Brake tension',
+    'Inspect & Clean Can-O-Mat (Line 4 & 6 only)',
+    'Clean Vacuum Blocks',
+    'Inspect & Clean side stripe Spray Collection Boxes, flush all Spray Systems',
+    'Inspect & Grease oven bearings',
+  ]},
+  { dept: 'METAL', freq: 'Monthly', items: [
+    'Inspect and grease palletizer bearings',
+    'Inspect all safety clutches',
+    'Inspect oven chain tension',
+    'Check Mercury level in Pendulum Roller',
+    'Inspect Weld Rollers and Surface',
+    'Replace Air Line Filter',
+    'Lubricate Origa Cylinders',
+    'Inspect seamer cams, lower stool spring, lower gears',
+    'Inspect Elevator Shaft and Set Screws',
+  ]},
+  { dept: 'LITHO', freq: 'Weekly', items: [
+    'Wickets are in good condition',
+    'Inspect UV lights',
+    'Inspect and Clean Oven',
+    'Clean Wax Dispenser',
+    'Inspect & Clean back pallet stacker',
+  ]},
+  { dept: 'LITHO', freq: 'Monthly', items: [
+    'Grease coater, coater feeder, and stacker',
+    'Inspect coater side gauge, coater hand wheel, coater drive gear',
+    'Check vacuum boxes',
+  ]},
+  { dept: 'LITHO', freq: 'Quarterly', items: [
+    'Waxer Maintenance',
+    'Litho Coater Air Filter',
+    'Litho Lube Gas Meter',
+    'Litho Afterburner Blower Shaft Service',
+  ]},
+  { dept: 'LITHO', freq: 'Every 6 Months', items: [
+    'Inspect outboard rollers',
+    'Inspect oven railing and baffles',
+    'Inspect and clean roof waxer fans',
+    'Service vacuum pump, oil, intake filters, and inline filters',
+    'Inspect and adjust belts',
+  ]},
+  { dept: 'LITHO', freq: 'Yearly', items: [
+    'Inspect and service vacuum lines',
+    'Grease Motors',
+    'Clean afterburner intake ducts',
+    'Inspect blower belts',
+    'Litho RTO upper and lower thermocouple',
+  ]},
+];
+
 // List/task cell encoding: one item per line; each task is "text ::: CHK-ref".
 function pmParseList(cell) {
   return String(cell == null ? '' : cell).split(/\r?\n/).map(x => x.trim()).filter(Boolean);
@@ -1032,6 +1194,23 @@ async function appendSheetRow(token, spreadsheetId, sheetName, row) {
       method: 'POST',
       headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({ values: [row] }),
+    }
+  );
+  if (!res.ok) throw new Error(`Sheets append error: ${await res.text()}`);
+}
+
+// Append many row arrays in a single API call (e.g. seeding a tab) — same
+// endpoint as appendSheetRow, just with multiple rows in one request instead
+// of one round-trip per row.
+async function appendSheetRows(token, spreadsheetId, sheetName, rows) {
+  if (!rows.length) return;
+  const encodedSheet = encodeURIComponent(sheetName);
+  const res = await fetch(
+    `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${encodedSheet}!A1:append?valueInputOption=USER_ENTERED&insertDataOption=INSERT_ROWS`,
+    {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ values: rows }),
     }
   );
   if (!res.ok) throw new Error(`Sheets append error: ${await res.text()}`);
@@ -2294,6 +2473,28 @@ async function generateTaskLibId(token, env, sheetName) {
   return 'TL-' + String(max + 1).padStart(6, '0');
 }
 
+// Write PM_TASKLIB_SEED into a freshly-created/empty tab in one batch call.
+async function seedPmTaskLibrary(token, env, sheetName) {
+  const now = new Date();
+  const stamp = fmtDate(now) + ' ' +
+    String(now.getHours()).padStart(2, '0') + ':' + String(now.getMinutes()).padStart(2, '0');
+  let seq = 1;
+  const rows = [];
+  for (const g of PM_TASKLIB_SEED) {
+    for (const task of g.items) {
+      const row = new Array(PMTL.ADDED_AT).fill('');
+      row[PMTL.TASK_ID  - 1] = 'TL-' + String(seq++).padStart(6, '0');
+      row[PMTL.DEPT     - 1] = normalizeDept(g.dept);
+      row[PMTL.FREQ     - 1] = g.freq;
+      row[PMTL.TASK     - 1] = task;
+      row[PMTL.ADDED_BY - 1] = 'system-seed';
+      row[PMTL.ADDED_AT - 1] = stamp;
+      rows.push(row);
+    }
+  }
+  await appendSheetRows(token, env.SPREADSHEET_ID, sheetName, rows);
+}
+
 // GET /api/pm/tasklib → [{dept, freq, items:[{id, task}]}], grouped the same
 // shape the frontend's window.PM_TASK_LIBRARY_ array used to be, filtered to
 // the departments the caller can see (same rule as PM schedules).
@@ -2303,7 +2504,16 @@ async function handlePmTaskLibGet(env, userEmail) {
   if (!user.isManager && !user.isTech) return jsonResponse({ error: 'Access required' }, 403);
 
   const sheetName = env.PM_TASKLIB_SHEET || SH.PM_TASKLIB;
-  const rows = await readSheet(token, env.SPREADSHEET_ID, sheetName, 'A2:F').catch(() => []);
+  await ensureSheetTab(token, env.SPREADSHEET_ID, sheetName, PM_TASKLIB_HEADERS);
+  let rows = await readSheet(token, env.SPREADSHEET_ID, sheetName, 'A2:F').catch(() => []);
+
+  // First-ever read of an empty tab: seed it with the legacy client-side task
+  // list (PM_TASKLIB_SEED) so every pre-loaded task gets a real Task ID and
+  // becomes editable (fixable typos) instead of only tasks added afterward.
+  if (!rows.some(r => cellStr(r, PMTL.TASK_ID))) {
+    await seedPmTaskLibrary(token, env, sheetName);
+    rows = await readSheet(token, env.SPREADSHEET_ID, sheetName, 'A2:F').catch(() => []);
+  }
 
   const entries = rows
     .filter(r => cellStr(r, PMTL.TASK_ID))
