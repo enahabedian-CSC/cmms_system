@@ -1117,7 +1117,20 @@ async function handleTempFix(env, userEmail) {
   const user  = await resolveUser(token, env, userEmail);
   if (!user.isManager) return jsonResponse({ error: 'Manager access required' }, 403);
 
-  const rows = await readSheet(token, env.SPREADSHEET_ID, SH.TEMP_FIX, `A${HIST_HEADER_ROW + 1}:V`);
+  const [rows, mlRows] = await Promise.all([
+    readSheet(token, env.SPREADSHEET_ID, SH.TEMP_FIX, `A${HIST_HEADER_ROW + 1}:V`),
+    readSheet(token, env.SPREADSHEET_ID, SH.MASTER_LOG, 'A2:E'),
+  ]);
+
+  // Build a last-non-empty-wins status map so TF records for already-closed or
+  // voided tickets are hidden even if their TF sheet row was never cleared.
+  const ticketStatus = {};
+  mlRows.forEach(r => {
+    const tn = cellStr(r, ML.TICKET_NO);
+    const st = cellStr(r, ML.STATUS).toUpperCase();
+    if (tn && st) ticketStatus[tn] = st;
+  });
+
   const items = [];
   rows.forEach(r => {
     const tempId = cellStr(r, TF.TEMP_ID);
@@ -1126,6 +1139,9 @@ async function handleTempFix(env, userEmail) {
     if (!allowed(user, dept)) return;
     const status = cellStr(r, TF.STATUS).toUpperCase();
     if (status === 'CLEARED') return;
+    // Hide records whose parent ticket is already closed or voided.
+    const parentStatus = ticketStatus[cellStr(r, TF.TICKET_NO)] || '';
+    if (parentStatus === 'CLOSED' || parentStatus === 'VOIDED') return;
     items.push({
       tempId,
       ticketNo:          cellStr(r, TF.TICKET_NO),
@@ -1316,6 +1332,24 @@ async function handleTempFixClear(env, userEmail, body) {
     await appendTicketHistory(token, env, ticketNo, 'TEMP FIX CLEARED', '', '', effectiveClearer, body.notes || '');
   }
   return jsonResponse({ success: true, tempId });
+}
+
+// Clears any ACTIVE/PAST DUE rows in the Temp Fix Monitor for a given ticket.
+// Called when a ticket is closed or voided so the monitor stays clean automatically.
+async function _autoClrTempFix_(token, env, ticketNo, clearedBy, now) {
+  const dataStart = HIST_HEADER_ROW + 1;
+  const tfRows = await readSheet(token, env.SPREADSHEET_ID, SH.TEMP_FIX, `A${dataStart}:M`);
+  for (let i = 0; i < tfRows.length; i++) {
+    const r  = tfRows[i];
+    if (cellStr(r, TF.TICKET_NO) !== ticketNo) continue;
+    const st = cellStr(r, TF.STATUS).toUpperCase();
+    if (st !== 'ACTIVE' && st !== 'PAST DUE') continue;
+    await writeSheetCells(token, env.SPREADSHEET_ID, SH.TEMP_FIX, dataStart + i, [
+      { col: TF.STATUS,       value: 'CLEARED' },
+      { col: TF.CLEARED_BY,   value: clearedBy },
+      { col: TF.CLEARED_DATE, value: fmtDate(now) },
+    ]);
+  }
 }
 
 async function handleEhl(env, userEmail, includeCleared) {
@@ -2614,6 +2648,7 @@ async function handleVerifyClose(env, userEmail, body) {
     updatedBy, notes: body.notes || '',
   });
   await appendTicketHistory(token, env, ticketNo, 'VERIFIED & CLOSED', 'PENDING VERIFICATION', 'CLOSED', updatedBy, body.notes || '');
+  await _autoClrTempFix_(token, env, ticketNo, updatedBy, now);
   return jsonResponse({ success: true, ticketNo });
 }
 
@@ -2626,8 +2661,10 @@ async function handleVoidTicket(env, userEmail, body) {
   if (!ticketNo) return jsonResponse({ error: 'ticketNo required' }, 400);
   if (!reason)   return jsonResponse({ error: 'reason required' }, 400);
   const updatedBy = String(body.updatedBy || user.displayName).trim();
-  await appendMasterLog(token, env, { ticketNo, now: new Date(), action: 'VOIDED', status: 'VOIDED', updatedBy, notes: reason });
+  const now       = new Date();
+  await appendMasterLog(token, env, { ticketNo, now, action: 'VOIDED', status: 'VOIDED', updatedBy, notes: reason });
   await appendTicketHistory(token, env, ticketNo, 'VOIDED', '', 'VOIDED', updatedBy, reason);
+  await _autoClrTempFix_(token, env, ticketNo, updatedBy, now);
   return jsonResponse({ success: true, ticketNo });
 }
 
