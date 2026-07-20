@@ -39,7 +39,7 @@
 .pmi-section-hdr{display:flex;align-items:center;gap:10px;margin-bottom:14px;}
 .pmi-step-num{width:24px;height:24px;border-radius:50%;background:var(--brand-navy);color:#fff;font-size:11px;font-weight:700;display:grid;place-items:center;flex-shrink:0;}
 .pmi-section-title{font-size:13px;font-weight:700;color:var(--text-primary);}
-.pmi-section-note{font-size:11px;color:var(--text-tertiary);margin-left:auto;}
+.pmi-section-note{font-size:11px;font-weight:700;color:var(--text-secondary);margin-left:auto;}
 
 /* Field grid */
 .pmi-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px 16px;}
@@ -48,7 +48,7 @@
 .pmi-group{display:flex;flex-direction:column;gap:4px;min-width:0;}
 .pmi-label{font-size:12px;font-weight:600;color:var(--text-primary);}
 .pmi-label .pmi-req{color:var(--status-critical);margin-left:2px;}
-.pmi-label .pmi-opt{font-weight:400;color:var(--text-tertiary);margin-left:4px;font-size:11px;}
+.pmi-label .pmi-opt{font-weight:700;color:var(--text-secondary);margin-left:4px;font-size:11px;}
 .pmi-input,.pmi-select,.pmi-textarea{height:34px;padding:0 10px;border:1px solid var(--border-default);border-radius:6px;font-size:13px;color:var(--text-primary);background:#fff;outline:none;width:100%;box-sizing:border-box;transition:border-color .15s,box-shadow .15s;}
 .pmi-textarea{height:auto;min-height:80px;padding:8px 10px;resize:vertical;line-height:1.5;}
 .pmi-input:focus,.pmi-select:focus,.pmi-textarea:focus{border-color:var(--brand-navy);box-shadow:0 0 0 3px rgba(0,31,79,.07);}
@@ -73,6 +73,19 @@
 .pmi-add{align-self:flex-start;font-size:11.5px;color:var(--brand-navy);background:none;border:1px dashed var(--border-strong,#c7d0da);border-radius:6px;padding:5px 12px;cursor:pointer;font-weight:600;margin-top:2px;}
 .pmi-add:hover{background:var(--bg-subtle);}
 .pmi-listempty{font-size:11.5px;color:var(--text-tertiary);font-style:italic;padding:2px 0;}
+.pmi-task-dept{flex-shrink:0;font-size:10px;font-weight:700;color:var(--brand-navy);background:var(--status-info-bg);border:1px solid #cfe6f5;border-radius:4px;padding:2px 6px;white-space:nowrap;}
+.pmi-tl-manage-btn{font-size:11px;color:var(--text-secondary);background:none;border:1px solid var(--border-default);border-radius:6px;padding:0 10px;height:32px;cursor:pointer;white-space:nowrap;}
+.pmi-tl-manage-btn:hover{background:var(--bg-hover);}
+
+/* Manage Task Library modal */
+.pmi-tasklib-modal{width:640px;}
+.pmi-tl-group{margin-bottom:14px;}
+.pmi-tl-group-hdr{font-size:11px;font-weight:700;color:var(--text-secondary);text-transform:uppercase;letter-spacing:.03em;margin-bottom:6px;}
+.pmi-tl-row{display:flex;gap:6px;align-items:center;margin-bottom:6px;}
+.pmi-tl-row .pmi-input{height:32px;}
+.pmi-tl-save{height:32px;padding:0 12px;border:0;border-radius:6px;background:var(--brand-navy);color:#fff;font-size:11.5px;font-weight:600;cursor:pointer;flex-shrink:0;}
+.pmi-tl-save:hover{background:var(--brand-navy-soft);}
+.pmi-tl-add{border-top:1px solid var(--border-default);margin-top:16px;padding-top:14px;}
 
 /* Auto-assigned (system) field chips */
 .pmi-auto{display:flex;align-items:center;gap:8px;height:34px;padding:0 12px;border:1px dashed var(--border-strong,#c7d0da);border-radius:6px;background:var(--bg-subtle);font-size:12.5px;color:var(--text-secondary);}
@@ -119,6 +132,15 @@
 .pmi-banner{display:none;align-items:flex-start;gap:9px;background:#FFF8E1;border:1px solid #FFD54F;border-radius:8px;padding:9px 13px;margin-bottom:14px;font-size:12px;color:#5D4037;line-height:1.5;}
 .pmi-banner.show{display:flex;}
 </style>
+
+<!-- Manage Task Library modal — static, always in DOM, toggled via style.display -->
+<div class="td-modal-backdrop" id="pmi-tasklib-modal-backdrop" data-static="1" style="display:none;" onclick="if(event.target===this)_pmiCloseTaskLibMgr_()">
+  <div class="td-modal pmi-tasklib-modal">
+    <h3>Manage Task Library</h3>
+    <div id="pmi-tasklib-modal-body"><div class="loading-overlay"><div class="spinner"></div><span>Loading&#8230;</span></div></div>
+    <div class="modal-actions"><button type="button" class="btn-cancel" onclick="_pmiCloseTaskLibMgr_()">Close</button></div>
+  </div>
+</div>
 
 <script>
 // ── PM Intake — field configuration (single source of truth) ─────────────────
@@ -376,23 +398,49 @@ window.PM_TASK_LIBRARY_ = [
 // can still be borrowed across departments. Falls back to showing everything
 // flat (no dept grouping) if `dept` is blank/unrecognized. Shared with
 // pm-master.html's schedule-edit mode.
+// Task text may be a plain string (the built-in seed list) or a {id, task}
+// object (entries loaded from the backend via _pmiLoadTaskLib_ — the id is
+// what lets _pmiTaskLibAdd_/the Manage Task Library panel edit or delete it).
+function _pmTlText_(t) { return typeof t === 'string' ? t : (t.task || ''); }
+function _pmTlId_(t)   { return typeof t === 'string' ? '' : (t.id || ''); }
+
 window._pmTaskLibOptionsHtml_ = function(dept) {
   var lib = window.PM_TASK_LIBRARY_ || [];
-  function optgroup(label, items) {
-    return '<optgroup label="' + esc(label) + '">' + items.map(function(t) {
-      return '<option value="' + esc(t) + '">' + esc(t) + '</option>';
+  // Every optgroup is labeled with its own department — previously the
+  // caller's own department was labeled with just the frequency ("Weekly"),
+  // which read as unlabeled/ambiguous next to "METAL — Weekly" for others.
+  function optgroup(g) {
+    return '<optgroup label="' + esc(g.dept + ' — ' + g.freq) + '">' + g.items.map(function(t) {
+      var text = _pmTlText_(t), id = _pmTlId_(t);
+      return '<option value="' + esc(text) + '" data-dept="' + esc(g.dept) + '" data-id="' + esc(id) + '">' + esc(text) + '</option>';
     }).join('') + '</optgroup>';
   }
-  if (!dept) return lib.map(function(g) { return optgroup(g.freq, g.items); }).join('');
+  if (!dept) return lib.map(optgroup).join('');
 
   var mine = lib.filter(function(g) { return g.dept === dept; });
   var others = lib.filter(function(g) { return g.dept !== dept; });
-  var html = mine.map(function(g) { return optgroup(g.freq, g.items); }).join('');
+  var html = mine.map(optgroup).join('');
   if (others.length) {
     html += '<optgroup label="── Other Departments ──" disabled></optgroup>' +
-      others.map(function(g) { return optgroup(g.dept + ' — ' + g.freq, g.items); }).join('');
+      others.map(optgroup).join('');
   }
   return html;
+};
+
+// Flat, de-duplicated list of task texts for the current department, used to
+// power real type-ahead on the task-text input (a <datalist>) instead of only
+// a separate "add from library" dropdown.
+window._pmiTaskLibDatalistOptions_ = function(dept) {
+  var lib = window.PM_TASK_LIBRARY_ || [];
+  var groups = dept ? lib.filter(function(g) { return g.dept === dept; }) : lib;
+  var seen = {}, out = [];
+  groups.forEach(function(g) {
+    g.items.forEach(function(t) {
+      var text = _pmTlText_(t);
+      if (text && !seen[text]) { seen[text] = true; out.push('<option value="' + esc(text) + '">'); }
+    });
+  });
+  return out.join('');
 };
 
 // Auto-generate a checklist reference so data-entry people never have to know
@@ -435,7 +483,7 @@ function _pmiIsRequired_(key) {
 }
 
 // ── Page entry point ─────────────────────────────────────────────────────────
-PAGES['pm-intake'] = function(container) { _pmiRender_(container); _pmiLoadAssets_(); };
+PAGES['pm-intake'] = function(container) { _pmiRender_(container); _pmiLoadAssets_(); _pmiLoadTaskLib_(); };
 
 function _pmiRender_(container) {
   // (Re)initialise state from defaults every time the form is rendered fresh.
@@ -462,7 +510,7 @@ function _pmiRender_(container) {
     '<div class="pmi-wrap">' +
       '<div class="pmi-hdr">' +
         '<div class="pmi-hdr-title">New PM Entry</div>' +
-        '<div class="pmi-hdr-sub">Define a preventive-maintenance schedule. The PM ID, next-due date and status are assigned automatically; the definition lands on the <strong>PM Schedules</strong> tab and appears immediately in the PM Master view.</div>' +
+        '<div class="pmi-hdr-sub">Define a preventive-maintenance schedule. The PM ID, next-due date and status are assigned <strong>automatically</strong>; the definition lands on the <strong>PM Schedules</strong> tab and appears immediately in the PM Master view.</div>' +
         '<div class="pmi-hdr-code">' + esc(cfg.formCode) + '</div>' +
       '</div>' +
       '<div class="pmi-banner" id="pmi-banner"></div>' +
@@ -520,7 +568,7 @@ function _pmiFieldHTML_(key) {
 function _pmiControlHTML_(key, f) {
   if (f.type === 'auto') {
     return '<div class="pmi-auto"><span class="pmi-auto-dot"></span>' +
-      '<span>' + esc(f.autoText || 'Auto-assigned') + '</span></div>';
+      '<span style="font-weight:600;">' + esc(f.autoText || 'Auto-assigned') + '</span></div>';
   }
   if (f.type === 'select') {
     var opts = '<option value="">— Select —</option>' + f.options.map(function(o) {
@@ -582,9 +630,12 @@ function _pmiListRemove_(key, i) {
 function _pmiTaskInner_(key) {
   var f = _pmiField_(key);
   var arr = _pmiState_[key] || [];
+  var dlId = 'pmi-dl-tasklib-' + key;
   var rows = arr.map(function(t, i) {
+    var badge = t.dept ? '<span class="pmi-task-dept">' + esc(t.dept) + '</span>' : '';
     return '<div class="pmi-listrow">' +
-      '<input type="text" class="pmi-input" placeholder="' + esc(f.placeholder || 'Task step') + '" value="' + esc(t.t || '') + '" ' +
+      badge +
+      '<input type="text" class="pmi-input" list="' + dlId + '" placeholder="' + esc(f.placeholder || 'Task step') + '" value="' + esc(t.t || '') + '" ' +
         'oninput="_pmiTaskSet_(\'' + key + '\',' + i + ',\'t\',this.value)">' +
       '<input type="text" class="pmi-input pmi-tref" placeholder="CHK ref" value="' + esc(t.ref || '') + '" ' +
         'oninput="_pmiTaskSet_(\'' + key + '\',' + i + ',\'ref\',this.value)">' +
@@ -592,7 +643,8 @@ function _pmiTaskInner_(key) {
     '</div>';
   }).join('');
   var libPicker = f.taskLibrary ? _pmiTaskLibPicker_(key) : '';
-  return libPicker + rows + '<button type="button" class="pmi-add" onclick="_pmiTaskAdd_(\'' + key + '\')">+ Add task</button>';
+  var datalist = f.taskLibrary ? '<datalist id="' + dlId + '">' + (window._pmiTaskLibDatalistOptions_ ? window._pmiTaskLibDatalistOptions_(_pmiState_.department) : '') + '</datalist>' : '';
+  return libPicker + datalist + rows + '<button type="button" class="pmi-add" onclick="_pmiTaskAdd_(\'' + key + '\')">+ Add task</button>';
 }
 function _pmiTaskLibPicker_(key) {
   return '<div class="pmi-listrow">' +
@@ -600,10 +652,12 @@ function _pmiTaskLibPicker_(key) {
       '<option value="">+ Add from task library&#8230;</option>' +
       (window._pmTaskLibOptionsHtml_ ? window._pmTaskLibOptionsHtml_(_pmiState_.department) : '') +
     '</select>' +
+    '<button type="button" class="pmi-tl-manage-btn" title="Fix a typo or add/remove a task in the library" onclick="_pmiOpenTaskLibMgr_()">Manage Task Library</button>' +
   '</div>';
 }
-// Re-render just the task-library picker's <option>s when department changes
-// (via the select or via asset autofill) — leaves already-added task rows untouched.
+// Re-render the task-library picker's <option>s AND the type-ahead <datalist>
+// when department changes (via the select or via asset autofill) — leaves
+// already-added task rows untouched.
 function _pmiRefreshTaskLibPickers_() {
   _pmiOrderedKeys_().forEach(function(key) {
     if (_pmiField_(key).type !== 'tasklist' || !_pmiField_(key).taskLibrary) return;
@@ -611,15 +665,19 @@ function _pmiRefreshTaskLibPickers_() {
     if (sel && window._pmTaskLibOptionsHtml_) {
       sel.innerHTML = '<option value="">+ Add from task library&#8230;</option>' + window._pmTaskLibOptionsHtml_(_pmiState_.department);
     }
+    var dl = document.getElementById('pmi-dl-tasklib-' + key);
+    if (dl && window._pmiTaskLibDatalistOptions_) dl.innerHTML = window._pmiTaskLibDatalistOptions_(_pmiState_.department);
   });
 }
 function _pmiTaskLibAdd_(key, sel) {
   var text = sel.value;
   if (!text) return;
+  var opt = sel.options[sel.selectedIndex];
+  var dept = opt ? (opt.getAttribute('data-dept') || '') : '';
   var arr = _pmiState_[key];
   if (arr.length === 1 && !arr[0].t && !arr[0].ref) arr.length = 0; // drop the pristine blank row
   var seq = arr.filter(function(t) { return t.ref; }).length + 1;
-  arr.push({ t: text, ref: window._pmGenChkRef_ ? window._pmGenChkRef_(_pmiState_.assetCode, seq) : '' });
+  arr.push({ t: text, ref: window._pmGenChkRef_ ? window._pmGenChkRef_(_pmiState_.assetCode, seq) : '', dept: dept });
   sel.value = '';
   _pmiRerenderList_(key); _pmiUpdateSummary_(); _pmiClearErr_(key);
 }
@@ -679,6 +737,114 @@ function _pmiLoadAssets_() {
       }).join('');
     })
     .catch(function() { /* autocomplete is a convenience; manual entry still works */ });
+}
+
+// ── PM Task Library — load from backend, and the "Manage Task Library" panel ──
+// window.PM_TASK_LIBRARY_ above is a fallback seed (used if WORKER_URL is unset
+// or the tab is empty); once this fetch lands it replaces it with the live,
+// editable copy from the 'PM Task Library' sheet tab (handlePmTaskLibGet in
+// cloudflare-worker/worker.js), refreshing any already-rendered pickers.
+function _pmiLoadTaskLib_(done) {
+  if (typeof WORKER_URL === 'undefined' || !WORKER_URL) { if (done) done(); return; }
+  fetch(WORKER_URL + '/api/pm/tasklib', { headers: { 'X-User-Email': (typeof USER !== 'undefined' && USER ? USER.email : '') } })
+    .then(function(r) { return r.ok ? r.json() : null; })
+    .then(function(j) {
+      if (j && Array.isArray(j.groups) && j.groups.length) {
+        window.PM_TASK_LIBRARY_ = j.groups;
+        _pmiRefreshTaskLibPickers_();
+      }
+      if (done) done();
+    })
+    .catch(function() { if (done) done(); /* task-library autofill is a convenience; the built-in seed list still works */ });
+}
+
+// Shared POST helper for task-library writes. cb(ok, body).
+function _pmiPost_(path, payload, cb) {
+  if (typeof WORKER_URL === 'undefined' || !WORKER_URL) { showToast('Backend not configured.', 'error'); return; }
+  fetch(WORKER_URL + path, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-User-Email': (typeof USER !== 'undefined' && USER ? USER.email : '') },
+    body: JSON.stringify(payload)
+  })
+    .then(function(r) { return r.json().then(function(j) { return { ok: r.ok, body: j }; }); })
+    .then(function(res) { cb(!!(res.ok && res.body && res.body.ok), res.body || {}); })
+    .catch(function(err) { showToast('Request failed: ' + esc(err.message || String(err)), 'error', 6000); });
+}
+
+function _pmiOpenTaskLibMgr_() {
+  document.getElementById('pmi-tasklib-modal-backdrop').style.display = 'flex';
+  _pmiRenderTaskLibMgr_();
+}
+function _pmiCloseTaskLibMgr_() {
+  document.getElementById('pmi-tasklib-modal-backdrop').style.display = 'none';
+}
+
+function _pmiRenderTaskLibMgr_() {
+  var body = document.getElementById('pmi-tasklib-modal-body');
+  if (!body) return;
+  var lib = window.PM_TASK_LIBRARY_ || [];
+  var deptOpts = (window.PM_INTAKE_CONFIG.fields.department.options || []);
+  var freqOpts = (window.PM_INTAKE_CONFIG.fields.frequency.options || []);
+
+  var groupsHtml = lib.map(function(g) {
+    var rows = g.items.map(function(t) {
+      var id = _pmTlId_(t), text = _pmTlText_(t);
+      if (!id) return ''; // seed entries with no backend id yet — re-add via the form below to make one editable
+      return '<div class="pmi-tl-row">' +
+        '<input type="text" class="pmi-input" id="pmi-tl-edit-' + esc(id) + '" value="' + esc(text) + '">' +
+        '<button type="button" class="pmi-tl-save" onclick="_pmiTaskLibSave_(\'' + esc(id) + '\')">Save</button>' +
+        '<button type="button" class="pmi-rm" title="Delete" onclick="_pmiTaskLibDelete_(\'' + esc(id) + '\')">&times;</button>' +
+      '</div>';
+    }).join('');
+    if (!rows) return '';
+    return '<div class="pmi-tl-group"><div class="pmi-tl-group-hdr">' + esc(g.dept) + ' &middot; ' + esc(g.freq) + '</div>' + rows + '</div>';
+  }).join('');
+
+  body.innerHTML =
+    (groupsHtml || '<div class="pmi-listempty">No editable tasks yet — tasks seeded before this panel existed need to be re-added below to become editable.</div>') +
+    '<div class="pmi-tl-add">' +
+      '<div class="pmi-tl-group-hdr">Add a task</div>' +
+      '<div class="pmi-tl-row">' +
+        '<select class="pmi-select" id="pmi-tl-new-dept">' + deptOpts.map(function(d) { return '<option value="' + esc(d) + '">' + esc(d) + '</option>'; }).join('') + '</select>' +
+        '<select class="pmi-select" id="pmi-tl-new-freq">' + freqOpts.map(function(f) { return '<option value="' + esc(f) + '">' + esc(f) + '</option>'; }).join('') + '</select>' +
+      '</div>' +
+      '<div class="pmi-tl-row">' +
+        '<input type="text" class="pmi-input" id="pmi-tl-new-task" placeholder="Task text">' +
+        '<button type="button" class="pmi-add" onclick="_pmiTaskLibAddNew_()">+ Add</button>' +
+      '</div>' +
+    '</div>';
+}
+
+function _pmiTaskLibSave_(id) {
+  var el = document.getElementById('pmi-tl-edit-' + id);
+  var task = el ? el.value.trim() : '';
+  if (!task) { showToast('Task text cannot be blank.', 'error'); return; }
+  _pmiPost_('/api/pm/tasklib/update', { id: id, task: task }, function(ok, res) {
+    if (!ok) { showToast('Save failed: ' + esc(res.error || 'error'), 'error', 6000); return; }
+    showToast('Task updated.', 'success');
+    _pmiLoadTaskLib_(_pmiRenderTaskLibMgr_);
+  });
+}
+function _pmiTaskLibDelete_(id) {
+  if (!confirm('Remove this task from the library?')) return;
+  _pmiPost_('/api/pm/tasklib/delete', { id: id }, function(ok, res) {
+    if (!ok) { showToast('Delete failed: ' + esc(res.error || 'error'), 'error', 6000); return; }
+    showToast('Task removed.', 'success');
+    _pmiLoadTaskLib_(_pmiRenderTaskLibMgr_);
+  });
+}
+function _pmiTaskLibAddNew_() {
+  var dept = document.getElementById('pmi-tl-new-dept').value;
+  var freq = document.getElementById('pmi-tl-new-freq').value;
+  var taskEl = document.getElementById('pmi-tl-new-task');
+  var task = taskEl.value.trim();
+  if (!task) { showToast('Enter task text first.', 'error'); return; }
+  _pmiPost_('/api/pm/tasklib/add', { dept: dept, freq: freq, task: task }, function(ok, res) {
+    if (!ok) { showToast('Add failed: ' + esc(res.error || 'error'), 'error', 6000); return; }
+    taskEl.value = '';
+    showToast('Task added to the library.', 'success');
+    _pmiLoadTaskLib_(_pmiRenderTaskLibMgr_);
+  });
 }
 
 // When the asset code matches a known register entry, auto-fill name + dept.

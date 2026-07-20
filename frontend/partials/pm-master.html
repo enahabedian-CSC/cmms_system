@@ -251,10 +251,21 @@ window._PM_SAMPLE_ = window._PM_SAMPLE_ || {
     { ticketNo:'PM-003-260611-002', schedId:'PMS-003-354-6M', date:'2026-06-11', status:'COMPLETE', assigned:'Ismael Silva',    due:'2026-06-18' },
     { ticketNo:'PM-003-260611-003', schedId:'PMS-003-354-6M', date:'2026-06-11', status:'OPEN',     assigned:'Felipe Vasquez',  due:'2026-06-18' },
     { ticketNo:'PM-003-260611-004', schedId:'PMS-003-354-6M', date:'2026-06-11', status:'OPEN',     assigned:'Unassigned',      due:'2026-06-18' },
-    { ticketNo:'PM-001-260607-001', schedId:'PMS-001-018-3M', date:'2026-06-07', status:'OPEN',     assigned:'Anthony Gonzalez',due:'2026-06-14' },
+    // PMS-001-018-3M / PKT-001-018-3M — one ticket per packet checklist item (see pm-packets.html _PM_PACKETS_)
+    { ticketNo:'PM-001-260607-001', schedId:'PMS-001-018-3M', date:'2026-06-07', status:'COMPLETE', assigned:'Anthony Gonzalez',due:'2026-06-14' },
+    { ticketNo:'PM-001-260607-002', schedId:'PMS-001-018-3M', date:'2026-06-07', status:'OPEN',     assigned:'Unassigned',      due:'2026-06-14' },
+    { ticketNo:'PM-001-260607-003', schedId:'PMS-001-018-3M', date:'2026-06-07', status:'OPEN',     assigned:'Unassigned',      due:'2026-06-14' },
+    { ticketNo:'PM-001-260607-004', schedId:'PMS-001-018-3M', date:'2026-06-07', status:'OPEN',     assigned:'Unassigned',      due:'2026-06-14' },
+    // PMS-008-202-1M / PKT-008-202-1M
     { ticketNo:'PM-008-260530-001', schedId:'PMS-008-202-1M', date:'2026-05-30', status:'COMPLETE', assigned:'Christian Gavina',due:'2026-06-06' },
+    { ticketNo:'PM-008-260530-002', schedId:'PMS-008-202-1M', date:'2026-05-30', status:'COMPLETE', assigned:'Christian Gavina',due:'2026-06-06' },
+    { ticketNo:'PM-008-260530-003', schedId:'PMS-008-202-1M', date:'2026-05-30', status:'COMPLETE', assigned:'Christian Gavina',due:'2026-06-06' },
     { ticketNo:'PM-003-260517-001', schedId:'PMS-003-503-3M', date:'2026-05-17', status:'WAITING',  assigned:'Unassigned',      due:'2026-05-24' },
-    { ticketNo:'PM-008-260529-001', schedId:'PMS-008-707-6M', date:'2026-05-29', status:'OPEN',     assigned:'Jorge Guzman',    due:'2026-06-05' }
+    // PMS-008-707-6M / PKT-008-707-6M
+    { ticketNo:'PM-008-260529-001', schedId:'PMS-008-707-6M', date:'2026-05-29', status:'COMPLETE', assigned:'Jorge Guzman',    due:'2026-06-05' },
+    { ticketNo:'PM-008-260529-002', schedId:'PMS-008-707-6M', date:'2026-05-29', status:'COMPLETE', assigned:'Jorge Guzman',    due:'2026-06-05' },
+    { ticketNo:'PM-008-260529-003', schedId:'PMS-008-707-6M', date:'2026-05-29', status:'OPEN',     assigned:'Unassigned',      due:'2026-06-05' },
+    { ticketNo:'PM-008-260529-004', schedId:'PMS-008-707-6M', date:'2026-05-29', status:'OPEN',     assigned:'Unassigned',      due:'2026-06-05' }
   ]
 };
 
@@ -742,7 +753,7 @@ function _pmDeleteSched_(id) {
    ══════════════════════════════════════════════════════════════════════════ */
 function _pmOpenTicket_(no) {
   var t = (window._PM_SAMPLE_.tickets || []).filter(function(x){ return x.ticketNo === no; })[0];
-  if (!t) return;
+  if (!t) { showToast('PM ticket ' + no + ' not found.', 'error'); return; }
   document.getElementById('pm-ticket-overlay').classList.add('open');
   _pmRenderTicket_(no);
 }
@@ -806,7 +817,11 @@ function _pmRenderTicket_(no) {
       return '<div class="pm-tl-item"><div class="pm-tl-dot"></div><div><div style="font-size:12px;font-weight:600;color:var(--text-primary);">' + esc(e.label) + ' <span style="font-weight:400;color:var(--text-tertiary);">· ' + esc(e.ts) + '</span></div><div style="font-size:12px;color:var(--text-secondary);margin-top:1px;">' + esc(e.body) + '</div></div></div>';
     }).join('') + '</div></div>';
 
-  document.getElementById('pm-ticket-body').innerHTML = info + checkSection + partsTools + timeline;
+  var docFooter = '<div style="font-size:10.5px;color:var(--text-tertiary);font-family:var(--font-mono);margin-top:20px;padding-top:12px;border-top:1px solid var(--border-default);">' +
+    (typeof docLabel === 'function' ? (docLabel('pmPacket') || 'FRM-030-006 &middot; Preventative Maintenance Packet &middot; Rev 0') : 'FRM-030-006 &middot; Preventative Maintenance Packet &middot; Rev 0') +
+    '</div>';
+
+  document.getElementById('pm-ticket-body').innerHTML = info + checkSection + partsTools + timeline + docFooter;
 }
 function _pmToggleTask_(no, i) {
   var key = no + '::' + i;
