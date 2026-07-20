@@ -666,6 +666,7 @@ async function handleMe(env, userEmail) {
     ncrRegister:     pick('Doc No (NCR Register)',    'Rev (NCR Register)',    'Rev Date (NCR Register)',    'FRM-029-001', '0', ''),
     ticketForm:      pick('Doc No (Ticket Form)',     'Rev (Ticket Form)',     'Rev Date (Ticket Form)',     'FRM-030-004', '0', ''),
     pmPacket:        pick('Doc No (PM Packet)',        'Rev (PM Packet)',       'Rev Date (PM Packet)',       'FRM-030-006', '0', '7/16/2026'),
+    pmSchedule:      pick('Doc No (PM Schedule)',      'Rev (PM Schedule)',     'Rev Date (PM Schedule)',     'FRM-030-007', '0', ''),
   };
 
   const company = config['Company Name'] || 'Container Supply Co.';
@@ -2232,6 +2233,31 @@ async function handlePmScheduleSave(env, userEmail, body) {
   return jsonResponse({ ok: true, schedId });
 }
 
+// POST /api/pm/schedule/delete — remove a PM schedule definition. Any user who
+// can already view/manage PM schedules (manager or tech) may delete one; the
+// confirm dialog lives client-side. Clears the PM ID cell only — same
+// soft-delete convention as handleAdminDeptAliases — so the row disappears
+// from handlePmSchedulesGet (which filters on a non-empty PM ID) without
+// disturbing sheet row indices.
+async function handlePmScheduleDelete(env, userEmail, body) {
+  const token = await getAccessToken(env);
+  const user  = await resolveUser(token, env, userEmail);
+  if (!user.isManager && !user.isTech) return jsonResponse({ error: 'Access required' }, 403);
+
+  const schedId = String(body.schedId || '').trim();
+  if (!schedId) return jsonResponse({ error: 'schedId required' }, 400);
+
+  const sheetName = env.PM_SCHED_SHEET || SH.PM_SCHED;
+  const rowNum = await pmFindSchedRow(token, env, sheetName, schedId);
+  if (rowNum < 0) return jsonResponse({ error: 'Schedule not found: ' + schedId }, 404);
+
+  const deptRow = await readSheet(token, env.SPREADSHEET_ID, sheetName, `A${rowNum}:V${rowNum}`);
+  if (!pmCanAccessDept(user, cellStr(deptRow[0] || [], PM.DEPT))) return jsonResponse({ error: 'Not authorized for this department' }, 403);
+
+  await writeSheetCells(token, env.SPREADSHEET_ID, sheetName, rowNum, [{ col: PM.PM_ID, value: '' }]);
+  return jsonResponse({ ok: true, schedId });
+}
+
 // Next sequential PM ticket number for a schedule's dept group: PM-{grp}-{YYMMDD}-{NNN}.
 async function pmGenerateTicketNo(token, env, tktSheet, grp) {
   const now = new Date();
@@ -2251,6 +2277,46 @@ async function pmGenerateTicketNo(token, env, tktSheet, grp) {
   return prefix + String(max + 1).padStart(3, '0');
 }
 
+// Shared by the manual "Generate PM ticket now" action and the scheduled
+// auto-generate job: creates the PM Tickets row and hands parts flagged as
+// "may need ordering" off to the Parts Needed board (same append pattern as
+// handleRequestParts()), so the responsible manager sees them the moment
+// this PM's frequency comes due — whichever path triggered the generation.
+async function pmCreateTicketFromSchedule(token, env, schedId, sched, createdBy) {
+  const grp = (sched.asset.split('-')[0] || '000').trim() || '000';
+  const tktSheet = env.PM_TICKETS_SHEET || SH.PM_TICKETS;
+  const ticketNo = await pmGenerateTicketNo(token, env, tktSheet, grp);
+  const today    = pmIsoDate(new Date());
+  const due      = sched.nextDue || today;
+
+  const tRow = new Array(PMT.CREATED_BY).fill('');
+  tRow[PMT.TICKET_NO  - 1] = ticketNo;
+  tRow[PMT.SCHED_ID   - 1] = schedId;
+  tRow[PMT.DATE       - 1] = today;
+  tRow[PMT.STATUS     - 1] = 'WAITING';
+  tRow[PMT.ASSIGNED   - 1] = 'Unassigned';
+  tRow[PMT.DUE        - 1] = due;
+  tRow[PMT.CREATED_BY - 1] = createdBy || '';
+
+  await appendSheetRow(token, env.SPREADSHEET_ID, tktSheet, tRow);
+
+  for (let pi = 0; pi < sched.partsOrder.length; pi++) {
+    const partId = 'PT-' + ticketNo + '-' + String(pi + 1).padStart(2, '0');
+    const pnRow  = new Array(12).fill('');
+    pnRow[PN.PART_ID        - 1] = partId;
+    pnRow[PN.PART_DESC      - 1] = sched.partsOrder[pi];
+    pnRow[PN.TICKET_NO      - 1] = ticketNo;
+    pnRow[PN.EQUIP_CODE     - 1] = sched.asset;
+    pnRow[PN.SPECIFIC_EQUIP - 1] = sched.assetName;
+    pnRow[PN.DEPT           - 1] = sched.dept;
+    pnRow[PN.DATE_REQUESTED - 1] = today;
+    pnRow[PN.PARTS_STATUS   - 1] = 'PENDING';
+    await appendSheetRow(token, env.SPREADSHEET_ID, SH.PARTS_NEEDED, pnRow);
+  }
+
+  return { ticketNo, due };
+}
+
 // POST /api/pm/generate — create a PM work order from a schedule and log it in
 // the 'PM Tickets' tab so it appears in the Generated PM Tickets view.
 async function handlePmGenerate(env, userEmail, body) {
@@ -2268,24 +2334,52 @@ async function handlePmGenerate(env, userEmail, body) {
   const rows = await readSheet(token, env.SPREADSHEET_ID, schedSheet, `A${rowNum}:V${rowNum}`);
   const sched = pmRowToSchedule(rows[0] || []);
   if (!pmCanAccessDept(user, sched.dept)) return jsonResponse({ error: 'Not authorized for this department' }, 403);
-  const grp = (sched.asset.split('-')[0] || '000').trim() || '000';
 
-  const tktSheet  = env.PM_TICKETS_SHEET || SH.PM_TICKETS;
-  const ticketNo  = await pmGenerateTicketNo(token, env, tktSheet, grp);
-  const today     = pmIsoDate(new Date());
-  const due       = sched.nextDue || today;
-
-  const tRow = new Array(PMT.CREATED_BY).fill('');
-  tRow[PMT.TICKET_NO  - 1] = ticketNo;
-  tRow[PMT.SCHED_ID   - 1] = schedId;
-  tRow[PMT.DATE       - 1] = today;
-  tRow[PMT.STATUS     - 1] = 'WAITING';
-  tRow[PMT.ASSIGNED   - 1] = 'Unassigned';
-  tRow[PMT.DUE        - 1] = due;
-  tRow[PMT.CREATED_BY - 1] = user.email || userEmail || '';
-
-  await appendSheetRow(token, env.SPREADSHEET_ID, tktSheet, tRow);
+  const { ticketNo, due } = await pmCreateTicketFromSchedule(token, env, schedId, sched, user.email || userEmail || '');
   return jsonResponse({ ok: true, ticketNo, schedId, due });
+}
+
+// Has a PM Tickets row already been generated for this schedule's CURRENT due
+// cycle? Guards the auto-generate job against creating duplicates on every
+// cron run between (nextDue - leadDays) and nextDue.
+async function pmTicketExistsForCycle(token, env, tktSheet, schedId, due) {
+  const rows = await readSheet(token, env.SPREADSHEET_ID, tktSheet, 'A2:G').catch(() => []);
+  return rows.some(r => cellStr(r, PMT.SCHED_ID) === schedId && cellStr(r, PMT.DUE) === due);
+}
+
+// Daily cron (see [triggers] in wrangler.toml): auto-generate the PM ticket
+// for every schedule whose lead time has arrived (today >= nextDue - leadDays),
+// so "Ticket Lead Time" actually means something instead of requiring a
+// manager to remember to click "Generate PM ticket now" at the right moment.
+// Best-effort per schedule — one bad row doesn't block the rest.
+async function runPmAutoGenerate(env) {
+  const token      = await getAccessToken(env);
+  const schedSheet = env.PM_SCHED_SHEET   || SH.PM_SCHED;
+  const tktSheet   = env.PM_TICKETS_SHEET || SH.PM_TICKETS;
+  const schedRows  = await readSheet(token, env.SPREADSHEET_ID, schedSheet, 'A2:V').catch(() => []);
+
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+
+  for (const row of schedRows) {
+    const schedId = cellStr(row, PM.PM_ID);
+    if (!schedId) continue;
+    const nextDueIso = cellStr(row, PM.NEXT_DUE);
+    if (!nextDueIso) continue;
+    const dueDate = new Date(nextDueIso + 'T00:00:00');
+    if (isNaN(dueDate.getTime())) continue;
+
+    const leadDaysNum = parseInt(cellStr(row, PM.LEAD_DAYS), 10);
+    const leadDays    = isNaN(leadDaysNum) ? 7 : leadDaysNum;
+    const genFrom     = new Date(dueDate.getTime()); genFrom.setDate(genFrom.getDate() - leadDays);
+    if (genFrom > today) continue; // lead time hasn't arrived yet
+
+    try {
+      const already = await pmTicketExistsForCycle(token, env, tktSheet, schedId, nextDueIso);
+      if (already) continue;
+      const sched = pmRowToSchedule(row);
+      await pmCreateTicketFromSchedule(token, env, schedId, sched, 'system (auto-generate)');
+    } catch (e) { /* one schedule's failure shouldn't block the rest */ }
+  }
 }
 
 async function handleAddTicket(env, userEmail, body) {
@@ -4479,6 +4573,7 @@ export default {
       else if (p === '/api/pm/intake/add'               && method === 'POST')res = await handlePmScheduleAdd(env, userEmail, body); // legacy alias
       else if (p === '/api/pm/snooze'                   && method === 'POST')res = await handlePmSnooze(env, userEmail, body);
       else if (p === '/api/pm/schedule/save'            && method === 'POST')res = await handlePmScheduleSave(env, userEmail, body);
+      else if (p === '/api/pm/schedule/delete'          && method === 'POST')res = await handlePmScheduleDelete(env, userEmail, body);
       else if (p === '/api/pm/generate'                 && method === 'POST')res = await handlePmGenerate(env, userEmail, body);
       // Ticket actions
       else if (p === '/api/tickets/approve'             && method === 'POST')res = await handleApproveTicket(env, userEmail, body);
@@ -4529,5 +4624,11 @@ export default {
 
     res.headers.set('Access-Control-Allow-Origin', allowedOrigin);
     return res;
+  },
+
+  // Daily PM auto-generate — see [triggers] in wrangler.toml and
+  // runPmAutoGenerate() above.
+  async scheduled(event, env, ctx) {
+    ctx.waitUntil(runPmAutoGenerate(env).catch(() => {}));
   },
 };

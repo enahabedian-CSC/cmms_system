@@ -20,4 +20,14 @@ compatibility_date = "2025-01-01"
 #
 # ── Optional vars ─────────────────────────────────────────────────────────────
 [vars]
-APP_VERSION = "4.02"
+APP_VERSION = "4.03"
+
+# ── Scheduled trigger ──────────────────────────────────────────────────────────
+# Daily PM auto-generate (runPmAutoGenerate in worker.js): creates the PM
+# ticket — and surfaces its "parts that may need ordering" on the Parts Needed
+# board — for every schedule whose Ticket Lead Time has arrived, instead of
+# relying on a manager to remember to click "Generate PM ticket now".
+# 12:00 UTC ≈ early morning Eastern, so new tickets/parts are waiting at the
+# start of the workday.
+[triggers]
+crons = ["0 12 * * *"]
