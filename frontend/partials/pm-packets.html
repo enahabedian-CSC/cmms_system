@@ -14,6 +14,7 @@
 .pmp-toolbar{display:flex;align-items:center;gap:10px;margin-bottom:6px;flex-wrap:wrap;}
 .pmp-title{font-size:15px;font-weight:700;color:var(--text-primary);flex:1;}
 .pmp-count{font-size:12px;color:var(--text-secondary);background:var(--bg-subtle);border:1px solid var(--border-default);border-radius:4px;padding:2px 8px;}
+.pmp-sample-badge{font-size:11px;font-weight:600;color:var(--status-warn);background:var(--status-warn-bg);border:1px solid var(--status-warn);border-radius:4px;padding:2px 8px;}
 .pmp-intro{font-size:12.5px;color:var(--text-secondary);margin:0 0 18px;max-width:720px;line-height:1.5;}
 
 .pmp-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:14px;}
@@ -156,6 +157,7 @@ function _pmpRender_(container) {
   container.innerHTML =
     '<div class="pmp-wrap">' +
       '<div class="pmp-toolbar"><span class="pmp-title">Machine PM Packets</span>' +
+        '<span class="pmp-sample-badge">Sample data &mdash; backend pending</span>' +
         '<span class="pmp-count">' + packets.length + ' packets</span></div>' +
       '<p class="pmp-intro">Each packet groups every PM due for one machine at a single interval &mdash; a manager checklist showing which PMs in the cycle are complete. Open a packet to work the checklist or print a floor sign-off sheet.</p>' +
       (packets.length ? '<div class="pmp-grid">' + cards + '</div>' : '<div class="pmp-empty">No PM packets.</div>') +
@@ -184,6 +186,7 @@ function _pmpRenderDetail_(container, id) {
     '<div class="pmp-wrap">' +
       '<div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;flex-wrap:wrap;">' +
         '<button class="pmp-back" onclick="_pmpClose_()"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M19 12H5M12 5l-7 7 7 7"/></svg> All packets</button>' +
+        '<span class="pmp-sample-badge">Sample data &mdash; backend pending</span>' +
         '<div style="flex:1;"></div>' +
         '<button class="pmp-print-btn" onclick="_pmpPrint_(\'' + esc(p.id) + '\')"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg> Print sign-off sheet</button>' +
       '</div>' +

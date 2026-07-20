@@ -109,6 +109,7 @@ const SH = {
   OPEN:           '📂 Open Tickets',
   PM_SCHED:       'PM Schedules',   // preventive-maintenance schedule definitions
   PM_TICKETS:     'PM Tickets',     // generated PM work orders (tracking)
+  PM_TASKLIB:     'PM Task Library', // reusable task-library entries, by dept + frequency
   FEEDBACK:       'Feedback Log',   // bug reports + feature requests from the intake button
 };
 
@@ -167,6 +168,23 @@ const PMT = {
   DUE:        6,   // F — ISO due date
   CREATED_BY: 7,   // G — audit: email of the generator
 };
+
+// PM Task Library sheet column order (1-based). Reusable task-picker entries
+// grouped by department + frequency, editable in-app instead of hardcoded JS.
+// Required header row (row 1): Task ID | Department | Frequency | Task |
+//   Added By | Added At
+const PMTL = {
+  TASK_ID:  1,   // A — TL-000123, assigned by the Worker
+  DEPT:     2,   // B — department (canonical)
+  FREQ:     3,   // C — Weekly | Monthly | Quarterly | 6-Month | Annual | …
+  TASK:     4,   // D — task text (the part someone fixes a typo in)
+  ADDED_BY: 5,   // E — audit: email of whoever added/last edited this task
+  ADDED_AT: 6,   // F — audit: timestamp of whoever added/last edited this task
+};
+
+const PM_TASKLIB_HEADERS = [
+  'Task ID', 'Department', 'Frequency', 'Task', 'Added By', 'Added At',
+];
 
 // List/task cell encoding: one item per line; each task is "text ::: CHK-ref".
 function pmParseList(cell) {
@@ -2256,6 +2274,136 @@ async function handlePmScheduleDelete(env, userEmail, body) {
 
   await writeSheetCells(token, env.SPREADSHEET_ID, sheetName, rowNum, [{ col: PM.PM_ID, value: '' }]);
   return jsonResponse({ ok: true, schedId });
+}
+
+// ── PM Task Library ─────────────────────────────────────────────────────────
+// Replaces the old hardcoded window.PM_TASK_LIBRARY_ JS array — the task-picker
+// / autofill source on the PM intake form now lives in a Sheet tab so anyone
+// with PM access can fix a typo or add a task without a code deploy.
+
+// Next sequential Task Library id (TL-000123), same scan-and-increment scheme
+// as generatePmId().
+async function generateTaskLibId(token, env, sheetName) {
+  const rows = await readSheet(token, env.SPREADSHEET_ID, sheetName, 'A2:A').catch(() => []);
+  let max = 0;
+  for (const r of rows) {
+    const id = String(r[0] || '').trim();
+    const m = id.match(/^TL-0*(\d+)$/i);
+    if (m) { const n = parseInt(m[1], 10); if (!isNaN(n) && n > max) max = n; }
+  }
+  return 'TL-' + String(max + 1).padStart(6, '0');
+}
+
+// GET /api/pm/tasklib → [{dept, freq, items:[{id, task}]}], grouped the same
+// shape the frontend's window.PM_TASK_LIBRARY_ array used to be, filtered to
+// the departments the caller can see (same rule as PM schedules).
+async function handlePmTaskLibGet(env, userEmail) {
+  const token = await getAccessToken(env);
+  const user  = await resolveUser(token, env, userEmail);
+  if (!user.isManager && !user.isTech) return jsonResponse({ error: 'Access required' }, 403);
+
+  const sheetName = env.PM_TASKLIB_SHEET || SH.PM_TASKLIB;
+  const rows = await readSheet(token, env.SPREADSHEET_ID, sheetName, 'A2:F').catch(() => []);
+
+  const entries = rows
+    .filter(r => cellStr(r, PMTL.TASK_ID))
+    .map(r => ({
+      id:   cellStr(r, PMTL.TASK_ID),
+      dept: normalizeDept(cellStr(r, PMTL.DEPT)),
+      freq: cellStr(r, PMTL.FREQ),
+      task: cellStr(r, PMTL.TASK),
+    }))
+    .filter(e => pmCanAccessDept(user, e.dept));
+
+  const groups = [];
+  const byKey = {};
+  for (const e of entries) {
+    const key = e.dept + '::' + e.freq;
+    if (!byKey[key]) { byKey[key] = { dept: e.dept, freq: e.freq, items: [] }; groups.push(byKey[key]); }
+    byKey[key].items.push({ id: e.id, task: e.task });
+  }
+  return jsonResponse({ groups });
+}
+
+// POST /api/pm/tasklib/add — append a new task-library entry.
+async function handlePmTaskLibAdd(env, userEmail, body) {
+  const token = await getAccessToken(env);
+  const user  = await resolveUser(token, env, userEmail);
+  if (!user.isManager && !user.isTech) return jsonResponse({ error: 'Access required' }, 403);
+
+  const dept = normalizeDept(String(body.dept || '').trim());
+  const freq = String(body.freq || '').trim();
+  const task = String(body.task || '').trim();
+  if (!dept || !freq || !task) return jsonResponse({ error: 'dept, freq and task are required' }, 400);
+  if (!pmCanAccessDept(user, dept)) return jsonResponse({ error: 'Not authorized for this department' }, 403);
+
+  const sheetName = env.PM_TASKLIB_SHEET || SH.PM_TASKLIB;
+  await ensureSheetTab(token, env.SPREADSHEET_ID, sheetName, PM_TASKLIB_HEADERS);
+  const taskId = await generateTaskLibId(token, env, sheetName);
+  const now = new Date();
+  const stamp = fmtDate(now) + ' ' +
+    String(now.getHours()).padStart(2, '0') + ':' + String(now.getMinutes()).padStart(2, '0');
+
+  const row = new Array(PMTL.ADDED_AT).fill('');
+  row[PMTL.TASK_ID  - 1] = taskId;
+  row[PMTL.DEPT     - 1] = dept;
+  row[PMTL.FREQ     - 1] = freq;
+  row[PMTL.TASK     - 1] = task;
+  row[PMTL.ADDED_BY - 1] = user.email || userEmail || '';
+  row[PMTL.ADDED_AT - 1] = stamp;
+
+  await appendSheetRow(token, env.SPREADSHEET_ID, sheetName, row);
+  return jsonResponse({ ok: true, id: taskId, dept, freq, task });
+}
+
+// POST /api/pm/tasklib/update — fix a task's text in place (e.g. a typo).
+async function handlePmTaskLibUpdate(env, userEmail, body) {
+  const token = await getAccessToken(env);
+  const user  = await resolveUser(token, env, userEmail);
+  if (!user.isManager && !user.isTech) return jsonResponse({ error: 'Access required' }, 403);
+
+  const id   = String(body.id || '').trim();
+  const task = String(body.task || '').trim();
+  if (!id) return jsonResponse({ error: 'id required' }, 400);
+  if (!task) return jsonResponse({ error: 'task text required' }, 400);
+
+  const sheetName = env.PM_TASKLIB_SHEET || SH.PM_TASKLIB;
+  const rowNum = await findMonitorRow(token, env.SPREADSHEET_ID, sheetName, id, 2);
+  if (rowNum < 0) return jsonResponse({ error: 'Task not found: ' + id }, 404);
+
+  const deptRow = await readSheet(token, env.SPREADSHEET_ID, sheetName, `A${rowNum}:F${rowNum}`);
+  if (!pmCanAccessDept(user, cellStr(deptRow[0] || [], PMTL.DEPT))) return jsonResponse({ error: 'Not authorized for this department' }, 403);
+
+  const now = new Date();
+  const stamp = fmtDate(now) + ' ' +
+    String(now.getHours()).padStart(2, '0') + ':' + String(now.getMinutes()).padStart(2, '0');
+  await writeSheetCells(token, env.SPREADSHEET_ID, sheetName, rowNum, [
+    { col: PMTL.TASK,     value: task },
+    { col: PMTL.ADDED_BY, value: user.email || userEmail || '' },
+    { col: PMTL.ADDED_AT, value: stamp },
+  ]);
+  return jsonResponse({ ok: true, id, task });
+}
+
+// POST /api/pm/tasklib/delete — soft-delete: blank the Task ID cell only, same
+// convention as handlePmScheduleDelete.
+async function handlePmTaskLibDelete(env, userEmail, body) {
+  const token = await getAccessToken(env);
+  const user  = await resolveUser(token, env, userEmail);
+  if (!user.isManager && !user.isTech) return jsonResponse({ error: 'Access required' }, 403);
+
+  const id = String(body.id || '').trim();
+  if (!id) return jsonResponse({ error: 'id required' }, 400);
+
+  const sheetName = env.PM_TASKLIB_SHEET || SH.PM_TASKLIB;
+  const rowNum = await findMonitorRow(token, env.SPREADSHEET_ID, sheetName, id, 2);
+  if (rowNum < 0) return jsonResponse({ error: 'Task not found: ' + id }, 404);
+
+  const deptRow = await readSheet(token, env.SPREADSHEET_ID, sheetName, `A${rowNum}:F${rowNum}`);
+  if (!pmCanAccessDept(user, cellStr(deptRow[0] || [], PMTL.DEPT))) return jsonResponse({ error: 'Not authorized for this department' }, 403);
+
+  await writeSheetCells(token, env.SPREADSHEET_ID, sheetName, rowNum, [{ col: PMTL.TASK_ID, value: '' }]);
+  return jsonResponse({ ok: true, id });
 }
 
 // Next sequential PM ticket number for a schedule's dept group: PM-{grp}-{YYMMDD}-{NNN}.
@@ -4575,6 +4723,10 @@ export default {
       else if (p === '/api/pm/schedule/save'            && method === 'POST')res = await handlePmScheduleSave(env, userEmail, body);
       else if (p === '/api/pm/schedule/delete'          && method === 'POST')res = await handlePmScheduleDelete(env, userEmail, body);
       else if (p === '/api/pm/generate'                 && method === 'POST')res = await handlePmGenerate(env, userEmail, body);
+      else if (p === '/api/pm/tasklib'                  && method === 'GET') res = await handlePmTaskLibGet(env, userEmail);
+      else if (p === '/api/pm/tasklib/add'               && method === 'POST')res = await handlePmTaskLibAdd(env, userEmail, body);
+      else if (p === '/api/pm/tasklib/update'            && method === 'POST')res = await handlePmTaskLibUpdate(env, userEmail, body);
+      else if (p === '/api/pm/tasklib/delete'            && method === 'POST')res = await handlePmTaskLibDelete(env, userEmail, body);
       // Ticket actions
       else if (p === '/api/tickets/approve'             && method === 'POST')res = await handleApproveTicket(env, userEmail, body);
       else if (p === '/api/tickets/complete'            && method === 'POST')res = await handleCompleteTicket(env, userEmail, body);
