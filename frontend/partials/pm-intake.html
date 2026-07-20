@@ -189,9 +189,9 @@ window.PM_INTAKE_CONFIG = {
                     placeholder: 'e.g. Leader pins, long — Husky (long lead)',
                     hint: 'Long-lead / order-ahead spares.' },
 
-    tasks:        { label: 'Tasks', type: 'tasklist', span2: true, required: true,
+    tasks:        { label: 'Tasks', type: 'tasklist', span2: true, required: true, taskLibrary: true,
                     placeholder: 'e.g. Disassemble ejector housing; inspect pins',
-                    hint: 'Each step with its checklist reference (e.g. CHK-030-354-02). At least one required.' },
+                    hint: 'Pick from the task library or type your own — the checklist reference (e.g. CHK-030-354-02) is filled in for you automatically. At least one task required.' },
 
     tools:        { label: 'Specialty Tools', type: 'list', span2: true,
                     placeholder: 'e.g. Bore gauge', hint: 'Special tools/equipment needed for the job.' },
@@ -199,6 +199,138 @@ window.PM_INTAKE_CONFIG = {
                     placeholder: 'e.g. LOTO press before mold pull (SAF-014)',
                     hint: 'LOTO, PPE, SQF/ISO, and EHS procedures that apply.' }
   }
+};
+
+// ── Master PM task library ────────────────────────────────────────────────────
+// Reference task list (originally compiled for plastics injection-molding
+// machines, but the underlying maintenance tasks are comparable across
+// departments, so it's offered to every PM schedule regardless of dept).
+// Selecting an entry autopopulates a task row; typing a custom task still
+// works alongside it. Shared globally so pm-master.html's edit mode can reuse
+// the same library + checklist-reference generator.
+window.PM_TASK_LIBRARY_ = [
+  { freq: 'Weekly', items: [
+    'Grease injection skate fittings with P-64 (Shell Gadus S3 V220)',
+  ]},
+  { freq: 'Monthly', items: [
+    'Coat ejector butterfly guides with SAE-30',
+    'Inspect fuses',
+    'Test GFCI receptacles',
+    'Inspect grease level in auto lubricator',
+    'Inspect Oil level in Main reservoir (P-70)',
+    'Inspect oil level in traverse platen (P-63)',
+    'Drain air inlet moisture trap',
+    'Inspect Auto Lube (P72) and Filter',
+    'Inspect and Clean Inj. Unit',
+    'Clean Hopper Magnets',
+    'Oil tank filter cart',
+    'grease zerk fittings',
+    'grease injection barrel support',
+  ]},
+  { freq: 'Quarterly', items: [
+    'Inspect air breathers on oil reservoirs',
+  ]},
+  { freq: 'Every 6 Months', items: [
+    'Tie bar nuts',
+    'Oil filter (main) HRS.',
+    'Change injection servo filter/ HRS',
+    'Change clamp servo filters/ HRS X2',
+    'OIL LEAKS',
+    'Grease motor bearings 8000hrs or 3 years',
+    'Hopper cone',
+    'Hopper magnet',
+    'Hopper air lines',
+    'Hopper material lines and filters',
+    'Inspect hopper flaps, cylinders and gaskets',
+    'Hydraulic hoses (label bad hoses)',
+    'Measure transformer voltages',
+    'Inspect motor connections',
+    'Inspect Hyd. Hoses and fittings',
+    'Replace oil filter element',
+    'Check color loader gear box oil level',
+    'Clean Heat Exchanger Strainer & Inspect Anode (Performed Quarterly)',
+    'Inspect and Clean Vent Tube',
+    'Inspect Tightness of Feed Screw Retainer Rings',
+    'Check Barrel Temps to RTD (Annually)',
+    'Inspect Extruder Gear Box Oil Level (change bi-yearly)',
+    'Test GFCI Receptacles (biennial)',
+    'Inspect and Gauge Acc. PSI',
+    'Change clamp servo filters/ HRs',
+    'Change Ejector servo filters/ HRS',
+    'Check water saver valves',
+    'Mold stroke column guide bushings .590 min. check',
+    'Clean "Y" strainer screen',
+    'Grease motor bearings Yearly (21Gr)',
+    'Check safety switches and guards',
+    'Replace oil tank breather',
+    'Inspect barrel heaters and wires/accuracy',
+    'Inspect EXTR. coupling and "SET SCREWS"',
+    'Grease mold stroke clevis\'s',
+    'Check accumulator p.s.i',
+    'Inspect motor coupling and "SET SCREWS"',
+    'check extruder gear box oil level',
+    'Clean Oil tank (yearly)',
+    'Inspect hopper flap, cylinders and gaskets',
+    'Clean & inspect shut off linkage & cylinder',
+    'Check barrel temps to RTD (yearly)',
+    'Level Machine',
+    'Inspect motor couplings and "SET SCREWS"',
+    'CHECK STATIONARY AND MOVING PLATEN BOLTS',
+    'clean and inspect mold shoes',
+    'Change ejector servo filters/ HRs',
+    'inspect water saver valves',
+    'Inspect clamp bellows',
+    'Inspect toggle linkage',
+    'AIR LEAKS and filters',
+    'Check plunger spline bushing',
+    'Check water hoses and valves',
+    'Grease injection leaner guides',
+    'Grease inj. barrel support rail/ monthly',
+    'clean or Replace clamp gear box breather',
+    'Check safety switches, sensors, cables etc.',
+    'Air lubricator and filter',
+    'Clean and inspect vent tube',
+    'Lube Die height strain rods and gears',
+  ]},
+  { freq: 'Yearly', items: [
+    'Oil tank & hose (yearly)',
+    'Inspect feed screw retainer ring screws',
+    'Level Machine (Yearly)',
+    'Change Hyd. Fluid (Pending Analysis)',
+    'change batteries if applicable',
+    'OIL ANALYSES (YEARLY)',
+    'Oil magnets (yearly)',
+    'Oil strainers (yearly)',
+    'Level machine (yearly)',
+  ]},
+  { freq: 'Every 24 Months', items: [
+    'Level Machine',
+    'change batteries',
+  ]},
+];
+
+// Renders the <optgroup>/<option> markup for a task-library <select>. Shared
+// with pm-master.html's schedule-edit mode.
+window._pmTaskLibOptionsHtml_ = function() {
+  return (window.PM_TASK_LIBRARY_ || []).map(function(g) {
+    return '<optgroup label="' + esc(g.freq) + '">' + g.items.map(function(t) {
+      return '<option value="' + esc(t) + '">' + esc(t) + '</option>';
+    }).join('') + '</optgroup>';
+  }).join('');
+};
+
+// Auto-generate a checklist reference so data-entry people never have to know
+// or type the CHK- scheme themselves. Format mirrors the existing convention
+// (CHK-030-<asset suffix>-<seq>, e.g. CHK-030-354-02) — 030 is the Maintenance
+// procedure series, the middle segment is the asset's numeric suffix (e.g.
+// "003-354" → "354"), and seq is this task's position among referenced tasks
+// on the schedule. Always editable afterward — this is a starting value, not
+// a lock.
+window._pmGenChkRef_ = function(assetCode, seq) {
+  var parts  = String(assetCode || '').trim().split('-');
+  var suffix = (parts.length > 1 ? parts[parts.length - 1] : parts[0]) || '000';
+  suffix = suffix.replace(/[^A-Za-z0-9]/g, '') || '000';
+  return 'CHK-030-' + suffix + '-' + String(seq).padStart(2, '0');
 };
 
 // Runtime state
@@ -238,6 +370,16 @@ function _pmiRender_(container) {
     else if (f.type === 'tasklist') _pmiState_[k] = [{ t: '', ref: '' }];
     else                            _pmiState_[k] = f.defaultValue || '';
   });
+
+  // One-shot prefill from "Duplicate" on an existing schedule (see
+  // pm-master.html _pmDuplicateSched_). Only user-editable keys are copied —
+  // auto fields (PM ID, Next Due) stay assigned-on-submit as usual.
+  if (window._PMI_PREFILL_) {
+    Object.keys(window._PMI_PREFILL_).forEach(function(k) {
+      if (_pmiField_(k) && _pmiIsUserField_(k)) _pmiState_[k] = window._PMI_PREFILL_[k];
+    });
+    window._PMI_PREFILL_ = null;
+  }
 
   var cfg = window.PM_INTAKE_CONFIG;
   var html =
@@ -373,10 +515,34 @@ function _pmiTaskInner_(key) {
       '<button type="button" class="pmi-rm" title="Remove" onclick="_pmiListRemove_(\'' + key + '\',' + i + ')">&times;</button>' +
     '</div>';
   }).join('');
-  return rows + '<button type="button" class="pmi-add" onclick="_pmiTaskAdd_(\'' + key + '\')">+ Add task</button>';
+  var libPicker = f.taskLibrary ? _pmiTaskLibPicker_(key) : '';
+  return libPicker + rows + '<button type="button" class="pmi-add" onclick="_pmiTaskAdd_(\'' + key + '\')">+ Add task</button>';
+}
+function _pmiTaskLibPicker_(key) {
+  return '<div class="pmi-listrow">' +
+    '<select class="pmi-select" onchange="_pmiTaskLibAdd_(\'' + key + '\',this)">' +
+      '<option value="">+ Add from task library&#8230;</option>' +
+      (window._pmTaskLibOptionsHtml_ ? window._pmTaskLibOptionsHtml_() : '') +
+    '</select>' +
+  '</div>';
+}
+function _pmiTaskLibAdd_(key, sel) {
+  var text = sel.value;
+  if (!text) return;
+  var arr = _pmiState_[key];
+  if (arr.length === 1 && !arr[0].t && !arr[0].ref) arr.length = 0; // drop the pristine blank row
+  var seq = arr.filter(function(t) { return t.ref; }).length + 1;
+  arr.push({ t: text, ref: window._pmGenChkRef_ ? window._pmGenChkRef_(_pmiState_.assetCode, seq) : '' });
+  sel.value = '';
+  _pmiRerenderList_(key); _pmiUpdateSummary_(); _pmiClearErr_(key);
 }
 function _pmiTaskSet_(key, i, which, val) { _pmiState_[key][i][which] = val; _pmiUpdateSummary_(); }
-function _pmiTaskAdd_(key) { _pmiState_[key].push({ t: '', ref: '' }); _pmiRerenderList_(key); _pmiFocusLast_(key); _pmiClearErr_(key); }
+function _pmiTaskAdd_(key) {
+  var arr = _pmiState_[key];
+  var seq = arr.filter(function(t) { return t.ref; }).length + 1;
+  arr.push({ t: '', ref: window._pmGenChkRef_ ? window._pmGenChkRef_(_pmiState_.assetCode, seq) : '' });
+  _pmiRerenderList_(key); _pmiFocusLast_(key); _pmiClearErr_(key);
+}
 
 function _pmiFocusLast_(key) {
   var wrap = document.getElementById('pmi-listwrap-' + key);

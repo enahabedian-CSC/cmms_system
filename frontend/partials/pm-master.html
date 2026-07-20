@@ -527,8 +527,12 @@ function _pmRenderSched_(id) {
       ? '<button class="pm-hact" onclick="_pmCancelEdit_()">Cancel</button>' +
         '<button class="pm-hact save" onclick="_pmSaveEdit_()">Save changes</button>'
       : '<button class="pm-hact" onclick="_pmStartEdit_(\'' + esc(id) + '\')">Edit definition</button>' +
+        '<button class="pm-hact" onclick="_pmDuplicateSched_(\'' + esc(id) + '\')">Duplicate</button>' +
         '<button class="pm-hact" onclick="_pmSnooze_(\'' + esc(id) + '\')">Snooze</button>' +
         '<button class="pm-hact primary" onclick="_pmGenerate_(\'' + esc(id) + '\')">Generate PM ticket now</button>';
+  }
+  if (!editing) {
+    actions += '<button class="pm-hact" style="color:var(--status-critical);border-color:var(--status-critical);" onclick="_pmDeleteSched_(\'' + esc(id) + '\')">Delete</button>';
   }
   document.getElementById('pm-sched-actions').innerHTML = actions;
 
@@ -589,7 +593,12 @@ function _pmRenderSched_(id) {
   // Tasks
   var tasksInner;
   if (editing) {
-    tasksInner = '<div style="display:flex;flex-direction:column;gap:6px;">' + tasks.map(function(t, i) {
+    var taskLibSelect = '<div style="margin-bottom:8px;">' +
+      '<select class="pm-ein" style="max-width:340px;" onchange="_pmAddTaskFromLib_(this)">' +
+        '<option value="">+ Add from task library&#8230;</option>' +
+        (window._pmTaskLibOptionsHtml_ ? window._pmTaskLibOptionsHtml_() : '') +
+      '</select></div>';
+    tasksInner = taskLibSelect + '<div style="display:flex;flex-direction:column;gap:6px;">' + tasks.map(function(t, i) {
       return '<div style="display:flex;gap:6px;align-items:center;">' +
         '<input class="pm-ein" placeholder="Task description" value="' + esc(t.t) + '" oninput="_pmEditTask_(' + i + ',\'t\',this.value)">' +
         '<input class="pm-ein" style="max-width:140px;font-family:var(--font-mono);font-size:11.5px;" placeholder="CHK ref" value="' + esc(t.ref) + '" oninput="_pmEditTask_(' + i + ',\'ref\',this.value)">' +
@@ -618,7 +627,7 @@ function _pmRenderSched_(id) {
         '<td>' + esc(h.tech) + '</td><td style="color:var(--text-secondary);">' + esc(h.result) + '</td></tr>';
     }).join('') + '</tbody></table></div>';
 
-  var docref = '<div class="pm-docref">' + (docLabel('pmSchedule') || 'FRM-030-004 · PM Schedule Master · Rev 0 · 6/2026') + '</div>';
+  var docref = '<div class="pm-docref">' + (docLabel('pmSchedule') || 'FRM-030-007 · PM Schedule Master · Rev 0') + '</div>';
 
   document.getElementById('pm-sched-body').innerHTML = kpis + defSection + partsSection + tasksSection + toolsSafety + histSection + docref;
 }
@@ -664,7 +673,18 @@ function _pmRemovePart_(key, i) { _pmEditBuf_[key].splice(i, 1); _pmRenderSched_
 function _pmAddPart_(key) { _pmEditBuf_[key].push('New part'); _pmRenderSched_(_pmEditId_); }
 function _pmEditTask_(i, field, val) { _pmEditBuf_.tasks[i][field] = val; }
 function _pmRemoveTask_(i) { _pmEditBuf_.tasks.splice(i, 1); _pmRenderSched_(_pmEditId_); }
-function _pmAddTask_() { _pmEditBuf_.tasks.push({ t:'', ref:'' }); _pmRenderSched_(_pmEditId_); }
+function _pmNextChkRef_() {
+  var asset = _pmSchedById_(_pmEditId_).asset;
+  var seq = _pmEditBuf_.tasks.filter(function(t) { return t.ref; }).length + 1;
+  return window._pmGenChkRef_ ? window._pmGenChkRef_(asset, seq) : '';
+}
+function _pmAddTask_() { _pmEditBuf_.tasks.push({ t:'', ref: _pmNextChkRef_() }); _pmRenderSched_(_pmEditId_); }
+function _pmAddTaskFromLib_(sel) {
+  var text = sel.value;
+  if (!text) return;
+  _pmEditBuf_.tasks.push({ t: text, ref: _pmNextChkRef_() });
+  _pmRenderSched_(_pmEditId_);
+}
 
 /* ── Generate / Snooze ─────────────────────────────────────────────────── */
 function _pmGenerate_(id) {
@@ -683,6 +703,37 @@ function _pmSnooze_(id) {
     _pmCloseSched_();
     _pmLoad_(document.getElementById('page-pm'));
     showToast('PM schedule deferred one cycle' + (body.nextDue ? ' — next due ' + esc(body.nextDue) : '') + '.', 'info');
+  });
+}
+
+/* ── Duplicate / Delete ────────────────────────────────────────────────── */
+// PMs repeat — duplicating an existing schedule copies every field into a
+// fresh PM Intake form (pre-filled, still editable) instead of retyping it.
+// PM ID / Next Due stay auto-assigned; the frontend hands off via a one-shot
+// global the intake page consumes on render (see pm-intake.html _pmiRender_).
+function _pmDuplicateSched_(id) {
+  var s = _pmSchedById_(id);
+  if (!s) return;
+  window._PMI_PREFILL_ = {
+    assetCode: s.asset, assetName: s.assetName, department: s.dept,
+    type: s.type, frequency: s.freq, priorityMode: s.priorityMode, priority: s.priority,
+    leadDays: s.leadDays, downtimeType: s.downtimeType, estDowntime: s.estDowntime, manpower: s.manpower,
+    partsRegular: s.partsRegular.slice(), partsOrder: s.partsOrder.slice(),
+    tasks: s.tasks.map(function(t){ return { t: t.t, ref: t.ref }; }),
+    tools: s.tools.slice(), safety: s.safety.slice(),
+  };
+  _pmCloseSched_();
+  if (typeof navigate === 'function') navigate('pm-intake');
+  showToast('Duplicated ' + id + ' — review and save as a new schedule.', 'info');
+}
+
+function _pmDeleteSched_(id) {
+  if (!confirm('Delete PM schedule ' + id + '? This cannot be undone.')) return;
+  _pmPost_('/api/pm/schedule/delete', { schedId: id }, function(ok, body){
+    if (!ok) { showToast('Delete failed: ' + esc(body.error || 'error'), 'error', 6000); return; }
+    _pmCloseSched_();
+    _pmLoad_(document.getElementById('page-pm'));
+    showToast('PM schedule ' + id + ' deleted.', 'success');
   });
 }
 
