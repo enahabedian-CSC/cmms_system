@@ -436,6 +436,8 @@ function _renderDetail_(result) {
     actions += '<button class="btn-action btn-parts" onclick="_tdRequestParts_()">🔩 Request Parts</button>';
     actions += '<button class="btn-action btn-update" onclick="_tdAddPhoto_()">📷 Add Photo</button>';
   }
+  // Print button — always shown, opens a clean printable work-order summary.
+  actions += '<button class="btn-action btn-update" onclick="_tdPrintTicket_()" title="Print ticket summary">🖨 Print</button>';
   // Refresh button — always shown, reloads ticket data from server.
   actions += '<button class="btn-action btn-update" onclick="openTicketDetail(\'' + esc(t.ticketNo) + '\')" title="Reload ticket from server">&#8635; Refresh</button>';
   // Void sits on the far right of the action row (margin-left:auto pushes it there).
@@ -1438,6 +1440,159 @@ function _srPrint_() {
   window.print();
   // Fallback for browsers that don't fire afterprint.
   setTimeout(_done_, 1500);
+}
+
+function _tdPrintTicket_() {
+  var t = _tdTicket;
+  if (!t) return;
+
+  function r(lbl, val) {
+    if (!val || val === '—') return '';
+    return '<tr>' +
+      '<td style="padding:4px 10px 4px 0;font-size:10px;font-weight:700;color:#777;text-transform:uppercase;letter-spacing:.04em;white-space:nowrap;vertical-align:top;width:120px;">' + esc(lbl) + '</td>' +
+      '<td style="padding:4px 0;font-size:12px;color:#111;line-height:1.5;">' + esc(val) + '</td>' +
+    '</tr>';
+  }
+
+  function block(lbl, val) {
+    if (!val) return '';
+    return '<div style="margin-top:7px;">' +
+      '<div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:#777;margin-bottom:2px;">' + lbl + '</div>' +
+      '<div style="font-size:12px;color:#111;white-space:pre-wrap;line-height:1.55;">' + esc(val) + '</div>' +
+    '</div>';
+  }
+
+  function sec(title, body) {
+    return '<div style="margin-bottom:18px;">' +
+      '<div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#1B2A3C;border-bottom:2px solid #1B2A3C;padding-bottom:3px;margin-bottom:9px;">' + title + '</div>' +
+      body + '</div>';
+  }
+
+  var statusColors = {
+    'OPEN':'#2563EB','CLOSED':'#16A34A','VOIDED':'#6B7280',
+    'PENDING VERIFICATION':'#D97706','PENDING PARTS':'#9333EA','WAITING':'#0891B2'
+  };
+  var statusClr = statusColors[t.status] || '#111';
+  var html = '';
+
+  // Header
+  html += '<div style="background:#1B2A3C;padding:12px 18px;display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;border-radius:6px;">' +
+    '<div>' +
+      '<div style="font-size:14px;font-weight:bold;color:#FFD700;">&#9889; MAINTENANCE TRACKER</div>' +
+      '<div style="font-size:9px;color:#9E9E9E;margin-top:1px;">Container Supply Co. &mdash; Garden Grove, CA</div>' +
+    '</div>' +
+    '<div style="text-align:right;">' +
+      '<div style="font-size:9px;color:#9E9E9E;text-transform:uppercase;letter-spacing:.05em;">Work Order</div>' +
+      '<div style="font-size:17px;font-weight:bold;color:#FFD700;font-family:monospace;">' + esc(t.ticketNo) + '</div>' +
+    '</div>' +
+  '</div>';
+
+  // Summary bar
+  html += '<div style="display:flex;gap:18px;flex-wrap:wrap;padding:9px 13px;background:#F5F5F5;border:1px solid #E0E0E0;border-radius:5px;margin-bottom:18px;">';
+  [
+    { lbl:'Status', val:'<span style="font-weight:700;color:' + statusClr + ';">' + esc(t.status) + '</span>' },
+    t.priority ? { lbl:'Priority', val:esc(t.priority) } : null,
+    { lbl:'Department', val:esc(t.dept) },
+    t.dateOpened ? { lbl:'Opened', val:esc(t.dateOpened) } : null,
+    t.dateClosed ? { lbl:'Closed', val:esc(t.dateClosed) } : null,
+  ].forEach(function(b) {
+    if (!b) return;
+    html += '<div><div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#9E9E9E;">' + b.lbl + '</div>' +
+      '<div style="font-size:12px;color:#111;">' + b.val + '</div></div>';
+  });
+  html += '<div style="margin-left:auto;text-align:right;"><div style="font-size:9px;color:#9E9E9E;">Printed</div>' +
+    '<div style="font-size:11px;color:#555;">' + new Date().toLocaleDateString() + '</div></div>';
+  html += '</div>';
+
+  // Equipment
+  html += sec('Equipment',
+    '<table style="border-collapse:collapse;width:100%;">' +
+    r('Equipment', t.specificEquip) +
+    r('Equipment Code', t.equipCode) +
+    r('Type', t.equipType) +
+    r('Building / Zone', t.buildingZone) +
+    r('Line #', t.lineNo) +
+    '</table>'
+  );
+
+  // Problem
+  html += sec('Problem',
+    '<table style="border-collapse:collapse;width:100%;">' + r('Problem Type', t.problemType) + '</table>' +
+    (t.description ? '<div style="margin-top:6px;font-size:12px;color:#111;white-space:pre-wrap;padding:8px;background:#FAFAFA;border-radius:4px;border:1px solid #E5E5E5;line-height:1.55;">' + esc(t.description) + '</div>' : '') +
+    block('Notes', t.notes)
+  );
+
+  // Assignment
+  html += sec('Assignment',
+    '<table style="border-collapse:collapse;width:100%;">' +
+    r('Opened By', t.addedBy) +
+    r('Assigned To', (t.assignedTo || '').trim() || '—') +
+    r('Est Hours', t.estHours) +
+    r('Actual Hours', t.actualHours) +
+    r('Downtime Type', t.downtimeType) +
+    (t.downtimeDuration ? r('Downtime', t.downtimeDuration + ' min') : '') +
+    '</table>'
+  );
+
+  // Joint departments (only if present)
+  if (t.jointDepts) {
+    var jsDepts = (t.jointDepts || '').split(',').map(function(d){return d.trim();}).filter(Boolean);
+    var jsSignoffs = {};
+    try { jsSignoffs = JSON.parse(t.jointSignoffs || '{}'); } catch(e) {}
+    html += sec('Joint Departments',
+      '<div style="font-size:12px;color:#111;">' +
+      jsDepts.map(function(d) {
+        var s = jsSignoffs[d];
+        return esc(d) + ((s && s.complete) ? ' &#10003;' : ' (pending)');
+      }).join(' &nbsp;&middot;&nbsp; ') +
+      '</div>'
+    );
+  }
+
+  // CAPA / Work Summary (only if something is filled)
+  if (t.correctiveAct || t.rootCause || t.preventiveAct || t.workSummary || t.fixType) {
+    html += sec('CAPA / Work Summary',
+      '<table style="border-collapse:collapse;width:100%;margin-bottom:4px;">' +
+      r('Fix Type', t.fixType) +
+      (t.tempFixFlag ? r('Temp Fix', 'YES') : '') +
+      (t.permFixDate ? r('Target Fix Date', t.permFixDate) : '') +
+      '</table>' +
+      block('Corrective Action', t.correctiveAct) +
+      block('Root Cause', t.rootCause) +
+      block('Preventive Action', t.preventiveAct || t.workSummary) +
+      block('Permanent Fix Plan', t.permFixPlan)
+    );
+  }
+
+  // Verification
+  if (t.verifiedBy) {
+    html += sec('Verification',
+      '<table style="border-collapse:collapse;width:100%;">' +
+      r('Verified By', t.verifiedBy) +
+      r('Verified Date', t.verifiedDate) +
+      r('Downtime Reviewed', t.downtimeVerified) +
+      '</table>'
+    );
+  }
+
+  // Signature lines
+  html += '<div style="margin-top:28px;display:flex;gap:36px;">' +
+    '<div style="flex:1;border-top:1px solid #333;padding-top:4px;font-size:9.5px;color:#555;">Technician Signature</div>' +
+    '<div style="flex:1;border-top:1px solid #333;padding-top:4px;font-size:9.5px;color:#555;">Manager Signature</div>' +
+    '<div style="flex:1;border-top:1px solid #333;padding-top:4px;font-size:9.5px;color:#555;">Date</div>' +
+  '</div>';
+
+  // Footer
+  html += '<div style="margin-top:18px;text-align:center;font-size:9px;color:#9E9E9E;border-top:1px solid #E5E5E5;padding-top:8px;">' +
+    'CSC Maintenance System &middot; Work Order ' + esc(t.ticketNo) + ' &middot; Printed ' + new Date().toLocaleDateString() +
+  '</div>';
+
+  var css = '@page{size:letter;margin:12mm 14mm}body{margin:0;padding:16px;font-family:Arial,Helvetica,sans-serif;background:#fff;}' +
+    '@media print{*{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important;color-adjust:exact!important;}}';
+  var win = window.open('', '_blank', 'width=780,height=900,menubar=no,toolbar=no,location=no,status=no');
+  if (!win) { showToast('Pop-ups blocked — allow pop-ups for this site to print tickets', 'error'); return; }
+  win.document.write('<!doctype html><html><head><meta charset="utf-8"><title>Work Order ' + esc(t.ticketNo) + '</title><style>' + css + '</style></head><body>' + html + '<scr' + 'ipt>window.onload=function(){setTimeout(function(){window.print();},300);};<\/script></body></html>');
+  win.document.close();
 }
 
 function _tdSaveServiceReport_() {
