@@ -287,8 +287,12 @@ function _crShowViewSync_(id) {
   else _crShowView_(id);
 }
 
+// Default sort: highest total cost first. Callers may pass their own
+// comparator (see _crMachineNumSort_) to order a specific table differently.
+function _crCostDescSort_(a, b) { return b.total - a.total; }
+
 // ── Generic asset-table renderer, shared by the 4 drill-down views ─────────
-function _crAssetTable_(title, rows, idCol) {
+function _crAssetTable_(title, rows, idCol, sortFn) {
   if (!rows.length) return '';
   return '<div class="rpt-table-wrap">' +
     '<div class="rpt-section-hdr">' + esc(title) + ' — ' + rows.length + ' item' + (rows.length === 1 ? '' : 's') + '</div>' +
@@ -297,7 +301,7 @@ function _crAssetTable_(title, rows, idCol) {
       '<th class="cr-td-num">Hours</th><th class="cr-td-num">Labor $</th>' +
       '<th class="cr-td-num">Material $</th><th class="cr-td-num">Total $</th>' +
     '</tr></thead><tbody>' +
-    rows.slice().sort(function(a, b) { return b.total - a.total; }).map(function(r) {
+    rows.slice().sort(sortFn || _crCostDescSort_).map(function(r) {
       return '<tr>' +
         (idCol ? '<td class="cr-td-asset">' + esc(r.id != null ? r.id : (r.job != null ? r.job : '')) + '</td>' : '') +
         '<td>' + esc(r.label) + (r.dept ? ' <span style="color:var(--text-tertiary);font-size:11px;">(' + esc(r.dept) + ')</span>' : '') + '</td>' +
@@ -308,6 +312,22 @@ function _crAssetTable_(title, rows, idCol) {
       '</tr>';
     }).join('') +
     '</tbody></table></div></div>';
+}
+
+// Sort by the machine number parsed out of the label ("Machine #7" → 7).
+// Rows with no number (the aggregate/summary rows — Aux. Equipment, Supplies,
+// Molds, All Machines) sort after every numbered machine, keeping their
+// original relative order (Array#sort is stable).
+function _crMachineNum_(label) {
+  var m = /#(\d+)/.exec(label || '');
+  return m ? parseInt(m[1], 10) : null;
+}
+function _crMachineNumSort_(a, b) {
+  var an = _crMachineNum_(a.label), bn = _crMachineNum_(b.label);
+  if (an != null && bn != null) return an - bn;
+  if (an != null) return -1;
+  if (bn != null) return 1;
+  return 0;
 }
 
 // ── Bucket view — the selected category's own KPIs, plus any drill-down ─────
@@ -326,7 +346,7 @@ function _crBucketHtml_(id) {
   var dd = (_crData_.drilldowns || {})[id];
   var detail = '';
   if (id === 'plastic-manuf' && dd) {
-    detail = _crAssetTable_('Plastic Mfg — by Machine', dd.plasticMfg || [], null) +
+    detail = _crAssetTable_('Plastic Mfg — by Machine', dd.plasticMfg || [], 'Job #', _crMachineNumSort_) +
              _crAssetTable_('Injection Mold — by Mold', dd.injectionMold || [], 'Job #');
   } else if (id === 'trucks-lifts' && dd) {
     detail = _crAssetTable_('Forklift Fleet — by Unit', dd.forklift || [], 'Unit #');
