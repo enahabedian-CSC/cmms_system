@@ -447,7 +447,7 @@ async function handleFeedbackSubmit(env, userEmail, body) {
   const type        = s(body.type).toUpperCase() === 'FEATURE' ? 'FEATURE' : 'BUG';
   const area        = s(body.area) || 'Other';
   const description = s(body.description);
-  if (!description) return jsonResponse({ error: 'Description required' }, 400);
+  if (description.length < 20) return jsonResponse({ error: 'Description must be at least 20 characters — please add more detail.' }, 400); // keep in sync with the client's FB_MIN_DESC_LEN in frontend/index.html
 
   const sheetName = env.FEEDBACK_SHEET || SH.FEEDBACK;
   const subject   = (type === 'FEATURE' ? 'FEATURE REQUEST -> CMMS' : 'BUG FIX -> CMMS') + ': ' + area;
