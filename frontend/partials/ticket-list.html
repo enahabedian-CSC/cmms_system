@@ -697,8 +697,16 @@ function _tlRollover_(dept) {
 
 function _refreshQueuePage_(queueType, deptFilter) {
   var pageEl = document.getElementById('page-' + queueType);
+  // Tracker dept pages live under 'page-tracker-{dept-slug}' but may be called
+  // with either queueType='tracker' (refresh button) or queueType='tracker-machine-shop'
+  // (_tlRefreshActive_). Resolve both to the correct element and always load as 'tracker'.
+  if (!pageEl && queueType === 'tracker' && deptFilter) {
+    var slug = deptFilter.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+    pageEl = document.getElementById('page-tracker-' + slug);
+  }
   if (!pageEl) return;
-  _loadListPage_(queueType, deptFilter || null, pageEl);
+  var loadType = (queueType === 'tracker' || queueType.indexOf('tracker-') === 0) ? 'tracker' : queueType;
+  _loadListPage_(loadType, deptFilter || null, pageEl);
 }
 
 // ── Filter panel helpers (global — used by all ticket views) ─────────────────
