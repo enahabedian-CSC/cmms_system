@@ -1071,13 +1071,25 @@ async function handleDashboardPanels(env, userEmail) {
     });
   });
 
-  // Pending joint attachment requests
+  // Pending joint attachment requests.
+  // Pre-pass: build the last-wins PENDING_JOINT_DEPTS per ticket so we can detect
+  // tickets whose pending status was cleared (sentinel 'NONE'). Without this, the
+  // row-by-row loop below would re-surface old "pending" values from earlier ML rows
+  // even after the request was accepted/rejected.
+  const _pendLastWins = {};
+  mlRows.forEach(r => {
+    const tn = cellStr(r, ML.TICKET_NO);
+    const pv = cellStr(r, ML.PENDING_JOINT_DEPTS);
+    if (tn && pv) _pendLastWins[tn] = pv;
+  });
   const pendingJointMap = {};
   mlRows.forEach(r => {
     const tn      = cellStr(r, ML.TICKET_NO);
     const pendStr = cellStr(r, ML.PENDING_JOINT_DEPTS);
     if (!tn || !pendStr) return;
-    const pendList = pendStr.split(',').map(d => d.trim().toUpperCase()).filter(Boolean);
+    // Skip tickets whose latest pending value is the cleared sentinel.
+    if (_pendLastWins[tn] === 'NONE') return;
+    const pendList = _normDepts_(pendStr);
     const myPend   = user.isAdmin ? pendList : pendList.filter(d => user.ownedDepts.includes(d));
     if (!myPend.length) return;
     if (!pendingJointMap[tn]) { pendingJointMap[tn] = { row: r.slice(), myDepts: myPend }; return; }
@@ -2860,7 +2872,7 @@ async function handleConfirmJoint(env, userEmail, body) {
   await appendMasterLog(token, env, {
     ticketNo, now: new Date(), action: 'JOINT REQUEST CONFIRMED',
     jointDepts:        joint.join(', '),
-    pendingJointDepts: newPending.join(', '),
+    pendingJointDepts: newPending.join(', ') || 'NONE',
     updatedBy, notes: myDept + ' accepted joint attachment',
   });
   await appendTicketHistory(token, env, ticketNo, 'JOINT REQUEST CONFIRMED', '', '', updatedBy,
@@ -2887,7 +2899,7 @@ async function handleRejectJoint(env, userEmail, body) {
   const updatedBy  = String(body.updatedBy || user.displayName).trim();
   await appendMasterLog(token, env, {
     ticketNo, now: new Date(), action: 'JOINT REQUEST REJECTED',
-    pendingJointDepts: newPending.join(', '),
+    pendingJointDepts: newPending.join(', ') || 'NONE',
     updatedBy, notes: myDept + ' rejected joint attachment' + (body.reason ? ': ' + body.reason : ''),
   });
   await appendTicketHistory(token, env, ticketNo, 'JOINT REQUEST REJECTED', '', '', updatedBy,
@@ -2926,7 +2938,7 @@ async function handleApproveTicket(env, userEmail, body) {
         const joint = _normDepts_(cellStr(best, ML.JOINT_DEPTS));
         if (!joint.includes(myDept)) joint.push(myDept);
         jointDepts        = joint.join(', ');
-        pendingJointDepts = pending.filter(d => d !== myDept).join(', ');
+        pendingJointDepts = pending.filter(d => d !== myDept).join(', ') || 'NONE';
       }
     }
   }
@@ -2956,7 +2968,8 @@ async function _ticketState_(token, env, ticketNo) {
   return best;
 }
 function _normDepts_(s) {
-  return String(s || '').split(',').map(d => d.trim().toUpperCase()).filter(Boolean);
+  // 'NONE' is a sentinel written when all pending depts are cleared; exclude it.
+  return String(s || '').split(',').map(d => d.trim().toUpperCase()).filter(d => d && d !== 'NONE');
 }
 
 async function handleCompleteTicket(env, userEmail, body) {
