@@ -4166,7 +4166,8 @@ async function handleCostData(env, userEmail, params) {
   }));
 
   const plasticMfg = PLASTIC_MFG_ASSETS.map(a => ({
-    label: a.label, ...costTotals(hoursMap, materialMap, a.hoursJobs, a.materialJobs),
+    label: a.label, job: a.hoursJobs.length === 1 ? a.hoursJobs[0] : null,
+    ...costTotals(hoursMap, materialMap, a.hoursJobs, a.materialJobs),
   }));
 
   const injectionMold = INJECTION_MOLD_ASSETS.map(a => ({
