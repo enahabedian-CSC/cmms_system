@@ -155,6 +155,15 @@
   </div>
 </div>
 
+<!-- Duplicate a Previous PM modal — static, always in DOM, toggled via style.display -->
+<div class="td-modal-backdrop" id="pmi-dup-modal-backdrop" data-static="1" style="display:none;" onclick="if(event.target===this)_pmiCloseDupPicker_()">
+  <div class="td-modal pmi-tasklib-modal">
+    <h3>Duplicate a Previous PM</h3>
+    <div id="pmi-dup-modal-body"><div class="loading-overlay"><div class="spinner"></div><span>Loading&#8230;</span></div></div>
+    <div class="modal-actions"><button type="button" class="btn-cancel" onclick="_pmiCloseDupPicker_()">Close</button></div>
+  </div>
+</div>
+
 <script>
 // ── PM Intake — field configuration (single source of truth) ─────────────────
 // type: 'text' | 'textarea' | 'select' | 'number' | 'auto' | 'list' | 'tasklist'
@@ -487,6 +496,8 @@ window._pmGenChkRef_ = function(assetCode, seq) {
 var _pmiState_   = {};   // key -> value (string, or array for list/tasklist)
 var _pmiEquip_   = [];   // [{code, specific, dept}] for asset autocomplete
 var _pmiSubmitting_ = false;
+var _pmiPrevPms_ = [];   // previously submitted PM schedules, for the Duplicate picker
+var _pmiDupQuery_ = '';  // Duplicate picker's current filter text
 
 // Ordered list of every field key, following section order.
 function _pmiOrderedKeys_() {
@@ -509,7 +520,7 @@ function _pmiIsRequired_(key) {
 }
 
 // ── Page entry point ─────────────────────────────────────────────────────────
-PAGES['pm-intake'] = function(container) { _pmiRender_(container); _pmiLoadAssets_(); _pmiLoadTaskLib_(); };
+PAGES['pm-intake'] = function(container) { _pmiRender_(container); _pmiLoadAssets_(); _pmiLoadTaskLib_(); _pmiLoadPrevPms_(); };
 
 function _pmiRender_(container) {
   // (Re)initialise state from defaults every time the form is rendered fresh.
@@ -539,6 +550,7 @@ function _pmiRender_(container) {
         '<div class="pmi-hdr-title">New PM Entry</div>' +
         '<div class="pmi-hdr-sub">Define a preventive-maintenance schedule. The PM ID, next-due date and status are assigned <strong>automatically</strong>; the definition lands on the <strong>PM Schedules</strong> tab and appears immediately in the PM Master view.</div>' +
         '<div class="pmi-hdr-code">' + esc(cfg.formCode) + '</div>' +
+        '<div style="margin-top:10px;"><button type="button" class="pmi-btn-ghost" onclick="_pmiOpenDupPicker_()">Duplicate a Previous PM</button></div>' +
       '</div>' +
       '<div class="pmi-banner" id="pmi-banner"></div>' +
       _pmiDatalists_() +
@@ -823,6 +835,93 @@ function _pmiLoadAssets_() {
       }).join('');
     })
     .catch(function() { /* autocomplete is a convenience; manual entry still works */ });
+}
+
+// ── Duplicate a Previous PM — search/dropdown picker over prior submissions ───
+// Mirrors _pmDuplicateSched_ in pm-master.html (same field mapping, same
+// window._PMI_PREFILL_ handoff that _pmiRender_ already consumes one-shot),
+// but runs directly from the Intake page instead of requiring a trip through
+// PM Master first.
+function _pmiLoadPrevPms_() {
+  if (typeof WORKER_URL === 'undefined' || !WORKER_URL) return;
+  fetch(WORKER_URL + '/api/pm/schedules', {
+    headers: { 'X-User-Email': (typeof USER !== 'undefined' && USER ? USER.email : '') }
+  })
+    .then(function(r) { return r.ok ? r.json() : null; })
+    .then(function(j) {
+      if (!j || !Array.isArray(j.schedules)) return;
+      _pmiPrevPms_ = j.schedules;
+    })
+    .catch(function() { /* duplicate picker is a convenience; manual entry still works */ });
+}
+function _pmiOpenDupPicker_() {
+  document.getElementById('pmi-dup-modal-backdrop').style.display = 'flex';
+  _pmiDupQuery_ = '';
+  _pmiRenderDupPicker_();
+}
+function _pmiCloseDupPicker_() {
+  document.getElementById('pmi-dup-modal-backdrop').style.display = 'none';
+}
+function _pmiDupLabel_(s) {
+  return (s.id || '') + ' — ' + (s.asset || '') + (s.assetName ? ' (' + s.assetName + ')' : '') + ' — ' + (s.dept || '');
+}
+function _pmiDupFiltered_() {
+  var q = (_pmiDupQuery_ || '').trim().toLowerCase();
+  if (!q) return _pmiPrevPms_;
+  return _pmiPrevPms_.filter(function(s) {
+    return [s.id, s.asset, s.assetName, s.dept, s.type].some(function(v) {
+      return String(v || '').toLowerCase().indexOf(q) !== -1;
+    });
+  });
+}
+function _pmiDupListHtml_() {
+  if (!_pmiPrevPms_.length) return '<div class="pmi-tl-list-empty">No previous PM schedules found yet.</div>';
+  var items = _pmiDupFiltered_();
+  if (!items.length) return '<div class="pmi-tl-list-empty">No matching PM schedules.</div>';
+  return items.map(function(s) {
+    return '<div class="pmi-tl-list-item" onclick="_pmiDupPick_(' + _jsAttr_(s.id) + ')">' +
+      '<span>' + esc(_pmiDupLabel_(s)) + '</span>' +
+    '</div>';
+  }).join('');
+}
+function _pmiDupSelectHtml_() {
+  var opts = _pmiPrevPms_.map(function(s) {
+    return '<option value="' + esc(s.id) + '">' + esc(_pmiDupLabel_(s)) + '</option>';
+  }).join('');
+  return '<option value="">Or choose from the full list&#8230;</option>' + opts;
+}
+function _pmiRenderDupPicker_() {
+  var body = document.getElementById('pmi-dup-modal-body');
+  if (!body) return;
+  body.innerHTML =
+    '<div class="pmi-tl-combo">' +
+      '<div class="pmi-tl-combo-row">' +
+        '<input type="text" class="pmi-input" placeholder="Type a PM ID, asset, or department to filter&#8230;" value="' + esc(_pmiDupQuery_) + '" oninput="_pmiDupFilterInput_(this.value)">' +
+      '</div>' +
+      '<select class="pmi-select" onchange="if(this.value)_pmiDupPick_(this.value);">' + _pmiDupSelectHtml_() + '</select>' +
+      '<div class="pmi-tl-list" id="pmi-dup-list">' + _pmiDupListHtml_() + '</div>' +
+    '</div>';
+}
+function _pmiDupFilterInput_(val) {
+  _pmiDupQuery_ = val;
+  var list = document.getElementById('pmi-dup-list');
+  if (list) list.innerHTML = _pmiDupListHtml_();
+}
+function _pmiDupPick_(id) {
+  var s = _pmiPrevPms_.filter(function(x) { return x.id === id; })[0];
+  if (!s) return;
+  window._PMI_PREFILL_ = {
+    assetCode: s.asset, assetName: s.assetName, department: s.dept,
+    type: s.type, frequency: s.freq, priorityMode: s.priorityMode, priority: s.priority,
+    leadDays: s.leadDays, downtimeType: s.downtimeType, estDowntime: s.estDowntime, manpower: s.manpower,
+    partsRegular: (s.partsRegular || []).slice(), partsOrder: (s.partsOrder || []).slice(),
+    tasks: (s.tasks || []).map(function(t) { return { t: t.t, ref: t.ref }; }),
+    tools: (s.tools || []).slice(), safety: (s.safety || []).slice(),
+  };
+  _pmiCloseDupPicker_();
+  var container = document.getElementById('page-pm-intake');
+  if (container) _pmiRender_(container);
+  showToast('Duplicated ' + id + ' — review and save as a new schedule.', 'info');
 }
 
 // ── PM Task Library — load from backend, and the "Manage Task Library" panel ──
