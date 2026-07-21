@@ -350,6 +350,18 @@ function _renderDetail_(result) {
           '<span>⚠️</span><div class="joint-banner-body">Your department\'s signoff is still required.' +
           '<div class="jb-sub">Click <strong>Mark Work Complete</strong> below to submit your CAPA and unblock ' + esc(t.dept) + '\'s close.</div></div></div>';
       }
+    } else if (t.status === 'WAITING') {
+      if (isFixer) {
+        jointBanner = '<div class="joint-banner role-fixer">' +
+          '<span>🔗</span><div class="joint-banner-body">Your department (' + esc(_jbMyDepts.join(', ') || '—') + ') is confirmed as a joint fixer on this ticket.' +
+          '<div class="jb-sub">Awaiting approval to open — once approved, complete your repair and click <strong>Mark Work Complete</strong>.</div>' +
+          _jbDeptRows(_jbMyDepts, false) + '</div></div>';
+      } else if (isOwner && _jbLeft.length) {
+        jointBanner = '<div class="joint-banner role-owner-waiting">' +
+          '<span>⏳</span><div class="joint-banner-body">Joint departments confirmed — ticket awaiting your approval.' +
+          '<div class="jb-sub">Attached: ' + _jbLeft.map(function(d){return esc(d);}).join(', ') + '</div>' +
+          _jbDeptRows(_jbLeft, false) + '</div></div>';
+      }
     } else if (t.status === 'OPEN' || t.status === 'PENDING PARTS') {
       if (isFixer && _jbMyDone && _jbLeft.length) {
         jointBanner = '<div class="joint-banner role-fixer-done">' +
