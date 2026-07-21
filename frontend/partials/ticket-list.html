@@ -608,50 +608,62 @@ function renderPendingRows(list, tbodyId) {
 }
 
 function _tlAcceptJoint_(ticketNo) {
-  if (!confirm('Accept the joint attachment request for ticket ' + ticketNo + '?\n\nYour department will be added to this ticket and you will be required to sign off before it can be closed.')) return;
-  fetch(WORKER_URL + '/api/tickets/confirm-joint', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'X-User-Email': USER ? USER.email : '' },
-    body: JSON.stringify({ ticketNo: ticketNo })
-  })
-    .then(function(r) { return r.json(); })
-    .then(function(r) {
-      if (r && r.success) {
-        showToast('&#10003; Joint request accepted for ' + ticketNo, 'success');
-        var activePageEl = document.querySelector('[id^="page-tracker-"]');
-        if (activePageEl) {
-          var deptMatch = activePageEl.id.replace('page-tracker-', '');
-          _refreshQueuePage_('tracker-' + deptMatch, deptMatch.replace(/-/g, ' ').toUpperCase());
-        }
-      } else {
-        showToast('Error: ' + ((r && r.error) || 'Unknown error'), 'error');
-      }
-    })
-    .catch(function(err) { showToast('Server error: ' + String(err.message || err), 'error'); });
+  _showModal_('Accept Joint Request — ' + ticketNo,
+    '<p style="margin:0 0 12px;">Your department will be added to this ticket and required to sign off before it can be closed.</p>',
+    function() {
+      _closeModal_();
+      fetch(WORKER_URL + '/api/tickets/confirm-joint', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-User-Email': USER ? USER.email : '' },
+        body: JSON.stringify({ ticketNo: ticketNo, updatedBy: USER ? USER.displayName : '' })
+      })
+        .then(function(r) { return r.json(); })
+        .then(function(r) {
+          if (r && r.success) {
+            showToast('✓ Joint request accepted for ' + ticketNo, 'success');
+            _tlRefreshActive_();
+          } else {
+            showToast('Error: ' + ((r && r.error) || 'Unknown error'), 'error');
+          }
+        })
+        .catch(function(err) { showToast('Server error: ' + String(err.message || err), 'error'); });
+    }, 'Accept');
 }
 
 function _tlRejectJoint_(ticketNo) {
-  var reason = prompt('Reason for rejecting the joint request on ' + ticketNo + ' (optional):');
-  if (reason === null) return;  // user cancelled
-  fetch(WORKER_URL + '/api/tickets/reject-joint', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'X-User-Email': USER ? USER.email : '' },
-    body: JSON.stringify({ ticketNo: ticketNo, reason: reason })
-  })
-    .then(function(r) { return r.json(); })
-    .then(function(r) {
-      if (r && r.success) {
-        showToast('Joint request rejected for ' + ticketNo, 'info');
-        var activePageEl = document.querySelector('[id^="page-tracker-"]');
-        if (activePageEl) {
-          var deptMatch = activePageEl.id.replace('page-tracker-', '');
-          _refreshQueuePage_('tracker-' + deptMatch, deptMatch.replace(/-/g, ' ').toUpperCase());
-        }
-      } else {
-        showToast('Error: ' + ((r && r.error) || 'Unknown error'), 'error');
-      }
-    })
-    .catch(function(err) { showToast('Server error: ' + String(err.message || err), 'error'); });
+  _showModal_('Reject Joint Request — ' + ticketNo,
+    '<div style="background:#FFEBEE;border:1px solid #FFCDD2;border-radius:6px;padding:9px 12px;margin-bottom:12px;font-size:12px;color:#C62828;">' +
+      'Rejecting this request removes your department from the ticket.' +
+    '</div>' +
+    '<div class="form-group"><label>Reason (optional)</label>' +
+    '<textarea id="tl-reject-reason" style="width:100%;height:64px;padding:6px 9px;border:1px solid #D1D5DB;border-radius:6px;font-size:13px;resize:vertical;"></textarea></div>',
+    function() {
+      var reason = (document.getElementById('tl-reject-reason') || {}).value || '';
+      _closeModal_();
+      fetch(WORKER_URL + '/api/tickets/reject-joint', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-User-Email': USER ? USER.email : '' },
+        body: JSON.stringify({ ticketNo: ticketNo, reason: reason, updatedBy: USER ? USER.displayName : '' })
+      })
+        .then(function(r) { return r.json(); })
+        .then(function(r) {
+          if (r && r.success) {
+            showToast('Joint request rejected for ' + ticketNo, 'info');
+            _tlRefreshActive_();
+          } else {
+            showToast('Error: ' + ((r && r.error) || 'Unknown error'), 'error');
+          }
+        })
+        .catch(function(err) { showToast('Server error: ' + String(err.message || err), 'error'); });
+    }, 'Reject');
+}
+
+function _tlRefreshActive_() {
+  var activePageEl = document.querySelector('[id^="page-tracker-"]');
+  if (activePageEl) {
+    var deptMatch = activePageEl.id.replace('page-tracker-', '');
+    _refreshQueuePage_('tracker-' + deptMatch, deptMatch.replace(/-/g, ' ').toUpperCase());
+  }
 }
 
 function _tlRollover_(dept) {
