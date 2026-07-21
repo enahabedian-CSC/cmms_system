@@ -34,6 +34,10 @@ const ML = {
   // Mark Work Complete, captured at Verify & Close (FB-000003). Additive
   // column — existing 47-col reads stay valid.
   DOWNTIME_VERIFIED:48,
+  // Per-dept JSON map tracking each pending dept's decision: {"ELECTRICAL":"PENDING"|"ACCEPTED"|"REJECTED"}
+  // Written when a joint request is sent, updated when accepted/rejected. Last-wins on the JSON string
+  // lets us reliably read the current decision without the empty-string-clear problem.
+  JOINT_ACCEPTANCE:49,
 };
 
 const TF = {
@@ -967,7 +971,7 @@ async function handleDashboardPanels(env, userEmail) {
 
   const dataStart = HIST_HEADER_ROW + 1;
   const [mlRows, tfRows, ehlRows] = await Promise.all([
-    readSheet(token, env.SPREADSHEET_ID, SH.MASTER_LOG,     'A2:AQ'),
+    readSheet(token, env.SPREADSHEET_ID, SH.MASTER_LOG,     'A2:AW'),
     readSheet(token, env.SPREADSHEET_ID, SH.TEMP_FIX,       `A${dataStart}:V`),
     readSheet(token, env.SPREADSHEET_ID, SH.EQUIP_HOLD_LOG, `A${dataStart}:N`),
     loadDeptAliases(token, env),
@@ -1072,25 +1076,33 @@ async function handleDashboardPanels(env, userEmail) {
   });
 
   // Pending joint attachment requests.
-  // Pre-pass: build the last-wins PENDING_JOINT_DEPTS per ticket so we can detect
-  // tickets whose pending status was cleared (sentinel 'NONE'). Without this, the
-  // row-by-row loop below would re-surface old "pending" values from earlier ML rows
-  // even after the request was accepted/rejected.
-  const _pendLastWins = {};
+  // Pre-pass: get last-wins JOINT_ACCEPTANCE (authoritative) and PENDING_JOINT_DEPTS
+  // (legacy fallback for tickets created before col 49 existed) per ticket.
+  const jaLastWins   = {};
+  const pendLastWins = {};
   mlRows.forEach(r => {
     const tn = cellStr(r, ML.TICKET_NO);
-    const pv = cellStr(r, ML.PENDING_JOINT_DEPTS);
-    if (tn && pv) _pendLastWins[tn] = pv;
+    if (!tn) return;
+    const ja = cellStr(r, ML.JOINT_ACCEPTANCE);
+    const pj = cellStr(r, ML.PENDING_JOINT_DEPTS);
+    if (ja) jaLastWins[tn]   = ja;
+    if (pj) pendLastWins[tn] = pj;
   });
+
   const pendingJointMap = {};
   mlRows.forEach(r => {
-    const tn      = cellStr(r, ML.TICKET_NO);
-    const pendStr = cellStr(r, ML.PENDING_JOINT_DEPTS);
-    if (!tn || !pendStr) return;
-    // Skip tickets whose latest pending value is the cleared sentinel.
-    if (_pendLastWins[tn] === 'NONE') return;
-    const pendList = _normDepts_(pendStr);
-    const myPend   = user.isAdmin ? pendList : pendList.filter(d => user.ownedDepts.includes(d));
+    const tn = cellStr(r, ML.TICKET_NO);
+    if (!tn) return;
+    // Derive which depts are still pending: prefer JOINT_ACCEPTANCE JSON; fall back
+    // to PENDING_JOINT_DEPTS for legacy tickets that predate the column.
+    let pendList;
+    if (jaLastWins[tn]) {
+      try { const ja = JSON.parse(jaLastWins[tn]); pendList = Object.keys(ja).filter(d => ja[d] === 'PENDING'); }
+      catch(e) { pendList = []; }
+    } else {
+      pendList = _normDepts_(pendLastWins[tn] || '');
+    }
+    const myPend = user.isAdmin ? pendList : pendList.filter(d => user.ownedDepts.includes(d));
     if (!myPend.length) return;
     if (!pendingJointMap[tn]) { pendingJointMap[tn] = { row: r.slice(), myDepts: myPend }; return; }
     const cur = pendingJointMap[tn];
@@ -1301,6 +1313,7 @@ async function appendMasterLog(token, env, opts) {
   if (opts.clrQaRequired   !== undefined) row[ML.CLR_QA_REQUIRED   - 1] = opts.clrQaRequired   || '';
   if (opts.assignedDept      !== undefined) row[ML.ASSIGNED_DEPT      - 1] = opts.assignedDept      || '';
   if (opts.downtimeVerified  !== undefined) row[ML.DOWNTIME_VERIFIED  - 1] = opts.downtimeVerified  || '';
+  if (opts.jointAcceptance   !== undefined) row[ML.JOINT_ACCEPTANCE   - 1] = opts.jointAcceptance   || '';
   if (opts.addedBy       !== undefined) row[ML.ADDED_BY       - 1] = opts.addedBy       || '';
   if (opts.buildingZone  !== undefined) row[ML.BUILDING_ZONE  - 1] = opts.buildingZone  || '';
   if (opts.equipType     !== undefined) row[ML.EQUIP_TYPE     - 1] = opts.equipType     || '';
@@ -1831,7 +1844,7 @@ async function handleTicketDetail(env, userEmail, ticketNo) {
   if (!ticketNo) return jsonResponse({ error: 'ticketNo required' }, 400);
 
   const [mlRows, thRows] = await Promise.all([
-    readSheet(token, env.SPREADSHEET_ID, SH.MASTER_LOG,  'A2:AU'),
+    readSheet(token, env.SPREADSHEET_ID, SH.MASTER_LOG,  'A2:AW'),
     readSheet(token, env.SPREADSHEET_ID, SH.TICKET_HIST, 'A2:H'),
   ]);
 
@@ -1889,6 +1902,7 @@ async function handleTicketDetail(env, userEmail, ticketNo) {
     clrQaRequired:    cellStr(best, ML.CLR_QA_REQUIRED),
     assignedDept:     normalizeDept(cellStr(best, ML.ASSIGNED_DEPT)) || normalizeDept(cellStr(best, ML.DEPT)),
     downtimeVerified: cellStr(best, ML.DOWNTIME_VERIFIED),
+    jointAcceptance:  cellStr(best, ML.JOINT_ACCEPTANCE),
   };
 
   // Sort chronologically by the real timestamp column. Raw sheet-append order
@@ -2859,20 +2873,30 @@ async function handleConfirmJoint(env, userEmail, body) {
   const best = await _ticketState_(token, env, ticketNo);
   if (!best) return jsonResponse({ error: 'Ticket not found: ' + ticketNo }, 404);
 
-  const pending = _normDepts_(cellStr(best, ML.PENDING_JOINT_DEPTS));
-  const mine    = user.ownedDepts || [];
-  const myDept  = mine.find(d => pending.indexOf(d) >= 0);
+  // Find which of the user's depts has a pending joint request.
+  // JOINT_ACCEPTANCE is authoritative; PENDING_JOINT_DEPTS is the legacy fallback.
+  const mine = user.ownedDepts || [];
+  let myDept, ja = {};
+  const jaStr = cellStr(best, ML.JOINT_ACCEPTANCE);
+  if (jaStr) {
+    try { ja = JSON.parse(jaStr); } catch(e) { ja = {}; }
+    myDept = mine.find(d => ja[d] === 'PENDING');
+  }
+  if (!myDept) {
+    const pending = _normDepts_(cellStr(best, ML.PENDING_JOINT_DEPTS));
+    myDept = mine.find(d => pending.indexOf(d) >= 0);
+  }
   if (!myDept) return jsonResponse({ error: 'No pending joint request found for your department on this ticket.' }, 400);
 
-  const joint      = _normDepts_(cellStr(best, ML.JOINT_DEPTS));
+  const joint = _normDepts_(cellStr(best, ML.JOINT_DEPTS));
   if (joint.indexOf(myDept) < 0) joint.push(myDept);
-  const newPending = pending.filter(d => d !== myDept);
+  ja[myDept] = 'ACCEPTED';
 
   const updatedBy = String(body.updatedBy || user.displayName).trim();
   await appendMasterLog(token, env, {
     ticketNo, now: new Date(), action: 'JOINT REQUEST CONFIRMED',
-    jointDepts:        joint.join(', '),
-    pendingJointDepts: newPending.join(', ') || 'NONE',
+    jointDepts:      joint.join(', '),
+    jointAcceptance: JSON.stringify(ja),
     updatedBy, notes: myDept + ' accepted joint attachment',
   });
   await appendTicketHistory(token, env, ticketNo, 'JOINT REQUEST CONFIRMED', '', '', updatedBy,
@@ -2890,16 +2914,24 @@ async function handleRejectJoint(env, userEmail, body) {
   const best = await _ticketState_(token, env, ticketNo);
   if (!best) return jsonResponse({ error: 'Ticket not found: ' + ticketNo }, 404);
 
-  const pending = _normDepts_(cellStr(best, ML.PENDING_JOINT_DEPTS));
-  const mine    = user.ownedDepts || [];
-  const myDept  = mine.find(d => pending.indexOf(d) >= 0);
+  const mine = user.ownedDepts || [];
+  let myDept, ja = {};
+  const jaStr = cellStr(best, ML.JOINT_ACCEPTANCE);
+  if (jaStr) {
+    try { ja = JSON.parse(jaStr); } catch(e) { ja = {}; }
+    myDept = mine.find(d => ja[d] === 'PENDING');
+  }
+  if (!myDept) {
+    const pending = _normDepts_(cellStr(best, ML.PENDING_JOINT_DEPTS));
+    myDept = mine.find(d => pending.indexOf(d) >= 0);
+  }
   if (!myDept) return jsonResponse({ error: 'No pending joint request found for your department on this ticket.' }, 400);
 
-  const newPending = pending.filter(d => d !== myDept);
-  const updatedBy  = String(body.updatedBy || user.displayName).trim();
+  ja[myDept] = 'REJECTED';
+  const updatedBy = String(body.updatedBy || user.displayName).trim();
   await appendMasterLog(token, env, {
     ticketNo, now: new Date(), action: 'JOINT REQUEST REJECTED',
-    pendingJointDepts: newPending.join(', ') || 'NONE',
+    jointAcceptance: JSON.stringify(ja),
     updatedBy, notes: myDept + ' rejected joint attachment' + (body.reason ? ': ' + body.reason : ''),
   });
   await appendTicketHistory(token, env, ticketNo, 'JOINT REQUEST REJECTED', '', '', updatedBy,
@@ -2925,20 +2957,29 @@ async function handleApproveTicket(env, userEmail, body) {
   const updatedBy = String(body.updatedBy || user.displayName).trim();
 
   // If the approving manager's dept has a pending joint request on this ticket,
-  // auto-confirm the attachment (PENDING → JOINT) in the same ML row so they
+  // auto-confirm the attachment (PENDING → ACCEPTED) in the same ML row so they
   // become an active fixer the moment the ticket is opened.
-  let jointDepts = undefined, pendingJointDepts = undefined;
+  let jointDepts = undefined, jointAcceptance = undefined;
   const myDepts = (user.ownedDepts || []).map(d => d.toUpperCase().trim());
   if (myDepts.length) {
     const best = await _ticketState_(token, env, ticketNo);
     if (best) {
-      const pending = _normDepts_(cellStr(best, ML.PENDING_JOINT_DEPTS));
-      const myDept  = myDepts.find(d => pending.includes(d));
+      let myDept, ja = {};
+      const jaStr = cellStr(best, ML.JOINT_ACCEPTANCE);
+      if (jaStr) {
+        try { ja = JSON.parse(jaStr); } catch(e) { ja = {}; }
+        myDept = myDepts.find(d => ja[d] === 'PENDING');
+      }
+      if (!myDept) {
+        const pending = _normDepts_(cellStr(best, ML.PENDING_JOINT_DEPTS));
+        myDept = myDepts.find(d => pending.includes(d));
+      }
       if (myDept) {
         const joint = _normDepts_(cellStr(best, ML.JOINT_DEPTS));
         if (!joint.includes(myDept)) joint.push(myDept);
-        jointDepts        = joint.join(', ');
-        pendingJointDepts = pending.filter(d => d !== myDept).join(', ') || 'NONE';
+        jointDepts = joint.join(', ');
+        ja[myDept] = 'ACCEPTED';
+        jointAcceptance = JSON.stringify(ja);
       }
     }
   }
@@ -2948,8 +2989,8 @@ async function handleApproveTicket(env, userEmail, body) {
     priority: body.priority || '', assignedTo: body.assignedTo || '',
     estHours: body.estHours || '', updatedBy, notes: body.notes || '',
   };
-  if (jointDepts        !== undefined) logOpts.jointDepts        = jointDepts;
-  if (pendingJointDepts !== undefined) logOpts.pendingJointDepts = pendingJointDepts;
+  if (jointDepts      !== undefined) logOpts.jointDepts      = jointDepts;
+  if (jointAcceptance !== undefined) logOpts.jointAcceptance = jointAcceptance;
 
   await appendMasterLog(token, env, logOpts);
   const histNote = (body.notes ? body.notes + ' | ' : '') +
@@ -2960,7 +3001,7 @@ async function handleApproveTicket(env, userEmail, body) {
 
 // Collapse a ticket's latest state from the Master Log (last non-empty per col).
 async function _ticketState_(token, env, ticketNo) {
-  const rows = (await readSheet(token, env.SPREADSHEET_ID, SH.MASTER_LOG, 'A2:AT'))
+  const rows = (await readSheet(token, env.SPREADSHEET_ID, SH.MASTER_LOG, 'A2:AW'))
     .filter(r => cellStr(r, ML.TICKET_NO) === ticketNo);
   if (!rows.length) return null;
   const best = rows[0].slice();
@@ -2968,8 +3009,7 @@ async function _ticketState_(token, env, ticketNo) {
   return best;
 }
 function _normDepts_(s) {
-  // 'NONE' is a sentinel written when all pending depts are cleared; exclude it.
-  return String(s || '').split(',').map(d => d.trim().toUpperCase()).filter(d => d && d !== 'NONE');
+  return String(s || '').split(',').map(d => d.trim().toUpperCase()).filter(Boolean);
 }
 
 async function handleCompleteTicket(env, userEmail, body) {
@@ -3224,18 +3264,28 @@ async function handleTransferTicket(env, userEmail, body) {
   if (!ticketNo) return jsonResponse({ error: 'ticketNo required' }, 400);
   if (!toDept)   return jsonResponse({ error: 'toDept required' }, 400);
   const updatedBy = String(body.updatedBy || user.displayName).trim();
-  // Joint tickets replace transfers: add the dept to JOINT_DEPTS immediately so
-  // both departments have visibility for the whole lifecycle (no pending hand-off,
-  // and append-only logs can't reliably clear a pending field anyway).
-  const best  = await _ticketState_(token, env, ticketNo);
-  const joint = best ? _normDepts_(cellStr(best, ML.JOINT_DEPTS)) : [];
-  if (joint.indexOf(toDept) < 0) joint.push(toDept);
+  // Send a joint request to the target dept: they must Accept before being added
+  // to JOINT_DEPTS. JOINT_ACCEPTANCE tracks per-dept decision as a JSON map so
+  // the last-wins merge always has a non-empty value to write (unlike an empty
+  // clear on PENDING_JOINT_DEPTS which the merge ignores).
+  const best = await _ticketState_(token, env, ticketNo);
+  const existingPending = best ? _normDepts_(cellStr(best, ML.PENDING_JOINT_DEPTS)) : [];
+  if (existingPending.indexOf(toDept) < 0) existingPending.push(toDept);
+
+  let ja = {};
+  if (best) {
+    try { ja = JSON.parse(cellStr(best, ML.JOINT_ACCEPTANCE) || '{}'); } catch(e) { ja = {}; }
+  }
+  ja[toDept] = 'PENDING';
+
   await appendMasterLog(token, env, {
-    ticketNo, now: new Date(), action: 'JOINT DEPT ADDED',
-    jointDepts: joint.join(', '), assignedDept: toDept, updatedBy, notes: body.reason || '',
+    ticketNo, now: new Date(), action: 'JOINT REQUESTED',
+    pendingJointDepts: existingPending.join(', '),
+    jointAcceptance:   JSON.stringify(ja),
+    updatedBy, notes: body.reason || '',
   });
-  await appendTicketHistory(token, env, ticketNo, 'JOINT DEPT ADDED', '', '', updatedBy,
-    'Joint department added: ' + toDept + (body.reason ? ' — ' + body.reason : ''));
+  await appendTicketHistory(token, env, ticketNo, 'JOINT REQUESTED', '', '', updatedBy,
+    'Joint request sent to: ' + toDept + (body.reason ? ' — ' + body.reason : ''));
   return jsonResponse({ success: true, ticketNo });
 }
 
