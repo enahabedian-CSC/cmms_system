@@ -1812,25 +1812,48 @@ async function handleQueueTickets(env, userEmail, queueType, deptFilter) {
   }
 
   const [mlRows] = await Promise.all([
-    readSheet(token, env.SPREADSHEET_ID, SH.MASTER_LOG, 'A2:AQ'),
+    readSheet(token, env.SPREADSHEET_ID, SH.MASTER_LOG, 'A2:AW'),
     loadDeptAliases(token, env),
   ]);
+
+  // Last-wins JOINT_ACCEPTANCE per ticket — authoritative record of each dept's
+  // decision on a joint request. Used below to clean stale PENDING_JOINT_DEPTS
+  // values left over from earlier append-only rows (the column can never be
+  // cleared by writing an empty string in a last-wins merge).
+  const jaLastWins = {};
+  mlRows.forEach(r => {
+    const tn = cellStr(r, ML.TICKET_NO);
+    const ja = cellStr(r, ML.JOINT_ACCEPTANCE);
+    if (tn && ja) jaLastWins[tn] = ja;
+  });
+
   const tickets = mergeAndFilter(mlRows, statusFilter, deptFilter || null);
-  // mergeAndFilter only sets isJoint / isPendingJoint when a dept URL filter is
-  // active. Re-derive both flags relative to the user's owned depts so the
-  // waiting queue correctly marks tickets where the user is a pending-joint fixer
-  // even when no ?dept= param is in the URL.
+
+  // Clean pendingJointDepts: remove any dept whose JOINT_ACCEPTANCE is ACCEPTED
+  // or REJECTED. Without this, once-pending depts linger in the comma string
+  // forever (append-only log can't clear a column), so the ticket stays stuck
+  // in the "Pending Joint Requests" list even after the dept accepted.
+  tickets.forEach(t => {
+    if (!t.pendingJointDepts) return;
+    let ja = {};
+    if (jaLastWins[t.ticketNo]) {
+      try { ja = JSON.parse(jaLastWins[t.ticketNo]); } catch(e) { ja = {}; }
+    }
+    const trulyPending = t.pendingJointDepts.split(',')
+      .map(d => d.trim()).filter(d => d && ja[d] !== 'ACCEPTED' && ja[d] !== 'REJECTED');
+    t.pendingJointDepts = trulyPending.join(', ');
+  });
+
+  // Re-derive isJoint and isPendingJoint from the now-cleaned fields,
+  // relative to the user's owned depts (mergeAndFilter only sets these flags
+  // when a dept URL filter is active).
   if (user.ownedDepts && user.ownedDepts.length) {
     const owned = user.ownedDepts.map(d => d.toUpperCase().trim());
     tickets.forEach(t => {
-      if (!t.isJoint) {
-        const jl = t.jointDepts ? t.jointDepts.split(',').map(d => d.trim().toUpperCase()).filter(Boolean) : [];
-        if (jl.some(d => owned.includes(d))) t.isJoint = true;
-      }
-      if (!t.isPendingJoint) {
-        const pl = t.pendingJointDepts ? t.pendingJointDepts.split(',').map(d => d.trim().toUpperCase()).filter(Boolean) : [];
-        if (pl.some(d => owned.includes(d))) t.isPendingJoint = true;
-      }
+      const jl = t.jointDepts ? t.jointDepts.split(',').map(d => d.trim().toUpperCase()).filter(Boolean) : [];
+      if (!t.isJoint && jl.some(d => owned.includes(d))) t.isJoint = true;
+      const pl = t.pendingJointDepts ? t.pendingJointDepts.split(',').map(d => d.trim().toUpperCase()).filter(Boolean) : [];
+      t.isPendingJoint = pl.some(d => owned.includes(d));
     });
   }
   return jsonResponse({ tickets: tickets.slice(0, 500), userOwnedDepts: user.ownedDepts || [] });
@@ -1893,7 +1916,17 @@ async function handleTicketDetail(env, userEmail, ticketNo) {
     photoUrl:         cellStr(best, ML.PHOTO_URL),
     jointDepts:       cellStr(best, ML.JOINT_DEPTS),
     jointSignoffs:    cellStr(best, ML.JOINT_SIGNOFFS),
-    pendingJointDepts:cellStr(best, ML.PENDING_JOINT_DEPTS),
+    pendingJointDepts:(function() {
+      // Filter out depts whose JOINT_ACCEPTANCE is ACCEPTED or REJECTED — the
+      // append-only log cannot clear PENDING_JOINT_DEPTS by writing empty, so
+      // old rows leave a stale comma-string that must be cleaned here instead.
+      const raw = cellStr(best, ML.PENDING_JOINT_DEPTS);
+      if (!raw) return '';
+      let ja = {};
+      try { ja = JSON.parse(cellStr(best, ML.JOINT_ACCEPTANCE) || '{}'); } catch(e) {}
+      return raw.split(',').map(d => d.trim())
+        .filter(d => d && ja[d] !== 'ACCEPTED' && ja[d] !== 'REJECTED').join(', ');
+    })(),
     permFixPlan:      cellStr(best, ML.PERM_FIX_PLAN),
     permFixDate:      fmtDate(cellDate(best, ML.PERM_FIX_DATE)),
     downtimeDuration: cellStr(best, ML.DOWNTIME_DURATION),

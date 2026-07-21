@@ -20,7 +20,7 @@ compatibility_date = "2025-01-01"
 #
 # ── Optional vars ─────────────────────────────────────────────────────────────
 [vars]
-APP_VERSION = "4.08"
+APP_VERSION = "4.09"
 
 # ── Scheduled trigger ──────────────────────────────────────────────────────────
 # Daily PM auto-generate (runPmAutoGenerate in worker.js): creates the PM
