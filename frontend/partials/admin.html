@@ -303,6 +303,23 @@ function _loadEquipCachePage_(container) {
   })
   .then(function(r) { return r.json(); })
   .then(function(d) {
+    if (d && d.error === 'rate_limited') {
+      container.innerHTML =
+        '<div class="adm-unauthorized" style="display:flex;flex-direction:column;align-items:center;gap:8px;padding:24px;">' +
+        '<span style="font-size:28px;">⏳</span>' +
+        '<strong style="font-size:15px;">Usage Limit Reached</strong>' +
+        '<span style="font-size:13px;">Temporary usage exceeded. Refreshing in <strong id="_equip_rl_cd_">60</strong> seconds.</span>' +
+        '<button onclick="_loadEquipCachePage_(document.getElementById(\'page-admin-equip\'))" class="adm-edit-btn">Refresh Now</button>' +
+        '</div>';
+      var secs = 60;
+      var cd = document.getElementById('_equip_rl_cd_');
+      var timer = setInterval(function() {
+        secs--;
+        if (cd) cd.textContent = secs;
+        if (secs <= 0) { clearInterval(timer); _loadEquipCachePage_(container); }
+      }, 1000);
+      return;
+    }
     if (d && d.error) { container.innerHTML = '<div class="adm-unauthorized">Error: ' + esc(d.error) + '</div>'; return; }
     _renderEquipCachePage_(d, container);
   })
