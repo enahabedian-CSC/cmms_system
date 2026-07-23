@@ -705,6 +705,7 @@ function navigate(pageId) {
   if (newEl) newEl.classList.add('active');
 
   _currentPage = pageId;
+  history.replaceState(null, '', '#' + pageId);
 
   // Show correct page container (create if doesn't exist)
   document.querySelectorAll('.page').forEach(function(p) { p.classList.remove('active'); });
@@ -1212,6 +1213,11 @@ function _runApp_(version) {
   if (homePage) {
     loadPage('home', homePage);
     homePage.setAttribute('data-loaded', '1');
+  }
+
+  var _hashPage = window.location.hash ? window.location.hash.slice(1) : '';
+  if (_hashPage && _hashPage !== 'home' && PAGE_TITLES[_hashPage]) {
+    navigate(_hashPage);
   }
 }
 
