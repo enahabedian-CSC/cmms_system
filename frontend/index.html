@@ -32,6 +32,7 @@
   --status-success:    #059669;  --status-success-bg:  #ECFDF5;
   --status-info:       #0284C7;  --status-info-bg:     #F0F9FF;
   --status-warn:       #D97706;  --status-warn-bg:     #FFFBEB;
+  --status-joint:      #7C3AED;  --status-joint-bg:    #F5F3FF;
   --shadow-sm:  0 1px 2px rgba(15,23,42,.04);
   --shadow-md:  0 2px 8px rgba(15,23,42,.06);
   --shadow-lg:  0 12px 32px rgba(15,23,42,.12);
@@ -157,7 +158,7 @@ a{color:inherit;text-decoration:none;}
 .home-welcome{padding:24px 24px 0;}
 .home-greeting{font-size:22px;font-weight:700;color:var(--text-primary);margin-bottom:4px;}
 .home-sub{font-size:13px;color:var(--text-secondary);}
-.kpi-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:10px;}
+.kpi-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:12px;}
 /* legacy card style kept for backward compat with other partials */
 .kpi-card{background:var(--bg-surface);border:1px solid var(--border-default);border-radius:10px;padding:16px;box-shadow:var(--shadow-sm);}
 .kpi-card .kpi-label{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--text-secondary);margin-bottom:8px;}
@@ -189,8 +190,8 @@ a{color:inherit;text-decoration:none;}
 .trend-month{font-size:9px;color:var(--text-tertiary);text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;width:100%;margin-top:4px;}
 
 /* ── Design-system KPI card (accent-bar style from mockup) ──────────────── */
-.kpi{background:var(--bg-surface);border:1px solid var(--border-default);border-radius:8px;padding:12px 14px;position:relative;overflow:hidden;box-shadow:var(--shadow-sm);}
-.kpi .kpi-accent{position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--brand-navy);}
+.kpi{background:var(--bg-surface);border:1px solid var(--border-default);border-radius:10px;padding:14px 16px;position:relative;overflow:hidden;box-shadow:var(--shadow-md);}
+.kpi .kpi-accent{position:absolute;left:0;top:0;bottom:0;width:4px;background:var(--brand-navy);}
 .kpi.kpi-critical .kpi-accent{background:var(--status-critical);}
 .kpi.kpi-warn     .kpi-accent{background:var(--status-warn);}
 .kpi.kpi-success  .kpi-accent{background:var(--status-success);}
@@ -199,6 +200,14 @@ a{color:inherit;text-decoration:none;}
 .kpi .kpi-value{font-size:22px;font-weight:700;letter-spacing:-.02em;margin-top:5px;font-variant-numeric:tabular-nums;line-height:1;}
 .kpi .kpi-foot{font-size:10.5px;color:var(--text-tertiary);margin-top:5px;font-family:var(--font-mono);}
 .kpi-band{display:grid;gap:10px;margin-bottom:14px;}
+
+/* ── Dashboard collapsible category cards ───────────────────────────────── */
+.cat-caret{display:inline-flex;flex-shrink:0;color:var(--text-tertiary);transition:transform .2s;}
+.cat-caret.collapsed{transform:rotate(-90deg);}
+.cat-icon{display:inline-flex;flex-shrink:0;}
+.cat-count{font-size:11px;font-weight:700;color:#fff;border-radius:10px;padding:2px 9px;min-width:14px;text-align:center;font-variant-numeric:tabular-nums;}
+.cat-viewall{display:inline-flex;align-items:center;gap:2px;font-size:11px;font-weight:600;color:var(--text-secondary);background:transparent;border:0;padding:4px 2px;border-radius:4px;}
+.cat-viewall:hover{color:var(--brand-navy);}
 
 /* ── Dept KPI strip (tracker pages) ─────────────────────────────────────── */
 .dept-strip{display:grid;gap:1px;background:var(--border-default);border:1px solid var(--border-default);border-radius:8px;overflow:hidden;margin-bottom:14px;}
@@ -395,7 +404,10 @@ var ICONS = {
   admin:    '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83 0 2 2 0 010-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 010-2.83 2 2 0 012.83 0l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 0 2 2 0 010 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>',
   pm:       '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>',
   newticket:'<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg>',
-  chevron:  '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg>'
+  mail:     '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="M22 6l-10 7L2 6"/></svg>',
+  link:     '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71"/></svg>',
+  chevron:  '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg>',
+  chevronRight: '<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 6 15 12 9 18"/></svg>'
 };
 
 var DEPT_ICONS = {
@@ -907,20 +919,20 @@ window.PAGES['home'] = function(container) {
       '</div>' +
       // Slim KPI strip — current state (Module 10 declutter)
       '<div class="kpi-grid" id="kpi-grid" style="margin-top:20px;grid-template-columns:repeat(4,minmax(150px,1fr));">' +
-        _homeKpiCard_('Awaiting Verification','—', 'My depts / All depts', 'success',  'kpi-verify-home') +
-        _homeKpiCard_('Open Tickets',        '—', 'My depts / All depts', 'info',     'kpi-open') +
-        _homeKpiCard_('Critical Open',       '—', 'My depts / All depts', 'critical', 'kpi-critical') +
-        _homeKpiCard_('Temp Fixes Active',   '—', 'My depts / All depts', 'warn',     'kpi-temp') +
+        _homeKpiCard_('Awaiting Verification','—', 'success',  'kpi-verify-home') +
+        _homeKpiCard_('Open Tickets',        '—', 'info',     'kpi-open') +
+        _homeKpiCard_('Critical Open',       '—', 'critical', 'kpi-critical') +
+        _homeKpiCard_('Temp Fixes Active',   '—', 'warn',     'kpi-temp') +
       '</div>' +
     '</div>' +
 
     // Three collapsible category sections (Module 10 — declutter to 3 categories)
-    '<div style="padding:0 24px 24px;display:flex;flex-direction:column;gap:14px;">' +
-      _homeCatCard_('cat-pending-joint', '📩', 'Pending Joint Requests', '#6A1B9A',          'open')    +
-      _homeCatCard_('cat-joint',  '🔗', 'Joint Tickets',          'var(--status-warn)',    'open')    +
-      _homeCatCard_('cat-verify', '✅', 'Awaiting Verification',  'var(--status-success)', 'open')    +
-      _homeCatCard_('cat-temp',   '🔧', 'Temp Fix Alerts',        'var(--status-high)',    'tempfix') +
-      _homeCatCard_('cat-assign', '📋', 'Awaiting Assignment',   'var(--status-info)',    'waiting') +
+    '<div style="padding:20px 24px 24px;display:flex;flex-direction:column;gap:14px;">' +
+      _homeCatCard_('cat-pending-joint', ICONS.mail,    'Pending Joint Requests', 'var(--status-joint)',   'open')    +
+      _homeCatCard_('cat-joint',  ICONS.link,    'Joint Tickets',          'var(--status-warn)',    'open')    +
+      _homeCatCard_('cat-verify', ICONS.closed,  'Awaiting Verification',  'var(--status-success)', 'open')    +
+      _homeCatCard_('cat-temp',   ICONS.tempfix, 'Temp Fix Alerts',        'var(--status-high)',    'tempfix') +
+      _homeCatCard_('cat-assign', ICONS.pm,      'Awaiting Assignment',   'var(--status-info)',    'waiting') +
     '</div>';
 
   if (USER.announcement) openAnnouncementModal();
@@ -955,12 +967,12 @@ window.PAGES['home'] = function(container) {
 // Collapsible category card for the home dashboard (Module 10).
 function _homeCatCard_(id, icon, label, accent, navTarget) {
   return '<div class="trend-card" style="padding:0;overflow:hidden;">' +
-    '<div onclick="_homeToggle_(\'' + id + '\')" style="display:flex;align-items:center;gap:8px;padding:12px 16px;cursor:pointer;border-bottom:1px solid var(--border-default);">' +
-      '<span id="' + id + '-caret" style="font-size:10px;color:var(--text-tertiary);width:10px;">▼</span>' +
-      '<span style="font-size:14px;">' + icon + '</span>' +
+    '<div onclick="_homeToggle_(\'' + id + '\')" style="display:flex;align-items:center;gap:10px;padding:12px 16px;cursor:pointer;border-bottom:1px solid var(--border-default);">' +
+      '<span id="' + id + '-caret" class="cat-caret">' + ICONS.chevron + '</span>' +
+      '<span class="cat-icon" style="color:' + accent + ';">' + icon + '</span>' +
       '<span style="font-size:13px;font-weight:700;color:var(--text-primary);flex:1;">' + esc(label) + '</span>' +
-      '<span id="' + id + '-count" style="font-size:11px;font-weight:700;background:' + accent + ';color:#fff;border-radius:10px;padding:1px 9px;min-width:14px;text-align:center;">0</span>' +
-      '<button onclick="event.stopPropagation();navigate(\'' + navTarget + '\')" style="font-size:11px;color:var(--text-secondary);background:transparent;border:0;cursor:pointer;">View all →</button>' +
+      '<span id="' + id + '-count" class="cat-count" style="background:' + accent + ';">0</span>' +
+      '<button class="cat-viewall" onclick="event.stopPropagation();navigate(\'' + navTarget + '\')">View all' + ICONS.chevronRight + '</button>' +
     '</div>' +
     '<div id="' + id + '-body" style="padding:6px 16px 10px;">' +
       '<div class="loading-overlay" style="height:50px;"><div class="spinner"></div></div>' +
@@ -974,7 +986,7 @@ function _homeToggle_(id) {
   if (!body) return;
   var hidden = body.style.display === 'none';
   body.style.display = hidden ? '' : 'none';
-  if (caret) caret.textContent = hidden ? '▼' : '▶';
+  if (caret) caret.classList.toggle('collapsed', !hidden);
 }
 
 // Small section header for the weekly/monthly SQF review bands.
@@ -985,12 +997,11 @@ function _homeReviewTitle_(label, sub) {
   '</div>';
 }
 
-function _homeKpiCard_(label, value, foot, accent, id) {
+function _homeKpiCard_(label, value, accent, id) {
   return '<div class="kpi' + (accent ? ' kpi-' + accent : '') + '" id="' + id + '" style="cursor:default;">' +
     '<div class="kpi-accent"></div>' +
     '<div class="kpi-label">' + esc(label) + '</div>' +
     '<div class="kpi-value" id="' + id + '-val">' + esc(value) + '</div>' +
-    '<div class="kpi-foot">' + esc(foot) + '</div>' +
   '</div>';
 }
 
