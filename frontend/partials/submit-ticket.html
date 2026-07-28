@@ -129,13 +129,14 @@ var _sfSel          = { dept: '', level2: '', level3: '', level4: '' };
 var _sfRows         = [];
 var _sfResolvedCode = '';
 var _sfEstHours     = 1;
+var _sfEstDays      = 0;
 
 window.PAGES = window.PAGES || {};
 
 PAGES['submit'] = function(container) {
   _sfPriority = 'LOW'; _sfEquipCode = ''; _sfEquipSpec = ''; _sfPhotos_ = []; _sfJointDepts_ = [];
   _sfSel = { dept: '', level2: '', level3: '', level4: '' };
-  _sfRows = []; _sfResolvedCode = ''; _sfEstHours = 1;
+  _sfRows = []; _sfResolvedCode = ''; _sfEstHours = 1; _sfEstDays = 0;
   container.innerHTML = _buildSubmitHTML_();
   if (_sfData) {
     _sfPopulate_(_sfData);
@@ -327,12 +328,20 @@ function _buildSubmitHTML_() {
     '<div class="sf-section">' +
       '<div class="form-row cols-2" style="margin-bottom:16px;align-items:center;">' +
         '<div class="form-group">' +
-          '<label class="form-label">Estimated Hours</label>' +
-          '<div class="sf-hrs-wrap">' +
-            '<button type="button" class="sf-hrs-btn" onclick="_sfAdjHours_(-0.5)">−</button>' +
-            '<div class="sf-hrs-val" id="sf-hrs-val">1</div>' +
-            '<span class="sf-hrs-unit">hrs</span>' +
-            '<button type="button" class="sf-hrs-btn" onclick="_sfAdjHours_(0.5)">+</button>' +
+          '<label class="form-label">Estimated Time</label>' +
+          '<div style="display:flex;align-items:center;gap:18px;">' +
+            '<div class="sf-hrs-wrap">' +
+              '<button type="button" class="sf-hrs-btn" onclick="_sfAdjDays_(-1)">−</button>' +
+              '<div class="sf-hrs-val" id="sf-days-val">0</div>' +
+              '<span class="sf-hrs-unit">d</span>' +
+              '<button type="button" class="sf-hrs-btn" onclick="_sfAdjDays_(1)">+</button>' +
+            '</div>' +
+            '<div class="sf-hrs-wrap">' +
+              '<button type="button" class="sf-hrs-btn" onclick="_sfAdjHours_(-0.5)">−</button>' +
+              '<div class="sf-hrs-val" id="sf-hrs-val">1</div>' +
+              '<span class="sf-hrs-unit">hrs</span>' +
+              '<button type="button" class="sf-hrs-btn" onclick="_sfAdjHours_(0.5)">+</button>' +
+            '</div>' +
           '</div>' +
         '</div>' +
         '<div class="form-group" style="justify-content:flex-end;padding-top:18px;">' +
@@ -640,9 +649,15 @@ function selectPriority(p) {
 // ── Est. hours stepper ────────────────────────────────────────────────────────
 
 function _sfAdjHours_(delta) {
-  _sfEstHours = Math.round(Math.max(0.5, Math.min(16, _sfEstHours + delta)) * 2) / 2;
+  _sfEstHours = Math.round(Math.max(0, Math.min(23.5, _sfEstHours + delta)) * 2) / 2;
   var el = document.getElementById('sf-hrs-val');
   if (el) el.textContent = _sfEstHours % 1 === 0 ? String(_sfEstHours) : _sfEstHours.toFixed(1);
+}
+
+function _sfAdjDays_(delta) {
+  _sfEstDays = Math.max(0, Math.min(30, _sfEstDays + delta));
+  var el = document.getElementById('sf-days-val');
+  if (el) el.textContent = String(_sfEstDays);
 }
 
 // ── Routing banner ────────────────────────────────────────────────────────────
@@ -867,7 +882,7 @@ function submitTicket() {
     observations:  val('sf-obs').trim(),
     addedBy:       addedBy,
     partsNeeded:        !!((document.getElementById('sf-parts') || {}).checked),
-    estHours:           _sfEstHours || 1,
+    estHours:           (_sfEstDays * 24) + (_sfEstHours || 0),
     pendingJointDepts:  _sfJointDepts_.join(', '),
   };
 
@@ -982,7 +997,7 @@ function copyTicketNo(tn) {
 function submitAnotherTicket() {
   _sfPriority = 'LOW'; _sfEquipCode = ''; _sfEquipSpec = ''; _sfPhotos_ = []; _sfJointDepts_ = [];
   _sfSel = { dept: '', level2: '', level3: '', level4: '' };
-  _sfRows = []; _sfResolvedCode = ''; _sfEstHours = 1;
+  _sfRows = []; _sfResolvedCode = ''; _sfEstHours = 1; _sfEstDays = 0;
   var container = document.getElementById('page-submit');
   if (!container) { navigate('submit'); return; }
   container.innerHTML = _buildSubmitHTML_();
