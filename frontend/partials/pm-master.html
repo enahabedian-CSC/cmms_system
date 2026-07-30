@@ -268,6 +268,10 @@ window._PM_SAMPLE_ = window._PM_SAMPLE_ || {
     { ticketNo:'PM-008-260529-004', schedId:'PMS-008-707-6M', date:'2026-05-29', status:'OPEN',     assigned:'Unassigned',      due:'2026-06-05' }
   ]
 };
+// Frozen copy of the seed above — pm-packets.html links to these ticket numbers
+// directly, so once a real fetch overwrites _PM_SAMPLE_ with live (still-empty)
+// backend data, ticket/schedule lookups fall back here instead of 404ing.
+window._PM_SAMPLE_SEED_ = window._PM_SAMPLE_SEED_ || JSON.parse(JSON.stringify(window._PM_SAMPLE_));
 
 /* ── module state ──────────────────────────────────────────────────────── */
 var _PM_FREQS_ = ['Weekly','Monthly','Quarterly','6-Month','Annual'];
@@ -286,7 +290,14 @@ function _pmFreqToPri_(f){ return ({Weekly:'HIGH',Monthly:'MEDIUM',Quarterly:'ME
 function _pmEffPri_(s){ return s.priorityMode === 'explicit' ? s.priority : _pmFreqToPri_(s.freq); }
 function _pmEffStatus_(s){ return _pmStatusOv_[s.id] || s.status; }
 function _pmEffSched_(s){ var o = _pmSchedOv_[s.id]; return o ? Object.assign({}, s, o) : s; }
-function _pmSchedById_(id){ return (window._PM_SAMPLE_.schedules).filter(function(s){ return s.id === id; })[0]; }
+function _pmSchedById_(id){
+  var s = (window._PM_SAMPLE_.schedules || []).filter(function(x){ return x.id === id; })[0];
+  return s || (window._PM_SAMPLE_SEED_.schedules || []).filter(function(x){ return x.id === id; })[0];
+}
+function _pmTicketByNo_(no){
+  var t = (window._PM_SAMPLE_.tickets || []).filter(function(x){ return x.ticketNo === no; })[0];
+  return t || (window._PM_SAMPLE_SEED_.tickets || []).filter(function(x){ return x.ticketNo === no; })[0];
+}
 function _pmPriBadge_(p){ return '<span class="pri-badge pri-' + esc(p || '') + '">' + esc(p || '&#8212;') + '</span>'; }
 function _pmSchedBadge_(s){ return '<span class="pm-sbadge pm-sb-' + esc(s.replace(/\s+/g,'-')) + '">' + esc(s) + '</span>'; }
 function _pmTicketBadge_(s){ return '<span class="pm-tbadge pm-tb-' + esc(s.replace(/\s+/g,'-')) + '">' + esc(s) + '</span>'; }
@@ -760,7 +771,7 @@ function _pmDeleteSched_(id) {
    PM ticket work-order slide-over
    ══════════════════════════════════════════════════════════════════════════ */
 function _pmOpenTicket_(no) {
-  var t = (window._PM_SAMPLE_.tickets || []).filter(function(x){ return x.ticketNo === no; })[0];
+  var t = _pmTicketByNo_(no);
   if (!t) { showToast('PM ticket ' + no + ' not found.', 'error'); return; }
   document.getElementById('pm-ticket-overlay').classList.add('open');
   _pmRenderTicket_(no);
@@ -768,7 +779,7 @@ function _pmOpenTicket_(no) {
 function _pmCloseTicket_() { document.getElementById('pm-ticket-overlay').classList.remove('open'); }
 
 function _pmRenderTicket_(no) {
-  var t = (window._PM_SAMPLE_.tickets || []).filter(function(x){ return x.ticketNo === no; })[0];
+  var t = _pmTicketByNo_(no);
   var s = _pmEffSched_(_pmSchedById_(t.schedId));
   var pri = _pmEffPri_(_pmSchedById_(t.schedId));
 
