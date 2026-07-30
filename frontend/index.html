@@ -123,36 +123,48 @@ a{color:inherit;text-decoration:none;}
 
 /* ── Loading / skeleton ──────────────────────────────────────────────────── */
 .loading-overlay{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;height:100%;color:var(--text-secondary);}
-/* Can-seaming spinner: a can body with its lid dropping into place, settling
-   with a soft bounce, holding, then fading to loop. Purely decorative — same
-   .spinner element used everywhere, no markup changes needed at call sites. */
+/* Can-seaming spinner: a translucent can body with its lid dropping into
+   place, settling with a soft bounce, holding, then fading to loop. Purely
+   decorative — same .spinner element used everywhere, no markup changes
+   needed at call sites. */
 .spinner{
   position:relative;
-  width:22px;height:26px;
-  background:linear-gradient(180deg,#D3DBE2 0%,#98A5B3 45%,#727F8D 100%);
-  border-radius:40% 40% 22% 22% / 16% 16% 10% 10%;
-  box-shadow:inset 0 -3px 4px rgba(0,0,0,.20), inset 0 2px 2px rgba(255,255,255,.55);
+  width:19px;height:32px;
+  background:rgba(0,31,79,0.22);
+  border-radius:40% 40% 22% 22% / 12% 12% 8% 8%;
+  box-shadow:inset 0 -4px 5px rgba(0,31,79,.14), inset 0 3px 3px rgba(255,255,255,.30);
+}
+.spinner::after{
+  content:'';
+  position:absolute;
+  left:50%;bottom:-3px;
+  width:15px;height:4px;
+  margin-left:-7.5px;
+  background:rgba(0,31,79,0.10);
+  border-radius:50%;
+  filter:blur(1px);
 }
 .spinner::before{
   content:'';
   position:absolute;
   left:50%;top:0;
-  width:22px;height:7px;
-  margin-left:-11px;
-  background:linear-gradient(180deg,#EEF2F5 0%,#B6C1CB 100%);
+  width:19px;height:6px;
+  margin-left:-9.5px;
+  background:rgba(0,31,79,0.55);
   border-radius:50%;
-  box-shadow:0 1px 1px rgba(0,0,0,.28);
+  box-shadow:0 1px 1px rgba(0,31,79,.30), inset 0 -1px 2px rgba(255,255,255,.35);
+  transform-origin:center;
   animation:can-seam 1.8s ease-in-out infinite;
 }
 @keyframes can-seam{
-  0%   { transform:translateY(-15px); opacity:0; }
+  0%   { transform:translateY(-18px); opacity:0; }
   8%   { opacity:1; }
-  45%  { transform:translateY(-15px); opacity:1; }
+  45%  { transform:translateY(-18px); opacity:1; }
   60%  { transform:translateY(2px); }
   68%  { transform:translateY(-1.5px); }
   78%  { transform:translateY(-3px); }
   92%  { transform:translateY(-3px); opacity:1; }
-  100% { transform:translateY(-15px); opacity:0; }
+  100% { transform:translateY(-18px); opacity:0; }
 }
 
 /* ── Welcome / home ──────────────────────────────────────────────────────── */
