@@ -4965,7 +4965,11 @@ async function handleEquipInventory(env, userEmail) {
 
 export default {
   async fetch(request, env) {
-    const allowedOrigin = env.ALLOWED_ORIGIN || '*';
+    const requestOrigin  = request.headers.get('Origin') || '';
+    const allowedOrigins = (env.ALLOWED_ORIGIN || '*').split(',').map(o => o.trim());
+    const allowedOrigin  = allowedOrigins.includes('*')
+      ? '*'
+      : (allowedOrigins.includes(requestOrigin) ? requestOrigin : allowedOrigins[0]);
 
     if (request.method === 'OPTIONS') {
       return new Response(null, {
