@@ -881,4 +881,22 @@ function _tlQuickApprove_(btn, ticketNo) {
     btn.textContent = '✓';
   });
 }
+
+// ── Auto-refresh ticket lists every 60 seconds ────────────────────────────
+(function() {
+  var _REFRESHABLE_ = { open: 1, waiting: 1, verify: 1 };
+  setInterval(function() {
+    if (document.visibilityState !== 'visible') return;
+    var overlay = document.getElementById('td-overlay');
+    if (overlay && overlay.classList.contains('open')) return;
+    var cp = typeof _currentPage !== 'undefined' ? _currentPage : '';
+    if (!cp) return;
+    var isTracker = cp.indexOf('tracker-') === 0;
+    if (!_REFRESHABLE_[cp] && !isTracker) return;
+    var deptFilter = isTracker
+      ? cp.slice('tracker-'.length).replace(/-/g, ' ').toUpperCase()
+      : null;
+    _refreshQueuePage_(cp, deptFilter);
+  }, 60000);
+})();
 </script>
