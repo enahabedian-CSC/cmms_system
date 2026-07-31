@@ -788,7 +788,7 @@ function signOut() {
   // On Cloudflare-hosted sites, redirect to CF Access logout to clear both sessions.
   var host = window.location.hostname;
   if (host === 'containersupply.app' || host.endsWith('.pages.dev')) {
-    window.location.href = 'https://csc-hub.cloudflareaccess.com/cdn-cgi/access/logout';
+    window.location.href = window.location.origin + '/cdn-cgi/access/logout';
     return;
   }
   // GitHub Pages — no Cloudflare Access, just show the sign-in button.
