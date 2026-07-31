@@ -785,9 +785,13 @@ function signOut() {
   if (typeof google !== 'undefined' && google.accounts && google.accounts.id) {
     try { google.accounts.id.disableAutoSelect(); } catch(e) {}
   }
-  // On Cloudflare-hosted sites, redirect to Cloudflare Access logout so both
-  // the app session and the Access session are cleared together.
-  // GitHub Pages / other — no Cloudflare Access, just show the sign-in button.
+  // On Cloudflare-hosted sites, redirect to CF Access logout to clear both sessions.
+  var host = window.location.hostname;
+  if (host === 'containersupply.app' || host.endsWith('.pages.dev')) {
+    window.location.href = 'https://csc-hub.cloudflareaccess.com/cdn-cgi/access/logout';
+    return;
+  }
+  // GitHub Pages — no Cloudflare Access, just show the sign-in button.
   document.body.innerHTML =
     '<div style="display:flex;align-items:center;justify-content:center;height:100vh;">' +
     '<div id="_gsi_btn_"></div></div>';
