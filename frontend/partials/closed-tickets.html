@@ -119,7 +119,7 @@ function _renderClosed_(tickets, userOwnedDepts, container) {
   }
 
   var fpHtml =
-    '<div class="fp-bar" id="ct-fp-bar">' +
+    '<div class="fp-bar fp-open" id="ct-fp-bar">' +
       '<div class="fp-row">' +
         (showDeptFP
           ? '<div class="fp-group">' +
@@ -166,7 +166,7 @@ function _renderClosed_(tickets, userOwnedDepts, container) {
       '<span class="ct-title">Closed Tickets</span>' +
       '<span class="ct-count" id="ct-cnt">' + _ctData_.length + ' ticket' + (_ctData_.length !== 1 ? 's' : '') + '</span>' +
       '<input class="ct-search" id="ct-search" placeholder="Search…" oninput="_ctApply_()" />' +
-      '<button class="fp-toggle" id="ct-fp-toggle" onclick="_ctToggleFP_()">' +
+      '<button class="fp-toggle fp-active" id="ct-fp-toggle" onclick="_ctToggleFP_()">' +
         '&#8862; Filters <span class="fp-badge" id="ct-fp-badge" style="display:none">0</span>' +
       '</button>' +
       '<button onclick="_refreshClosed_()" style="height:30px;padding:0 10px;border:1px solid var(--border-default);border-radius:6px;background:#fff;font-size:12px;cursor:pointer;color:var(--text-secondary);" title="Refresh">&#8635;</button>' +
@@ -175,6 +175,7 @@ function _renderClosed_(tickets, userOwnedDepts, container) {
     '<div class="ct-table-wrap"><table class="ct-table">' +
       '<thead><tr>' +
         _ctTh_('ticketNo','Ticket #') +
+        _ctTh_('dateOpened','Date Opened') +
         _ctTh_('priority','Priority') +
         _ctTh_('status','Status') +
         _ctTh_('dept','Dept') +
@@ -182,7 +183,6 @@ function _renderClosed_(tickets, userOwnedDepts, container) {
         _ctTh_('specificEquip','Equipment') +
         _ctTh_('description','Description') +
         _ctTh_('assignedTo','Assigned To') +
-        _ctTh_('dateOpened','Date Opened') +
         _ctTh_('dateClosed','Date Closed') +
       '</tr></thead>' +
       '<tbody id="ct-tbody"></tbody>' +
@@ -208,7 +208,13 @@ function _ctApply_() {
   var atv = atEl ? atEl.value : '';
 
   var filtered = _ctData_.filter(function(t) {
-    if (checkedDepts.length && checkedDepts.indexOf((t.dept || '').toUpperCase().trim()) < 0) return false;
+    if (checkedDepts.length) {
+      var tDepts = [(t.dept || '').toUpperCase().trim()].concat(
+        (t.jointDepts || '').split(',').map(function(d){ return d.toUpperCase().trim(); }).filter(Boolean),
+        (t.pendingJointDepts || '').split(',').map(function(d){ return d.toUpperCase().trim(); }).filter(Boolean)
+      );
+      if (!tDepts.some(function(d){ return checkedDepts.indexOf(d) >= 0; })) return false;
+    }
     if (checkedPris.length  && checkedPris.indexOf(t.priority) < 0) return false;
     if (checkedStas.length  && checkedStas.indexOf(t.status)   < 0) return false;
     if (atv && t.assignedTo !== atv) return false;
@@ -250,6 +256,7 @@ function _ctRenderRows_(list) {
     var staCls = 'stat-' + t.status;
     return '<tr onclick="openTicketDetail(\'' + esc(t.ticketNo) + '\')">' +
       '<td class="col-ticket">' + esc(t.ticketNo) + '</td>' +
+      '<td style="color:var(--text-tertiary);font-size:11.5px;">' + esc(t.dateOpened) + '</td>' +
       '<td><span class="pri-badge ' + priCls + '">' + esc(t.priority || '&#8212;') + '</span></td>' +
       '<td><span class="stat-badge ' + staCls + '">' + esc(t.status) + '</span></td>' +
       '<td>' + esc(t.dept) + '</td>' +
@@ -259,7 +266,6 @@ function _ctRenderRows_(list) {
         esc(t.specificEquip) + '</td>' +
       '<td class="col-desc" title="' + esc(t.description) + '">' + esc(t.description) + '</td>' +
       '<td>' + esc(t.assignedTo || '&#8212;') + '</td>' +
-      '<td style="color:var(--text-tertiary);font-size:11.5px;">' + esc(t.dateOpened) + '</td>' +
       '<td style="color:var(--status-success);font-size:11.5px;font-weight:600;">' + esc(t.dateClosed || '&#8212;') + '</td>' +
       '</tr>';
   }).join('');
