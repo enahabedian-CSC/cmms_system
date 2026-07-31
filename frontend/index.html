@@ -1351,7 +1351,21 @@ function _runApp_(version) {
     });
   }
 
-  // GSI library may still be loading (async defer) — wait for it
+  // On Cloudflare-hosted sites, read identity from CF Access so the user only
+  // signs in once (through the CF Access gate) rather than a second time here.
+  var _cfHost = window.location.hostname;
+  if (_cfHost === 'containersupply.app' || _cfHost.endsWith('.pages.dev')) {
+    fetch('/cdn-cgi/access/get-identity', { credentials: 'same-origin' })
+      .then(function(r) { return r.ok ? r.json() : Promise.reject(); })
+      .then(function(id) {
+        if (id && id.email) { startWithEmail(id.email); } else { _initGSI_(); }
+      })
+      .catch(_initGSI_);
+    return;
+  }
+
+  // GitHub Pages / other: use Google Sign-In.
+  // GSI library may still be loading (async defer) — wait for it.
   if (typeof google !== 'undefined' && google.accounts) {
     _initGSI_();
   } else {
