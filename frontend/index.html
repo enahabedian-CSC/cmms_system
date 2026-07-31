@@ -789,7 +789,7 @@ function signOut() {
   // the app session and the Access session are cleared together.
   var host = window.location.hostname;
   if (host === 'containersupply.app' || host.endsWith('.pages.dev')) {
-    window.location.href = 'https://csc-hub.cloudflareaccess.com/cdn-cgi/access/logout';
+    window.location.href = window.location.origin + '/cdn-cgi/access/logout';
     return;
   }
   // GitHub Pages / other — no Cloudflare Access, just show the sign-in button.
