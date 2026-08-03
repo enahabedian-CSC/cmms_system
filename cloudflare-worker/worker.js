@@ -4339,8 +4339,9 @@ async function handleEMRLData(env, userEmail, params) {
     r.forEach((v, i) => { if (v != null && v !== '') byTicket[tn][i] = v; });
   });
 
-  const ticketFilter = String(params.ticketNo || '').trim().toUpperCase();
-  const deptFilter   = String(params.dept     || '').trim().toUpperCase();
+  const ticketFilter = String(params.ticketNo  || '').trim().toUpperCase();
+  const deptFilter   = String(params.dept      || '').trim().toUpperCase();
+  const equipFilter  = String(params.equipCode || '').trim().toUpperCase();
   const dateFrom     = params.dateFrom ? new Date(params.dateFrom) : null;
   const dateTo       = params.dateTo   ? new Date(params.dateTo + 'T23:59:59') : null;
 
@@ -4352,12 +4353,14 @@ async function handleEMRLData(env, userEmail, params) {
     if (ticketFilter && !tn.toUpperCase().includes(ticketFilter)) return;
     const dept = normalizeDept(cellStr(r, ML.DEPT));
     if (deptFilter && dept.toUpperCase() !== deptFilter) return;
+    const equipCode = cellStr(r, ML.EQUIP_CODE);
+    if (equipFilter && !equipCode.toUpperCase().includes(equipFilter)) return;
     const dc = cellDate(r, ML.DATE_CLOSED) || cellDate(r, ML.VERIFIED_DATE);
     if (dateFrom && dc && dc < dateFrom) return;
     if (dateTo   && dc && dc > dateTo)   return;
     const ca = cellStr(r, ML.CORRECTIVE_ACT), rc = cellStr(r, ML.ROOT_CAUSE), pa = cellStr(r, ML.PREVENTIVE_ACT);
     records.push({
-      ticketNo: tn, dept, equipType: cellStr(r, ML.EQUIP_TYPE), specificEquip: cellStr(r, ML.SPECIFIC_EQUIP),
+      ticketNo: tn, dept, equipType: cellStr(r, ML.EQUIP_TYPE), equipCode, specificEquip: cellStr(r, ML.SPECIFIC_EQUIP),
       repairDate: fmtDate(dc), assignedTo: cellStr(r, ML.ASSIGNED_TO),
       rootCause: rc, correctiveAct: ca, preventiveAct: pa, partsUsed: '',
       capaRequired: (ca || rc || pa) ? 'YES' : 'NO',
