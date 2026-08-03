@@ -2390,6 +2390,95 @@ async function handlePmSchedulesGet(env, userEmail) {
   return jsonResponse({ schedules, tickets });
 }
 
+const PM_MONTH_ABBR = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+
+// Human "window" label for a packet, derived from frequency + next-due date,
+// e.g. Weekly/Monthly -> "Jun 2026", Quarterly -> "Q2 2026", 6-Month -> "H1
+// 2026", Annual -> "2026".
+function pmPacketWindow(freq, isoDate) {
+  if (!isoDate) return '';
+  const d = new Date(isoDate + 'T00:00:00');
+  if (isNaN(d.getTime())) return '';
+  const y = d.getFullYear(), m = d.getMonth(); // 0-based month
+  const f = (freq || '').toLowerCase();
+  if (f.indexOf('quarter') >= 0) return 'Q' + (Math.floor(m / 3) + 1) + ' ' + y;
+  if (f.indexOf('6') >= 0 || f.indexOf('semi') >= 0) return (m < 6 ? 'H1' : 'H2') + ' ' + y;
+  if (f.indexOf('annual') >= 0 || f.indexOf('year') >= 0) return String(y);
+  return PM_MONTH_ABBR[m] + ' ' + y; // Weekly / Monthly / anything else
+}
+
+// GET /api/pm/packets — group PM Schedules by (asset, frequency) into a
+// "packet": every PM due for one machine at a single interval, each item
+// showing its most recently generated PM Ticket (status + assigned tech) so
+// a manager can work the checklist / print a floor sign-off sheet. This is
+// the real data behind the PM Packets screen — replaces the hardcoded
+// window._PM_PACKETS_ sample data in pm-packets.html.
+async function handlePmPacketsGet(env, userEmail) {
+  const token = await getAccessToken(env);
+  const user  = await resolveUser(token, env, userEmail);
+  if (!user.isManager && !user.isTech) return jsonResponse({ error: 'Access required' }, 403);
+
+  const schedSheet = env.PM_SCHED_SHEET   || SH.PM_SCHED;
+  const tktSheet   = env.PM_TICKETS_SHEET || SH.PM_TICKETS;
+
+  const [schedRows, tktRows] = await Promise.all([
+    readSheet(token, env.SPREADSHEET_ID, schedSheet, 'A2:V').catch(() => []),
+    readSheet(token, env.SPREADSHEET_ID, tktSheet,   'A2:G').catch(() => []),
+  ]);
+
+  let schedules = schedRows
+    .filter(r => cellStr(r, PM.PM_ID))
+    .map(pmRowToSchedule);
+  schedules = schedules.filter(s => pmCanAccessDept(user, s.dept));
+
+  // PM Tickets sheet only tracks status + assigned tech per generated ticket
+  // (no completed-by/date columns) — last-wins per schedule id if a schedule
+  // has been generated more than once.
+  const latestTicketBySched = {};
+  tktRows.forEach(r => {
+    const schedId = cellStr(r, PMT.SCHED_ID);
+    if (!schedId) return;
+    latestTicketBySched[schedId] = {
+      ticketNo: cellStr(r, PMT.TICKET_NO),
+      status:   (cellStr(r, PMT.STATUS) || 'WAITING').toUpperCase(),
+      assigned: cellStr(r, PMT.ASSIGNED) || 'Unassigned',
+      due:      cellStr(r, PMT.DUE),
+    };
+  });
+
+  // Group schedules into packets by (asset, frequency).
+  const packets = {};
+  schedules.forEach(s => {
+    const key = s.asset + '::' + s.freq;
+    if (!packets[key]) {
+      packets[key] = {
+        id:        'PKT-' + s.asset + '-' + s.freq.replace(/\s+/g, ''),
+        asset:     s.asset,
+        assetName: s.assetName,
+        dept:      s.dept,
+        freq:      s.freq,
+        due:       s.nextDue,
+        window:    pmPacketWindow(s.freq, s.nextDue),
+        items:     [],
+      };
+    }
+    const pkt = packets[key];
+    if (s.nextDue && (!pkt.due || s.nextDue < pkt.due)) { pkt.due = s.nextDue; pkt.window = pmPacketWindow(s.freq, s.nextDue); }
+    const tkt = latestTicketBySched[s.id];
+    pkt.items.push({
+      schedId: s.id, // stable per-item key — ticket can be blank until generated
+      label:  s.type || (s.tasks[0] && s.tasks[0].t) || 'PM Task',
+      type:   s.type,
+      ticket: tkt ? tkt.ticketNo : '',
+      done:   tkt ? tkt.status === 'COMPLETE' : false,
+      by:     tkt ? tkt.assigned : '',
+      date:   tkt ? tkt.due : '',
+    });
+  });
+
+  return jsonResponse({ packets: Object.values(packets) });
+}
+
 // POST /api/pm/schedules/add — append a new PM schedule definition.
 // The intake form sends every user-entered field; PM ID, Next Due, Status and
 // timestamps are assigned here so IDs stay unique and dates stay authoritative.
@@ -5068,6 +5157,7 @@ export default {
       else if (p === '/api/submit/add'                  && method === 'POST')res = await handleAddTicket(env, userEmail, body);
       // Preventive Maintenance
       else if (p === '/api/pm/schedules'                && method === 'GET') res = await handlePmSchedulesGet(env, userEmail);
+      else if (p === '/api/pm/packets'                  && method === 'GET') res = await handlePmPacketsGet(env, userEmail);
       else if (p === '/api/pm/schedules/add'            && method === 'POST')res = await handlePmScheduleAdd(env, userEmail, body);
       else if (p === '/api/pm/intake/add'               && method === 'POST')res = await handlePmScheduleAdd(env, userEmail, body); // legacy alias
       else if (p === '/api/pm/snooze'                   && method === 'POST')res = await handlePmSnooze(env, userEmail, body);
