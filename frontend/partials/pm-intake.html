@@ -176,7 +176,7 @@
 // datalist → key of a runtime option list (asset autocomplete)
 window.PM_INTAKE_CONFIG = {
   addEndpoint: '/api/pm/schedules/add',
-  formCode: 'FRM-030-004',
+  formCode: 'FRM-030-008',
   sections: [
     { id: 'ident', num: 1, title: 'Record Identification',
       note: 'Assigned automatically', keys: ['pmId', 'nextDue'] },
@@ -549,7 +549,7 @@ function _pmiRender_(container) {
       '<div class="pmi-hdr">' +
         '<div class="pmi-hdr-title">New PM Entry</div>' +
         '<div class="pmi-hdr-sub">Define a preventive-maintenance schedule. The PM ID, next-due date and status are assigned <strong>automatically</strong>; the definition lands on the <strong>PM Schedules</strong> tab and appears immediately in the PM Master view.</div>' +
-        '<div class="pmi-hdr-code">' + esc(cfg.formCode) + '</div>' +
+        '<div class="pmi-hdr-code">' + esc(docLabel('ticketForm') || cfg.formCode) + '</div>' +
         '<div style="margin-top:10px;"><button type="button" class="pmi-btn pmi-btn-ghost" onclick="_pmiOpenDupPicker_()">Duplicate a Previous PM</button></div>' +
       '</div>' +
       '<div class="pmi-banner" id="pmi-banner"></div>' +

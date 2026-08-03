@@ -150,6 +150,7 @@ function _renderEquipInventory_(data, container) {
       _eiKpiCard_('Tracked MTBF', withMtbf, 'equipment with failure history') +
     '</div>' +
     '<div id="ei-body"></div>' +
+    '<div class="sqf-footer"><span>' + esc(docLabel('equipmentInventory') || 'FRM-030-001') + ' · Equipment Inventory Register</span><span class="grow">' + esc(window.COMPANY || 'CSC Maintenance') + '</span></div>' +
     '</div>';
 
   _eiRenderTable_(equip);
