@@ -514,6 +514,26 @@ function _renderList_(tickets, queueType, deptFilter, container, userOwnedDepts)
   // Store filter closure per queue type (used by _tlFilter_ and _fpResetDepts_)
   window['_tlFilterData_' + qt] = { tickets: tickets, applyFilters: applyFilters, userOwnedDepts: normOwned };
 
+  // Restore filter state saved before a refresh (snapshot taken in _refreshQueuePage_)
+  var _snap_ = window['_tlSavedFilters_' + qt];
+  if (_snap_) {
+    document.querySelectorAll('.fp-cb-dept[data-fp="' + qt + '"]').forEach(function(cb) {
+      var v = cb.value.toUpperCase().trim();
+      if (_snap_.knownDepts.indexOf(v) >= 0) { cb.checked = _snap_.checkedDepts.indexOf(v) >= 0; window._fpChip_(cb); }
+    });
+    document.querySelectorAll('.fp-cb-pri[data-fp="' + qt + '"]').forEach(function(cb) {
+      cb.checked = _snap_.checkedPris.indexOf(cb.value) >= 0; window._fpChip_(cb);
+    });
+    document.querySelectorAll('.fp-cb-sta[data-fp="' + qt + '"]').forEach(function(cb) {
+      if (_snap_.knownStas.indexOf(cb.value) >= 0) { cb.checked = _snap_.checkedStas.indexOf(cb.value) >= 0; window._fpChip_(cb); }
+    });
+    var _srchEl_ = document.getElementById('tl-search-' + qt);
+    if (_srchEl_) _srchEl_.value = _snap_.search;
+    var _fpBarEl_ = document.getElementById('fp-bar-' + qt);
+    if (_fpBarEl_) _fpBarEl_.classList.toggle('fp-open', _snap_.fpOpen);
+    window['_tlSavedFilters_' + qt] = null;
+  }
+
   // Apply initial filters — defaults dept checkboxes to user's owned depts
   applyFilters();
 }
@@ -695,6 +715,21 @@ function _tlRollover_(dept) {
     });
 }
 
+function _tlSnapshotFilters_(qt) {
+  var deptCbs = document.querySelectorAll('.fp-cb-dept[data-fp="' + qt + '"]');
+  var priCbs  = document.querySelectorAll('.fp-cb-pri[data-fp="' + qt + '"]');
+  var staCbs  = document.querySelectorAll('.fp-cb-sta[data-fp="' + qt + '"]');
+  if (!deptCbs.length && !priCbs.length && !staCbs.length) return;
+  var srchEl = document.getElementById('tl-search-' + qt);
+  var fpBar  = document.getElementById('fp-bar-' + qt);
+  var snap = { checkedDepts: [], knownDepts: [], checkedPris: [], checkedStas: [], knownStas: [],
+               search: srchEl ? srchEl.value : '', fpOpen: fpBar ? fpBar.classList.contains('fp-open') : true };
+  deptCbs.forEach(function(cb) { var v = cb.value.toUpperCase().trim(); snap.knownDepts.push(v); if (cb.checked) snap.checkedDepts.push(v); });
+  priCbs.forEach(function(cb)  { if (cb.checked) snap.checkedPris.push(cb.value); });
+  staCbs.forEach(function(cb)  { snap.knownStas.push(cb.value); if (cb.checked) snap.checkedStas.push(cb.value); });
+  window['_tlSavedFilters_' + qt] = snap;
+}
+
 function _refreshQueuePage_(queueType, deptFilter) {
   var pageEl = document.getElementById('page-' + queueType);
   // Tracker dept pages live under 'page-tracker-{dept-slug}' but may be called
@@ -706,6 +741,7 @@ function _refreshQueuePage_(queueType, deptFilter) {
   }
   if (!pageEl) return;
   var loadType = (queueType === 'tracker' || queueType.indexOf('tracker-') === 0) ? 'tracker' : queueType;
+  _tlSnapshotFilters_(loadType);
   _loadListPage_(loadType, deptFilter || null, pageEl);
 }
 
