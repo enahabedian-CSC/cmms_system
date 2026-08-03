@@ -865,6 +865,22 @@ async function handleMe(env, userEmail) {
   return jsonResponse({ user, company, docControl, version });
 }
 
+// Is this ticket row visible to the user via its primary dept OR a joint/
+// pending-joint dept? Mirrors mergeAndFilter()'s joint-aware matching (used by
+// the actual Waiting Queue list), generalized to a user who may own multiple
+// departments via allowed(user, dept) instead of a single dept filter string.
+// Without this, a manager who's a joint (not primary) party on a ticket sees
+// it in the real queue but the dashboard badge count misses it.
+function ticketVisibleToUser(user, r, ticketDept) {
+  if (allowed(user, ticketDept)) return true;
+  const jointStr  = cellStr(r, ML.JOINT_DEPTS);
+  const jointList = jointStr ? jointStr.split(',').map(d => d.trim()).filter(Boolean) : [];
+  if (jointList.some(d => allowed(user, d))) return true;
+  const pendingStr  = cellStr(r, ML.PENDING_JOINT_DEPTS);
+  const pendingList = pendingStr ? pendingStr.split(',').map(d => d.trim()).filter(Boolean) : [];
+  return pendingList.some(d => allowed(user, d));
+}
+
 async function handleDashboardCounts(env, userEmail) {
   const token = await getAccessToken(env);
   const user  = await resolveUser(token, env, userEmail);
@@ -905,7 +921,7 @@ async function handleDashboardCounts(env, userEmail) {
     // Dept-scoped merge: ticket enters byTicket only on first allowed-dept row;
     // subsequent rows (even from other depts) are merged in so late-writing rows
     // (admin closures, joint actions) are not lost.
-    if (!byTicket[tn] && !allowed(user, dept)) return;
+    if (!byTicket[tn] && !ticketVisibleToUser(user, r, dept)) return;
     if (!byTicket[tn]) { byTicket[tn] = r.slice(); return; }
     r.forEach((v, i) => { if (v != null && v !== '') byTicket[tn][i] = v; });
   });
@@ -1005,6 +1021,10 @@ async function handleDashboardPanels(env, userEmail) {
 
   const reviewItems = [], verifyItems = [], tempItems = [], openTickets = [];
   const OPEN_STS = new Set(['OPEN', 'PENDING PARTS', 'ON HOLD', 'PENDING VERIFICATION']);
+  // reviewItems is capped to keep the "Awaiting Assignment" preview list short;
+  // reviewCount stays uncapped so the card's badge number matches the real
+  // Waiting Queue count instead of maxing out at the preview cap.
+  let reviewCount = 0;
 
   allTickets.forEach(r => {
     const tn     = cellStr(r, ML.TICKET_NO);
@@ -1016,8 +1036,9 @@ async function handleDashboardPanels(env, userEmail) {
     const desc   = cellStr(r, ML.DESCRIPTION);
     const opened = fmtDate(cellDate(r, ML.DATE_OPENED));
 
-    if (status === 'WAITING' && reviewItems.length < 8) {
-      reviewItems.push({
+    if (status === 'WAITING') {
+      reviewCount++;
+      if (reviewItems.length < 8) reviewItems.push({
         kind: 'review', ticketNo: tn,
         title: equip || desc || tn,
         sub: dept + (code ? ' · ' + code : '') + (prio ? ' · ' + prio + ' priority' : '') + ' — awaiting approval',
@@ -1186,7 +1207,7 @@ async function handleDashboardPanels(env, userEmail) {
       action: 'View Open', pageTarget: 'open', count,
     }));
 
-  return jsonResponse({ attentionItems, openTickets, holdTags, pendingJointRequests, jointItems, chronicEquipment });
+  return jsonResponse({ attentionItems, openTickets, holdTags, pendingJointRequests, jointItems, chronicEquipment, reviewCount });
 }
 
 // ── Sheets write helpers ──────────────────────────────────────────────────────
@@ -2298,7 +2319,11 @@ function pmRowToSchedule(row) {
   const c = (n) => cellStr(row, n);
   const priorityMode = (c(PM.PRIORITY_MODE) || 'interval').toLowerCase() === 'explicit' ? 'explicit' : 'interval';
   const leadDays = parseInt(c(PM.LEAD_DAYS), 10);
-  const nextDue  = c(PM.NEXT_DUE);
+  // NEXT_DUE/LAST_COMPLETED are date cells — Sheets returns them as serial
+  // numbers under UNFORMATTED_VALUE (see cellDate() above), so they must be
+  // read with cellDate()+pmIsoDate(), not cellStr(), or the UI shows the raw
+  // serial number (e.g. "46200") instead of a date.
+  const nextDue  = pmIsoDate(cellDate(row, PM.NEXT_DUE)) || c(PM.NEXT_DUE);
   return {
     id:            c(PM.PM_ID),
     asset:         c(PM.ASSET_CODE),
@@ -2317,7 +2342,7 @@ function pmRowToSchedule(row) {
     priorityMode,
     priority:      c(PM.PRIORITY),
     leadDays:      isNaN(leadDays) ? 7 : leadDays,
-    lastCompleted: c(PM.LAST_COMPLETED),
+    lastCompleted: pmIsoDate(cellDate(row, PM.LAST_COMPLETED)) || c(PM.LAST_COMPLETED),
     nextDue,
     status:        pmComputeStatus(c(PM.STATUS), nextDue, isNaN(leadDays) ? 7 : leadDays),
     history:       [],
@@ -2363,6 +2388,95 @@ async function handlePmSchedulesGet(env, userEmail) {
     .filter(t => visibleIds.has(t.schedId));
 
   return jsonResponse({ schedules, tickets });
+}
+
+const PM_MONTH_ABBR = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+
+// Human "window" label for a packet, derived from frequency + next-due date,
+// e.g. Weekly/Monthly -> "Jun 2026", Quarterly -> "Q2 2026", 6-Month -> "H1
+// 2026", Annual -> "2026".
+function pmPacketWindow(freq, isoDate) {
+  if (!isoDate) return '';
+  const d = new Date(isoDate + 'T00:00:00');
+  if (isNaN(d.getTime())) return '';
+  const y = d.getFullYear(), m = d.getMonth(); // 0-based month
+  const f = (freq || '').toLowerCase();
+  if (f.indexOf('quarter') >= 0) return 'Q' + (Math.floor(m / 3) + 1) + ' ' + y;
+  if (f.indexOf('6') >= 0 || f.indexOf('semi') >= 0) return (m < 6 ? 'H1' : 'H2') + ' ' + y;
+  if (f.indexOf('annual') >= 0 || f.indexOf('year') >= 0) return String(y);
+  return PM_MONTH_ABBR[m] + ' ' + y; // Weekly / Monthly / anything else
+}
+
+// GET /api/pm/packets — group PM Schedules by (asset, frequency) into a
+// "packet": every PM due for one machine at a single interval, each item
+// showing its most recently generated PM Ticket (status + assigned tech) so
+// a manager can work the checklist / print a floor sign-off sheet. This is
+// the real data behind the PM Packets screen — replaces the hardcoded
+// window._PM_PACKETS_ sample data in pm-packets.html.
+async function handlePmPacketsGet(env, userEmail) {
+  const token = await getAccessToken(env);
+  const user  = await resolveUser(token, env, userEmail);
+  if (!user.isManager && !user.isTech) return jsonResponse({ error: 'Access required' }, 403);
+
+  const schedSheet = env.PM_SCHED_SHEET   || SH.PM_SCHED;
+  const tktSheet   = env.PM_TICKETS_SHEET || SH.PM_TICKETS;
+
+  const [schedRows, tktRows] = await Promise.all([
+    readSheet(token, env.SPREADSHEET_ID, schedSheet, 'A2:V').catch(() => []),
+    readSheet(token, env.SPREADSHEET_ID, tktSheet,   'A2:G').catch(() => []),
+  ]);
+
+  let schedules = schedRows
+    .filter(r => cellStr(r, PM.PM_ID))
+    .map(pmRowToSchedule);
+  schedules = schedules.filter(s => pmCanAccessDept(user, s.dept));
+
+  // PM Tickets sheet only tracks status + assigned tech per generated ticket
+  // (no completed-by/date columns) — last-wins per schedule id if a schedule
+  // has been generated more than once.
+  const latestTicketBySched = {};
+  tktRows.forEach(r => {
+    const schedId = cellStr(r, PMT.SCHED_ID);
+    if (!schedId) return;
+    latestTicketBySched[schedId] = {
+      ticketNo: cellStr(r, PMT.TICKET_NO),
+      status:   (cellStr(r, PMT.STATUS) || 'WAITING').toUpperCase(),
+      assigned: cellStr(r, PMT.ASSIGNED) || 'Unassigned',
+      due:      cellStr(r, PMT.DUE),
+    };
+  });
+
+  // Group schedules into packets by (asset, frequency).
+  const packets = {};
+  schedules.forEach(s => {
+    const key = s.asset + '::' + s.freq;
+    if (!packets[key]) {
+      packets[key] = {
+        id:        'PKT-' + s.asset + '-' + s.freq.replace(/\s+/g, ''),
+        asset:     s.asset,
+        assetName: s.assetName,
+        dept:      s.dept,
+        freq:      s.freq,
+        due:       s.nextDue,
+        window:    pmPacketWindow(s.freq, s.nextDue),
+        items:     [],
+      };
+    }
+    const pkt = packets[key];
+    if (s.nextDue && (!pkt.due || s.nextDue < pkt.due)) { pkt.due = s.nextDue; pkt.window = pmPacketWindow(s.freq, s.nextDue); }
+    const tkt = latestTicketBySched[s.id];
+    pkt.items.push({
+      schedId: s.id, // stable per-item key — ticket can be blank until generated
+      label:  s.type || (s.tasks[0] && s.tasks[0].t) || 'PM Task',
+      type:   s.type,
+      ticket: tkt ? tkt.ticketNo : '',
+      done:   tkt ? tkt.status === 'COMPLETE' : false,
+      by:     tkt ? tkt.assigned : '',
+      date:   tkt ? tkt.due : '',
+    });
+  });
+
+  return jsonResponse({ packets: Object.values(packets) });
 }
 
 // POST /api/pm/schedules/add — append a new PM schedule definition.
@@ -4314,8 +4428,9 @@ async function handleEMRLData(env, userEmail, params) {
     r.forEach((v, i) => { if (v != null && v !== '') byTicket[tn][i] = v; });
   });
 
-  const ticketFilter = String(params.ticketNo || '').trim().toUpperCase();
-  const deptFilter   = String(params.dept     || '').trim().toUpperCase();
+  const ticketFilter = String(params.ticketNo  || '').trim().toUpperCase();
+  const deptFilter   = String(params.dept      || '').trim().toUpperCase();
+  const equipFilter  = String(params.equipCode || '').trim().toUpperCase();
   const dateFrom     = params.dateFrom ? new Date(params.dateFrom) : null;
   const dateTo       = params.dateTo   ? new Date(params.dateTo + 'T23:59:59') : null;
 
@@ -4327,12 +4442,14 @@ async function handleEMRLData(env, userEmail, params) {
     if (ticketFilter && !tn.toUpperCase().includes(ticketFilter)) return;
     const dept = normalizeDept(cellStr(r, ML.DEPT));
     if (deptFilter && dept.toUpperCase() !== deptFilter) return;
+    const equipCode = cellStr(r, ML.EQUIP_CODE);
+    if (equipFilter && !equipCode.toUpperCase().includes(equipFilter)) return;
     const dc = cellDate(r, ML.DATE_CLOSED) || cellDate(r, ML.VERIFIED_DATE);
     if (dateFrom && dc && dc < dateFrom) return;
     if (dateTo   && dc && dc > dateTo)   return;
     const ca = cellStr(r, ML.CORRECTIVE_ACT), rc = cellStr(r, ML.ROOT_CAUSE), pa = cellStr(r, ML.PREVENTIVE_ACT);
     records.push({
-      ticketNo: tn, dept, equipType: cellStr(r, ML.EQUIP_TYPE), specificEquip: cellStr(r, ML.SPECIFIC_EQUIP),
+      ticketNo: tn, dept, equipType: cellStr(r, ML.EQUIP_TYPE), equipCode, specificEquip: cellStr(r, ML.SPECIFIC_EQUIP),
       repairDate: fmtDate(dc), assignedTo: cellStr(r, ML.ASSIGNED_TO),
       rootCause: rc, correctiveAct: ca, preventiveAct: pa, partsUsed: '',
       capaRequired: (ca || rc || pa) ? 'YES' : 'NO',
@@ -4659,7 +4776,13 @@ async function handleTechWorkBoard(env, userEmail) {
     if (user.isManager) {
       if (!user.isAdmin && !allowed(user, dept)) return;
     } else {
-      if (techAt.toLowerCase() !== user.displayName.toLowerCase() && techAt.toLowerCase() !== emailLocal) return;
+      // ASSIGNED_TO is comma-separated on joint-dept tickets ("Name (DEPT), Name2
+      // (DEPT2)") — an exact-string match against the whole cell misses a tech
+      // who's on a joint ticket alongside someone else. Parse it the same way
+      // the rest of the app does before checking for a match.
+      const { primary, joint } = _parseAssignedTo_(techAt);
+      const names = [primary, ...Object.values(joint)].filter(Boolean).map(n => n.toLowerCase());
+      if (!names.some(n => n === user.displayName.toLowerCase() || n === emailLocal)) return;
     }
     tickets.push({
       ticketNo:     cellStr(r, ML.TICKET_NO), status, priority: cellStr(r, ML.PRIORITY).toUpperCase(),
@@ -5034,6 +5157,7 @@ export default {
       else if (p === '/api/submit/add'                  && method === 'POST')res = await handleAddTicket(env, userEmail, body);
       // Preventive Maintenance
       else if (p === '/api/pm/schedules'                && method === 'GET') res = await handlePmSchedulesGet(env, userEmail);
+      else if (p === '/api/pm/packets'                  && method === 'GET') res = await handlePmPacketsGet(env, userEmail);
       else if (p === '/api/pm/schedules/add'            && method === 'POST')res = await handlePmScheduleAdd(env, userEmail, body);
       else if (p === '/api/pm/intake/add'               && method === 'POST')res = await handlePmScheduleAdd(env, userEmail, body); // legacy alias
       else if (p === '/api/pm/snooze'                   && method === 'POST')res = await handlePmSnooze(env, userEmail, body);

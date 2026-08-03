@@ -670,6 +670,8 @@ function _rptEmrlHtml_() {
     '<div class="emrl-filters">' +
       '<div class="emrl-filter-group"><label class="emrl-filter-label">Ticket #</label>' +
         '<input class="emrl-filter-input" id="emrl-f-ticket" placeholder="MT-EL-..." style="width:130px"/></div>' +
+      '<div class="emrl-filter-group"><label class="emrl-filter-label">Asset #</label>' +
+        '<input class="emrl-filter-input" id="emrl-f-equip" placeholder="e.g. 008-707" style="width:110px"/></div>' +
       '<div class="emrl-filter-group"><label class="emrl-filter-label">Department</label>' +
         '<select class="emrl-filter-input" id="emrl-f-dept" style="width:140px">' +
           '<option value="">All</option>' +
@@ -706,6 +708,7 @@ function _emrlSearch_() {
 
   var params = {
     ticketNo:  (document.getElementById('emrl-f-ticket') || {}).value || '',
+    equipCode: (document.getElementById('emrl-f-equip')  || {}).value || '',
     dept:      (document.getElementById('emrl-f-dept')   || {}).value || '',
     dateFrom:  (document.getElementById('emrl-f-from')   || {}).value || '',
     dateTo:    (document.getElementById('emrl-f-to')     || {}).value || ''
@@ -745,7 +748,7 @@ function _emrlRender_(res, statusEl, resultsEl) {
       '<td class="col-tn">'  + esc(r.ticketNo)      + '</td>' +
       '<td>' + esc(r.dept)                           + '</td>' +
       '<td>' + esc(r.equipType)                      + '</td>' +
-      '<td>' + esc(r.specificEquip)                  + '</td>' +
+      '<td>' + esc(r.equipCode ? r.equipCode + ' — ' + r.specificEquip : r.specificEquip) + '</td>' +
       '<td>' + esc(r.repairDate)                     + '</td>' +
       '<td>' + esc(r.assignedTo)                     + '</td>' +
       '<td title="' + esc(r.rootCause) + '">'        + esc(_truncate_(r.rootCause, 40))     + '</td>' +

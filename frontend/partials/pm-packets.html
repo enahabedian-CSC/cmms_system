@@ -73,55 +73,32 @@
 <script>
 window.PAGES = window.PAGES || {};
 
-/* ══════════════════════════════════════════════════════════════════════════
-   SAMPLE DATA — remove when backend PM endpoints exist.
-   A packet = one machine + one interval, listing every PM in that cycle with
-   completion state. Each item links to its generated PM- ticket.
-   ══════════════════════════════════════════════════════════════════════════ */
-window._PM_PACKETS_ = window._PM_PACKETS_ || [
-  { id:'PKT-003-354-6M', asset:'003-354', assetName:'MOLD #48-E, 4.25 GAL ROUND', dept:'PLASTICS', freq:'6-Month', window:'H1 2026', due:'2026-06-18',
-    items:[
-      { label:'Ejector pin inspection & wear check', type:'Inspection',   ticket:'PM-003-260611-001', done:true,  by:'Felipe Vasquez', date:'2026-06-12' },
-      { label:'Hydraulic filter change',             type:'Filter Change', ticket:'PM-003-260611-002', done:true,  by:'Ismael Silva',   date:'2026-06-12' },
-      { label:'Cooling line / water filter replace', type:'Filter Change', ticket:'PM-003-260611-003', done:false, by:'', date:'' },
-      { label:'Drive belt inspection & tension',     type:'Belt/Drive',    ticket:'PM-003-260611-004', done:false, by:'', date:'' }
-    ] },
-  { id:'PKT-001-018-3M', asset:'001-018', assetName:'PRESS NO. 18', dept:'MACHINE SHOP', freq:'Quarterly', window:'Q2 2026', due:'2026-06-14',
-    items:[
-      { label:'Way & ball-screw lubrication',    type:'Lubrication', ticket:'PM-001-260607-001', done:true,  by:'Anthony Gonzalez', date:'2026-06-08' },
-      { label:'VFD enclosure clean & fan check', type:'Inspection',  ticket:'PM-001-260607-002', done:false, by:'', date:'' },
-      { label:'Hydraulic oil sample & analysis', type:'Inspection',  ticket:'PM-001-260607-003', done:false, by:'', date:'' },
-      { label:'Limit switch & E-stop test',      type:'Calibration', ticket:'PM-001-260607-004', done:false, by:'', date:'' }
-    ] },
-  { id:'PKT-008-202-1M', asset:'008-202', assetName:'AIR COMPRESSOR NO. 2', dept:'MACHINE SHOP', freq:'Monthly', window:'Jun 2026', due:'2026-06-06',
-    items:[
-      { label:'Intake air filter change',  type:'Filter Change', ticket:'PM-008-260530-001', done:true, by:'Christian Gavina', date:'2026-06-02' },
-      { label:'Oil/water separator drain', type:'Filter Change', ticket:'PM-008-260530-002', done:true, by:'Christian Gavina', date:'2026-06-02' },
-      { label:'Drive belt inspection',     type:'Belt/Drive',    ticket:'PM-008-260530-003', done:true, by:'Christian Gavina', date:'2026-06-02' }
-    ] },
-  { id:'PKT-008-707-6M', asset:'008-707', assetName:'FORKLIFT NO. 7', dept:'MACHINE SHOP', freq:'6-Month', window:'H1 2026', due:'2026-06-05',
-    items:[
-      { label:'Hydraulic fluid & filter change', type:'Filter Change', ticket:'PM-008-260529-001', done:true,  by:'Jorge Guzman', date:'2026-05-30' },
-      { label:'Brake inspection & adjust',       type:'Inspection',    ticket:'PM-008-260529-002', done:true,  by:'Jorge Guzman', date:'2026-05-30' },
-      { label:'Mast chain lube & tension',       type:'Lubrication',   ticket:'PM-008-260529-003', done:false, by:'', date:'' },
-      { label:'LP system leak check',            type:'Inspection',    ticket:'PM-008-260529-004', done:false, by:'', date:'' }
-    ] }
-];
+// Populated from GET /api/pm/packets by _pmpLoad_(). A packet = one machine +
+// one interval, listing every PM in that cycle with completion state. Each
+// item links to its generated PM- ticket (if one has been generated yet).
+window._PM_PACKETS_ = window._PM_PACKETS_ || [];
 
 var _pmpChecks_  = null;   // pktId::ticket -> bool (seeded from data on first render)
 var _pmpOpenId_  = null;
+var _pmpLoaded_  = false;
+
+// Item key for the local checklist-state map. Keyed on the PM schedule id
+// (always present, always unique per item) rather than the ticket number,
+// which is blank until a PM ticket has been generated — items sharing a
+// blank ticket would otherwise collide onto the same checklist entry.
+function _pmpItemKey_(p, it) { return p.id + '::' + (it.schedId || it.ticket); }
 
 function _pmpSeed_() {
   if (_pmpChecks_) return;
   _pmpChecks_ = {};
   (window._PM_PACKETS_ || []).forEach(function(p) {
-    p.items.forEach(function(it) { _pmpChecks_[p.id + '::' + it.ticket] = !!it.done; });
+    p.items.forEach(function(it) { _pmpChecks_[_pmpItemKey_(p, it)] = !!it.done; });
   });
 }
 function _pmpById_(id) { return (window._PM_PACKETS_ || []).filter(function(p){ return p.id === id; })[0]; }
 function _pmpProgress_(p) {
   var done = 0;
-  p.items.forEach(function(it){ if (_pmpChecks_[p.id + '::' + it.ticket]) done++; });
+  p.items.forEach(function(it){ if (_pmpChecks_[_pmpItemKey_(p, it)]) done++; });
   var total = p.items.length;
   return { done:done, total:total, pct: total ? Math.round(done/total*100) : 0 };
 }
@@ -132,9 +109,21 @@ function _pmpFreqBadge_(f) { return '<span class="pmp-freq">' + esc(f) + '</span
 PAGES['pm-packets'] = function(c) { _pmpLoad_(c); };
 
 function _pmpLoad_(container) {
-  _pmpSeed_();
-  // TODO(backend): replace with fetch(WORKER_URL + '/api/pm/packets', {...})
-  _pmpRender_(container);
+  if (_pmpLoaded_) { _pmpRender_(container); return; }
+  container.innerHTML = '<div class="pmp-wrap"><div class="loading-overlay" style="height:200px;"><div class="spinner"></div></div></div>';
+  fetch(WORKER_URL + '/api/pm/packets', { headers: { 'X-User-Email': USER ? USER.email : '' } })
+    .then(function(r) { return r.json(); })
+    .then(function(res) {
+      window._PM_PACKETS_ = (res && res.packets) || [];
+      _pmpLoaded_ = true;
+      _pmpSeed_();
+      _pmpRender_(container);
+    })
+    .catch(function() {
+      window._PM_PACKETS_ = [];
+      _pmpLoaded_ = true;
+      container.innerHTML = '<div class="pmp-wrap"><div class="pmp-empty">Could not load PM packets.</div></div>';
+    });
 }
 
 function _pmpRender_(container) {
@@ -157,7 +146,6 @@ function _pmpRender_(container) {
   container.innerHTML =
     '<div class="pmp-wrap">' +
       '<div class="pmp-toolbar"><span class="pmp-title">Machine PM Packets</span>' +
-        '<span class="pmp-sample-badge">Sample data &mdash; backend pending</span>' +
         '<span class="pmp-count">' + packets.length + ' packets</span></div>' +
       '<p class="pmp-intro">Each packet groups every PM due for one machine at a single interval &mdash; a manager checklist showing which PMs in the cycle are complete. Open a packet to work the checklist or print a floor sign-off sheet.</p>' +
       (packets.length ? '<div class="pmp-grid">' + cards + '</div>' : '<div class="pmp-empty">No PM packets.</div>') +
@@ -171,10 +159,10 @@ function _pmpRenderDetail_(container, id) {
   var color = _pmpBarColor_(pr.pct);
 
   var rows = p.items.map(function(it) {
-    var done = !!_pmpChecks_[p.id + '::' + it.ticket];
+    var done = !!_pmpChecks_[_pmpItemKey_(p, it)];
     var by = done ? (it.by ? esc(it.by) + ' &middot; ' + esc(it.date) : 'Checked') : 'Pending';
     return '<tr>' +
-      '<td class="center"><input type="checkbox" class="pmp-check"' + (done ? ' checked' : '') + ' onchange="_pmpToggle_(\'' + esc(p.id) + '\',\'' + esc(it.ticket) + '\')"></td>' +
+      '<td class="center"><input type="checkbox" class="pmp-check"' + (done ? ' checked' : '') + ' onchange="_pmpToggle_(\'' + esc(p.id) + '\',\'' + esc(it.schedId || it.ticket) + '\')"></td>' +
       '<td>' + esc(it.label) + '</td>' +
       '<td style="color:var(--text-secondary);font-size:11.5px;">' + esc(it.type) + '</td>' +
       '<td><span class="pmp-tlink" onclick="_pmpOpenTicket_(\'' + esc(it.ticket) + '\')">' + esc(it.ticket) + '</span></td>' +
@@ -186,7 +174,6 @@ function _pmpRenderDetail_(container, id) {
     '<div class="pmp-wrap">' +
       '<div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;flex-wrap:wrap;">' +
         '<button class="pmp-back" onclick="_pmpClose_()"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M19 12H5M12 5l-7 7 7 7"/></svg> All packets</button>' +
-        '<span class="pmp-sample-badge">Sample data &mdash; backend pending</span>' +
         '<div style="flex:1;"></div>' +
         '<button class="pmp-print-btn" onclick="_pmpPrint_(\'' + esc(p.id) + '\')"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg> Print sign-off sheet</button>' +
       '</div>' +
@@ -212,8 +199,8 @@ function _pmpRenderDetail_(container, id) {
 
 function _pmpOpen_(id) { _pmpOpenId_ = id; _pmpRender_(document.getElementById('page-pm-packets')); }
 function _pmpClose_() { _pmpOpenId_ = null; _pmpRender_(document.getElementById('page-pm-packets')); }
-function _pmpToggle_(pid, ticket) {
-  var key = pid + '::' + ticket;
+function _pmpToggle_(pid, itemKey) {
+  var key = pid + '::' + itemKey;
   _pmpChecks_[key] = !_pmpChecks_[key];
   _pmpRenderDetail_(document.getElementById('page-pm-packets'), pid);
 }
@@ -230,7 +217,7 @@ function _pmpPrint_(id) {
   if (!p) return;
   var pr = _pmpProgress_(p);
   var rows = p.items.map(function(it) {
-    var done = !!_pmpChecks_[p.id + '::' + it.ticket];
+    var done = !!_pmpChecks_[_pmpItemKey_(p, it)];
     var by = done ? (it.by ? esc(it.by) + ' &middot; ' + esc(it.date) : 'Checked') : 'Pending';
     return '<tr><td style="text-align:center;font-size:15px;">' + (done ? '&#9745;' : '&#9744;') + '</td>' +
       '<td>' + esc(it.label) + '</td><td style="color:#475569;">' + esc(it.type) + '</td>' +

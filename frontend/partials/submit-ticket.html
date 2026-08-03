@@ -816,22 +816,46 @@ function _sfUpdateHeadsUp_() {
     return;
   }
   el.innerHTML = '<span style="color:var(--text-tertiary);">Loading history for ' + esc(code) + '…</span>';
-  fetch(WORKER_URL + '/api/submit/equip-stats?equipCode=' + encodeURIComponent(code), {
+  fetch(WORKER_URL + '/api/tickets/equip-history?equipCode=' + encodeURIComponent(code), {
     headers: { 'X-User-Email': USER ? USER.email : '' }
   })
     .then(function(r) { return r.json(); })
-    .then(function(stats) {
+    .then(function(history) {
       var el2 = document.getElementById('sf-headsup-text');
       if (!el2) return;
-      if (!stats || stats.count60d === 0) {
-        el2.innerHTML = 'No tickets found for <strong>' + esc(code) + '</strong> in the last 60 days.';
+      if (!Array.isArray(history) || history.length === 0) {
+        el2.innerHTML = 'No prior tickets found for <strong>' + esc(code) + '</strong>.';
         return;
       }
+      var cutoff = new Date(); cutoff.setDate(cutoff.getDate() - 60);
+      var recent60d = history.filter(function(h) {
+        var d = new Date(h.dateOpened);
+        return !isNaN(d) && d >= cutoff;
+      });
+      var probCounts = {};
+      recent60d.forEach(function(h) { if (h.problemType) probCounts[h.problemType] = (probCounts[h.problemType] || 0) + 1; });
+      var topProbType = Object.keys(probCounts).sort(function(a, b) { return probCounts[b] - probCounts[a]; })[0];
+
       var msg = 'Equipment <strong>' + esc(code) + '</strong> has had <strong>' +
-        stats.count60d + ' ticket' + (stats.count60d !== 1 ? 's' : '') + '</strong> in the past 60 days.';
-      if (stats.topProbType) msg += ' Most common issue: <strong>' + esc(stats.topProbType) + '</strong>.';
-      if (stats.count60d >= 3) msg += ' Consider a parallel preventive ticket if the root cause is unresolved.';
-      el2.innerHTML = msg;
+        recent60d.length + ' ticket' + (recent60d.length !== 1 ? 's' : '') + '</strong> in the past 60 days' +
+        (history.length > recent60d.length ? ' (' + history.length + ' total on record)' : '') + '.';
+      if (topProbType) msg += ' Most common issue: <strong>' + esc(topProbType) + '</strong>.';
+      if (recent60d.length >= 3) msg += ' Consider a parallel preventive ticket if the root cause is unresolved.';
+
+      // Sort newest-first and show a compact list of the most recent tickets
+      // for quick reference before submitting a new one.
+      var sorted = history.slice().sort(function(a, b) { return new Date(b.dateOpened) - new Date(a.dateOpened); });
+      var rows = sorted.slice(0, 5).map(function(h) {
+        return '<div style="display:flex;gap:8px;align-items:baseline;padding:3px 0;font-size:11.5px;">' +
+          '<span class="tlink" style="font-family:var(--font-mono);color:var(--brand-navy);cursor:pointer;" onclick="openTicketDetail(\'' + esc(h.ticketNo) + '\')">' + esc(h.ticketNo) + '</span>' +
+          '<span style="color:var(--text-tertiary);">' + esc(h.dateOpened) + '</span>' +
+          '<span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + esc(h.problemType || '') + '</span>' +
+          '<span style="color:var(--text-secondary);">' + esc(h.status) + '</span>' +
+        '</div>';
+      }).join('');
+
+      el2.innerHTML = msg +
+        '<div style="margin-top:8px;border-top:1px solid var(--border-default);padding-top:6px;">' + rows + '</div>';
     })
     .catch(function() {
       var el2 = document.getElementById('sf-headsup-text');

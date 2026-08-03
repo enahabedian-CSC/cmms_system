@@ -1074,7 +1074,7 @@ function _homeRenderPanels_(panels) {
   // (PENDING VERIFICATION), temp → Temp Fix Alerts (past-due temp fixes).
   _homeFillJointRequests_(panels.pendingJointRequests || []);
   _homeFillCat_('cat-joint',  panels.jointItems || [],                                    'No active joint tickets.');
-  _homeFillCat_('cat-assign', attn.filter(function(i){ return i.kind === 'review';   }), 'No tickets awaiting assignment.');
+  _homeFillCat_('cat-assign', attn.filter(function(i){ return i.kind === 'review';   }), 'No tickets awaiting assignment.', panels.reviewCount);
   _homeFillCat_('cat-verify', attn.filter(function(i){ return i.kind === 'complete'; }), 'No tickets awaiting verification.');
   _homeFillCat_('cat-temp',   attn.filter(function(i){ return i.kind === 'temp';     }), 'No past-due temp fixes.');
 }
@@ -1172,9 +1172,9 @@ function _homeRejectJoint_(ticketNo) {
 }
 
 // Fills one collapsible category section (Module 10) and updates its count badge.
-function _homeFillCat_(id, items, emptyMsg) {
+function _homeFillCat_(id, items, emptyMsg, countOverride) {
   var cnt = document.getElementById(id + '-count');
-  if (cnt) cnt.textContent = items.length;
+  if (cnt) cnt.textContent = (countOverride != null) ? countOverride : items.length;
   var body = document.getElementById(id + '-body');
   if (!body) return;
   if (items.length === 0) {
