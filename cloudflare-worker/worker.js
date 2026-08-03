@@ -865,6 +865,22 @@ async function handleMe(env, userEmail) {
   return jsonResponse({ user, company, docControl, version });
 }
 
+// Is this ticket row visible to the user via its primary dept OR a joint/
+// pending-joint dept? Mirrors mergeAndFilter()'s joint-aware matching (used by
+// the actual Waiting Queue list), generalized to a user who may own multiple
+// departments via allowed(user, dept) instead of a single dept filter string.
+// Without this, a manager who's a joint (not primary) party on a ticket sees
+// it in the real queue but the dashboard badge count misses it.
+function ticketVisibleToUser(user, r, ticketDept) {
+  if (allowed(user, ticketDept)) return true;
+  const jointStr  = cellStr(r, ML.JOINT_DEPTS);
+  const jointList = jointStr ? jointStr.split(',').map(d => d.trim()).filter(Boolean) : [];
+  if (jointList.some(d => allowed(user, d))) return true;
+  const pendingStr  = cellStr(r, ML.PENDING_JOINT_DEPTS);
+  const pendingList = pendingStr ? pendingStr.split(',').map(d => d.trim()).filter(Boolean) : [];
+  return pendingList.some(d => allowed(user, d));
+}
+
 async function handleDashboardCounts(env, userEmail) {
   const token = await getAccessToken(env);
   const user  = await resolveUser(token, env, userEmail);
@@ -905,7 +921,7 @@ async function handleDashboardCounts(env, userEmail) {
     // Dept-scoped merge: ticket enters byTicket only on first allowed-dept row;
     // subsequent rows (even from other depts) are merged in so late-writing rows
     // (admin closures, joint actions) are not lost.
-    if (!byTicket[tn] && !allowed(user, dept)) return;
+    if (!byTicket[tn] && !ticketVisibleToUser(user, r, dept)) return;
     if (!byTicket[tn]) { byTicket[tn] = r.slice(); return; }
     r.forEach((v, i) => { if (v != null && v !== '') byTicket[tn][i] = v; });
   });
@@ -1005,6 +1021,10 @@ async function handleDashboardPanels(env, userEmail) {
 
   const reviewItems = [], verifyItems = [], tempItems = [], openTickets = [];
   const OPEN_STS = new Set(['OPEN', 'PENDING PARTS', 'ON HOLD', 'PENDING VERIFICATION']);
+  // reviewItems is capped to keep the "Awaiting Assignment" preview list short;
+  // reviewCount stays uncapped so the card's badge number matches the real
+  // Waiting Queue count instead of maxing out at the preview cap.
+  let reviewCount = 0;
 
   allTickets.forEach(r => {
     const tn     = cellStr(r, ML.TICKET_NO);
@@ -1016,8 +1036,9 @@ async function handleDashboardPanels(env, userEmail) {
     const desc   = cellStr(r, ML.DESCRIPTION);
     const opened = fmtDate(cellDate(r, ML.DATE_OPENED));
 
-    if (status === 'WAITING' && reviewItems.length < 8) {
-      reviewItems.push({
+    if (status === 'WAITING') {
+      reviewCount++;
+      if (reviewItems.length < 8) reviewItems.push({
         kind: 'review', ticketNo: tn,
         title: equip || desc || tn,
         sub: dept + (code ? ' · ' + code : '') + (prio ? ' · ' + prio + ' priority' : '') + ' — awaiting approval',
@@ -1186,7 +1207,7 @@ async function handleDashboardPanels(env, userEmail) {
       action: 'View Open', pageTarget: 'open', count,
     }));
 
-  return jsonResponse({ attentionItems, openTickets, holdTags, pendingJointRequests, jointItems, chronicEquipment });
+  return jsonResponse({ attentionItems, openTickets, holdTags, pendingJointRequests, jointItems, chronicEquipment, reviewCount });
 }
 
 // ── Sheets write helpers ──────────────────────────────────────────────────────
@@ -2298,7 +2319,11 @@ function pmRowToSchedule(row) {
   const c = (n) => cellStr(row, n);
   const priorityMode = (c(PM.PRIORITY_MODE) || 'interval').toLowerCase() === 'explicit' ? 'explicit' : 'interval';
   const leadDays = parseInt(c(PM.LEAD_DAYS), 10);
-  const nextDue  = c(PM.NEXT_DUE);
+  // NEXT_DUE/LAST_COMPLETED are date cells — Sheets returns them as serial
+  // numbers under UNFORMATTED_VALUE (see cellDate() above), so they must be
+  // read with cellDate()+pmIsoDate(), not cellStr(), or the UI shows the raw
+  // serial number (e.g. "46200") instead of a date.
+  const nextDue  = pmIsoDate(cellDate(row, PM.NEXT_DUE)) || c(PM.NEXT_DUE);
   return {
     id:            c(PM.PM_ID),
     asset:         c(PM.ASSET_CODE),
@@ -2317,7 +2342,7 @@ function pmRowToSchedule(row) {
     priorityMode,
     priority:      c(PM.PRIORITY),
     leadDays:      isNaN(leadDays) ? 7 : leadDays,
-    lastCompleted: c(PM.LAST_COMPLETED),
+    lastCompleted: pmIsoDate(cellDate(row, PM.LAST_COMPLETED)) || c(PM.LAST_COMPLETED),
     nextDue,
     status:        pmComputeStatus(c(PM.STATUS), nextDue, isNaN(leadDays) ? 7 : leadDays),
     history:       [],
@@ -4659,7 +4684,13 @@ async function handleTechWorkBoard(env, userEmail) {
     if (user.isManager) {
       if (!user.isAdmin && !allowed(user, dept)) return;
     } else {
-      if (techAt.toLowerCase() !== user.displayName.toLowerCase() && techAt.toLowerCase() !== emailLocal) return;
+      // ASSIGNED_TO is comma-separated on joint-dept tickets ("Name (DEPT), Name2
+      // (DEPT2)") — an exact-string match against the whole cell misses a tech
+      // who's on a joint ticket alongside someone else. Parse it the same way
+      // the rest of the app does before checking for a match.
+      const { primary, joint } = _parseAssignedTo_(techAt);
+      const names = [primary, ...Object.values(joint)].filter(Boolean).map(n => n.toLowerCase());
+      if (!names.some(n => n === user.displayName.toLowerCase() || n === emailLocal)) return;
     }
     tickets.push({
       ticketNo:     cellStr(r, ML.TICKET_NO), status, priority: cellStr(r, ML.PRIORITY).toUpperCase(),
