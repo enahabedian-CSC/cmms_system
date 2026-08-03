@@ -238,7 +238,7 @@ function _renderTf_(items, container) {
       '</tr></thead>' +
       '<tbody id="tf-tbody"></tbody>' +
     '</table></div>' +
-    '<div class="sqf-footer"><span>FRM-030-001 · Maintenance Ticket</span><span>Maintenance Program 030 — Temporary Repair Control</span><span>SQF 2.10 · 11.2.13</span><span class="grow">' + esc(window.COMPANY || 'CSC Maintenance') + '</span></div>' +
+    '<div class="sqf-footer"><span>' + esc(docLabel('tempRepairLog') || 'FRM-030-004') + ' · Temp Fix Monitor Log</span><span>Maintenance Program 030 — Temporary Repair Control</span><span>SQF 2.10 · 11.2.13</span><span class="grow">' + esc(window.COMPANY || 'CSC Maintenance') + '</span></div>' +
     '</div>';
   _tfRenderRows_(_tfData_);
 }
@@ -548,7 +548,7 @@ function _tfInspect_(tempId) {
           '<button class="mon-btn primary" id="tfi-submit-btn" onclick="_tfInspectSubmit_(\'' + esc(tempId) + '\')">Submit inspection</button>' +
           '<button class="mon-btn" onclick="_tfInspectClose_()">Cancel</button>' +
         '</div>' +
-        '<div class="tfi-compliance-note">All inspections are logged to the audit trail with inspector name, date, and outcome per SQF document control policy.</div>' +
+        '<div class="tfi-compliance-note"><strong>' + esc(docLabel('tempFixInspection') || 'FRM-030-005') + '</strong> — all inspections are logged to the audit trail with inspector name, date, and outcome per SQF document control policy.</div>' +
       '</div>' +
     '</div>';
 

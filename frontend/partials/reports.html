@@ -229,7 +229,7 @@ function _rptRenderCats_(data) {
         _rptStatusDistHtml_(data) + _rptProblemTypesHtml_(data) + _rptEquipHeatmapHtml_(data) + _rptBuildingHeatmapHtml_(data)) +
     cat('compliance',   meta.compliance.label,   meta.compliance.desc,
         _rptSqfPackHtml_(data) + _rptEmrlHtml_()) +
-    '<div class="sqf-footer" style="margin-top:20px;"><span>FRM-030-001 · Maintenance Ticket</span><span>SQF 13.2.8 · Equipment Maintenance Repair Log</span><span class="grow">' + esc(window.COMPANY || 'CSC Maintenance') + '</span></div>';
+    '<div class="sqf-footer" style="margin-top:20px;"><span>' + esc(docLabel('repairLog') || 'FRM-030-003') + '</span><span>SQF 13.2.8 · Equipment Maintenance Repair Log</span><span class="grow">' + esc(window.COMPANY || 'CSC Maintenance') + '</span></div>';
 }
 
 function _rptShowCat_(cat) {

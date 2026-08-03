@@ -649,7 +649,7 @@ function _pmRenderSched_(id) {
         '<td>' + esc(h.tech) + '</td><td style="color:var(--text-secondary);">' + esc(h.result) + '</td></tr>';
     }).join('') + '</tbody></table></div>';
 
-  var docref = '<div class="pm-docref">' + (docLabel('pmSchedule') || 'FRM-030-007 · PM Schedule Master · Rev 0') + '</div>';
+  var docref = '<div class="pm-docref">' + (docLabel('pmSchedule') || 'FRM-030-002 · PM Schedule Master · Rev 0') + '</div>';
 
   document.getElementById('pm-sched-body').innerHTML = kpis + defSection + partsSection + tasksSection + toolsSafety + histSection + docref;
 }
@@ -837,7 +837,7 @@ function _pmRenderTicket_(no) {
     }).join('') + '</div></div>';
 
   var docFooter = '<div style="font-size:10.5px;color:var(--text-tertiary);font-family:var(--font-mono);margin-top:20px;padding-top:12px;border-top:1px solid var(--border-default);">' +
-    (typeof docLabel === 'function' ? (docLabel('pmPacket') || 'FRM-030-006 &middot; Preventative Maintenance Packet &middot; Rev 0') : 'FRM-030-006 &middot; Preventative Maintenance Packet &middot; Rev 0') +
+    (typeof docLabel === 'function' ? (docLabel('pmPacket') || 'FRM-030-007 &middot; Preventative Maintenance Packet &middot; Rev 0') : 'FRM-030-007 &middot; Preventative Maintenance Packet &middot; Rev 0') +
     '</div>';
 
   document.getElementById('pm-ticket-body').innerHTML = info + checkSection + partsTools + timeline + docFooter;

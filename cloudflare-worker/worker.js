@@ -841,16 +841,22 @@ async function handleMe(env, userEmail) {
       date: config[dateKey] || dDate,
     };
   }
+  // Doc numbers realigned 2026-08-03 to match Izzy's SQF document-control register
+  // ("SQF Documents in the Maintenance System" email). Rev-date placeholders marked
+  // below are provisional — these documents are still in draft on Izzy's register.
   const docControl = {
-    serviceReport:   pick('Doc No (Service Report)', 'Rev (Service Report)', 'Rev Date (Service Report)', 'FRM-030-003', '0', '6/5/2026'),
-    repairLog:       pick('Doc No (Repair Log)',     'Rev (Repair Log)',     'Rev Date (Repair Log)',     'FRM-030-002', '0', '6/5/2026'),
-    repairClearance: pick('Doc No (Repair Clearance)','Rev (Repair Clearance)','Rev Date (Repair Clearance)','FRM-030-003', '0', '6/5/2026'),
-    tempRepairLog:   pick('Doc No (Temp Repair Log)','Rev (Temp Repair Log)','Rev Date (Temp Repair Log)','FRM-030-005', '0', ''),
-    holdTag:         pick('Doc No (Hold Tag)',        'Rev (Hold Tag)',        'Rev Date (Hold Tag)',        'FRM-029-002', '0', '6/15/26'),
-    ncrRegister:     pick('Doc No (NCR Register)',    'Rev (NCR Register)',    'Rev Date (NCR Register)',    'FRM-029-001', '0', ''),
-    ticketForm:      pick('Doc No (Ticket Form)',     'Rev (Ticket Form)',     'Rev Date (Ticket Form)',     'FRM-030-004', '0', ''),
-    pmPacket:        pick('Doc No (PM Packet)',        'Rev (PM Packet)',       'Rev Date (PM Packet)',       'FRM-030-006', '0', '7/16/2026'),
-    pmSchedule:      pick('Doc No (PM Schedule)',      'Rev (PM Schedule)',     'Rev Date (PM Schedule)',     'FRM-030-007', '0', ''),
+    serviceReport:      pick('Doc No (Service Report)',    'Rev (Service Report)',    'Rev Date (Service Report)',    'FRM-030-009', '0', '6/5/2026'),
+    repairLog:          pick('Doc No (Repair Log)',        'Rev (Repair Log)',        'Rev Date (Repair Log)',        'FRM-030-003', '0', '6/5/2026'),
+    repairClearance:    pick('Doc No (Repair Clearance)',  'Rev (Repair Clearance)',  'Rev Date (Repair Clearance)',  'FRM-030-009', '0', '6/5/2026'),
+    tempRepairLog:      pick('Doc No (Temp Repair Log)',   'Rev (Temp Repair Log)',   'Rev Date (Temp Repair Log)',   'FRM-030-004', '0', '8/3/2026'), // placeholder date
+    holdTag:            pick('Doc No (Hold Tag)',          'Rev (Hold Tag)',          'Rev Date (Hold Tag)',          'FRM-029-002', '0', '6/15/26'),
+    ncrRegister:        pick('Doc No (NCR Register)',      'Rev (NCR Register)',      'Rev Date (NCR Register)',      'FRM-029-001', '0', '8/3/2026'), // placeholder date
+    ticketForm:         pick('Doc No (Ticket Form)',       'Rev (Ticket Form)',       'Rev Date (Ticket Form)',       'FRM-030-008', '0', ''),
+    pmPacket:           pick('Doc No (PM Packet)',         'Rev (PM Packet)',         'Rev Date (PM Packet)',         'FRM-030-007', '0', '7/16/2026'),
+    pmSchedule:         pick('Doc No (PM Schedule)',       'Rev (PM Schedule)',       'Rev Date (PM Schedule)',       'FRM-030-002', '0', '8/3/2026'), // placeholder date
+    equipmentInventory: pick('Doc No (Equipment Inventory)','Rev (Equipment Inventory)','Rev Date (Equipment Inventory)','FRM-030-001', '0', '8/3/2026'), // new doc, placeholder date
+    tempFixInspection:  pick('Doc No (Temp Fix Inspection)','Rev (Temp Fix Inspection)','Rev Date (Temp Fix Inspection)','FRM-030-005', '0', '8/3/2026'), // new doc, placeholder date
+    newEquipmentApproval: pick('Doc No (New Equipment Approval)','Rev (New Equipment Approval)','Rev Date (New Equipment Approval)','FRM-030-006', '0', '8/3/2026'), // new doc, placeholder date, no linked page
   };
 
   const company = config['Company Name'] || 'Container Supply Co.';
@@ -2154,7 +2160,7 @@ async function handleFormData(env, userEmail) {
 
   return jsonResponse({
     companyName:    config['Company Name'] || 'Container Supply Co.',
-    docNo:          config['Doc No (Ticket Form)'] || 'FRM-030-004',
+    docNo:          config['Doc No (Ticket Form)'] || 'FRM-030-008',
     revision:       config['Revision'] || '0',
     departments,
     equipHierarchy,
