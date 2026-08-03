@@ -100,15 +100,6 @@
 .td-modal .btn-cancel{height:32px;padding:0 14px;border-radius:6px;border:1px solid var(--border-default);background:#fff;font-size:12.5px;cursor:pointer;}
 .td-modal .btn-confirm{height:32px;padding:0 16px;border-radius:6px;border:0;background:var(--brand-navy);color:#fff;font-size:12.5px;font-weight:600;cursor:pointer;}
 .td-modal .btn-confirm:hover{background:var(--brand-navy-soft);}
-/* Service-report print isolation: print only the report, not the whole dashboard. */
-@media print {
-  body.printing-sr *{visibility:hidden !important;}
-  body.printing-sr #td-modal-container,
-  body.printing-sr #td-modal-container *{visibility:visible !important;}
-  body.printing-sr .td-modal-backdrop{position:static;background:#fff;display:block;inset:auto;}
-  body.printing-sr .td-modal{box-shadow:none;width:auto;max-width:100%;max-height:none;overflow:visible;}
-  body.printing-sr .td-modal .modal-actions{display:none !important;}
-}
 /* sel-btn-grid used by equipment edit cascade (mirrors submit-ticket styles) */
 .sel-btn-grid{display:grid;gap:8px;}
 .sel-btn-grid.cols-3{grid-template-columns:1fr 1fr 1fr;}
@@ -119,30 +110,11 @@
 /* ── Section edit button ─────────────────────────────────────────────────── */
 .td-sec-edit-btn{background:transparent;border:1px solid var(--border-default);border-radius:4px;padding:2px 8px;font-size:11px;color:var(--text-secondary);cursor:pointer;display:inline-flex;align-items:center;gap:4px;font-family:inherit;font-weight:600;}
 .td-sec-edit-btn:hover{background:var(--bg-hover);border-color:var(--brand-navy);color:var(--brand-navy);}
-/* ── Service Report printable document (Maintenance Repair Record FRM-030-009) ──
-   Rendered from the report data on print so the output is a clean record, not
-   the editable form. Layout adapted from Izzy's MaintenanceRepairRecord.html. */
-.sr-print-area{display:none;}
-.sr-doc{font-family:Arial,Helvetica,sans-serif;color:#111;max-width:780px;margin:0 auto;font-size:12px;line-height:1.4;}
-.sr-doc .doc-header{display:flex;align-items:center;justify-content:space-between;border-bottom:2px solid #1C4D8E;padding-bottom:8px;}
-.sr-doc .doc-header h1{font-size:18px;margin:0;color:#1C4D8E;}
-.sr-doc .doc-co{font-size:11px;color:#555;margin-top:2px;}
-.sr-doc .doc-meta{font-size:10px;color:#333;text-align:right;}
-.sr-doc .doc-meta div{margin:1px 0;}
-.sr-doc .sec-head{background:#1C4D8E;color:#fff;font-size:10px;font-weight:bold;letter-spacing:.06em;text-transform:uppercase;padding:4px 8px;margin:14px 0 0;}
-.sr-doc .grid{display:grid;grid-template-columns:1fr 1fr 1fr;border:1px solid #ccc;border-top:0;}
-.sr-doc .cell{padding:5px 8px;border-right:1px solid #eee;border-top:1px solid #eee;}
-.sr-doc .cell.full{grid-column:1/-1;}
-.sr-doc .cell .l{font-size:8.5px;text-transform:uppercase;letter-spacing:.04em;color:#777;}
-.sr-doc .cell .v{font-size:12px;color:#111;margin-top:2px;white-space:pre-wrap;}
-.sr-doc .clr-item{display:flex;justify-content:space-between;padding:4px 8px;border:1px solid #eee;border-top:0;font-size:11px;}
-.sr-doc .sig{display:grid;grid-template-columns:1fr 1fr;gap:28px;margin-top:22px;}
-.sr-doc .sig .line{border-top:1px solid #333;padding-top:3px;font-size:9px;color:#555;}
-@media print {
-  body.printing-srdoc *{visibility:hidden !important;}
-  body.printing-srdoc #sr-print-area, body.printing-srdoc #sr-print-area *{visibility:visible !important;}
-  body.printing-srdoc #sr-print-area{display:block !important;position:absolute;left:0;top:0;width:100%;padding:14px;}
-}
+/* Service Report printable document (Maintenance Repair Record FRM-030-009) is
+   printed via a standalone popup (see _srPrint_()) — same technique as the
+   Equipment Hold Tag print — so its .sr-doc styling lives inline in that popup,
+   not here. Popups print reliably even inside an iFrame (Google Sites); printing
+   the current/host window directly does not. */
 /* ── Equipment Hold Tag printable document ─────────────────────────────── */
 .ht-print-area{display:none;}
 .ht-doc{font-family:Arial,Helvetica,sans-serif;color:#111;max-width:420px;margin:0 auto;border:3px solid #ccc;border-radius:4px;break-inside:avoid;}
@@ -1432,26 +1404,39 @@ function _srBuildPrintDoc_() {
   '</div>';
 }
 
-// Render the formatted record into a print-only area and print just that.
+// Print the formatted Maintenance Repair Record in a standalone popup — same
+// technique as _htPrint_() — so it prints reliably even inside an iFrame
+// (Google Sites); printing the current/host window directly does not.
 function _srPrint_() {
-  var area = document.getElementById('sr-print-area');
-  if (!area) {
-    area = document.createElement('div');
-    area.id = 'sr-print-area';
-    area.className = 'sr-print-area';
-    document.body.appendChild(area);
-  }
-  area.innerHTML = _srBuildPrintDoc_();
-  document.body.classList.add('printing-srdoc');
-  function _done_() {
-    document.body.classList.remove('printing-srdoc');
-    area.innerHTML = '';
-    window.removeEventListener('afterprint', _done_);
-  }
-  window.addEventListener('afterprint', _done_);
-  window.print();
-  // Fallback for browsers that don't fire afterprint.
-  setTimeout(_done_, 1500);
+  var css = [
+    'body{margin:24px;font-family:Arial,Helvetica,sans-serif;background:#fff;}',
+    '.sr-doc{font-family:Arial,Helvetica,sans-serif;color:#111;max-width:780px;margin:0 auto;font-size:12px;line-height:1.4;}',
+    '.sr-doc .doc-header{display:flex;align-items:center;justify-content:space-between;border-bottom:2px solid #1C4D8E;padding-bottom:8px;}',
+    '.sr-doc .doc-header h1{font-size:18px;margin:0;color:#1C4D8E;}',
+    '.sr-doc .doc-co{font-size:11px;color:#555;margin-top:2px;}',
+    '.sr-doc .doc-meta{font-size:10px;color:#333;text-align:right;}',
+    '.sr-doc .doc-meta div{margin:1px 0;}',
+    '.sr-doc .sec-head{background:#1C4D8E;color:#fff;font-size:10px;font-weight:bold;letter-spacing:.06em;text-transform:uppercase;padding:4px 8px;margin:14px 0 0;}',
+    '.sr-doc .grid{display:grid;grid-template-columns:1fr 1fr 1fr;border:1px solid #ccc;border-top:0;}',
+    '.sr-doc .cell{padding:5px 8px;border-right:1px solid #eee;border-top:1px solid #eee;}',
+    '.sr-doc .cell.full{grid-column:1/-1;}',
+    '.sr-doc .cell .l{font-size:8.5px;text-transform:uppercase;letter-spacing:.04em;color:#777;}',
+    '.sr-doc .cell .v{font-size:12px;color:#111;margin-top:2px;white-space:pre-wrap;}',
+    '.sr-doc .clr-item{display:flex;justify-content:space-between;padding:4px 8px;border:1px solid #eee;border-top:0;font-size:11px;}',
+    '.sr-doc .sig{display:grid;grid-template-columns:1fr 1fr;gap:28px;margin-top:22px;}',
+    '.sr-doc .sig .line{border-top:1px solid #333;padding-top:3px;font-size:9px;color:#555;}',
+    '@media print{*{-webkit-print-color-adjust:exact !important;print-color-adjust:exact !important;color-adjust:exact !important;}}'
+  ].join('');
+  var win = window.open('', '_blank', 'width=780,height=900,menubar=no,toolbar=no,location=no,status=no');
+  if (!win) { showToast('Pop-ups blocked — allow pop-ups for this site to print the service report', 'error'); return; }
+  win.document.write(
+    '<!DOCTYPE html><html><head><meta charset="utf-8"><title>Maintenance Repair Record — ' + esc((_tdTicket || {}).ticketNo || '') + '</title>' +
+    '<style>' + css + '</style></head>' +
+    '<body>' + _srBuildPrintDoc_() +
+    '<script>window.onload=function(){setTimeout(function(){window.print();},300);};<\/script>' +
+    '</body></html>'
+  );
+  win.document.close();
 }
 
 function _tdPrintTicket_() {

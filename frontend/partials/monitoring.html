@@ -212,6 +212,7 @@ function _renderTf_(items, container) {
   _tfData_ = _asArray_(items);
   container.innerHTML =
     '<div class="mon-wrap">' +
+    '<div class="sqf-footer"><span>' + esc(docLabel('tempRepairLog') || 'FRM-030-004') + ' · Temp Fix Monitor Log</span><span>Maintenance Program 030 — Temporary Repair Control</span><span>SQF 2.10 · 11.2.13</span><span class="grow">' + esc(window.COMPANY || 'CSC Maintenance') + '</span></div>' +
     '<div class="page-head">' +
       '<div class="page-head-main">' +
         '<div class="crumbs"><span>Monitoring</span><span class="sep">/</span><span class="cur">Temp Fix Monitor</span></div>' +
@@ -238,7 +239,6 @@ function _renderTf_(items, container) {
       '</tr></thead>' +
       '<tbody id="tf-tbody"></tbody>' +
     '</table></div>' +
-    '<div class="sqf-footer"><span>' + esc(docLabel('tempRepairLog') || 'FRM-030-004') + ' · Temp Fix Monitor Log</span><span>Maintenance Program 030 — Temporary Repair Control</span><span>SQF 2.10 · 11.2.13</span><span class="grow">' + esc(window.COMPANY || 'CSC Maintenance') + '</span></div>' +
     '</div>';
   _tfRenderRows_(_tfData_);
 }
@@ -480,6 +480,7 @@ function _tfInspect_(tempId) {
   }
 
   modal.innerHTML =
+    '<div class="tfi-compliance-note"><strong>' + esc(docLabel('tempFixInspection') || 'FRM-030-005') + '</strong> — all inspections are logged to the audit trail with inspector name, date, and outcome per SQF document control policy.</div>' +
     '<div class="tfi-info-strip">' +
       '<div class="tfi-info-cell"><div class="tfi-info-label">Ticket #</div><div class="tfi-info-val">' + esc(rec.ticketNo) + '</div></div>' +
       '<div class="tfi-info-cell"><div class="tfi-info-label">Equipment</div><div class="tfi-info-val">' + esc(rec.specificEquip || '—') + '</div></div>' +
@@ -548,7 +549,6 @@ function _tfInspect_(tempId) {
           '<button class="mon-btn primary" id="tfi-submit-btn" onclick="_tfInspectSubmit_(\'' + esc(tempId) + '\')">Submit inspection</button>' +
           '<button class="mon-btn" onclick="_tfInspectClose_()">Cancel</button>' +
         '</div>' +
-        '<div class="tfi-compliance-note"><strong>' + esc(docLabel('tempFixInspection') || 'FRM-030-005') + '</strong> — all inspections are logged to the audit trail with inspector name, date, and outcome per SQF document control policy.</div>' +
       '</div>' +
     '</div>';
 

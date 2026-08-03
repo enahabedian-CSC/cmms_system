@@ -41,8 +41,8 @@ var _SQF_FORMS_ = [
     desc:'Master register of tracked equipment. Open Equipment Inventory to view or edit an item.' },
   { code:'FRM-030-002', name:'Master Preventative Maintenance Schedule', docKey:'pmSchedule', clause:'SQF 2.2.4 / 2.5', page:'pm',
     desc:'Preventive-maintenance schedule definitions and history. Open PM Schedules to view or edit a definition.' },
-  { code:'FRM-030-003', name:'Equipment Maintenance Repair Log (EMRL)', docKey:'repairLog', clause:'SQF 13.2.8', page:'reports', anchor:'emrl-section',
-    desc:'Searchable equipment repair history. Lives at the bottom of the Reports tab.' },
+  { code:'FRM-030-003', name:'Maintenance Repair Log', docKey:'repairLog', clause:'SQF 13.2.8', page:'closed',
+    desc:'Closed-ticket repair history — the record of completed maintenance repairs. Open Closed Tickets to search it.' },
   { code:'FRM-030-004', name:'Temp Fix Monitor Log', docKey:'tempRepairLog', clause:'SQF 2.10 / 11.2.13', page:'tempfix',
     desc:'Active/expired temporary-fix log with deadline tracking. Open Temp Fix Monitor to view.' },
   { code:'FRM-030-005', name:'Temp Fix Inspection Form', docKey:'tempFixInspection', clause:'SQF 2.10 / 11.2.13', page:'tempfix',
@@ -55,6 +55,8 @@ var _SQF_FORMS_ = [
     desc:'Raise a maintenance ticket. The New Ticket form is the digital Maintenance Repair Request.' },
   { code:'FRM-030-009', name:'Maintenance Repair Service Ticket', docKey:'serviceReport', clause:'SQF 2.13', page:'closed',
     desc:'Open a closed ticket and click "Service Report" to view / print the signed repair record.' },
+  { code:'FRM-030-010', name:'Equipment Maintenance Repair Log (EMRL)', docKey:'emrlReport', clause:'SQF 13.2.8', page:'reports', anchor:'emrl-section',
+    desc:'Searchable equipment repair history. Lives at the bottom of the Reports tab.' },
   { code:'SQF 13.2.8', name:'Reports & Analytics', clause:'Maintenance review', page:'reports',
     desc:'KPIs, equipment-risk heatmaps, team workload and the SQF compliance pack.' }
 ];

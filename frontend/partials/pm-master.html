@@ -651,7 +651,7 @@ function _pmRenderSched_(id) {
 
   var docref = '<div class="pm-docref">' + (docLabel('pmSchedule') || 'FRM-030-002 · PM Schedule Master · Rev 0') + '</div>';
 
-  document.getElementById('pm-sched-body').innerHTML = kpis + defSection + partsSection + tasksSection + toolsSafety + histSection + docref;
+  document.getElementById('pm-sched-body').innerHTML = docref + kpis + defSection + partsSection + tasksSection + toolsSafety + histSection;
 }
 
 /* Register link */
@@ -836,11 +836,11 @@ function _pmRenderTicket_(no) {
       return '<div class="pm-tl-item"><div class="pm-tl-dot"></div><div><div style="font-size:12px;font-weight:600;color:var(--text-primary);">' + esc(e.label) + ' <span style="font-weight:400;color:var(--text-tertiary);">· ' + esc(e.ts) + '</span></div><div style="font-size:12px;color:var(--text-secondary);margin-top:1px;">' + esc(e.body) + '</div></div></div>';
     }).join('') + '</div></div>';
 
-  var docFooter = '<div style="font-size:10.5px;color:var(--text-tertiary);font-family:var(--font-mono);margin-top:20px;padding-top:12px;border-top:1px solid var(--border-default);">' +
+  var docFooter = '<div style="font-size:10.5px;color:var(--text-tertiary);font-family:var(--font-mono);margin-bottom:20px;padding-bottom:12px;border-bottom:1px solid var(--border-default);">' +
     (typeof docLabel === 'function' ? (docLabel('pmPacket') || 'FRM-030-007 &middot; Preventative Maintenance Packet &middot; Rev 0') : 'FRM-030-007 &middot; Preventative Maintenance Packet &middot; Rev 0') +
     '</div>';
 
-  document.getElementById('pm-ticket-body').innerHTML = info + checkSection + partsTools + timeline + docFooter;
+  document.getElementById('pm-ticket-body').innerHTML = docFooter + info + checkSection + partsTools + timeline;
 }
 function _pmToggleTask_(no, i) {
   var key = no + '::' + i;

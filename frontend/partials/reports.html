@@ -228,8 +228,7 @@ function _rptRenderCats_(data) {
     cat('distribution', meta.distribution.label, meta.distribution.desc,
         _rptStatusDistHtml_(data) + _rptProblemTypesHtml_(data) + _rptEquipHeatmapHtml_(data) + _rptBuildingHeatmapHtml_(data)) +
     cat('compliance',   meta.compliance.label,   meta.compliance.desc,
-        _rptSqfPackHtml_(data) + _rptEmrlHtml_()) +
-    '<div class="sqf-footer" style="margin-top:20px;"><span>' + esc(docLabel('repairLog') || 'FRM-030-003') + '</span><span>SQF 13.2.8 · Equipment Maintenance Repair Log</span><span class="grow">' + esc(window.COMPANY || 'CSC Maintenance') + '</span></div>';
+        _rptSqfPackHtml_(data) + _rptEmrlHtml_());
 }
 
 function _rptShowCat_(cat) {
@@ -665,7 +664,7 @@ function _rptSqfPackHtml_(data) {
 function _rptEmrlHtml_() {
   return '<div class="emrl-section">' +
     '<div class="emrl-section-hdr">SQF 13.2.8 — Equipment Maintenance Repair Log ' +
-      '<span class="emrl-badge">' + esc(docLabel('repairLog')) + '</span>' +
+      '<span class="emrl-badge">' + esc(docLabel('emrlReport')) + '</span>' +
     '</div>' +
     '<div class="emrl-filters">' +
       '<div class="emrl-filter-group"><label class="emrl-filter-label">Ticket #</label>' +

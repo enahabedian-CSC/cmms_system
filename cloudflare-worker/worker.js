@@ -857,6 +857,7 @@ async function handleMe(env, userEmail) {
     equipmentInventory: pick('Doc No (Equipment Inventory)','Rev (Equipment Inventory)','Rev Date (Equipment Inventory)','FRM-030-001', '0', '8/3/2026'), // new doc, placeholder date
     tempFixInspection:  pick('Doc No (Temp Fix Inspection)','Rev (Temp Fix Inspection)','Rev Date (Temp Fix Inspection)','FRM-030-005', '0', '8/3/2026'), // new doc, placeholder date
     newEquipmentApproval: pick('Doc No (New Equipment Approval)','Rev (New Equipment Approval)','Rev Date (New Equipment Approval)','FRM-030-006', '0', '8/3/2026'), // new doc, placeholder date, no linked page
+    emrlReport:         pick('Doc No (EMRL Report)',       'Rev (EMRL Report)',       'Rev Date (EMRL Report)',       'FRM-030-010', '0', '8/3/2026'), // new doc, placeholder date — Reports/EMRL search view, split from Closed Tickets' repairLog (FRM-030-003) per Izzy
   };
 
   const company = config['Company Name'] || 'Container Supply Co.';
