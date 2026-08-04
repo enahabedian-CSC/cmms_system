@@ -92,6 +92,18 @@ function _twbAge_(dateStr) {
   return { label: days + 'd', color: color, title: 'Opened: ' + dateStr };
 }
 
+// ── Joint dept extractor ─────────────────────────────────────────────────────
+// Returns comma-joined "(DEPT)" values from an assignedTo string, e.g. "ELEC, WELD"
+function _twbJointDeptLabel_(raw) {
+  if (!raw) return '';
+  var depts = [];
+  raw.split(',').forEach(function(s) {
+    var m = s.trim().match(/\(([^)]+)\)$/);
+    if (m) depts.push(m[1].trim());
+  });
+  return depts.join(', ');
+}
+
 // ── Name parser for grouping ─────────────────────────────────────────────────
 // Returns all individual names from a raw assignedTo string (primary + joint)
 function _twbParseNames_(raw) {
@@ -135,8 +147,11 @@ function _twbSnapshotFilters_() {
   if (!deptCbs.length && !priCbs.length && !staCbs.length) return;
   var srchEl = document.getElementById('twb-search');
   var fpBar  = document.getElementById('twb-fp-bar');
+  var hoEl = document.getElementById('twb-cb-hide-other');
+  var haEl = document.getElementById('twb-cb-hide-avail');
   var snap = { checkedDepts:[], knownDepts:[], checkedPris:[], checkedStas:[], knownStas:[],
-               search: srchEl ? srchEl.value : '', fpOpen: fpBar ? fpBar.classList.contains('fp-open') : true };
+               search: srchEl ? srchEl.value : '', fpOpen: fpBar ? fpBar.classList.contains('fp-open') : true,
+               hideOther: hoEl ? hoEl.checked : false, hideAvail: haEl ? haEl.checked : false };
   deptCbs.forEach(function(cb) { var v=cb.value.toUpperCase().trim(); snap.knownDepts.push(v); if(cb.checked) snap.checkedDepts.push(v); });
   priCbs.forEach(function(cb)  { if(cb.checked) snap.checkedPris.push(cb.value); });
   staCbs.forEach(function(cb)  { snap.knownStas.push(cb.value); if(cb.checked) snap.checkedStas.push(cb.value); });
@@ -220,6 +235,15 @@ function _renderTechBoard_(data, container) {
               '<div class="fp-checks">' + buildStaChips() + '</div>' +
             '</div>'
           : '') +
+        (isManager
+          ? '<div class="fp-group">' +
+              '<div class="fp-glabel">View Options</div>' +
+              '<div class="fp-checks">' +
+                '<label class="fp-chip"><input type="checkbox" id="twb-cb-hide-other" onchange="_fpChip_(this);_twbApply_()"> My dept only</label>' +
+                '<label class="fp-chip"><input type="checkbox" id="twb-cb-hide-avail" onchange="_fpChip_(this);_twbApply_()"> Hide available</label>' +
+              '</div>' +
+            '</div>'
+          : '') +
       '</div>' +
     '</div>';
 
@@ -258,6 +282,10 @@ function _renderTechBoard_(data, container) {
     if (fpBarEl) fpBarEl.classList.toggle('fp-open', snap.fpOpen);
     var fpBtn = document.getElementById('twb-fp-toggle');
     if (fpBtn) fpBtn.classList.toggle('fp-active', snap.fpOpen);
+    var rhoEl = document.getElementById('twb-cb-hide-other');
+    if (rhoEl) { rhoEl.checked = !!snap.hideOther; window._fpChip_(rhoEl); }
+    var rhaEl = document.getElementById('twb-cb-hide-avail');
+    if (rhaEl) { rhaEl.checked = !!snap.hideAvail; window._fpChip_(rhaEl); }
     _twbSavedFilters_ = null;
   }
 
@@ -278,6 +306,11 @@ function _twbApply_() {
   priCbs.forEach(function(cb)  { if (cb.checked) checkedPris.push(cb.value); });
   staCbs.forEach(function(cb)  { if (cb.checked) checkedStas.push(cb.value); });
 
+  var hideOtherEl = document.getElementById('twb-cb-hide-other');
+  var hideAvailEl = document.getElementById('twb-cb-hide-avail');
+  var hideOtherDept = hideOtherEl ? hideOtherEl.checked : false;
+  var hideAvail     = hideAvailEl ? hideAvailEl.checked : false;
+
   var list = (_twbData_.tickets || []).filter(function(t) {
     if (checkedDepts.length && checkedDepts.indexOf((t.dept || '').toUpperCase().trim()) < 0) return false;
     if (checkedPris.length  && checkedPris.indexOf(t.priority) < 0) return false;
@@ -291,7 +324,7 @@ function _twbApply_() {
   });
 
   if (_twbSortState_.field) list = _twbSorted_(list, _twbSortState_.field, _twbSortState_.dir);
-  _twbRender_(list, _twbData_.isManager, _twbData_.techs || []);
+  _twbRender_(list, _twbData_.isManager, _twbData_.techs || [], hideOtherDept, hideAvail);
 
   // Update filter badge
   var nActive = 0;
@@ -299,13 +332,15 @@ function _twbApply_() {
   if (checkedPris.length > 0 && checkedPris.length < 4)       nActive++;
   if (staCbs.length && checkedStas.length < staCbs.length)    nActive++;
   if (qv)                                                      nActive++;
+  if (hideOtherDept)                                           nActive++;
+  if (hideAvail)                                               nActive++;
   var btn   = document.getElementById('twb-fp-toggle');
   var badge = document.getElementById('twb-fp-badge');
   if (btn)   btn.classList.toggle('fp-active', nActive > 0 || document.getElementById('twb-fp-bar').classList.contains('fp-open'));
   if (badge) { badge.textContent = nActive; badge.style.display = nActive > 0 ? '' : 'none'; }
 }
 
-function _twbRender_(tickets, isManager, allTechs) {
+function _twbRender_(tickets, isManager, allTechs, hideOtherDept, hideAvail) {
   var body  = document.getElementById('twb-body');
   var cntEl = document.getElementById('twb-cnt');
   if (!body) return;
@@ -355,6 +390,20 @@ function _twbRender_(tickets, isManager, allTechs) {
     var bOwned = ownedNorm.indexOf((groups[b].dept || '').toUpperCase().trim()) >= 0 ? 0 : 1;
     return aOwned !== bOwned ? aOwned - bOwned : a.localeCompare(b);
   });
+
+  // Tech-card-level filters (applied after grouping so all tickets are counted first)
+  if (hideOtherDept) {
+    techNames = techNames.filter(function(name) {
+      var d = (groups[name].dept || '').toUpperCase().trim();
+      // Keep techs with unknown dept (joint assignments not in roster) and own-dept techs
+      return !d || ownedNorm.indexOf(d) >= 0;
+    });
+  }
+  if (hideAvail) {
+    techNames = techNames.filter(function(name) {
+      return groups[name].tickets.length > 0;
+    });
+  }
 
   if (techNames.length === 0 && unassigned.length === 0) {
     body.innerHTML = '<div class="twb-empty">No active tickets for your departments.</div>';
@@ -416,6 +465,7 @@ function _twbTableHead_(showDept) {
     _twbTh_('priority','Priority') +
     _twbTh_('status','Status') +
     (showDept ? _twbTh_('dept','Dept') : '') +
+    '<th>Joint Dept</th>' +
     _twbTh_('specificEquip','Equipment') +
     _twbTh_('description','Description') +
     _twbTh_('estHours','Est Hrs') +
@@ -431,6 +481,7 @@ function _twbRow_(t, showDept) {
     '<td><span class="pri-badge pri-' + esc(t.priority || '') + '">' + esc(t.priority || '&#8212;') + '</span></td>' +
     '<td><span class="stat-badge stat-' + esc(t.status.replace(/\s+/g, '-')) + '">' + esc(t.status) + '</span></td>' +
     (showDept ? '<td>' + esc(t.dept) + '</td>' : '') +
+    '<td style="font-size:11.5px;color:var(--text-secondary);">' + esc(_twbJointDeptLabel_(t.assignedTo) || '—') + '</td>' +
     '<td class="col-equip" title="' + esc(t.equipCode ? t.equipCode + ' — ' + t.specificEquip : t.specificEquip) + '">' +
       (t.equipCode ? '<span style="font-family:var(--font-mono);font-size:11px;color:var(--text-secondary);">' + esc(t.equipCode) + '</span> ' : '') +
       esc(t.specificEquip) + '</td>' +
