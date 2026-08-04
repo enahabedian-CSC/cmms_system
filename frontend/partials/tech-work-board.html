@@ -348,7 +348,13 @@ function _twbRender_(tickets, isManager, allTechs) {
   });
 
   var html = '';
-  var techNames = Object.keys(groups).sort();
+  var ownedNorm = (_twbData_._normOwned || []);   // already upper-cased
+  var techNames = Object.keys(groups).sort(function(a, b) {
+    // Own-dept techs float to top; within each tier sort alphabetically
+    var aOwned = ownedNorm.indexOf((groups[a].dept || '').toUpperCase().trim()) >= 0 ? 0 : 1;
+    var bOwned = ownedNorm.indexOf((groups[b].dept || '').toUpperCase().trim()) >= 0 ? 0 : 1;
+    return aOwned !== bOwned ? aOwned - bOwned : a.localeCompare(b);
+  });
 
   if (techNames.length === 0 && unassigned.length === 0) {
     body.innerHTML = '<div class="twb-empty">No active tickets for your departments.</div>';
@@ -406,6 +412,7 @@ function _twbRender_(tickets, isManager, allTechs) {
 function _twbTableHead_(showDept) {
   return '<thead><tr>' +
     _twbTh_('ticketNo','Ticket #') +
+    _twbTh_('dateOpened','Date Opened') +
     _twbTh_('priority','Priority') +
     _twbTh_('status','Status') +
     (showDept ? _twbTh_('dept','Dept') : '') +
@@ -420,6 +427,7 @@ function _twbRow_(t, showDept) {
   var age = _twbAge_(t.dateOpened);
   return '<tr onclick="openTicketDetail(\'' + esc(t.ticketNo) + '\')">' +
     '<td class="col-tn">' + esc(t.ticketNo) + '</td>' +
+    '<td style="font-size:11.5px;white-space:nowrap;color:var(--text-secondary);">' + esc(t.dateOpened || '—') + '</td>' +
     '<td><span class="pri-badge pri-' + esc(t.priority || '') + '">' + esc(t.priority || '&#8212;') + '</span></td>' +
     '<td><span class="stat-badge stat-' + esc(t.status.replace(/\s+/g, '-')) + '">' + esc(t.status) + '</span></td>' +
     (showDept ? '<td>' + esc(t.dept) + '</td>' : '') +
