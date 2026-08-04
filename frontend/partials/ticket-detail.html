@@ -93,6 +93,7 @@
 .td-modal{background:#fff;border-radius:12px;padding:24px;width:440px;max-width:95vw;max-height:90vh;overflow-y:auto;box-shadow:var(--shadow-lg);}
 .td-modal h3{font-size:14px;font-weight:700;color:var(--text-primary);margin:0 0 14px 0;}
 .td-modal .form-group{margin-bottom:12px;}
+.ma-wrap{display:flex;flex-wrap:wrap;gap:4px;max-height:150px;overflow-y:auto;padding:2px 0;border:1px solid var(--border-default);border-radius:6px;padding:6px;}
 .td-modal label{font-size:11.5px;font-weight:600;color:var(--text-secondary);display:block;margin-bottom:4px;}
 .td-modal input,.td-modal select,.td-modal textarea{width:100%;padding:7px 10px;border:1px solid var(--border-default);border-radius:6px;font-size:13px;font-family:inherit;}
 .td-modal textarea{height:72px;resize:vertical;}
@@ -617,14 +618,14 @@ function _tdApprove_() {
     '<div class="form-group"><label>Priority</label>' +
     '<select id="ma-priority"><option value="LOW">LOW</option><option value="MEDIUM" selected>MEDIUM</option><option value="HIGH">HIGH</option><option value="CRITICAL">CRITICAL</option></select></div>' +
     '<div class="form-group"><label>Assign To (optional)</label>' +
-    '<select id="ma-assign"><option value="">— Unassigned —</option>' + _techOptions_() + '</select></div>' +
+    window._multiAssignHtml_(window._tdTechs_ || [], t.assignedTo, 'ma-ap-wrap') + '</div>' +
     '<div class="form-group"><label>Est. Hours (optional)</label><input id="ma-hours" type="number" min="0" step="0.5" /></div>' +
     '<div class="form-group"><label>Notes (optional)</label><textarea id="ma-notes"></textarea></div>',
     function() {
       var data = {
         ticketNo:   t.ticketNo,
         priority:   document.getElementById('ma-priority').value,
-        assignedTo: document.getElementById('ma-assign').value,
+        assignedTo: window._collectAssignedNames_('ma-ap-wrap'),
         estHours:   document.getElementById('ma-hours').value,
         notes:      document.getElementById('ma-notes').value,
         updatedBy:  USER.displayName
@@ -949,12 +950,8 @@ function _tdUpdate_() {
         return '<option value="' + esc(p) + '"' + (p === t.priority ? ' selected' : '') + '>' + esc(p) + '</option>';
       }).join('') +
       '</select></div>' +
-      '<div class="form-group"><label>Assign To</label><select id="up-assign">' +
-      '<option value="">— Unassigned —</option>' +
-      (window._tdTechs_ || []).map(function(name) {
-        return '<option value="' + esc(name) + '"' + (name === t.assignedTo ? ' selected' : '') + '>' + esc(name) + '</option>';
-      }).join('') +
-      '</select></div>' +
+      '<div class="form-group"><label>Assign To</label>' +
+      window._multiAssignHtml_(window._tdTechs_ || [], t.assignedTo, 'up-ap-wrap') + '</div>' +
       '<div class="form-group"><label>Est. Hours</label>' +
       '<input id="up-hours" type="number" min="0" step="0.5" value="' + esc(String(t.estHours || '')) + '" /></div>';
   }
@@ -971,7 +968,9 @@ function _tdUpdate_() {
         var statusEl = document.getElementById('up-status');
         if (statusEl) data.status = statusEl.value;
         data.priority   = document.getElementById('up-priority').value;
-        data.assignedTo = document.getElementById('up-assign').value;
+        var _upNames_ = window._collectAssignedNames_('up-ap-wrap');
+        var _upJoint_ = window._jointPart_(t.assignedTo);
+        data.assignedTo = [_upNames_, _upJoint_].filter(Boolean).join(', ');
         data.estHours   = document.getElementById('up-hours').value;
       }
       _tdRunAction_(updateTicket, data, 'Updated');
@@ -997,11 +996,8 @@ function _tdEditSectionImpl_(section) {
       ['LOW','MEDIUM','HIGH','CRITICAL'].map(function(p) {
         return '<option value="' + p + '"' + (p === t.priority ? ' selected' : '') + '>' + p + '</option>';
       }).join('') + '</select></div>' +
-      '<div class="form-group"><label>Assigned To</label><select id="ef-assignedTo">' +
-      '<option value="">— Unassigned —</option>' +
-      (window._tdTechs_ || []).map(function(n) {
-        return '<option value="' + esc(n) + '"' + (n === t.assignedTo ? ' selected' : '') + '>' + esc(n) + '</option>';
-      }).join('') + '</select></div>' +
+      '<div class="form-group"><label>Assigned To</label>' +
+      window._multiAssignHtml_(window._tdTechs_ || [], t.assignedTo, 'ef-ap-wrap') + '</div>' +
       '<div class="form-group"><label>Est. Hours</label>' +
       '<input id="ef-estHours" type="number" min="0" step="0.5" value="' + esc(String(t.estHours || '')) + '" /></div>' +
       '<div class="form-group"><label>Actual Hours</label>' +
@@ -1063,7 +1059,9 @@ function _tdEditSectionImpl_(section) {
     var data = { ticketNo: t.ticketNo, section: section, updatedBy: USER.displayName };
     if (section === 'overview') {
       data.priority     = document.getElementById('ef-priority').value;
-      data.assignedTo   = document.getElementById('ef-assignedTo').value;
+      var _efNames_ = window._collectAssignedNames_('ef-ap-wrap');
+      var _efJoint_ = window._jointPart_(t.assignedTo);
+      data.assignedTo   = [_efNames_, _efJoint_].filter(Boolean).join(', ');
       data.estHours     = document.getElementById('ef-estHours').value;
       data.actualHours  = document.getElementById('ef-actualHours').value;
       data.downtimeType = document.getElementById('ef-downtimeType').value;

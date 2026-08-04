@@ -74,19 +74,18 @@ const EHL_COLS = 19;
 // ASSIGNED_TO is comma-separated when joint depts are involved.
 // Primary tech has no label; joint entries are formatted "Name (DEPT)".
 function _parseAssignedTo_(raw) {
-  const joint = {};
-  let primary = '';
+  const joint = {}, primaries = [];
   (raw || '').split(',').forEach(e => {
     const s = e.trim();
     const m = s.match(/^(.+?)\s*\(([^)]+)\)$/);
     if (m) joint[m[2].trim().toUpperCase()] = m[1].trim();
-    else if (s) primary = s;
+    else if (s) primaries.push(s);
   });
-  return { primary, joint };
+  return { primaries, primary: primaries[0] || '', joint };
 }
-function _buildAssignedTo_(primary, joint) {
-  const parts = [];
-  if (primary) parts.push(primary);
+function _buildAssignedTo_(primaries, joint) {
+  const arr = Array.isArray(primaries) ? primaries : (primaries ? [primaries] : []);
+  const parts = arr.filter(Boolean);
   for (const [dept, tech] of Object.entries(joint)) {
     if (tech) parts.push(tech + ' (' + dept + ')');
   }
@@ -3002,7 +3001,7 @@ async function handleJointAssign(env, userEmail, body) {
   const parsed = _parseAssignedTo_(cellStr(best, ML.ASSIGNED_TO));
   if (assignedTo) parsed.joint[dept] = assignedTo;
   else delete parsed.joint[dept];
-  const newAssignedTo = _buildAssignedTo_(parsed.primary, parsed.joint);
+  const newAssignedTo = _buildAssignedTo_(parsed.primaries, parsed.joint);
 
   await appendMasterLog(token, env, {
     ticketNo, now: new Date(),
@@ -3334,17 +3333,20 @@ async function handleAssignTicket(env, userEmail, body) {
   const ticketNo  = String(body.ticketNo  || '').trim();
   if (!ticketNo) return jsonResponse({ error: 'ticketNo required' }, 400);
   const updatedBy  = String(body.updatedBy || user.displayName).trim();
-  const primaryTech = String(body.assignedTo || '').trim();
+  // Accept array or comma-separated string of primary techs.
+  const primaries = Array.isArray(body.assignedTo)
+    ? body.assignedTo.map(s => String(s).trim()).filter(Boolean)
+    : String(body.assignedTo || '').split(',').map(s => s.trim()).filter(Boolean);
   // Preserve any existing joint-dept entries in the comma-separated ASSIGNED_TO field.
   const best = await _ticketState_(token, env, ticketNo);
-  const parsed = best ? _parseAssignedTo_(cellStr(best, ML.ASSIGNED_TO)) : { primary: '', joint: {} };
-  parsed.primary = primaryTech;
-  const newAssignedTo = _buildAssignedTo_(parsed.primary, parsed.joint);
+  const parsed = best ? _parseAssignedTo_(cellStr(best, ML.ASSIGNED_TO)) : { primaries: [], joint: {} };
+  parsed.primaries = primaries;
+  const newAssignedTo = _buildAssignedTo_(parsed.primaries, parsed.joint);
   await appendMasterLog(token, env, {
     ticketNo, now: new Date(), action: 'ASSIGNED',
     assignedTo: newAssignedTo, estHours: body.estHours || '', updatedBy,
   });
-  await appendTicketHistory(token, env, ticketNo, 'ASSIGNED', '', '', updatedBy, 'Assigned to: ' + (primaryTech || 'Unassigned'));
+  await appendTicketHistory(token, env, ticketNo, 'ASSIGNED', '', '', updatedBy, 'Assigned to: ' + (primaries.join(', ') || 'Unassigned'));
   return jsonResponse({ success: true, ticketNo });
 }
 

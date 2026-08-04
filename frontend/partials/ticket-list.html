@@ -46,10 +46,9 @@
 .tl-quickapprove-btn:disabled{opacity:.5;cursor:default;}
 .tl-joint-btn{background:none;border:1px solid #FDE68A;border-radius:5px;padding:3px 6px;cursor:pointer;font-size:12px;color:#78350F;line-height:1;transition:background .1s,border-color .1s;margin-right:3px;}
 .tl-joint-btn:hover{background:#FEF9C3;border-color:#F59E0B;}
-.tl-assign-pop{position:fixed;z-index:9999;background:#fff;border:1px solid var(--border-strong);border-radius:8px;box-shadow:0 4px 16px rgba(0,0,0,.13);padding:10px;display:flex;flex-direction:column;gap:7px;min-width:200px;}
-.tl-assign-pop select{height:30px;padding:0 8px;border:1px solid var(--border-default);border-radius:5px;font-size:12.5px;color:var(--text-primary);background:#fff;outline:none;width:100%;}
-.tl-assign-pop select:focus{border-color:var(--brand-navy);}
+.tl-assign-pop{position:fixed;z-index:9999;background:#fff;border:1px solid var(--border-strong);border-radius:8px;box-shadow:0 4px 16px rgba(0,0,0,.13);padding:10px;display:flex;flex-direction:column;gap:7px;min-width:240px;max-width:320px;}
 .tl-assign-pop-btns{display:flex;gap:6px;}
+.ma-wrap{display:flex;flex-wrap:wrap;gap:4px;max-height:160px;overflow-y:auto;padding:2px 0;}
 .tl-assign-pop-btns button{flex:1;height:28px;border-radius:5px;font-size:12px;font-weight:600;cursor:pointer;border:none;}
 .tl-ap-confirm{background:var(--brand-navy);color:#fff;}
 .tl-ap-confirm:hover{background:var(--brand-navy-soft);}
@@ -813,6 +812,36 @@ _TRACKER_DEPTS_.forEach(function(td) {
   })(td.id, td.dept);
 });
 
+// ── Multi-assign helpers (shared globals — used by ticket-list and ticket-detail) ─
+window._primaryPart_ = function(raw) {
+  return (raw || '').split(',').filter(function(s) {
+    s = s.trim(); return s && !/\([^)]+\)$/.test(s);
+  }).map(function(s) { return s.trim(); });
+};
+window._jointPart_ = function(raw) {
+  return (raw || '').split(',').filter(function(s) {
+    return /\([^)]+\)$/.test(s.trim());
+  }).map(function(s) { return s.trim(); }).join(', ');
+};
+window._collectAssignedNames_ = function(idPrefix) {
+  var el = document.getElementById(idPrefix);
+  if (!el) return '';
+  var names = [];
+  el.querySelectorAll('input.ma-cb:checked').forEach(function(cb) { names.push(cb.value); });
+  return names.join(', ');
+};
+window._multiAssignHtml_ = function(techs, currentVal, idPrefix) {
+  var current = window._primaryPart_(currentVal);
+  var chips = (techs || []).map(function(name) {
+    var chk = current.indexOf(name) >= 0;
+    return '<label class="fp-chip' + (chk ? ' fp-checked' : '') + '">' +
+      '<input type="checkbox" class="ma-cb" value="' + esc(name) + '"' +
+      (chk ? ' checked' : '') + ' onchange="_fpChip_(this)">' +
+      esc(name) + '</label>';
+  }).join('');
+  return '<div class="ma-wrap" id="' + idPrefix + '">' + (chips || '<span style="color:var(--text-secondary);font-size:12px;">No technicians found</span>') + '</div>';
+};
+
 // ── Quick-assign popover ──────────────────────────────────────────────────────
 var _tlTechs_   = null;   // cached people list
 var _tlActivePop_ = null; // currently open popover element
@@ -829,13 +858,14 @@ function _tlShowAssignPop_(btn, ticketNo) {
   _tlClosePop_();
 
   function _renderPop_(techs) {
+    var cell = document.querySelector('.tl-assignee-cell[data-ticket="' + ticketNo + '"]');
+    var curVal = cell ? cell.textContent.trim() : '';
     var pop = document.createElement('div');
     pop.className = 'tl-assign-pop';
-    var opts = '<option value="">— Unassign —</option>' +
-      techs.map(function(n) { return '<option>' + esc(n) + '</option>'; }).join('');
     pop.innerHTML =
-      '<div style="font-size:11px;font-weight:600;color:var(--text-secondary);margin-bottom:2px;">Assign: ' + esc(ticketNo) + '</div>' +
-      '<select id="tl-pop-sel">' + opts + '</select>' +
+      '<div style="font-size:11px;font-weight:600;color:var(--text-secondary);margin-bottom:4px;">Assign: ' + esc(ticketNo) + '</div>' +
+      window._multiAssignHtml_(techs, curVal === '—' ? '' : curVal, 'tl-ap-wrap') +
+      '<a href="#" style="font-size:11px;color:var(--text-secondary);" onclick="event.preventDefault();document.querySelectorAll(\'#tl-ap-wrap .ma-cb\').forEach(function(c){c.checked=false;window._fpChip_(c);})">Unassign all</a>' +
       '<div class="tl-assign-pop-btns">' +
         '<button class="tl-ap-confirm" onclick="_tlConfirmAssign_(\'' + esc(ticketNo) + '\')">Assign</button>' +
         '<button class="tl-ap-cancel" onclick="_tlClosePop_()">Cancel</button>' +
@@ -843,10 +873,9 @@ function _tlShowAssignPop_(btn, ticketNo) {
 
     var rect = btn.getBoundingClientRect();
     pop.style.top  = (rect.bottom + 4) + 'px';
-    pop.style.left = Math.max(4, rect.right - 210) + 'px';
+    pop.style.left = Math.max(4, rect.right - 250) + 'px';
     document.body.appendChild(pop);
     _tlActivePop_ = pop;
-    pop.querySelector('select').focus();
   }
 
   if (_tlTechs_) { _renderPop_(_tlTechs_); return; }
@@ -861,23 +890,20 @@ function _tlShowAssignPop_(btn, ticketNo) {
 }
 
 function _tlConfirmAssign_(ticketNo) {
-  var sel = document.getElementById('tl-pop-sel');
-  if (!sel) return;
-  var tech = sel.value.trim();
-  var btn  = _tlActivePop_ ? _tlActivePop_.querySelector('.tl-ap-confirm') : null;
+  var names = window._collectAssignedNames_('tl-ap-wrap');
+  var btn   = _tlActivePop_ ? _tlActivePop_.querySelector('.tl-ap-confirm') : null;
   if (btn) { btn.disabled = true; btn.textContent = '…'; }
 
   fetch(WORKER_URL + '/api/tickets/assign', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'X-User-Email': USER ? USER.email : '' },
-    body: JSON.stringify({ ticketNo: ticketNo, assignedTo: tech, updatedBy: USER ? (USER.name || USER.email) : '' })
+    body: JSON.stringify({ ticketNo: ticketNo, assignedTo: names, updatedBy: USER ? (USER.name || USER.email) : '' })
   })
   .then(function(r) { return r.json(); })
   .then(function(d) {
     if (d.error) throw new Error(d.error);
-    // update the assignee cell in the row without a full reload
     var cell = document.querySelector('.tl-assignee-cell[data-ticket="' + ticketNo + '"]');
-    if (cell) cell.textContent = tech || '—';
+    if (cell) cell.textContent = names || '—';
     _tlClosePop_();
   })
   .catch(function(err) {
