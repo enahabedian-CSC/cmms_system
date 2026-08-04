@@ -883,7 +883,7 @@ function _tlShowAssignPop_(btn, ticketNo) {
   fetch(WORKER_URL + '/api/submit/form-data', { headers: { 'X-User-Email': USER ? USER.email : '' } })
     .then(function(r) { return r.json(); })
     .then(function(d) {
-      _tlTechs_ = Array.isArray(d.peopleList) ? d.peopleList : [];
+      _tlTechs_ = (Array.isArray(d.peopleList) ? d.peopleList : []).sort();
       _renderPop_(_tlTechs_);
     })
     .catch(function() { _tlTechs_ = []; _renderPop_([]); });

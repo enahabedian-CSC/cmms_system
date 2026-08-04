@@ -1750,7 +1750,7 @@ function _tdEnsureTechs_(cb) {
   if (window._tdTechs_ && window._tdTechs_.length) { cb(); return; }
   fetch(WORKER_URL + '/api/submit/form-data', { headers: { 'X-User-Email': USER ? USER.email : '' } })
     .then(function(r) { return r.json(); })
-    .then(function(d) { window._tdTechs_ = Array.isArray(d.peopleList) ? d.peopleList : []; cb(); })
+    .then(function(d) { window._tdTechs_ = (Array.isArray(d.peopleList) ? d.peopleList : []).sort(); cb(); })
     .catch(function() { window._tdTechs_ = []; cb(); });
 }
 
