@@ -3519,8 +3519,12 @@ async function handleEditTicketFields(env, userEmail, body) {
   };
 
   // Apply only the fields that were submitted for this section
+  const EDITABLE_STATUSES = new Set(['OPEN','ON HOLD','PENDING PARTS','PENDING VERIFICATION','WAITING','CLOSED','VOIDED']);
+  if (body.status !== undefined && !EDITABLE_STATUSES.has(body.status))
+    return jsonResponse({ error: 'Invalid status: ' + body.status }, 400);
+
   const editable = [
-    'priority','assignedTo','estHours','actualHours','downtimeType','dept',
+    'status','priority','assignedTo','estHours','actualHours','downtimeType','dept',
     'equipType','equipCode','specificEquip','buildingZone','lineNo',
     'problemType','description','notes',
     'correctiveAct','rootCause','preventiveAct','fixType','permFixPlan','permFixDate',

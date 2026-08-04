@@ -932,14 +932,14 @@ function _tdUpdate_() {
   if (!t) return;
   _tdEnsureTechs_(function() {
   var isManager = USER.isManager;
-  var canChangeStatus = ['OPEN', 'ON HOLD', 'PENDING PARTS'].indexOf(t.status) >= 0;
+  var canChangeStatus = ['CLOSED','VOIDED'].indexOf(t.status) < 0;
 
   var managerFields = '';
   if (isManager) {
     if (canChangeStatus) {
       managerFields +=
         '<div class="form-group"><label>Status</label><select id="up-status">' +
-        ['OPEN', 'ON HOLD', 'PENDING PARTS'].map(function(s) {
+        ['OPEN', 'ON HOLD', 'PENDING PARTS', 'PENDING VERIFICATION', 'WAITING'].map(function(s) {
           return '<option value="' + esc(s) + '"' + (s === t.status ? ' selected' : '') + '>' + esc(s) + '</option>';
         }).join('') +
         '</select></div>';
@@ -992,6 +992,10 @@ function _tdEditSectionImpl_(section) {
   if (section === 'overview') {
     title = 'Edit Overview — ' + esc(t.ticketNo);
     body =
+      '<div class="form-group"><label>Status</label><select id="ef-status">' +
+      (['CLOSED','VOIDED'].indexOf(t.status) >= 0 ? [t.status] : ['OPEN','ON HOLD','PENDING PARTS','PENDING VERIFICATION','WAITING']).map(function(s) {
+        return '<option value="' + esc(s) + '"' + (s === t.status ? ' selected' : '') + '>' + esc(s) + '</option>';
+      }).join('') + '</select></div>' +
       '<div class="form-group"><label>Priority</label><select id="ef-priority">' +
       ['LOW','MEDIUM','HIGH','CRITICAL'].map(function(p) {
         return '<option value="' + p + '"' + (p === t.priority ? ' selected' : '') + '>' + p + '</option>';
@@ -1058,6 +1062,7 @@ function _tdEditSectionImpl_(section) {
   _showModal_(title, body, function() {
     var data = { ticketNo: t.ticketNo, section: section, updatedBy: USER.displayName };
     if (section === 'overview') {
+      data.status       = document.getElementById('ef-status').value;
       data.priority     = document.getElementById('ef-priority').value;
       var _efNames_ = window._collectAssignedNames_('ef-ap-wrap');
       var _efJoint_ = window._jointPart_(t.assignedTo);
