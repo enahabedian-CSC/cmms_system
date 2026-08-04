@@ -4764,7 +4764,14 @@ async function handleTechWorkBoard(env, userEmail) {
   const isTech = user.isTech;
   if (!user.isManager && !isTech) return jsonResponse({ error: 'Access required' }, 403);
 
-  const mlRows = await readSheet(token, env.SPREADSHEET_ID, SH.MASTER_LOG, 'A2:AQ');
+  // Fetch master log and (for managers) tech directory in parallel
+  const [mlRows, techRowsRaw] = await Promise.all([
+    readSheet(token, env.SPREADSHEET_ID, SH.MASTER_LOG, 'A2:AQ'),
+    user.isManager
+      ? readSheet(token, env.SPREADSHEET_ID, SH.TECH_DIR, 'A4:D200').catch(() => [])
+      : Promise.resolve([]),
+  ]);
+
   const ACTIVE = ['WAITING','OPEN','PENDING VERIFICATION','PENDING PARTS','ON HOLD'];
   const byTicket = {};
   mlRows.forEach(r => {
@@ -4783,12 +4790,8 @@ async function handleTechWorkBoard(env, userEmail) {
     if (user.isManager) {
       if (!user.isAdmin && !allowed(user, dept)) return;
     } else {
-      // ASSIGNED_TO is comma-separated on joint-dept tickets ("Name (DEPT), Name2
-      // (DEPT2)") — an exact-string match against the whole cell misses a tech
-      // who's on a joint ticket alongside someone else. Parse it the same way
-      // the rest of the app does before checking for a match.
-      const { primary, joint } = _parseAssignedTo_(techAt);
-      const names = [primary, ...Object.values(joint)].filter(Boolean).map(n => n.toLowerCase());
+      const { primaries, joint } = _parseAssignedTo_(techAt);
+      const names = [...primaries, ...Object.values(joint)].filter(Boolean).map(n => n.toLowerCase());
       if (!names.some(n => n === user.displayName.toLowerCase() || n === emailLocal)) return;
     }
     tickets.push({
@@ -4803,7 +4806,22 @@ async function handleTechWorkBoard(env, userEmail) {
     const pa = prioOrder[a.priority] ?? 4, pb = prioOrder[b.priority] ?? 4;
     return pa !== pb ? pa - pb : (b.dateOpened || '').localeCompare(a.dateOpened || '');
   });
-  return jsonResponse({ isManager: user.isManager, userDisplayName: user.displayName, tickets, userOwnedDepts: user.ownedDepts || [] });
+
+  // Build tech roster for manager view (so all employees appear even with zero tickets)
+  const seenTechs = new Set();
+  const techs = [];
+  techRowsRaw.forEach(r => {
+    const name   = String(r[0] || '').trim();
+    const dept   = normalizeDept(String(r[2] || '').trim());
+    const active = String(r[3] ?? 'Y').trim().toUpperCase() !== 'N';
+    if (!name || !active || seenTechs.has(name)) return;
+    if (!user.isAdmin && !allowed(user, dept)) return;
+    seenTechs.add(name);
+    techs.push({ name, dept });
+  });
+  techs.sort((a, b) => a.name.localeCompare(b.name));
+
+  return jsonResponse({ isManager: user.isManager, userDisplayName: user.displayName, tickets, userOwnedDepts: user.ownedDepts || [], techs });
 }
 
 // ── Tablet endpoints (no email auth — uses tech name from POST body) ─────────
