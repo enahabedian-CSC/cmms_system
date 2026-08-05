@@ -375,9 +375,10 @@ function _twbRender_(tickets, isManager, allTechs, hideOtherDept, hideAvail) {
   }
 
   // Manager view: group by individual assignee, pre-populate from allTechs roster
+  // fromRoster=true means the worker already confirmed this tech is in the manager's depts
   var groups = {};
   (allTechs || []).forEach(function(tech) {
-    if (!groups[tech.name]) groups[tech.name] = { tickets: [], dept: tech.dept };
+    if (!groups[tech.name]) groups[tech.name] = { tickets: [], dept: tech.dept, fromRoster: true };
   });
 
   var unassigned = [];
@@ -385,7 +386,7 @@ function _twbRender_(tickets, isManager, allTechs, hideOtherDept, hideAvail) {
     var names = _twbParseNames_(t.assignedTo);
     if (!names.length) { unassigned.push(t); return; }
     names.forEach(function(name) {
-      if (!groups[name]) groups[name] = { tickets: [], dept: '' };
+      if (!groups[name]) groups[name] = { tickets: [], dept: '', fromRoster: false };
       groups[name].tickets.push(t);
     });
   });
@@ -401,11 +402,8 @@ function _twbRender_(tickets, isManager, allTechs, hideOtherDept, hideAvail) {
 
   // Tech-card-level filters (applied after grouping so all tickets are counted first)
   if (hideOtherDept) {
-    techNames = techNames.filter(function(name) {
-      var d = (groups[name].dept || '').toUpperCase().trim();
-      // Keep techs with unknown dept (joint assignments not in roster) and own-dept techs
-      return !d || ownedNorm.indexOf(d) >= 0;
-    });
+    // Only keep techs who are in the manager's own roster (worker pre-filters roster to owned depts)
+    techNames = techNames.filter(function(name) { return groups[name].fromRoster; });
   }
   if (hideAvail) {
     techNames = techNames.filter(function(name) {
