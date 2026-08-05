@@ -4788,7 +4788,11 @@ async function handleTechWorkBoard(env, userEmail) {
     const dept   = normalizeDept(cellStr(r, ML.DEPT));
     const techAt = cellStr(r, ML.ASSIGNED_TO);
     if (user.isManager) {
-      if (!user.isAdmin && !allowed(user, dept)) return;
+      if (!user.isAdmin && !allowed(user, dept)) {
+        // Also include tickets where one of the manager's depts is a joint assignment
+        const { joint } = _parseAssignedTo_(techAt);
+        if (!Object.keys(joint).some(jd => allowed(user, jd))) return;
+      }
     } else {
       const { primaries, joint } = _parseAssignedTo_(techAt);
       const names = [...primaries, ...Object.values(joint)].filter(Boolean).map(n => n.toLowerCase());

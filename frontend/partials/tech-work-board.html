@@ -312,7 +312,15 @@ function _twbApply_() {
   var hideAvail     = hideAvailEl ? hideAvailEl.checked : false;
 
   var list = (_twbData_.tickets || []).filter(function(t) {
-    if (checkedDepts.length && checkedDepts.indexOf((t.dept || '').toUpperCase().trim()) < 0) return false;
+    if (checkedDepts.length) {
+      var tDept = (t.dept || '').toUpperCase().trim();
+      if (checkedDepts.indexOf(tDept) < 0) {
+        // Also pass if a joint assignment's dept matches a checked dept
+        var jDepts = _twbJointDeptLabel_(t.assignedTo).split(',')
+          .map(function(d) { return d.trim().toUpperCase(); }).filter(Boolean);
+        if (!jDepts.some(function(jd) { return checkedDepts.indexOf(jd) >= 0; })) return false;
+      }
+    }
     if (checkedPris.length  && checkedPris.indexOf(t.priority) < 0) return false;
     if (checkedStas.length  && checkedStas.indexOf(t.status)   < 0) return false;
     if (qv) {
